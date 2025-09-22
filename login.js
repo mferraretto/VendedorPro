@@ -506,6 +506,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-perfil-mentorado',
       'menu-equipes',
       'menu-produtos',
+      'menu-produtos-vendidos',
       'menu-sku-associado',
       'menu-desempenho',
     ],
