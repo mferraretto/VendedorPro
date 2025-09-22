@@ -1920,83 +1920,15 @@ await db
             progressText.textContent = '0%';
           }
 
-          const modalElements = {
-            container: document.getElementById('faturamentoMassaModal'),
-            progressBar: document.getElementById('faturamentoMassaModalProgressBar'),
-            progressText: document.getElementById('faturamentoMassaModalProgressText'),
-            instruction: document.getElementById('faturamentoMassaModalMessage'),
-            status: document.getElementById('faturamentoMassaModalStatus'),
-            close: document.getElementById('faturamentoMassaClose')
-          };
-
-          const hideMassaModal = () => {
-            if (modalElements.container) {
-              modalElements.container.style.display = 'none';
-              modalElements.container.classList.add('hidden');
-            }
-          };
-
-          const applyProgress = (pct) => {
-            const safePct = Number.isFinite(pct) ? Math.min(Math.max(pct, 0), 100) : 0;
-            if (progressBar) progressBar.style.width = safePct + '%';
-            if (progressText) progressText.textContent = safePct + '%';
-            if (modalElements.progressBar) modalElements.progressBar.style.width = safePct + '%';
-            if (modalElements.progressText) modalElements.progressText.textContent = safePct + '%';
-          };
-
-          const prepareMassaModal = () => {
-            if (modalElements.container) {
-              modalElements.container.style.display = 'block';
-              modalElements.container.classList.remove('hidden');
-            }
-            if (modalElements.instruction) {
-              modalElements.instruction.textContent = 'Não feche esta janela até finalizar.';
-              modalElements.instruction.classList.remove('text-green-600', 'text-red-600', 'font-semibold');
-              modalElements.instruction.classList.add('text-gray-600');
-            }
-            if (modalElements.status) {
-              modalElements.status.textContent = '';
-              modalElements.status.classList.add('hidden');
-              modalElements.status.classList.remove('bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
-            }
-            if (modalElements.close) {
-              modalElements.close.classList.add('hidden');
-              modalElements.close.disabled = true;
-              modalElements.close.setAttribute('aria-disabled', 'true');
-              modalElements.close.onclick = hideMassaModal;
-            }
-            applyProgress(0);
-          };
-
-          const finalizeMassaModal = (success, message) => {
-            if (modalElements.instruction) {
-              modalElements.instruction.classList.remove('text-gray-600', 'text-green-600', 'text-red-600', 'font-semibold');
-              modalElements.instruction.classList.add(success ? 'text-green-600' : 'text-red-600', 'font-semibold');
-              modalElements.instruction.textContent = success
-                ? 'Processamento finalizado. Você já pode fechar esta janela.'
-                : 'Não foi possível concluir o processamento.';
-            }
-            if (modalElements.status) {
-              modalElements.status.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
-              modalElements.status.classList.add(success ? 'bg-green-100' : 'bg-red-100', success ? 'text-green-700' : 'text-red-700');
-              modalElements.status.textContent = message;
-            }
-            if (modalElements.close) {
-              modalElements.close.classList.remove('hidden');
-              modalElements.close.disabled = false;
-              modalElements.close.removeAttribute('aria-disabled');
-              modalElements.close.focus();
-            }
-          };
-
-          prepareMassaModal();
-
           const totalRows = rows.length;
           let processedRows = 0;
           const updateProgress = async () => {
-            const pct = Math.round((processedRows / totalRows) * 100);
-            applyProgress(pct);
-            if (processedRows % 50 === 0) await new Promise(r => setTimeout(r, 0));
+            if (progressBar && progressText) {
+              const pct = Math.round((processedRows / totalRows) * 100);
+              progressBar.style.width = pct + '%';
+              progressText.textContent = pct + '%';
+              if (processedRows % 50 === 0) await new Promise(r => setTimeout(r, 0));
+            }
           };
 
           const grupos = {};
@@ -2101,7 +2033,6 @@ await db
 
           if (!Object.keys(grupos).length) {
             mostrarErro('Nenhum registro com data de pagamento foi encontrado.');
-            finalizeMassaModal(false, 'Nenhum registro com data de pagamento foi encontrado na planilha.');
             return;
           }
 
@@ -2424,6 +2355,11 @@ await db
             await notificarResponsavelFinanceiro(dataReferencia, loja, grupo.bruto, liquido, grupo.qtdVendas);
           }
 
+          if (progressBar && progressText) {
+            progressBar.style.width = '100%';
+            progressText.textContent = '100%';
+          }
+
           const sucesso = resultados.filter(r => r.status === 'ok');
           const ignorados = resultados.filter(r => r.status === 'ignorado');
 
@@ -2450,20 +2386,8 @@ await db
           }
 
           document.getElementById('resultadoFaturamento').innerHTML = html || '<div class="alert alert-info"><i class="fas fa-info-circle"></i> Nenhum faturamento foi processado.</div>';
-          applyProgress(100);
-          let mensagemFinal = '';
-          if (sucesso.length) {
-            mensagemFinal = `Foram processados ${sucesso.length} dia(s) com sucesso.`;
-          } else {
-            mensagemFinal = 'Processamento concluído, mas nenhum faturamento novo foi registrado.';
-          }
-          if (ignorados.length || rowsSemData.length) {
-            mensagemFinal += ' Verifique os avisos exibidos abaixo para mais detalhes.';
-          }
-          finalizeMassaModal(true, mensagemFinal.trim());
           input.value = '';
         } catch (err) {
-          finalizeMassaModal(false, 'Erro ao importar: ' + err.message);
           mostrarErro('Erro ao importar: ' + err.message);
           console.error(err);
         }
