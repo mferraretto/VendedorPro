@@ -1311,6 +1311,7 @@
         </div>
         <div class="expedicao-pdf-actions">
           <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
+          <button class="expedicao-card-btn" onclick="baixarArquivo('${encodeURIComponent(url || '')}', '${encodeURIComponent(name || 'Etiqueta')}')">Baixar</button>
           <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
@@ -1459,6 +1460,45 @@
       win.onload = () => win.document.getElementById('printFrame').contentWindow.print();
     }
     window.imprimir = imprimir;
+
+    async function baixarArquivo(urlEncoded, nomeEncoded) {
+      const url = decodeURIComponent(urlEncoded || '');
+      const nomeDecodificado = decodeURIComponent(nomeEncoded || 'Etiqueta');
+      const nomeArquivoBase = nomeDecodificado && nomeDecodificado.trim() ? nomeDecodificado.trim() : 'Etiqueta';
+      if (!url) {
+        showToast('Arquivo indisponível para download.');
+        return;
+      }
+      const nomeArquivoFinal = nomeArquivoBase.toLowerCase().endsWith('.pdf')
+        ? nomeArquivoBase
+        : `${nomeArquivoBase}.pdf`;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Falha ao baixar arquivo: ${response.status}`);
+        }
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = nomeArquivoFinal;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+      } catch (error) {
+        console.error('Erro ao baixar arquivo:', error);
+        const fallbackLink = document.createElement('a');
+        fallbackLink.href = url;
+        fallbackLink.download = nomeArquivoFinal;
+        fallbackLink.target = '_blank';
+        fallbackLink.rel = 'noopener';
+        document.body.appendChild(fallbackLink);
+        fallbackLink.click();
+        document.body.removeChild(fallbackLink);
+      }
+    }
+    window.baixarArquivo = baixarArquivo;
 
 
     async function toggleImpresso(id, checkbox, card) {
