@@ -80,7 +80,12 @@
       
       <!-- Aba de Faturamento -->
       <div id="faturamento" class="tab-content">
-       
+
+      </div>
+
+      <!-- Aba de Vendas Mercado Livre -->
+      <div id="vendasML" class="tab-content">
+
       </div>
 
       <!-- Aba de Registro de Faturamento -->
@@ -151,12 +156,27 @@ function normalizeDate(value) {
   return match ? match[0] : '';
 }
 
+function parseNumero(valor) {
+  if (valor === undefined || valor === null || valor === '') return 0;
+  if (typeof valor === 'number') return valor;
+  let texto = String(valor).trim();
+  if (!texto) return 0;
+  texto = texto.replace(/\s/g, '');
+  const usaVirgula = texto.includes(',') && texto.lastIndexOf(',') > texto.lastIndexOf('.');
+  if (usaVirgula) {
+    texto = texto.replace(/\./g, '').replace(',', '.');
+  }
+  texto = texto.replace(/[^0-9+\-\.]/g, '');
+  const numero = parseFloat(texto);
+  return Number.isNaN(numero) ? 0 : numero;
+}
+
 const makeSkuDocId = (sku) => encodeURIComponent(String(sku ?? '').trim());
 const makeLegacySkuDocId = (sku) =>
   String(sku ?? '')
     .trim()
     .replace(/[.#$\/\[\]]/g, '_');
-   const tabIds = ['importar','metas','graficos','historico','faturamento','registroFaturamento','controleVendas','sobras','previsao','acompanhamento','acompanhamentoGestor'];
+   const tabIds = ['importar','metas','graficos','historico','faturamento','vendasML','registroFaturamento','controleVendas','sobras','previsao','acompanhamento','acompanhamentoGestor'];
       const tabsLoaded = Promise.all(
         tabIds.map(t =>
           fetch(`sobras-tabs/${t}.html`)
@@ -1873,6 +1893,433 @@ await db
           mostrarErro("Erro ao importar: " + err.message);
           console.error(err);
         }
+      };
+
+      reader.readAsArrayBuffer(file);
+    };
+
+    window.importarFaturamentoML = async function () {
+      const input = document.getElementById('inputFaturamentoML');
+      const botao = document.getElementById('btnImportarFaturamentoML');
+      if (!input || !botao) {
+        mostrarErro('Estrutura da aba Vendas ML não encontrada.');
+        return;
+      }
+
+      const file = input.files?.[0];
+      if (!file) {
+        mostrarErro('Selecione o arquivo de faturamento do Mercado Livre.');
+        return;
+      }
+
+      const { value: form, isConfirmed } = await Swal.fire({
+        title: 'Faturamento Mercado Livre',
+        html: `
+          <input type="date" id="swal-data" class="swal2-input" />
+          <input type="text" id="swal-loja" class="swal2-input" placeholder="Conta / Loja" />
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Continuar',
+        preConfirm: () => {
+          const data = document.getElementById('swal-data').value;
+          const lojaNome = document.getElementById('swal-loja').value.trim();
+          if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data) || lojaNome.length < 2) {
+            Swal.showValidationMessage('Informe uma data e uma conta válidas.');
+          }
+          return { data, loja: lojaNome };
+        }
+      });
+      if (!isConfirmed || !form) return;
+      const dataReferencia = form.data;
+      const loja = form.loja;
+
+      toggleLoading(botao, '<i class="fas fa-upload"></i> Importar &amp; Processar');
+
+      const progressContainer = document.getElementById('mlProgressContainer');
+      const progressBar = document.getElementById('mlProgressBar');
+      const progressText = document.getElementById('mlProgressText');
+      if (progressContainer && progressBar && progressText) {
+        progressContainer.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = '0%';
+      }
+
+      const atualizarProgresso = (pct) => {
+        if (progressBar) progressBar.style.width = pct + '%';
+        if (progressText) progressText.textContent = pct + '%';
+      };
+
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { range: 5, defval: '' });
+          const vendas = rows.filter((row) => {
+            return (
+              row['N.º de venda'] ||
+              row['Nº de venda'] ||
+              row['Número da venda'] ||
+              row['Numero da venda'] ||
+              row['Número de venda']
+            );
+          });
+
+          if (!vendas.length) {
+            throw new Error('Nenhum registro de venda válido foi encontrado na planilha.');
+          }
+
+          const usuarioDoc = await db.collection('usuarios').doc(usuarioLogado.uid).get();
+          const dadosUsuario = usuarioDoc.data() || {};
+          const respEmail = dadosUsuario.responsavelFinanceiroEmail || null;
+          let baseResp = null;
+          if (respEmail) {
+            const respSnap = await db.collection('usuarios').where('email', '==', respEmail).limit(1).get();
+            if (!respSnap.empty) {
+              const respDoc = respSnap.docs[0];
+              const respData = respDoc.data() || {};
+              const responsavelUid = respData.uid || respDoc.id;
+              baseResp = db.collection('uid').doc(responsavelUid).collection('uid').doc(usuarioLogado.uid);
+            }
+          }
+
+          const gestorEmail = Array.isArray(dadosUsuario.gestoresExpedicaoEmails)
+            ? dadosUsuario.gestoresExpedicaoEmails[0]
+            : dadosUsuario.responsavelExpedicaoEmail || null;
+          let baseExp = null;
+          if (gestorEmail) {
+            const expSnap = await db.collection('usuarios').where('email', '==', gestorEmail).limit(1).get();
+            if (!expSnap.empty) {
+              const expDoc = expSnap.docs[0];
+              const expData = expDoc.data() || {};
+              const gestorUid = expData.uid || expDoc.id;
+              baseExp = db.collection('uid').doc(gestorUid).collection('uid').doc(usuarioLogado.uid);
+            }
+          }
+
+          const ref = db
+            .collection('uid')
+            .doc(usuarioLogado.uid)
+            .collection('faturamento')
+            .doc(dataReferencia)
+            .collection('lojas')
+            .doc(loja);
+          const doc = await ref.get();
+
+          let operacao = 'salvar';
+          if (doc.exists) {
+            const { isConfirmed: substituir, isDenied: somar } = await Swal.fire({
+              title: 'Registro existente',
+              text: 'Já existe um registro para esta conta e data. O que deseja fazer?',
+              showDenyButton: true,
+              showCancelButton: true,
+              confirmButtonText: 'Substituir',
+              denyButtonText: 'Somar',
+              cancelButtonText: 'Cancelar'
+            });
+            if (!substituir && !somar) {
+              atualizarProgresso(0);
+              return;
+            }
+            operacao = somar ? 'somar' : 'substituir';
+          }
+
+          let bruto = 0;
+          let liquidoAcumulado = 0;
+          let taxasAcumuladas = 0;
+          let qtdVendas = 0;
+          const skusVendidos = {};
+          const pedidosProcessados = new Set();
+
+          const totalLinhas = vendas.length;
+          let linhasProcessadas = 0;
+
+          const updateProgress = async () => {
+            linhasProcessadas++;
+            const pct = totalLinhas ? Math.round((linhasProcessadas / totalLinhas) * 100) : 0;
+            atualizarProgresso(pct);
+            if (linhasProcessadas % 50 === 0) await new Promise((r) => setTimeout(r, 0));
+          };
+
+          const { encryptString, decryptString } = await import('./crypto.js');
+          const pedidosRef = db.collection('uid').doc(usuarioLogado.uid).collection('pedidosreais');
+
+          for (const row of vendas) {
+            const numeroVenda =
+              row['N.º de venda'] ||
+              row['Nº de venda'] ||
+              row['Número da venda'] ||
+              row['Numero da venda'] ||
+              row['Número de venda'];
+            if (!numeroVenda || pedidosProcessados.has(numeroVenda)) {
+              await updateProgress();
+              continue;
+            }
+
+            pedidosProcessados.add(numeroVenda);
+
+            const dataVendaRaw =
+              row['Data da venda'] ||
+              row['Data da Venda'] ||
+              row['Data venda'] ||
+              row['Data'];
+            const estado = row['Estado'] || row['Status'] || '';
+            const unidades = parseNumero(row['Unidades'] || row['Quantidade']);
+            const sku = row['SKU'] || row['Sku'] || row['sku'] || null;
+            const receitaProdutos = parseNumero(row['Receita por produtos (BRL)']);
+            const receitaAcrescimo = parseNumero(row['Receita por acréscimo no preço (pago pelo comprador)']);
+            const taxaParcelamento = parseNumero(row['Taxa de parcelamento equivalente ao acréscimo']);
+            const tarifaVenda = parseNumero(row['Tarifa de venda e impostos (BRL)']);
+            const receitaEnvio = parseNumero(row['Receita por envio (BRL)']);
+            const tarifasEnvio = parseNumero(row['Tarifas de envio (BRL)']);
+            const cancelamentosReembolsos = parseNumero(row['Cancelamentos e reembolsos (BRL)']);
+            const total = parseNumero(row['Total (BRL)']);
+
+            const receitaBrutaLinha = receitaProdutos + receitaAcrescimo + receitaEnvio;
+            const deducoesLinha = taxaParcelamento + tarifaVenda + tarifasEnvio + Math.abs(cancelamentosReembolsos);
+            const liquidoCalculado = receitaBrutaLinha - deducoesLinha;
+            bruto += receitaBrutaLinha;
+            taxasAcumuladas += deducoesLinha;
+            liquidoAcumulado += liquidoCalculado;
+            qtdVendas++;
+
+            if (sku) {
+              if (!skusVendidos[sku]) skusVendidos[sku] = { total: 0, valorLiquido: 0 };
+              skusVendidos[sku].total += unidades || 1;
+              skusVendidos[sku].valorLiquido += liquidoCalculado;
+            }
+
+            const pedidoPayload = {
+              pedidoId: numeroVenda,
+              marketplace: 'Mercado Livre',
+              status: estado,
+              sku,
+              loja,
+              data: dataReferencia,
+              dataVenda: normalizeDate(dataVendaRaw) || dataReferencia,
+              unidades: unidades || 0,
+              receitaProdutos,
+              receitaAcrescimo,
+              taxaParcelamento,
+              tarifaVendaImpostos: tarifaVenda,
+              receitaEnvio,
+              tarifasEnvio,
+              cancelamentosReembolsos,
+              total,
+              liquidoCalculado
+            };
+
+            const pedidoDocRef = pedidosRef
+              .doc(dataReferencia)
+              .collection('lista')
+              .doc(String(numeroVenda));
+            const pedidoDoc = await pedidoDocRef.get();
+            const pass = getPassphrase() || usuarioLogado.uid;
+
+            let needsUpdate = true;
+            if (pedidoDoc.exists) {
+              try {
+                const atual = JSON.parse(await decryptString(pedidoDoc.data().encrypted, pass));
+                if (JSON.stringify(atual) === JSON.stringify(pedidoPayload)) {
+                  needsUpdate = false;
+                }
+              } catch (err) {
+                console.error('Erro ao comparar pedido Mercado Livre', err);
+              }
+            }
+
+            if (needsUpdate) {
+              const encPedido = await encryptString(JSON.stringify(pedidoPayload), pass);
+              await pedidoDocRef.set({ encrypted: encPedido, uid: usuarioLogado.uid });
+
+              if (baseResp && respEmail) {
+                const encPedidoResp = await encryptString(JSON.stringify(pedidoPayload), respEmail);
+                await baseResp
+                  .collection('pedidosreais')
+                  .doc(dataReferencia)
+                  .collection('lista')
+                  .doc(String(numeroVenda))
+                  .set({ encrypted: encPedidoResp, uid: usuarioLogado.uid });
+              }
+
+              if (baseExp && gestorEmail) {
+                const encPedidoExp = await encryptString(JSON.stringify(pedidoPayload), gestorEmail);
+                await baseExp
+                  .collection('pedidosreais')
+                  .doc(dataReferencia)
+                  .collection('lista')
+                  .doc(String(numeroVenda))
+                  .set({ encrypted: encPedidoExp, uid: usuarioLogado.uid });
+              }
+            }
+
+            await updateProgress();
+          }
+
+          const liquido = liquidoAcumulado;
+          const taxas = Math.max(0, taxasAcumuladas);
+
+          if (operacao === 'somar' && doc.exists) {
+            const anterior = doc.data();
+            bruto += anterior.valorBruto || 0;
+            taxas += anterior.taxasPlataforma || 0;
+            qtdVendas += anterior.qtdVendas || 0;
+          }
+
+          const refSku = db
+            .collection('uid')
+            .doc(usuarioLogado.uid)
+            .collection('skusVendidos')
+            .doc(dataReferencia);
+          await refSku.set({ data: dataReferencia, uid: usuarioLogado.uid }, { merge: true });
+          if (baseResp) {
+            await baseResp
+              .collection('skusVendidos')
+              .doc(dataReferencia)
+              .set({ data: dataReferencia, uid: usuarioLogado.uid }, { merge: true });
+          }
+
+          for (const [sku, dadosSku] of Object.entries(skusVendidos)) {
+            if (!sku) continue;
+            const skuId = makeSkuDocId(sku);
+            const legacySkuId = makeLegacySkuDocId(sku);
+            const listaCollection = db
+              .collection('uid')
+              .doc(usuarioLogado.uid)
+              .collection('skusVendidos')
+              .doc(dataReferencia)
+              .collection('lista');
+            const docRef = listaCollection.doc(skuId);
+            const docSnap = await docRef.get();
+
+            let totalFinal = dadosSku.total;
+            let valorLiquidoFinal = dadosSku.valorLiquido;
+            if (docSnap.exists) {
+              const dadosAnteriores = docSnap.data();
+              totalFinal += dadosAnteriores.total || 0;
+              valorLiquidoFinal += dadosAnteriores.valorLiquido || 0;
+            } else if (legacySkuId !== skuId) {
+              const legacyDocRef = listaCollection.doc(legacySkuId);
+              const legacySnap = await legacyDocRef.get();
+              if (legacySnap.exists) {
+                const dadosAnteriores = legacySnap.data();
+                totalFinal += dadosAnteriores.total || 0;
+                valorLiquidoFinal += dadosAnteriores.valorLiquido || 0;
+                try {
+                  await legacyDocRef.delete();
+                } catch (err) {
+                  console.warn('Não foi possível remover SKU legado', legacySkuId, err);
+                }
+              }
+            }
+
+            await docRef.set({
+              sku,
+              total: totalFinal,
+              valorLiquido: valorLiquidoFinal,
+              data: dataReferencia,
+              loja,
+              uid: usuarioLogado.uid
+            });
+
+            if (legacySkuId !== skuId) {
+              listaCollection.doc(legacySkuId).delete().catch(() => {});
+            }
+
+            if (baseResp && respEmail) {
+              const skuPayload = {
+                sku,
+                total: totalFinal,
+                valorLiquido: valorLiquidoFinal,
+                data: dataReferencia,
+                loja,
+                uid: usuarioLogado.uid
+              };
+              const encSku = await encryptString(JSON.stringify(skuPayload), respEmail);
+              const baseRespLista = baseResp
+                .collection('skusVendidos')
+                .doc(dataReferencia)
+                .collection('lista');
+              await baseRespLista.doc(skuId).set({ encrypted: encSku, uid: usuarioLogado.uid });
+              if (legacySkuId !== skuId) {
+                baseRespLista.doc(legacySkuId).delete().catch(() => {});
+              }
+            }
+          }
+
+          const pass = getPassphrase() || usuarioLogado.uid;
+          const lojaPayload = {
+            valorBruto: bruto,
+            taxasPlataforma: taxas,
+            valorLiquido: liquido,
+            qtdVendas,
+            loja,
+            marketplace: 'Mercado Livre',
+            atualizadoEm: new Date(),
+            uid: usuarioLogado.uid
+          };
+          const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
+          await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
+          if (baseResp && respEmail) {
+            const encLojaResp = await encryptString(JSON.stringify(lojaPayload), respEmail);
+            await baseResp
+              .collection('faturamento')
+              .doc(dataReferencia)
+              .collection('lojas')
+              .doc(loja)
+              .set({ encrypted: encLojaResp, uid: usuarioLogado.uid });
+          }
+
+          const resumoPayload = {
+            valorBruto: bruto,
+            valorLiquido: liquido,
+            taxasPlataforma: taxas,
+            vendas: qtdVendas,
+            marketplace: 'Mercado Livre',
+            atualizadoEm: new Date(),
+            uid: usuarioLogado.uid
+          };
+          const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
+          await db
+            .collection('uid')
+            .doc(usuarioLogado.uid)
+            .collection('faturamento')
+            .doc(dataReferencia)
+            .set({ encrypted: encResumo, uid: usuarioLogado.uid }, { merge: true });
+          if (baseResp && respEmail) {
+            const encResumoResp = await encryptString(JSON.stringify(resumoPayload), respEmail);
+            await baseResp
+              .collection('faturamento')
+              .doc(dataReferencia)
+              .set({ encrypted: encResumoResp, uid: usuarioLogado.uid }, { merge: true });
+          }
+
+          document.getElementById('resultadoFaturamentoML').innerHTML = `
+            <div class="alert alert-success">
+              <i class="fas fa-check-circle"></i>
+              Faturamento Mercado Livre de <strong>${dataReferencia}</strong> da conta <strong>${loja}</strong> salvo com sucesso.<br>
+              <strong>Receita Bruta:</strong> R$ ${bruto.toFixed(2)}<br>
+              <strong>Taxas:</strong> R$ ${taxas.toFixed(2)}<br>
+              <strong>Receita Líquida:</strong> R$ ${liquido.toFixed(2)}<br>
+              <strong>Pedidos processados:</strong> ${qtdVendas}
+            </div>
+          `;
+
+          await notificarResponsavelFinanceiro(dataReferencia, loja, bruto, liquido, qtdVendas);
+          atualizarProgresso(100);
+        } catch (err) {
+          console.error('Erro ao importar faturamento do Mercado Livre:', err);
+          mostrarErro('Erro ao importar faturamento do Mercado Livre: ' + err.message);
+        } finally {
+          toggleLoading(botao, '<i class="fas fa-upload"></i> Importar &amp; Processar');
+        }
+      };
+
+      reader.onerror = function () {
+        mostrarErro('Erro ao ler o arquivo do Mercado Livre.');
+        toggleLoading(botao, '<i class="fas fa-upload"></i> Importar &amp; Processar');
       };
 
       reader.readAsArrayBuffer(file);
