@@ -1914,21 +1914,60 @@ await db
           const progressContainer = document.getElementById('progressContainer');
           const progressBar = document.getElementById('faturamentoProgressBar');
           const progressText = document.getElementById('faturamentoProgressText');
-          if (progressContainer && progressBar && progressText) {
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = '0%';
-            progressText.textContent = '0%';
-          }
+          const massaModal = document.getElementById('massaFaturamentoModal');
+          const massaStatus = document.getElementById('massaFaturamentoStatus');
+          const massaCloseBtn = document.getElementById('massaModalClose');
+          const massaProgressBar = document.getElementById('massaProgressBar');
+          const massaProgressText = document.getElementById('massaProgressText');
+
+          const atualizarStatusModal = (mensagem, classe) => {
+            if (!massaStatus) return;
+            massaStatus.textContent = mensagem;
+            massaStatus.classList.remove('text-blue-600', 'text-green-600', 'text-red-600');
+            if (classe) massaStatus.classList.add(classe);
+          };
+
+          const progressTargets = [
+            {
+              bar: progressBar,
+              text: progressText,
+              onShow: () => {
+                if (progressContainer) progressContainer.classList.remove('hidden');
+              }
+            },
+            {
+              bar: massaProgressBar,
+              text: massaProgressText,
+              onShow: () => {
+                if (massaModal) massaModal.style.display = 'block';
+                atualizarStatusModal('Processando planilha. Não feche esta janela até finalizar.', 'text-blue-600');
+                if (massaCloseBtn) {
+                  massaCloseBtn.classList.add('hidden');
+                  massaCloseBtn.disabled = false;
+                }
+              }
+            }
+          ];
+
+          progressTargets.forEach(({ bar, text, onShow }) => {
+            if (typeof onShow === 'function') onShow();
+            if (bar) bar.style.width = '0%';
+            if (text) text.textContent = '0%';
+          });
+
+          const setProgress = (pct) => {
+            progressTargets.forEach(({ bar, text }) => {
+              if (bar) bar.style.width = pct + '%';
+              if (text) text.textContent = pct + '%';
+            });
+          };
 
           const totalRows = rows.length;
           let processedRows = 0;
           const updateProgress = async () => {
-            if (progressBar && progressText) {
-              const pct = Math.round((processedRows / totalRows) * 100);
-              progressBar.style.width = pct + '%';
-              progressText.textContent = pct + '%';
-              if (processedRows % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            }
+            const pct = totalRows ? Math.round((processedRows / totalRows) * 100) : 0;
+            setProgress(pct);
+            if (processedRows % 50 === 0) await new Promise(r => setTimeout(r, 0));
           };
 
           const grupos = {};
@@ -2033,6 +2072,8 @@ await db
 
           if (!Object.keys(grupos).length) {
             mostrarErro('Nenhum registro com data de pagamento foi encontrado.');
+            atualizarStatusModal('Nenhum registro com data de pagamento foi encontrado.', 'text-red-600');
+            if (massaCloseBtn) massaCloseBtn.classList.remove('hidden');
             return;
           }
 
@@ -2355,10 +2396,9 @@ await db
             await notificarResponsavelFinanceiro(dataReferencia, loja, grupo.bruto, liquido, grupo.qtdVendas);
           }
 
-          if (progressBar && progressText) {
-            progressBar.style.width = '100%';
-            progressText.textContent = '100%';
-          }
+          setProgress(100);
+          atualizarStatusModal('Processamento concluído com sucesso!', 'text-green-600');
+          if (massaCloseBtn) massaCloseBtn.classList.remove('hidden');
 
           const sucesso = resultados.filter(r => r.status === 'ok');
           const ignorados = resultados.filter(r => r.status === 'ignorado');
@@ -2390,6 +2430,8 @@ await db
         } catch (err) {
           mostrarErro('Erro ao importar: ' + err.message);
           console.error(err);
+          atualizarStatusModal('Ocorreu um erro durante o processamento.', 'text-red-600');
+          if (massaCloseBtn) massaCloseBtn.classList.remove('hidden');
         }
       };
 
@@ -3738,6 +3780,13 @@ function aplicarEstiloCritico() {
     const card = document.getElementById('infoFaturamento');
     if (card) {
       card.classList.toggle('hidden');
+    }
+  };
+
+  window.fecharFaturamentoMassaModal = function() {
+    const modal = document.getElementById('massaFaturamentoModal');
+    if (modal) {
+      modal.style.display = 'none';
     }
   };
 
