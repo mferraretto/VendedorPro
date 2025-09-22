@@ -1311,17 +1311,12 @@
         </div>
         <div class="expedicao-pdf-actions">
           <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
-          <button class="expedicao-card-btn expedicao-card-btn--download">Baixar</button>
           <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
       div.dataset.fileName = name;
       div.dataset.status = statusKey;
-      const downloadBtn = div.querySelector('.expedicao-card-btn--download');
-      if (downloadBtn) {
-        downloadBtn.addEventListener('click', () => baixarEtiqueta(url, name));
-      }
       return div;
     }
 
@@ -1443,37 +1438,6 @@
       pdfModal.classList.remove('hidden');
     }
     window.visualizar = visualizar;
-
-    async function baixarEtiqueta(url, nome) {
-      if (!url) {
-        alert('Arquivo de etiqueta indisponível para download.');
-        return;
-      }
-
-      const fileName = nome || 'etiqueta.pdf';
-
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Falha no download: ${response.status}`);
-        }
-
-        const blob = await response.blob();
-        const downloadUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(downloadUrl);
-      } catch (error) {
-        console.error('Erro ao baixar etiqueta:', error);
-        alert('Não foi possível baixar a etiqueta. O arquivo será aberto em uma nova guia.');
-        window.open(url, '_blank', 'noopener');
-      }
-    }
-    window.baixarEtiqueta = baixarEtiqueta;
 
     closeModal.addEventListener('click', () => {
       pdfModal.classList.add('hidden');
