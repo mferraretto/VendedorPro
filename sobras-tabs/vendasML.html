@@ -1,0 +1,46 @@
+<div class="grid gap-6 lg:grid-cols-3">
+  <div class="lg:col-span-2 space-y-6">
+    <div class="card">
+      <div class="card-header mb-4">
+        <h3 class="text-lg font-semibold">Importar Faturamento Mercado Livre</h3>
+        <span class="tooltip tooltip-lg ml-2" data-tooltip="Selecione o relatório 'Faturamento do Mercado Livre' exportado no painel do marketplace. A planilha deve manter o cabeçalho original, que começa na linha 6.">
+          <i class="fas fa-question-circle text-blue-600"></i>
+        </span>
+      </div>
+      <label for="inputFaturamentoML" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+        <i class="fas fa-file-import text-3xl text-gray-400 mb-2"></i>
+        <p class="text-sm text-gray-500 text-center">Arraste a planilha do Mercado Livre ou clique para selecionar</p>
+        <input id="inputFaturamentoML" type="file" accept=".xlsx, .xls, .csv" class="hidden" />
+      </label>
+      <div class="flex items-center justify-between mt-4">
+        <button id="btnImportarFaturamentoML" onclick="importarFaturamentoML()" class="btn-primary flex items-center gap-2">
+          <span><i class="fas fa-upload"></i> Importar &amp; Processar</span>
+        </button>
+        <small class="text-xs text-gray-500">O cabeçalho oficial inicia na linha 6 do relatório.</small>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="text-lg font-semibold mb-4">Resultado da Importação</h3>
+      <div id="resultadoFaturamentoML" class="text-sm text-gray-700 space-y-2"></div>
+    </div>
+  </div>
+
+  <div class="space-y-6">
+    <div class="card">
+      <h3 class="text-lg font-semibold mb-4">Progresso</h3>
+      <div id="mlProgressContainer" class="hidden">
+        <div class="progress"><div id="mlProgressBar" class="progress-bar"></div></div>
+        <span id="mlProgressText" class="block text-sm text-gray-600 mt-2 text-center">0%</span>
+      </div>
+      <ol class="space-y-2 text-sm text-gray-700">
+        <li class="flex items-center gap-2"><span class="w-5 h-5 flex items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs font-medium">1</span> Escolha o arquivo do Mercado Livre</li>
+        <li class="flex items-center gap-2"><span class="w-5 h-5 flex items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs font-medium">2</span> Informe a data de referência e a conta</li>
+        <li class="flex items-center gap-2"><span class="w-5 h-5 flex items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs font-medium">3</span> Aguarde o processamento e confira o resumo</li>
+      </ol>
+    </div>
+    <div class="card border-l-4 border-yellow-400 bg-yellow-50 text-yellow-800">
+      <p class="text-sm">Os valores salvos serão consolidados no histórico de faturamento e pedidos reais, assim como os dados importados da Shopee.</p>
+    </div>
+  </div>
+</div>
