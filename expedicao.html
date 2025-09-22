@@ -1311,6 +1311,7 @@
         </div>
         <div class="expedicao-pdf-actions">
           <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
+          <a class="expedicao-card-btn" href="${url}" download="${(name || 'etiqueta.pdf').replace(/[^\w\d\s._-]/g, '_')}">Baixar</a>
           <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
