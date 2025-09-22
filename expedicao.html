@@ -1464,16 +1464,46 @@
     async function baixarArquivo(urlEncoded, nomeEncoded) {
       const url = decodeURIComponent(urlEncoded || '');
       const nomeDecodificado = decodeURIComponent(nomeEncoded || 'Etiqueta');
-      const nomeArquivoBase = nomeDecodificado && nomeDecodificado.trim() ? nomeDecodificado.trim() : 'Etiqueta';
+      const nomeArquivoBase =
+        nomeDecodificado && nomeDecodificado.trim() ? nomeDecodificado.trim() : 'Etiqueta';
+
       if (!url) {
         showToast('Arquivo indisponível para download.');
         return;
       }
+
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(url, window.location.href);
+      } catch (error) {
+        console.error('URL de download inválida:', error);
+        showToast('Arquivo indisponível para download.');
+        return;
+      }
+
       const nomeArquivoFinal = nomeArquivoBase.toLowerCase().endsWith('.pdf')
         ? nomeArquivoBase
         : `${nomeArquivoBase}.pdf`;
+      const isSameOrigin = parsedUrl.origin === window.location.origin;
+
+      const abrirEmNovaAba = () => {
+        const fallbackLink = document.createElement('a');
+        fallbackLink.href = parsedUrl.href;
+        fallbackLink.download = nomeArquivoFinal;
+        fallbackLink.target = '_blank';
+        fallbackLink.rel = 'noopener';
+        document.body.appendChild(fallbackLink);
+        fallbackLink.click();
+        document.body.removeChild(fallbackLink);
+      };
+
+      if (!isSameOrigin) {
+        abrirEmNovaAba();
+        return;
+      }
+
       try {
-        const response = await fetch(url);
+        const response = await fetch(parsedUrl.href);
         if (!response.ok) {
           throw new Error(`Falha ao baixar arquivo: ${response.status}`);
         }
@@ -1488,14 +1518,7 @@
         URL.revokeObjectURL(blobUrl);
       } catch (error) {
         console.error('Erro ao baixar arquivo:', error);
-        const fallbackLink = document.createElement('a');
-        fallbackLink.href = url;
-        fallbackLink.download = nomeArquivoFinal;
-        fallbackLink.target = '_blank';
-        fallbackLink.rel = 'noopener';
-        document.body.appendChild(fallbackLink);
-        fallbackLink.click();
-        document.body.removeChild(fallbackLink);
+        abrirEmNovaAba();
       }
     }
     window.baixarArquivo = baixarArquivo;
