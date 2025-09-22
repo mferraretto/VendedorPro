@@ -1,0 +1,41 @@
+<div class="grid gap-6 md:grid-cols-3">
+  <div class="md:col-span-2 space-y-6">
+    <div class="card">
+      <div class="card-header mb-4">
+        <h3 class="text-lg font-semibold">Importar Planilha Mercado Livre</h3>
+      </div>
+      <label for="inputVendasML" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+        <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
+        <p class="text-sm text-gray-500 text-center">Arraste o arquivo ou clique para selecionar o relatório de vendas do Mercado Livre</p>
+        <input id="inputVendasML" type="file" accept=".xlsx, .xls, .csv" class="hidden" />
+      </label>
+      <div class="flex flex-col gap-2 mt-4 sm:flex-row sm:items-center sm:justify-between">
+        <button onclick="importarVendasML()" class="btn-primary flex items-center gap-2 justify-center">
+          <i class="fas fa-upload"></i> Importar &amp; Processar
+        </button>
+        <span class="text-xs text-gray-500 sm:text-right">O cabeçalho oficial inicia na linha 6 do relatório.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="text-lg font-semibold mb-4">Resultado do Processamento</h3>
+      <div id="resultadoVendasML" class="text-sm text-gray-700 space-y-2"></div>
+    </div>
+  </div>
+
+  <div class="space-y-6">
+    <div class="card">
+      <h3 class="text-lg font-semibold mb-4">Progresso</h3>
+      <div id="progressContainerML" class="hidden mb-4">
+        <div class="progress"><div id="progressBarVendasML" class="progress-bar"></div></div>
+        <span id="progressTextVendasML" class="text-sm text-gray-600 mt-2 block text-center">0%</span>
+      </div>
+      <p class="text-sm text-gray-600">
+        Utilize o relatório de Vendas do Mercado Livre, mantendo os nomes originais das colunas: N.º de venda,
+        Data da venda, Estado, Unidades, Receita por produtos (BRL), Receita por acréscimo no preço (pago pelo comprador),
+        Taxa de parcelamento equivalente ao acréscimo, Tarifa de venda e impostos (BRL), Receita por envio (BRL), Tarifas de envio (BRL),
+        Cancelamentos e reembolsos (BRL), Total (BRL) e SKU.
+      </p>
+    </div>
+  </div>
+</div>
