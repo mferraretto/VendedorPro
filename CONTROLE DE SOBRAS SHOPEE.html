@@ -3485,9 +3485,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const statusEl = document.getElementById('produtosVendidosStatus');
       const totalEl = document.getElementById('produtosVendidosTotalUnidades');
 
-      const dadosFiltrados = produtosVendidosResumo.filter((item) =>
-        !filtroSku || item.sku.toLowerCase().includes(filtroSku),
-      );
+      const dadosFiltrados = produtosVendidosResumo.filter((item) => {
+        if (!filtroSku) return true;
+        return item.todosSkus.some((sku) =>
+          sku.toLowerCase().includes(filtroSku),
+        );
+      });
 
       if (!dadosFiltrados.length) {
         tabela.innerHTML =
@@ -3510,6 +3513,33 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const linhas = ordenados
         .map((item) => {
           const totalFormatado = item.total.toLocaleString('pt-BR');
+          const vendidosChips = item.vendidosPorSku
+            .map(
+              ([sku, qtd]) =>
+                `<span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"><span>${escapeHtml(
+                  sku,
+                )}</span><span class="font-semibold text-gray-600">${qtd.toLocaleString(
+                  'pt-BR',
+                )}</span></span>`,
+            )
+            .join('');
+          const vendidosHtml = vendidosChips
+            ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
+            : '';
+          const extras = item.grupoCompleto
+            .filter(
+              (skuExtra) =>
+                !item.vendidosPorSku.some(
+                  ([skuVend]) =>
+                    skuVend.toLowerCase() === skuExtra.toLowerCase(),
+                ),
+            )
+            .map((skuExtra) => escapeHtml(skuExtra));
+          const extrasHtml = extras.length
+            ? `<div class="mt-1 text-xs text-gray-400">Associados: ${extras.join(
+                ', ',
+              )}</div>`
+            : '';
           const usuariosTexto = item.usuarios
             .map(([nome, qtd]) =>
               `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`,
@@ -3517,9 +3547,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             .join('<br>');
           return `
             <tr class="divide-x divide-gray-100">
-              <td class="py-3 px-4 font-semibold text-gray-700">${escapeHtml(
-                item.sku,
-              )}</td>
+              <td class="py-3 px-4 font-semibold text-gray-700">
+                <div>${escapeHtml(item.sku)}</div>
+                ${vendidosHtml}
+                ${extrasHtml}
+              </td>
               <td class="py-3 px-4 text-center font-medium text-gray-800">${totalFormatado}</td>
               <td class="py-3 px-4 text-sm text-gray-600 leading-5">${
                 usuariosTexto || '<span class="text-gray-400">-</span>'
@@ -3632,6 +3664,36 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           return;
         }
 
+        const normalizarSku = (valor) =>
+          String(valor || '')
+            .trim()
+            .toUpperCase();
+        const principalPorSku = new Map();
+        const grupoPorPrincipal = new Map();
+        try {
+          const associadosSnap = await db.collection('skuAssociado').get();
+          associadosSnap.forEach((doc) => {
+            const dados = doc.data() || {};
+            const skuPrincipal = String(
+              dados.skuPrincipal || doc.id || '',
+            ).trim();
+            if (!skuPrincipal) return;
+            const principalNormalizado = normalizarSku(skuPrincipal);
+            principalPorSku.set(principalNormalizado, skuPrincipal);
+            const grupoAtual = grupoPorPrincipal.get(skuPrincipal) || new Set();
+            grupoAtual.add(skuPrincipal);
+            (dados.associados || []).forEach((skuAssoc) => {
+              const associado = String(skuAssoc || '').trim();
+              if (!associado) return;
+              principalPorSku.set(normalizarSku(associado), skuPrincipal);
+              grupoAtual.add(associado);
+            });
+            grupoPorPrincipal.set(skuPrincipal, grupoAtual);
+          });
+        } catch (assErr) {
+          console.error('Erro ao carregar SKUs associados', assErr);
+        }
+
         const agregados = new Map();
         for (const [uid, info] of usuariosMap.entries()) {
           try {
@@ -3649,25 +3711,38 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               const listaSnap = await docDia.ref.collection('lista').get();
               listaSnap.forEach((itemDoc) => {
                 const dados = itemDoc.data() || {};
-                const sku = String(dados.sku || itemDoc.id || '').trim();
-                if (!sku) return;
+                const skuOriginal = String(
+                  dados.sku || itemDoc.id || '',
+                ).trim();
+                if (!skuOriginal) return;
                 const total = Number(dados.total || 0);
                 if (!Number.isFinite(total) || total <= 0) return;
 
-                if (!agregados.has(sku)) {
-                  agregados.set(sku, {
-                    sku,
+                const principal =
+                  principalPorSku.get(normalizarSku(skuOriginal)) ||
+                  skuOriginal;
+                if (!agregados.has(principal)) {
+                  agregados.set(principal, {
+                    sku: principal,
                     total: 0,
                     usuarios: new Map(),
+                    vendidosPorSku: new Map(),
+                    grupoOficial:
+                      grupoPorPrincipal.get(principal) ||
+                      new Set([principal]),
                   });
                 }
 
-                const registro = agregados.get(sku);
+                const registro = agregados.get(principal);
                 registro.total += total;
                 const nomeUsuario = info.nome || info.email || uid;
                 registro.usuarios.set(
                   nomeUsuario,
                   (registro.usuarios.get(nomeUsuario) || 0) + total,
+                );
+                registro.vendidosPorSku.set(
+                  skuOriginal,
+                  (registro.vendidosPorSku.get(skuOriginal) || 0) + total,
                 );
               });
             }
@@ -3676,13 +3751,31 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           }
         }
 
-        produtosVendidosResumo = Array.from(agregados.values()).map(
-          (item) => ({
+        produtosVendidosResumo = Array.from(agregados.values()).map((item) => {
+          const vendidosPorSku = Array.from(item.vendidosPorSku.entries()).sort(
+            (a, b) => a[0].localeCompare(b[0], 'pt-BR'),
+          );
+          const grupoCompleto = Array.from(item.grupoOficial.values()).sort((
+            a,
+            b,
+          ) => a.localeCompare(b, 'pt-BR'));
+          const todosSkus = Array.from(
+            new Set([
+              ...grupoCompleto,
+              ...vendidosPorSku.map(([sku]) => sku),
+              item.sku,
+            ]),
+          ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+          return {
             sku: item.sku,
             total: item.total,
             usuarios: Array.from(item.usuarios.entries()),
-          }),
-        );
+            vendidosPorSku,
+            grupoCompleto,
+            todosSkus,
+          };
+        });
 
         produtosVendidosCarregado = true;
         renderProdutosVendidos();
@@ -3705,6 +3798,129 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           tabela.innerHTML =
             '<tr><td colspan="3" class="py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>';
       }
+    }
+
+    function obterProdutosVendidosParaExportacao() {
+      return produtosVendidosResumo.map((item) => ({
+        skuPrincipal: item.sku,
+        skusAgrupados: item.todosSkus.join(', '),
+        quantidadeTotal: item.total,
+        skusVendidos: item.vendidosPorSku
+          .map(
+            ([sku, qtd]) => `${sku} (${qtd.toLocaleString('pt-BR')})`,
+          )
+          .join('; '),
+        usuarios: item.usuarios
+          .map(
+            ([nome, qtd]) => `${nome} (${qtd.toLocaleString('pt-BR')})`,
+          )
+          .join('; '),
+      }));
+    }
+
+    function exportarProdutosVendidosExcel() {
+      if (!produtosVendidosResumo.length) {
+        mostrarErro('Nenhum dado disponível para exportar.');
+        return;
+      }
+      if (typeof XLSX === 'undefined') {
+        mostrarErro('Biblioteca de exportação para Excel indisponível.');
+        return;
+      }
+
+      const linhas = obterProdutosVendidosParaExportacao().map((linha) => ({
+        'SKU Principal': linha.skuPrincipal,
+        'SKUs Agrupados': linha.skusAgrupados,
+        'Quantidade Vendida': linha.quantidadeTotal,
+        'Detalhe por SKU': linha.skusVendidos,
+        'Usuários Responsáveis': linha.usuarios,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'ProdutosVendidos');
+      const hoje = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `produtos_vendidos_${hoje}.xlsx`);
+      mostrarSucesso('Arquivo Excel gerado com sucesso.');
+    }
+
+    function exportarProdutosVendidosPDF() {
+      if (!produtosVendidosResumo.length) {
+        mostrarErro('Nenhum dado disponível para exportar.');
+        return;
+      }
+      if (typeof html2pdf === 'undefined') {
+        mostrarErro('Biblioteca de exportação para PDF indisponível.');
+        return;
+      }
+
+      const linhas = produtosVendidosResumo
+        .map((item) => {
+          const vendidos = item.vendidosPorSku
+            .map(
+              ([sku, qtd]) =>
+                `${escapeHtml(sku)} (${qtd.toLocaleString('pt-BR')})`,
+            )
+            .join('<br>');
+          const associados = item.grupoCompleto
+            .map((sku) => escapeHtml(sku))
+            .join(', ');
+          const usuarios = item.usuarios
+            .map(
+              ([nome, qtd]) =>
+                `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`,
+            )
+            .join('<br>');
+          return `
+            <tr>
+              <td style="padding:8px;border:1px solid #ddd;">
+                <strong>${escapeHtml(item.sku)}</strong>
+                <div style="margin-top:4px;font-size:11px;color:#555;">
+                  Grupo: ${associados || '-'}
+                </div>
+              </td>
+              <td style="padding:8px;border:1px solid #ddd;">${vendidos || '-'}</td>
+              <td style="padding:8px;border:1px solid #ddd;text-align:right;">${item.total.toLocaleString(
+                'pt-BR',
+              )}</td>
+              <td style="padding:8px;border:1px solid #ddd;">${usuarios || '-'}</td>
+            </tr>`;
+        })
+        .join('');
+
+      const wrapper = document.createElement('div');
+      const dataGeracao = new Date().toLocaleString('pt-BR');
+      wrapper.innerHTML = `
+        <div style="font-family: 'Inter', Arial, sans-serif;">
+          <h2 style="margin-bottom:8px;">Produtos Vendidos</h2>
+          <p style="margin-top:0;margin-bottom:16px;font-size:12px;color:#555;">
+            Relatório gerado em ${dataGeracao}
+          </p>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">SKU Principal</th>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Detalhe dos SKUs Vendidos</th>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:right;">Quantidade Vendida</th>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Usuários Responsáveis</th>
+              </tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+          </table>
+        </div>`;
+
+      const opt = {
+        margin: 0.5,
+        filename: `produtos_vendidos_${new Date()
+          .toISOString()
+          .slice(0, 10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
+      };
+
+      html2pdf().set(opt).from(wrapper).save();
+      mostrarSucesso('Arquivo PDF gerado com sucesso.');
     }
 
     async function carregarControleVendas() {
@@ -5040,6 +5256,8 @@ window.renderizarPrevisao = renderizarPrevisao;
 window.carregarAcompanhamento = carregarAcompanhamento;
 window.carregarAcompanhamentoGestor = carregarAcompanhamentoGestor;
 window.verificarGestorFinanceiro = verificarGestorFinanceiro;
+window.exportarProdutosVendidosExcel = exportarProdutosVendidosExcel;
+window.exportarProdutosVendidosPDF = exportarProdutosVendidosPDF;
 window.exportarAcompanhamentoExcel = exportarAcompanhamentoExcel;
 window.exportarAcompanhamentoPDF = exportarAcompanhamentoPDF;
 window.printAcompanhamento = printAcompanhamento;
