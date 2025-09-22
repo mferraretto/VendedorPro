@@ -358,56 +358,6 @@ function normalizeDate(value) {
       }
     }
 
-    function openFaturamentoProcessingModal() {
-      const modal = document.getElementById('faturamentoProcessingModal');
-      const closeBtn = document.getElementById('faturamentoModalCloseBtn');
-      const status = document.getElementById('faturamentoModalStatus');
-      const progressBar = document.getElementById('faturamentoModalProgressBar');
-      const progressText = document.getElementById('faturamentoModalProgressText');
-
-      if (modal) modal.style.display = 'flex';
-      if (closeBtn) closeBtn.classList.add('hidden');
-      if (status) {
-        status.textContent = 'Processando planilha. Aguarde até a conclusão.';
-        status.classList.remove('text-green-600', 'text-red-600', 'font-semibold');
-        status.classList.add('text-gray-600');
-      }
-      if (progressBar) progressBar.style.width = '0%';
-      if (progressText) progressText.textContent = '0%';
-    }
-
-    function updateFaturamentoProcessingModal(pct) {
-      const progressBar = document.getElementById('faturamentoModalProgressBar');
-      const progressText = document.getElementById('faturamentoModalProgressText');
-
-      if (progressBar) progressBar.style.width = `${pct}%`;
-      if (progressText) progressText.textContent = `${pct}%`;
-    }
-
-    function finishFaturamentoProcessingModal(message, success = true) {
-      const status = document.getElementById('faturamentoModalStatus');
-      const closeBtn = document.getElementById('faturamentoModalCloseBtn');
-
-      if (status) {
-        status.textContent = message;
-        status.classList.remove('text-gray-600', 'text-green-600', 'text-red-600', 'font-semibold');
-        if (success) {
-          status.classList.add('text-green-600', 'font-semibold');
-        } else {
-          status.classList.add('text-red-600', 'font-semibold');
-        }
-      }
-
-      if (closeBtn) closeBtn.classList.remove('hidden');
-    }
-
-    function closeFaturamentoProcessingModal() {
-      const modal = document.getElementById('faturamentoProcessingModal');
-      if (modal) modal.style.display = 'none';
-    }
-
-    window.closeFaturamentoProcessingModal = closeFaturamentoProcessingModal;
-
     async function notificarResponsavelFinanceiro(dataRef, loja, bruto, liquido, qtdVendas) {
       try {
         const usuarioDoc = await db.collection('usuarios').doc(usuarioLogado.uid).get();
@@ -1923,7 +1873,6 @@ await db
 
       const reader = new FileReader();
       reader.onload = async function (e) {
-        openFaturamentoProcessingModal();
         try {
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: "array" });
@@ -1931,7 +1880,6 @@ await db
           const rows = XLSX.utils.sheet_to_json(sheet);
           if (!rows.length) {
             mostrarErro("A planilha está vazia.");
-            finishFaturamentoProcessingModal('Nenhum dado foi encontrado na planilha.', false);
             return;
           }
 
@@ -1975,9 +1923,8 @@ await db
           const totalRows = rows.length;
           let processedRows = 0;
           const updateProgress = async () => {
-            const pct = Math.round((processedRows / totalRows) * 100);
-            updateFaturamentoProcessingModal(pct);
             if (progressBar && progressText) {
+              const pct = Math.round((processedRows / totalRows) * 100);
               progressBar.style.width = pct + '%';
               progressText.textContent = pct + '%';
               if (processedRows % 50 === 0) await new Promise(r => setTimeout(r, 0));
@@ -2086,7 +2033,6 @@ await db
 
           if (!Object.keys(grupos).length) {
             mostrarErro('Nenhum registro com data de pagamento foi encontrado.');
-            finishFaturamentoProcessingModal('Nenhum registro com data de pagamento foi encontrado.', false);
             return;
           }
 
@@ -2413,7 +2359,6 @@ await db
             progressBar.style.width = '100%';
             progressText.textContent = '100%';
           }
-          updateFaturamentoProcessingModal(100);
 
           const sucesso = resultados.filter(r => r.status === 'ok');
           const ignorados = resultados.filter(r => r.status === 'ignorado');
@@ -2442,9 +2387,7 @@ await db
 
           document.getElementById('resultadoFaturamento').innerHTML = html || '<div class="alert alert-info"><i class="fas fa-info-circle"></i> Nenhum faturamento foi processado.</div>';
           input.value = '';
-          finishFaturamentoProcessingModal('Importação finalizada com sucesso! Confira o resumo abaixo.', true);
         } catch (err) {
-          finishFaturamentoProcessingModal('Erro ao importar: ' + err.message, false);
           mostrarErro('Erro ao importar: ' + err.message);
           console.error(err);
         }
