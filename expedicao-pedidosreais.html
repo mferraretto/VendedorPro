@@ -51,6 +51,51 @@
               <input type="text" id="filtroLoja" class="mt-1 border p-2 rounded pl-8" placeholder="Buscar loja" />
             </div>
           </div>
+          <div>
+            <label for="skuInput" class="block text-sm font-medium">SKU</label>
+            <div class="flex gap-2 mt-1">
+              <div class="relative flex-1">
+                <span class="absolute left-2 top-2 text-gray-400"><i class="fas fa-barcode"></i></span>
+                <input
+                  type="text"
+                  id="skuInput"
+                  class="border p-2 rounded pl-8 w-full"
+                  placeholder="Digite o SKU e pressione Enter"
+                />
+              </div>
+              <button
+                type="button"
+                id="addSkuBtn"
+                class="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+              >
+                Adicionar
+              </button>
+            </div>
+            <div id="skuChips" class="flex flex-wrap gap-2 mt-2 text-sm text-gray-500">
+              Nenhum SKU selecionado
+            </div>
+            <div class="flex items-center gap-4 mt-2 text-sm">
+              <label class="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="skuMatchType"
+                  value="contains"
+                  class="text-blue-600 focus:ring-blue-500"
+                  checked
+                />
+                Contém
+              </label>
+              <label class="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="skuMatchType"
+                  value="exact"
+                  class="text-blue-600 focus:ring-blue-500"
+                />
+                Correspondência exata
+              </label>
+            </div>
+          </div>
         </div>
         <div class="space-y-4">
           <div>
@@ -146,6 +191,8 @@
     let usuarioAtual = null;
     let selectedFile = null;
     const selectedStatuses = new Set();
+    const selectedSkus = new Map();
+    let skuMatchType = 'contains';
     let etiquetaEstado = '';
     document.getElementById('filtroEtiqueta').indeterminate = true;
     let responsavelFinanceiro = null;
@@ -323,6 +370,7 @@
       const prevEnvioFim = document.getElementById('filtroPrevEnvioFim').value;
       const loja = document.getElementById('filtroLoja').value.trim().toLowerCase();
       const statuses = Array.from(selectedStatuses);
+      const skuValues = Array.from(selectedSkus.keys());
       const filtroEtiqueta = etiquetaEstado;
       const dataStart = dataInicio ? new Date(dataInicio) : null;
       const dataEnd = dataFim ? new Date(dataFim) : null;
@@ -336,6 +384,7 @@
         prevEnvioEnd ||
         loja ||
         statuses.length ||
+        skuValues.length ||
         filtroEtiqueta;
 
       const filtrados = todosPedidos.filter(p => {
@@ -354,6 +403,14 @@
         if (prevEnvioEnd && (!dataPrevEnvio || dataPrevEnvio > prevEnvioEnd)) return false;
         if (loja && !(p.loja || '').toLowerCase().includes(loja)) return false;
         if (statuses.length && !statuses.includes((p.status || '').toLowerCase())) return false;
+        if (skuValues.length) {
+          const pedidoSku = (p.sku || '').toLowerCase();
+          if (skuMatchType === 'exact') {
+            if (!skuValues.some(sku => pedidoSku === sku)) return false;
+          } else {
+            if (!skuValues.some(sku => pedidoSku.includes(sku))) return false;
+          }
+        }
         const etq = (p.etiquetaImpressa || !!p.numeroRastreamento) ? 'sim' : 'nao';
         if (filtroEtiqueta && etq !== filtroEtiqueta) return false;
         return true;
@@ -557,6 +614,93 @@
       }
     }
 
+    const skuInput = document.getElementById('skuInput');
+    const addSkuBtn = document.getElementById('addSkuBtn');
+    const skuChipsContainer = document.getElementById('skuChips');
+    const skuMatchRadios = Array.from(document.querySelectorAll('input[name="skuMatchType"]'));
+
+    function updateSkuChips() {
+      if (!skuChipsContainer) return;
+      skuChipsContainer.innerHTML = '';
+      if (!selectedSkus.size) {
+        const emptySpan = document.createElement('span');
+        emptySpan.className = 'text-sm text-gray-500';
+        emptySpan.textContent = 'Nenhum SKU selecionado';
+        skuChipsContainer.appendChild(emptySpan);
+        return;
+      }
+      selectedSkus.forEach((original, key) => {
+        const chip = document.createElement('span');
+        chip.className = 'flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1 rounded-full';
+        const textSpan = document.createElement('span');
+        textSpan.textContent = original;
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'text-blue-600 hover:text-blue-800 focus:outline-none';
+        removeBtn.textContent = '×';
+        removeBtn.setAttribute('aria-label', `Remover SKU ${original}`);
+        removeBtn.addEventListener('click', () => {
+          selectedSkus.delete(key);
+          updateSkuChips();
+          aplicarFiltros();
+        });
+        chip.appendChild(textSpan);
+        chip.appendChild(removeBtn);
+        skuChipsContainer.appendChild(chip);
+      });
+    }
+
+    function adicionarSkus(valor) {
+      if (!valor) return;
+      const valores = valor
+        .split(/[,;\n]/)
+        .map(v => v.trim())
+        .filter(Boolean);
+      let alterou = false;
+      valores.forEach(original => {
+        const normalizado = original.toLowerCase();
+        if (!selectedSkus.has(normalizado)) {
+          selectedSkus.set(normalizado, original);
+          alterou = true;
+        }
+      });
+      if (alterou) {
+        updateSkuChips();
+        aplicarFiltros();
+      }
+    }
+
+    if (addSkuBtn) {
+      addSkuBtn.addEventListener('click', () => {
+        if (skuInput) {
+          adicionarSkus(skuInput.value);
+          skuInput.value = '';
+          skuInput.focus();
+        }
+      });
+    }
+
+    if (skuInput) {
+      skuInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          adicionarSkus(skuInput.value);
+          skuInput.value = '';
+        }
+      });
+    }
+
+    skuMatchRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          skuMatchType = radio.value === 'exact' ? 'exact' : 'contains';
+          aplicarFiltros();
+        }
+      });
+    });
+
+    updateSkuChips();
+
     ['filtroDataInicio','filtroDataFim','filtroPrevEnvioInicio','filtroPrevEnvioFim','filtroLoja'].forEach(id => {
       document.getElementById(id).addEventListener('input', aplicarFiltros);
     });
@@ -569,6 +713,13 @@
       document.getElementById('filtroPrevEnvioFim').value = '';
       selectedStatuses.clear();
       document.querySelectorAll('#statusChips button').forEach(b => b.classList.remove('bg-blue-600','text-white'));
+      if (skuInput) skuInput.value = '';
+      selectedSkus.clear();
+      updateSkuChips();
+      skuMatchType = 'contains';
+      skuMatchRadios.forEach(radio => {
+        radio.checked = radio.value === 'contains';
+      });
       etiquetaEstado = '';
       const et = document.getElementById('filtroEtiqueta');
       et.checked = false;
