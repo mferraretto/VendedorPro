@@ -1,0 +1,47 @@
+<div class="card shadow-xl rounded-2xl border border-gray-200 bg-white max-w-5xl mx-auto mt-8">
+  <div class="card-header flex flex-wrap items-center gap-3 border-b border-gray-100 rounded-t-2xl">
+    <i class="fas fa-box-open text-indigo-600"></i>
+    <div>
+      <h3 class="text-2xl font-bold text-gray-800 tracking-tight">Produtos Vendidos</h3>
+      <p class="text-sm text-gray-500">Resumo consolidado das vendas por SKU dos usuários vinculados a este responsável financeiro.</p>
+    </div>
+    <div class="ml-auto text-sm text-gray-500">
+      Total vendido: <span id="produtosVendidosTotalUnidades" class="font-semibold text-gray-700">0</span> unidades
+    </div>
+  </div>
+  <div class="card-body space-y-6 p-6">
+    <div class="grid gap-4 md:grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+      <label class="block">
+        <span class="text-sm font-medium text-gray-700">Data inicial</span>
+        <input type="date" id="filtroProdutosVendidosInicio" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium text-gray-700">Data final</span>
+        <input type="date" id="filtroProdutosVendidosFim" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+      </label>
+      <label class="block md:col-span-2">
+        <span class="text-sm font-medium text-gray-700">SKU</span>
+        <input type="text" id="filtroSkuProdutosVendidos" placeholder="Buscar SKU" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+      </label>
+      <div class="flex items-end">
+        <button id="btnProdutosVendidosFiltrar" onclick="carregarProdutosVendidos()" class="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          <i class="fas fa-filter mr-2"></i>
+          Filtrar
+        </button>
+      </div>
+    </div>
+    <p id="produtosVendidosStatus" class="text-sm text-gray-500"></p>
+    <div class="overflow-x-auto rounded-xl border border-gray-200 shadow">
+      <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+          <tr>
+            <th class="px-4 py-3">SKU</th>
+            <th class="px-4 py-3 text-center">Quantidade vendida</th>
+            <th class="px-4 py-3">Usuários responsáveis</th>
+          </tr>
+        </thead>
+        <tbody id="produtosVendidosTabela" class="divide-y divide-gray-100 bg-white"></tbody>
+      </table>
+    </div>
+  </div>
+</div>

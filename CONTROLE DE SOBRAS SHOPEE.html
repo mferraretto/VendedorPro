@@ -98,6 +98,11 @@
 
       </div>
 
+      <!-- Aba de Produtos Vendidos (Gestores/Responsáveis Financeiros) -->
+      <div id="produtosVendidos" class="tab-content">
+
+      </div>
+
       <!-- Aba de Sobras -->
       <div id="sobras" class="tab-content">
 
@@ -138,6 +143,8 @@
         let dadosAcompanhamento = [];
     let sobraPorSku = {};
       let resumoSku = {};
+      let produtosVendidosResumo = [];
+      let produtosVendidosCarregado = false;
       let totalSaquesAcompanhamento = 0;
       let totalComissaoAcompanhamento = 0;
       let usuarioLogado = { uid: null, perfil: '' };
@@ -245,7 +252,16 @@ const makeLegacySkuDocId = (sku) =>
   String(sku ?? '')
     .trim()
     .replace(/[.#$\/\[\]]/g, '_');
-   const tabIds = ['importar','metas','graficos','historico','faturamento','vendasML','registroFaturamento','controleVendas','sobras','previsao','acompanhamento','acompanhamentoGestor'];
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+   const tabIds = ['importar','metas','graficos','historico','faturamento','vendasML','registroFaturamento','controleVendas','produtosVendidos','sobras','previsao','acompanhamento','acompanhamentoGestor'];
       const tabsLoaded = Promise.all(
         tabIds.map(t =>
           fetch(`sobras-tabs/${t}.html`)
@@ -539,6 +555,10 @@ const makeLegacySkuDocId = (sku) =>
         // Atualiza gráficos, se necessário
       if (id === 'graficos') {
         setTimeout(atualizarGraficos, 100);
+      }
+      if (id === 'produtosVendidos') {
+        if (!produtosVendidosCarregado) carregarProdutosVendidos();
+        else renderProdutosVendidos();
       }
         };
 
@@ -3400,6 +3420,239 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         updateConnectionStatus(false);
       }
     }
+    function renderProdutosVendidos() {
+      const tabela = document.getElementById('produtosVendidosTabela');
+      if (!tabela) return;
+
+      const filtroSku = (document
+        .getElementById('filtroSkuProdutosVendidos')?.value || '')
+        .trim()
+        .toLowerCase();
+      const statusEl = document.getElementById('produtosVendidosStatus');
+      const totalEl = document.getElementById('produtosVendidosTotalUnidades');
+
+      const dadosFiltrados = produtosVendidosResumo.filter((item) =>
+        !filtroSku || item.sku.toLowerCase().includes(filtroSku),
+      );
+
+      if (!dadosFiltrados.length) {
+        tabela.innerHTML =
+          '<tr><td colspan="3" class="py-6 text-center text-gray-500">Nenhum SKU encontrado.</td></tr>';
+        if (statusEl) {
+          if (produtosVendidosResumo.length && filtroSku) {
+            statusEl.textContent = 'Nenhum SKU corresponde ao filtro aplicado.';
+          } else if (produtosVendidosResumo.length) {
+            statusEl.textContent =
+              'Nenhum dado encontrado para o período selecionado.';
+          } else {
+            statusEl.textContent = 'Nenhum dado encontrado.';
+          }
+        }
+        if (totalEl) totalEl.textContent = '0';
+        return;
+      }
+
+      const ordenados = [...dadosFiltrados].sort((a, b) => b.total - a.total);
+      const linhas = ordenados
+        .map((item) => {
+          const totalFormatado = item.total.toLocaleString('pt-BR');
+          const usuariosTexto = item.usuarios
+            .map(([nome, qtd]) =>
+              `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`,
+            )
+            .join('<br>');
+          return `
+            <tr class="divide-x divide-gray-100">
+              <td class="py-3 px-4 font-semibold text-gray-700">${escapeHtml(
+                item.sku,
+              )}</td>
+              <td class="py-3 px-4 text-center font-medium text-gray-800">${totalFormatado}</td>
+              <td class="py-3 px-4 text-sm text-gray-600 leading-5">${
+                usuariosTexto || '<span class="text-gray-400">-</span>'
+              }</td>
+            </tr>`;
+        })
+        .join('');
+
+      tabela.innerHTML = linhas;
+
+      if (statusEl) {
+        statusEl.textContent = `${ordenados.length} SKU${
+          ordenados.length > 1 ? 's' : ''
+        } encontrados.`;
+      }
+      if (totalEl) {
+        const total = ordenados.reduce((acc, item) => acc + item.total, 0);
+        totalEl.textContent = total.toLocaleString('pt-BR');
+      }
+    }
+
+    async function carregarProdutosVendidos() {
+      const tabela = document.getElementById('produtosVendidosTabela');
+      const statusEl = document.getElementById('produtosVendidosStatus');
+      const totalEl = document.getElementById('produtosVendidosTotalUnidades');
+      produtosVendidosResumo = [];
+      produtosVendidosCarregado = false;
+
+      if (tabela) {
+        tabela.innerHTML =
+          '<tr><td colspan="3" class="py-6 text-center text-gray-500">Carregando...</td></tr>';
+      }
+      if (statusEl) {
+        statusEl.textContent = 'Carregando dados de produtos vendidos...';
+      }
+      if (totalEl) totalEl.textContent = '0';
+
+      const inicioInput = document.getElementById(
+        'filtroProdutosVendidosInicio',
+      );
+      const fimInput = document.getElementById('filtroProdutosVendidosFim');
+      const hoje = new Date();
+      const ano = hoje.getFullYear();
+      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+      const dia = String(hoje.getDate()).padStart(2, '0');
+      const primeiroDiaMes = `${ano}-${mes}-01`;
+      const hojeIso = `${ano}-${mes}-${dia}`;
+
+      if (inicioInput && !inicioInput.value) inicioInput.value = primeiroDiaMes;
+      if (fimInput && !fimInput.value) fimInput.value = hojeIso;
+
+      const dataInicio = inicioInput?.value || null;
+      const dataFim = fimInput?.value || null;
+      if (dataInicio && dataFim && dataInicio > dataFim) {
+        if (statusEl)
+          statusEl.textContent =
+            'Período inválido: a data inicial é maior que a final.';
+        if (tabela)
+          tabela.innerHTML =
+            '<tr><td colspan="3" class="py-6 text-center text-red-500">Ajuste o período selecionado.</td></tr>';
+        return;
+      }
+
+      try {
+        const responsavelEmail = (usuarioLogado.email || '').trim();
+        if (!responsavelEmail) {
+          if (statusEl)
+            statusEl.textContent =
+              'Não foi possível identificar o responsável financeiro.';
+          if (tabela)
+            tabela.innerHTML =
+              '<tr><td colspan="3" class="py-6 text-center text-gray-500">Usuário não autenticado.</td></tr>';
+          return;
+        }
+
+        const usuariosMap = new Map();
+        const usuariosSnap = await db
+          .collection('usuarios')
+          .where('responsavelFinanceiroEmail', '==', responsavelEmail)
+          .get();
+        usuariosSnap.forEach((doc) => {
+          const dados = doc.data() || {};
+          usuariosMap.set(doc.id, {
+            nome: dados.nome || dados.email || doc.id,
+            email: dados.email || '',
+          });
+        });
+
+        const uidSnap = await db
+          .collection('uid')
+          .where('responsavelFinanceiroEmail', '==', responsavelEmail)
+          .get();
+        uidSnap.forEach((doc) => {
+          if (!usuariosMap.has(doc.id)) {
+            const dados = doc.data() || {};
+            usuariosMap.set(doc.id, {
+              nome: dados.nome || dados.email || doc.id,
+              email: dados.email || '',
+            });
+          }
+        });
+
+        if (!usuariosMap.size) {
+          if (statusEl)
+            statusEl.textContent =
+              'Nenhum usuário associado a este responsável financeiro.';
+          if (tabela)
+            tabela.innerHTML =
+              '<tr><td colspan="3" class="py-6 text-center text-gray-500">Sem usuários vinculados.</td></tr>';
+          return;
+        }
+
+        const agregados = new Map();
+        for (const [uid, info] of usuariosMap.entries()) {
+          try {
+            const vendasSnap = await db
+              .collection('uid')
+              .doc(uid)
+              .collection('skusVendidos')
+              .get();
+
+            for (const docDia of vendasSnap.docs) {
+              const dataDoc = docDia.id || '';
+              if (dataInicio && dataDoc && dataDoc < dataInicio) continue;
+              if (dataFim && dataDoc && dataDoc > dataFim) continue;
+
+              const listaSnap = await docDia.ref.collection('lista').get();
+              listaSnap.forEach((itemDoc) => {
+                const dados = itemDoc.data() || {};
+                const sku = String(dados.sku || itemDoc.id || '').trim();
+                if (!sku) return;
+                const total = Number(dados.total || 0);
+                if (!Number.isFinite(total) || total <= 0) return;
+
+                if (!agregados.has(sku)) {
+                  agregados.set(sku, {
+                    sku,
+                    total: 0,
+                    usuarios: new Map(),
+                  });
+                }
+
+                const registro = agregados.get(sku);
+                registro.total += total;
+                const nomeUsuario = info.nome || info.email || uid;
+                registro.usuarios.set(
+                  nomeUsuario,
+                  (registro.usuarios.get(nomeUsuario) || 0) + total,
+                );
+              });
+            }
+          } catch (loopErr) {
+            console.error('Erro ao processar vendas do usuário', uid, loopErr);
+          }
+        }
+
+        produtosVendidosResumo = Array.from(agregados.values()).map(
+          (item) => ({
+            sku: item.sku,
+            total: item.total,
+            usuarios: Array.from(item.usuarios.entries()),
+          }),
+        );
+
+        produtosVendidosCarregado = true;
+        renderProdutosVendidos();
+        if (statusEl && !produtosVendidosResumo.length) {
+          statusEl.textContent =
+            'Nenhum SKU encontrado para o período selecionado.';
+        }
+
+        const skuInput = document.getElementById('filtroSkuProdutosVendidos');
+        if (skuInput && !skuInput.dataset.listenerAdded) {
+          skuInput.addEventListener('input', renderProdutosVendidos);
+          skuInput.dataset.listenerAdded = 'true';
+        }
+      } catch (err) {
+        console.error('Erro ao carregar produtos vendidos', err);
+        if (statusEl)
+          statusEl.textContent =
+            'Erro ao carregar dados de produtos vendidos.';
+        if (tabela)
+          tabela.innerHTML =
+            '<tr><td colspan="3" class="py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>';
+      }
+    }
+
     async function carregarControleVendas() {
       const container = document.getElementById("listaControleVendas");
       const resumoContainer = document.getElementById("resumoMensalVendas");
@@ -4725,6 +4978,7 @@ async function atualizarResponsavelFinanceiro(btn) {
 
 window.carregarRegistrosFaturamento = carregarRegistrosFaturamento;
 window.carregarControleVendas = carregarControleVendas;
+window.carregarProdutosVendidos = carregarProdutosVendidos;
 window.carregarSobras = carregarSobras;
 window.carregarPrevisao = carregarPrevisao;
 window.gerarPrevisao = gerarPrevisao;
