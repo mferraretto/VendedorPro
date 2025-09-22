@@ -78,3 +78,22 @@ exporte <strong>um único dia</strong> por vez. Ao importar o arquivo,
     </div>
   </div>
 </div>
+
+<div id="faturamentoProcessingModal" class="modal">
+  <div class="modal-content space-y-4">
+    <div>
+      <h3 class="text-lg font-semibold">Processando planilha</h3>
+      <p class="text-sm text-gray-600">Não feche esta janela até finalizar o processamento.</p>
+    </div>
+    <div>
+      <div class="progress"><div id="faturamentoModalProgressBar" class="progress-bar"></div></div>
+      <span id="faturamentoModalProgressText" class="text-sm text-gray-600 mt-2 block text-center">0%</span>
+    </div>
+    <div id="faturamentoModalStatus" class="text-sm text-gray-600"></div>
+    <div class="flex justify-end">
+      <button id="faturamentoModalCloseBtn" class="btn-primary hidden" onclick="closeFaturamentoProcessingModal()">
+        <i class="fas fa-check"></i> Fechar
+      </button>
+    </div>
+  </div>
+</div>
