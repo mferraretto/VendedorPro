@@ -633,6 +633,7 @@ document.addEventListener('sidebarLoaded', async () => {
     'menu-comunicacao',
     'menu-saques',
     'menu-produtos-precos',
+    'menu-pedidos-reais',
     'menu-acompanhamento-gestor',
     'menu-mentoria',
     'menu-perfil-mentorado',
@@ -697,6 +698,7 @@ document.addEventListener('sidebarLoaded', async () => {
     const financeiro = getLi('menu-financeiro');
     const saques = getLi('menu-saques');
     const produtosPrecos = getLi('menu-produtos-precos');
+    const pedidosReais = getLi('menu-pedidos-reais');
     const gestao = getLi('menu-gestao');
     const acompGestor = getLi('menu-acompanhamento-gestor');
     const mentoria = getLi('menu-mentoria');
@@ -743,6 +745,7 @@ document.addEventListener('sidebarLoaded', async () => {
     const financeiroGroup = createGroup(financeiro, 'menuFinanceiro', [
       saques,
       produtosPrecos,
+      pedidosReais,
     ]);
     const gestaoGroup = createGroup(gestao, 'menuGestao', [
       acompGestor,

@@ -500,6 +500,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-painel-atualizacoes-mentorados',
       'menu-saques',
       'menu-produtos-precos',
+      'menu-pedidos-reais',
       'menu-acompanhamento-gestor',
       'menu-mentoria',
       'menu-perfil-mentorado',
