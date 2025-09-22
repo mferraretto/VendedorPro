@@ -292,11 +292,9 @@
         const dataPedido = parseDate(p.data);
 
         if (!anyFilter) {
-          const doisDiasAtras = new Date();
-          doisDiasAtras.setDate(doisDiasAtras.getDate() - 2);
-          const recente = dataPedido && dataPedido >= doisDiasAtras;
-          const aEnviar = (p.status || '').toLowerCase() === 'a enviar';
-          return recente || aEnviar;
+          // Sem filtros ativos exibimos toda a lista ordenada, evitando que pedidos antigos
+          // desapareçam quando não há registros recentes ou "a enviar".
+          return true;
         }
 
         if (dataStart && (!dataPedido || dataPedido < dataStart)) return false;
