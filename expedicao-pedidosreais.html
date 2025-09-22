@@ -150,6 +150,7 @@
     document.getElementById('filtroEtiqueta').indeterminate = true;
     let responsavelFinanceiro = null;
     let responsavelExpedicao = null;
+    let allowedUserUids = [];
     const PAGE_SIZE = 50;
     const BATCH_SIZE = 50;
     let currentOffset = 0;
@@ -166,10 +167,11 @@
     });
 
     async function buscarResponsaveis(user) {
+      let dadosUsuario = {};
       try {
         const userDoc = await db.collection('usuarios').doc(user.uid).get();
-        let data = userDoc.data() || {};
-        let respEmail = data.responsavelFinanceiroEmail || '';
+        dadosUsuario = userDoc.data() || {};
+        let respEmail = dadosUsuario.responsavelFinanceiroEmail || '';
         if (!respEmail) {
           const altDoc = await db.collection('uid').doc(user.uid).get();
           if (altDoc.exists) respEmail = altDoc.data().responsavelFinanceiroEmail || '';
@@ -178,9 +180,9 @@
           const snap = await db.collection('usuarios').where('email', '==', respEmail).limit(1).get();
           if (!snap.empty) responsavelFinanceiro = { uid: snap.docs[0].id, email: respEmail };
         }
-        let gestorEmail = Array.isArray(data.gestoresExpedicaoEmails)
-          ? data.gestoresExpedicaoEmails[0]
-          : data.responsavelExpedicaoEmail || '';
+        let gestorEmail = Array.isArray(dadosUsuario.gestoresExpedicaoEmails)
+          ? dadosUsuario.gestoresExpedicaoEmails[0]
+          : dadosUsuario.responsavelExpedicaoEmail || '';
         if (!gestorEmail) {
           const altDoc2 = await db.collection('uid').doc(user.uid).get();
           if (altDoc2.exists) {
@@ -197,6 +199,54 @@
       } catch (e) {
         console.error('Erro ao buscar responsáveis:', e);
       }
+      return dadosUsuario;
+    }
+
+    function normalizePerfil(perfil) {
+      const p = (perfil || '').toLowerCase().trim();
+      if (['adm', 'admin', 'administrador'].includes(p)) return 'adm';
+      if (['usuario completo', 'usuario'].includes(p)) return 'usuario';
+      if (['usuario basico', 'cliente'].includes(p)) return 'cliente';
+      if (
+        [
+          'gestor',
+          'mentor',
+          'responsavel',
+          'gestor financeiro',
+          'responsavel financeiro'
+        ].includes(p)
+      )
+        return 'gestor';
+      return p;
+    }
+
+    async function obterUsuariosAssociados(user, dadosUsuario = null) {
+      const associados = new Set([user.uid]);
+      let perfilNormalizado = '';
+      if (!dadosUsuario) {
+        try {
+          const snap = await db.collection('usuarios').doc(user.uid).get();
+          dadosUsuario = snap.exists ? snap.data() || {} : {};
+        } catch (e) {
+          console.error('Erro ao carregar dados do usuário atual:', e);
+        }
+      }
+      if (dadosUsuario && dadosUsuario.perfil) {
+        perfilNormalizado = normalizePerfil(dadosUsuario.perfil);
+      }
+
+      try {
+        const [usuariosSnap, uidSnap] = await Promise.all([
+          db.collection('usuarios').where('responsavelFinanceiroEmail', '==', user.email).get(),
+          db.collection('uid').where('responsavelFinanceiroEmail', '==', user.email).get()
+        ]);
+        usuariosSnap.forEach(docSnap => associados.add(docSnap.id));
+        uidSnap.forEach(docSnap => associados.add(docSnap.id));
+      } catch (e) {
+        console.error('Erro ao buscar usuários associados ao responsável financeiro:', e);
+      }
+
+      return { associados: Array.from(associados), perfil: perfilNormalizado };
     }
 
     function parseDate(str) {
@@ -320,44 +370,96 @@
         return;
       }
       usuarioAtual = user;
-      await buscarResponsaveis(user);
-      await carregarPedidos(user);
+      const dadosUsuario = await buscarResponsaveis(user);
+      const { associados } = await obterUsuariosAssociados(user, dadosUsuario);
+      allowedUserUids = associados;
+      await carregarPedidos(user, allowedUserUids);
       aplicarFiltros();
     });
 
-    async function carregarPedidos(user) {
+    async function carregarPedidos(user, uidsPermitidos = []) {
       try {
         const { decryptString } = await import('./crypto.js');
-        const pass = getPassphrase() || user.uid;
+        const passCandidates = [];
+        const storedPass = getPassphrase();
+        if (storedPass) passCandidates.push(storedPass);
+        if (user.uid && !passCandidates.includes(user.uid)) passCandidates.push(user.uid);
+        if (user.email && !passCandidates.includes(user.email)) passCandidates.push(user.email);
+
         todosPedidos = [];
-        const listaSnap = await db.collectionGroup('lista').where('uid', '==', user.uid).get();
+        const uniqueUids = Array.isArray(uidsPermitidos) && uidsPermitidos.length
+          ? Array.from(new Set(uidsPermitidos))
+          : [user.uid];
+        if (!uniqueUids.includes(user.uid)) uniqueUids.push(user.uid);
+
         loadingSpinner?.classList.remove('hidden');
-        const docs = listaSnap.docs;
-        const CHUNK_SIZE = 100;
-        for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
-          const chunk = docs.slice(i, i + CHUNK_SIZE);
-          for (const doc of chunk) {
-            const path = doc.ref.path;
-            if (!path.startsWith(`uid/${user.uid}/pedidosreais/`)) continue;
-            let d = doc.data();
-            if (d.encrypted) {
-              try {
-                const txt = await decryptString(d.encrypted, pass);
-                d = JSON.parse(txt);
-              } catch (e) {
-                console.error('Erro ao descriptografar pedido', doc.id, e);
-                continue;
-              }
-            }
-            d.pedidoId = d.pedidoId || doc.id;
-            todosPedidos.push(d);
+
+        const rawDocs = [];
+        const QUERY_CHUNK = 10;
+        for (let i = 0; i < uniqueUids.length; i += QUERY_CHUNK) {
+          const chunk = uniqueUids.slice(i, i + QUERY_CHUNK);
+          try {
+            const snap = await db.collectionGroup('lista').where('uid', 'in', chunk).get();
+            snap.forEach(docSnap => rawDocs.push(docSnap));
+          } catch (err) {
+            console.error('Erro ao buscar pedidos para usuários', chunk, err);
           }
           if (loadingText) {
-            const percent = Math.round(((i + chunk.length) / docs.length) * 100);
+            const percent = Math.round(((i + chunk.length) / uniqueUids.length) * 100);
             loadingText.textContent = `Carregando pedidos... ${percent}%`;
           }
           await new Promise(r => setTimeout(r));
         }
+
+        const prefixBase = `uid/${user.uid}/`;
+        const prefixDelegados = `uid/${user.uid}/uid/`;
+        const docs = rawDocs.filter(docSnap => {
+          const dados = docSnap.data() || {};
+          const origemUid = dados.uid;
+          if (!origemUid) return false;
+          const path = docSnap.ref.path || '';
+          if (origemUid === user.uid) return path.startsWith(prefixBase);
+          return path.startsWith(`${prefixDelegados}${origemUid}/`);
+        });
+
+        const PROCESS_CHUNK = 100;
+        for (let i = 0; i < docs.length; i += PROCESS_CHUNK) {
+          const lote = docs.slice(i, i + PROCESS_CHUNK);
+          for (const docSnap of lote) {
+            const docData = docSnap.data() || {};
+            const origemUid = docData.uid || null;
+            let pedido = { ...docData };
+            if (docData.encrypted) {
+              let decrypted = null;
+              let lastError = null;
+              for (const candidate of passCandidates) {
+                try {
+                  const txt = await decryptString(docData.encrypted, candidate);
+                  decrypted = JSON.parse(txt);
+                  break;
+                } catch (err) {
+                  lastError = err;
+                }
+              }
+              if (!decrypted) {
+                console.error('Erro ao descriptografar pedido', docSnap.id, lastError);
+                continue;
+              }
+              pedido = decrypted;
+            } else {
+              delete pedido.encrypted;
+            }
+            pedido.pedidoId = pedido.pedidoId || docSnap.id;
+            if (origemUid) pedido.uidOrigem = origemUid;
+            todosPedidos.push(pedido);
+          }
+          if (loadingText) {
+            const percent = docs.length ? Math.round(((i + lote.length) / docs.length) * 100) : 100;
+            loadingText.textContent = `Carregando pedidos... ${percent}%`;
+          }
+          await new Promise(r => setTimeout(r));
+        }
+
         todosPedidos.sort((a, b) => {
           const da = parseDate(a.data);
           const db = parseDate(b.data);
@@ -390,7 +492,7 @@
           const batch = db.batch();
           duplicados.forEach(ref => batch.delete(ref));
           await batch.commit();
-          await carregarPedidos(usuarioAtual);
+          await carregarPedidos(usuarioAtual, allowedUserUids);
           aplicarFiltros();
           alert(`${duplicados.length} pedidos duplicados removidos.`);
         } else {
@@ -718,7 +820,7 @@
           if ((i + 1) % CHUNK_SAVE === 0) await new Promise(r => setTimeout(r));
         }
         if (atualizados || novos) {
-          await carregarPedidos(usuarioAtual);
+          await carregarPedidos(usuarioAtual, allowedUserUids);
           aplicarFiltros();
         }
         importProgress.style.width = '100%';
