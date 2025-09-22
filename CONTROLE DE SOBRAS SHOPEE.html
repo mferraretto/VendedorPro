@@ -150,10 +150,59 @@ const API_URL = 'https://us-central1-matheus-35023.cloudfunctions.net/proxyDeepS
 
 function normalizeDate(value) {
   if (!value) return '';
-  const d = new Date(value);
-  if (!isNaN(d)) return d.toISOString().split('T')[0];
-  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : '';
+  if (value instanceof Date && !isNaN(value)) return value.toISOString().split('T')[0];
+
+  const str = String(value).trim();
+  if (!str) return '';
+
+  const directDate = new Date(str);
+  if (!isNaN(directDate)) return directDate.toISOString().split('T')[0];
+
+  const brMatch = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (brMatch) {
+    const dia = brMatch[1].padStart(2, '0');
+    const mes = brMatch[2].padStart(2, '0');
+    const ano = brMatch[3];
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  const isoMatch = str.match(/\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) return isoMatch[0];
+
+  const sanitized = str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\bhs\b\.?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  const months = {
+    janeiro: '01',
+    fevereiro: '02',
+    marco: '03',
+    abril: '04',
+    maio: '05',
+    junho: '06',
+    julho: '07',
+    agosto: '08',
+    setembro: '09',
+    outubro: '10',
+    novembro: '11',
+    dezembro: '12'
+  };
+
+  const ptMatch = sanitized.match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})(?:\s+(\d{1,2}:\d{2}))?/);
+  if (ptMatch) {
+    const dia = ptMatch[1].padStart(2, '0');
+    const mes = months[ptMatch[2]];
+    const ano = ptMatch[3];
+    if (mes) {
+      return `${ano}-${mes}-${dia}`;
+    }
+  }
+
+  return '';
 }
 
 function normalizeHeaderKey(key) {
@@ -1616,6 +1665,7 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
           let liquidoTotal = 0;
           let qtdVendas = 0;
           const skusVendidos = {};
+          const faturamentoPorDia = {};
           const pedidosRef = db.collection('uid').doc(usuarioLogado.uid).collection('pedidosreais');
           const totalRows = rows.length;
           let processedRows = 0;
@@ -1662,6 +1712,15 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
                 if (!skusVendidos[sku]) skusVendidos[sku] = { total: 0, valorLiquido: 0 };
                 skusVendidos[sku].total += 1;
                 skusVendidos[sku].valorLiquido += liquidoLinha;
+              }
+              const diaResumo = dataVenda || dataReferencia;
+              if (diaResumo) {
+                if (!faturamentoPorDia[diaResumo]) {
+                  faturamentoPorDia[diaResumo] = { bruto: 0, liquido: 0, vendas: 0 };
+                }
+                faturamentoPorDia[diaResumo].bruto += brutoLinha;
+                faturamentoPorDia[diaResumo].liquido += liquidoLinha;
+                faturamentoPorDia[diaResumo].vendas += 1;
               }
             }
 
@@ -1736,9 +1795,62 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
             bruto += dadosAnteriores.valorBruto || 0;
             liquidoTotal += dadosAnteriores.valorLiquido || 0;
             qtdVendas += dadosAnteriores.qtdVendas || 0;
+            if (Array.isArray(dadosAnteriores.resumoPorDia)) {
+              for (const diaAnterior of dadosAnteriores.resumoPorDia) {
+                const chaveDia =
+                  diaAnterior?.data ||
+                  diaAnterior?.dia ||
+                  diaAnterior?.dataVenda ||
+                  dadosAnteriores.data ||
+                  dataReferencia;
+                if (!chaveDia) continue;
+                if (!faturamentoPorDia[chaveDia]) {
+                  faturamentoPorDia[chaveDia] = { bruto: 0, liquido: 0, vendas: 0 };
+                }
+                faturamentoPorDia[chaveDia].bruto += Number(diaAnterior.valorBruto || diaAnterior.bruto || 0);
+                faturamentoPorDia[chaveDia].liquido += Number(diaAnterior.valorLiquido || diaAnterior.liquido || 0);
+                faturamentoPorDia[chaveDia].vendas += Number(
+                  diaAnterior.vendas ||
+                    diaAnterior.qtdVendas ||
+                    diaAnterior.quantidade ||
+                    0
+                );
+              }
+            } else {
+              const chaveDiaAnterior = dadosAnteriores.data || dataReferencia;
+              if (chaveDiaAnterior) {
+                if (!faturamentoPorDia[chaveDiaAnterior]) {
+                  faturamentoPorDia[chaveDiaAnterior] = { bruto: 0, liquido: 0, vendas: 0 };
+                }
+                faturamentoPorDia[chaveDiaAnterior].bruto += Number(dadosAnteriores.valorBruto || 0);
+                faturamentoPorDia[chaveDiaAnterior].liquido += Number(dadosAnteriores.valorLiquido || 0);
+                faturamentoPorDia[chaveDiaAnterior].vendas += Number(
+                  dadosAnteriores.qtdVendas || dadosAnteriores.vendas || 0
+                );
+              }
+            }
           }
 
           const taxas = Math.max(0, bruto - liquidoTotal);
+
+          const resumoPorDia = Object.entries(faturamentoPorDia)
+            .map(([dia, valores]) => {
+              const brutoDia = Number(valores?.bruto || 0);
+              const liquidoDia = Number(valores?.liquido || 0);
+              return {
+                data: dia,
+                valorBruto: brutoDia,
+                valorLiquido: liquidoDia,
+                taxas: Math.max(0, brutoDia - liquidoDia),
+                vendas: Number(valores?.vendas || 0)
+              };
+            })
+            .sort((a, b) => new Date(a.data) - new Date(b.data));
+
+          const periodoResumo =
+            resumoPorDia.length > 0
+              ? { inicio: resumoPorDia[0].data, fim: resumoPorDia[resumoPorDia.length - 1].data }
+              : { inicio: dataReferencia, fim: dataReferencia };
 
           const refSku = db
             .collection('uid')
@@ -1824,7 +1936,9 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
             loja: loja,
             plataforma: 'Mercado Livre',
             atualizadoEm: new Date(),
-            uid: usuarioLogado.uid
+            uid: usuarioLogado.uid,
+            resumoPorDia,
+            periodoVendas: periodoResumo
           };
           const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
           await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
@@ -1845,7 +1959,9 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
             vendas: qtdVendas,
             plataforma: 'Mercado Livre',
             atualizadoEm: new Date(),
-            uid: usuarioLogado.uid
+            uid: usuarioLogado.uid,
+            resumoPorDia,
+            periodoVendas: periodoResumo
           };
           const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
           await db
@@ -1871,15 +1987,64 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
 
           const resultado = document.getElementById('resultadoVendasML');
           if (resultado) {
+            const formatCurrency = (valor) =>
+              Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const formatDateBr = (iso) => {
+              if (!iso || typeof iso !== 'string') return iso || '';
+              const partes = iso.split('-');
+              if (partes.length !== 3) return iso;
+              return `${partes[2]}/${partes[1]}/${partes[0]}`;
+            };
+            const periodoTexto =
+              periodoResumo.inicio === periodoResumo.fim
+                ? formatDateBr(periodoResumo.inicio)
+                : `${formatDateBr(periodoResumo.inicio)} até ${formatDateBr(periodoResumo.fim)}`;
+            const resumoDiasHtml = resumoPorDia.length
+              ? `
+                <div class="mt-4">
+                  <h4 class="font-semibold text-sm text-gray-700 mb-2">Faturamento por dia</h4>
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-xs text-left text-gray-600">
+                      <thead class="bg-gray-100 text-gray-700">
+                        <tr>
+                          <th class="px-3 py-2 font-medium">Data</th>
+                          <th class="px-3 py-2 font-medium">Bruto</th>
+                          <th class="px-3 py-2 font-medium">Líquido</th>
+                          <th class="px-3 py-2 font-medium">Taxas</th>
+                          <th class="px-3 py-2 font-medium">Vendas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${resumoPorDia
+                          .map(
+                            (dia) => `
+                              <tr class="border-b last:border-none">
+                                <td class="px-3 py-2">${formatDateBr(dia.data)}</td>
+                                <td class="px-3 py-2">${formatCurrency(dia.valorBruto)}</td>
+                                <td class="px-3 py-2">${formatCurrency(dia.valorLiquido)}</td>
+                                <td class="px-3 py-2">${formatCurrency(dia.taxas)}</td>
+                                <td class="px-3 py-2">${dia.vendas}</td>
+                              </tr>
+                            `
+                          )
+                          .join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              `
+              : `<p class="mt-4 text-sm text-gray-500">Nenhum faturamento ativo encontrado na planilha.</p>`;
+
             resultado.innerHTML = `
               <div class="alert alert-success">
                 <i class="fas fa-check-circle"></i> Faturamento Mercado Livre processado com sucesso!<br>
                 <strong>Loja:</strong> ${loja}<br>
-                <strong>Data:</strong> ${dataReferencia}<br>
-                <strong>Bruto:</strong> R$ ${bruto.toFixed(2)}<br>
-                <strong>Líquido:</strong> R$ ${liquidoTotal.toFixed(2)}<br>
+                <strong>Período identificado:</strong> ${periodoTexto}<br>
+                <strong>Bruto total:</strong> ${formatCurrency(bruto)}<br>
+                <strong>Líquido total:</strong> ${formatCurrency(liquidoTotal)}<br>
                 <strong>Vendas:</strong> ${qtdVendas}
               </div>
+              ${resumoDiasHtml}
             `;
           }
 
