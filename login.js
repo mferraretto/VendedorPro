@@ -502,6 +502,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-produtos-precos',
       'menu-pedidos-reais',
       'menu-acompanhamento-gestor',
+      'menu-acompanhamento-problemas',
       'menu-mentoria',
       'menu-perfil-mentorado',
       'menu-equipes',

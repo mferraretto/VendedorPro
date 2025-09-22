@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acompanhamento de Problemas</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="app-container">
+      <div id="sidebar-container"></div>
+      <div id="navbar-container"></div>
+
+      <main class="main-content p-4 space-y-6">
+        <header class="space-y-2">
+          <h1 class="text-2xl font-bold flex items-center gap-2">
+            <span>🛟</span>
+            Acompanhamento de Problemas
+          </h1>
+          <p class="text-sm text-gray-600" id="infoUsuarios">
+            Carregando informações dos usuários vinculados...
+          </p>
+        </header>
+
+        <section class="card">
+          <div
+            class="card-body grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-end"
+          >
+            <div class="space-y-2">
+              <label
+                for="filtroUsuario"
+                class="block text-sm font-medium text-gray-700"
+                >Selecionar usuário</label
+              >
+              <select id="filtroUsuario" class="form-control">
+                <option value="">Todos os usuários conectados</option>
+              </select>
+            </div>
+            <div class="space-y-2 lg:col-span-2">
+              <label class="block text-sm font-medium text-gray-700"
+                >Resumo</label
+              >
+              <p class="text-sm text-gray-500" id="resumoUsuarios">
+                Aguarde enquanto buscamos os dados registrados na aba de
+                Problemas.
+              </p>
+            </div>
+            <div class="lg:justify-self-end">
+              <span
+                id="globalStatus"
+                class="text-xs text-gray-500 px-3 py-1 rounded-full bg-gray-100"
+                >Sincronizando dados...</span
+              >
+            </div>
+          </div>
+        </section>
+
+        <nav class="border-b border-gray-200 flex flex-wrap gap-2 text-sm">
+          <button
+            class="tab-btn pb-2 -mb-px border-b-2 border-indigo-600 text-indigo-600 font-medium"
+            data-tab="tab-pecas"
+          >
+            Peças faltantes
+          </button>
+          <button
+            class="tab-btn pb-2 -mb-px border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+            data-tab="tab-reembolsos"
+          >
+            Reembolsos
+          </button>
+        </nav>
+
+        <section id="tab-pecas" class="tab-panel space-y-6">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div
+              class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-gray-500">Total de registros</p>
+              <p class="text-2xl font-semibold" id="pecasResumoTotal">0</p>
+            </div>
+            <div
+              class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-amber-600">Não feito</p>
+              <p
+                class="text-2xl font-semibold text-amber-600"
+                id="pecasResumoNaoFeito"
+              >
+                0
+              </p>
+            </div>
+            <div
+              class="bg-white border border-blue-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-blue-600">Em andamento</p>
+              <p
+                class="text-2xl font-semibold text-blue-600"
+                id="pecasResumoEmAndamento"
+              >
+                0
+              </p>
+            </div>
+            <div
+              class="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-emerald-600">Resolvidos</p>
+              <p
+                class="text-2xl font-semibold text-emerald-600"
+                id="pecasResumoResolvido"
+              >
+                0
+              </p>
+            </div>
+            <div
+              class="bg-white border border-indigo-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-indigo-600">Valor gasto</p>
+              <p
+                class="text-2xl font-semibold text-indigo-600"
+                id="pecasResumoValor"
+              >
+                R$ 0,00
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body grid gap-4 md:grid-cols-5">
+              <div class="space-y-2">
+                <label
+                  for="pecasInicio"
+                  class="text-sm font-medium text-gray-700"
+                  >Início</label
+                >
+                <input type="date" id="pecasInicio" class="form-control" />
+              </div>
+              <div class="space-y-2">
+                <label for="pecasFim" class="text-sm font-medium text-gray-700"
+                  >Fim</label
+                >
+                <input type="date" id="pecasFim" class="form-control" />
+              </div>
+              <div class="space-y-2">
+                <label
+                  for="pecasStatus"
+                  class="text-sm font-medium text-gray-700"
+                  >Status</label
+                >
+                <select id="pecasStatus" class="form-control">
+                  <option value="">Todos</option>
+                  <option value="NÃO FEITO">Não feito</option>
+                  <option value="EM ANDAMENTO">Em andamento</option>
+                  <option value="RESOLVIDO">Resolvido</option>
+                </select>
+              </div>
+              <div class="space-y-2 md:col-span-2">
+                <label
+                  for="pecasBusca"
+                  class="text-sm font-medium text-gray-700"
+                  >Busca</label
+                >
+                <input
+                  type="text"
+                  id="pecasBusca"
+                  class="form-control"
+                  placeholder="Número, peça, loja ou responsável"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div
+              class="card-header flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-6 py-4"
+            >
+              <h2 class="text-lg font-semibold">Peças faltantes registradas</h2>
+              <span id="pecasStatusMsg" class="text-sm text-gray-500"></span>
+            </div>
+            <div class="card-body p-0">
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-gray-50 text-left text-xs font-semibold">
+                    <tr>
+                      <th class="px-4 py-3">Data</th>
+                      <th class="px-4 py-3">Responsável</th>
+                      <th class="px-4 py-3">Cliente</th>
+                      <th class="px-4 py-3">Número</th>
+                      <th class="px-4 py-3">Loja</th>
+                      <th class="px-4 py-3">Peça</th>
+                      <th class="px-4 py-3">Status</th>
+                      <th class="px-4 py-3 text-right">Valor gasto</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    id="pecasTableBody"
+                    class="divide-y divide-gray-100"
+                  ></tbody>
+                </table>
+              </div>
+              <p
+                id="pecasEmpty"
+                class="text-sm text-gray-500 text-center py-6 hidden"
+              >
+                Nenhum registro encontrado com os filtros selecionados.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-reembolsos" class="tab-panel space-y-6 hidden">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div
+              class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-gray-500">Total de reembolsos</p>
+              <p class="text-2xl font-semibold" id="reembolsosResumoTotal">0</p>
+            </div>
+            <div
+              class="bg-white border border-indigo-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-indigo-600">Valor total</p>
+              <p
+                class="text-2xl font-semibold text-indigo-600"
+                id="reembolsosResumoValor"
+              >
+                R$ 0,00
+              </p>
+            </div>
+            <div
+              class="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-emerald-600">Ticket médio</p>
+              <p
+                class="text-2xl font-semibold text-emerald-600"
+                id="reembolsosResumoMedio"
+              >
+                R$ 0,00
+              </p>
+            </div>
+            <div
+              class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+            >
+              <p class="text-xs uppercase text-gray-500">Último registro</p>
+              <p class="text-2xl font-semibold" id="reembolsosResumoRecente">
+                -
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body grid gap-4 md:grid-cols-4">
+              <div class="space-y-2">
+                <label
+                  for="reembolsosInicio"
+                  class="text-sm font-medium text-gray-700"
+                  >Início</label
+                >
+                <input type="date" id="reembolsosInicio" class="form-control" />
+              </div>
+              <div class="space-y-2">
+                <label
+                  for="reembolsosFim"
+                  class="text-sm font-medium text-gray-700"
+                  >Fim</label
+                >
+                <input type="date" id="reembolsosFim" class="form-control" />
+              </div>
+              <div class="space-y-2 md:col-span-2">
+                <label
+                  for="reembolsosBusca"
+                  class="text-sm font-medium text-gray-700"
+                  >Busca</label
+                >
+                <input
+                  type="text"
+                  id="reembolsosBusca"
+                  class="form-control"
+                  placeholder="Número, loja ou descrição do problema"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div
+              class="card-header flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-6 py-4"
+            >
+              <h2 class="text-lg font-semibold">Reembolsos registrados</h2>
+              <span
+                id="reembolsosStatusMsg"
+                class="text-sm text-gray-500"
+              ></span>
+            </div>
+            <div class="card-body p-0">
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-gray-50 text-left text-xs font-semibold">
+                    <tr>
+                      <th class="px-4 py-3">Data</th>
+                      <th class="px-4 py-3">Responsável</th>
+                      <th class="px-4 py-3">Número</th>
+                      <th class="px-4 py-3">Apelido</th>
+                      <th class="px-4 py-3">NF</th>
+                      <th class="px-4 py-3">Loja</th>
+                      <th class="px-4 py-3">Problema</th>
+                      <th class="px-4 py-3 text-right">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    id="reembolsosTableBody"
+                    class="divide-y divide-gray-100"
+                  ></tbody>
+                </table>
+              </div>
+              <p
+                id="reembolsosEmpty"
+                class="text-sm text-gray-500 text-center py-6 hidden"
+              >
+                Nenhum reembolso encontrado com os filtros selecionados.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="acompanhamento-problemas.js"></script>
+    <script>
+      window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
+      window.CUSTOM_NAVBAR_PATH = '/partials/navbar.html';
+    </script>
+    <script src="shared.js"></script>
+  </body>
+</html>
