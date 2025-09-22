@@ -150,6 +150,12 @@ function normalizeDate(value) {
   const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : '';
 }
+
+const makeSkuDocId = (sku) => encodeURIComponent(String(sku ?? '').trim());
+const makeLegacySkuDocId = (sku) =>
+  String(sku ?? '')
+    .trim()
+    .replace(/[.#$\/\[\]]/g, '_');
    const tabIds = ['importar','metas','graficos','historico','faturamento','registroFaturamento','controleVendas','sobras','previsao','acompanhamento','acompanhamentoGestor'];
       const tabsLoaded = Promise.all(
         tabIds.map(t =>
@@ -1705,14 +1711,15 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
 
           const { encryptString, decryptString } = await import('./crypto.js');
           for (const [sku, dadosSku] of Object.entries(skusVendidos)) {
-            const skuId = String(sku).replace(/[.#$\/\[\]]/g, "_");
- const docRef = db
+            const skuId = makeSkuDocId(sku);
+            const legacySkuId = makeLegacySkuDocId(sku);
+            const listaCollection = db
               .collection('uid')
               .doc(usuarioLogado.uid)
               .collection('skusVendidos')
               .doc(dataReferencia)
-              .collection('lista')
-              .doc(skuId);
+              .collection('lista');
+            const docRef = listaCollection.doc(skuId);
             const docSnap = await docRef.get();
 
             let totalFinal = dadosSku.total;
@@ -1721,6 +1728,19 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
               const dadosAnteriores = docSnap.data();
               totalFinal += dadosAnteriores.total || 0;
               valorLiquidoFinal += dadosAnteriores.valorLiquido || 0;
+            } else if (legacySkuId !== skuId) {
+              const legacyDocRef = listaCollection.doc(legacySkuId);
+              const legacySnap = await legacyDocRef.get();
+              if (legacySnap.exists) {
+                const dadosAnteriores = legacySnap.data();
+                totalFinal += dadosAnteriores.total || 0;
+                valorLiquidoFinal += dadosAnteriores.valorLiquido || 0;
+                try {
+                  await legacyDocRef.delete();
+                } catch (err) {
+                  console.warn('Não foi possível remover SKU legado', legacySkuId, err);
+                }
+              }
             }
 
             await docRef.set({
@@ -1731,6 +1751,11 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
               loja: loja,
               uid: usuarioLogado.uid
             });
+
+            if (legacySkuId !== skuId) {
+              listaCollection.doc(legacySkuId).delete().catch(() => {});
+            }
+
             if (baseResp && respEmail) {
               const skuPayload = {
                 sku: sku,
@@ -1741,12 +1766,16 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
                 uid: usuarioLogado.uid
               };
               const encSku = await encryptString(JSON.stringify(skuPayload), respEmail);
-              await baseResp
+              const baseRespLista = baseResp
                 .collection('skusVendidos')
                 .doc(dataReferencia)
-                .collection('lista')
+                .collection('lista');
+              await baseRespLista
                 .doc(skuId)
                 .set({ encrypted: encSku, uid: usuarioLogado.uid });
+              if (legacySkuId !== skuId) {
+                baseRespLista.doc(legacySkuId).delete().catch(() => {});
+              }
             }
           }
           
@@ -2164,14 +2193,15 @@ await db
             }
 
             for (const [sku, dadosSku] of Object.entries(grupo.skusVendidos)) {
-              const skuId = String(sku).replace(/[.#$\\/\\[\\]]/g, '_');
-              const docRef = db
+              const skuId = makeSkuDocId(sku);
+              const legacySkuId = makeLegacySkuDocId(sku);
+              const listaCollection = db
                 .collection('uid')
                 .doc(usuarioLogado.uid)
                 .collection('skusVendidos')
                 .doc(dataReferencia)
-                .collection('lista')
-                .doc(skuId);
+                .collection('lista');
+              const docRef = listaCollection.doc(skuId);
               const docSnap = await docRef.get();
 
               let totalFinal = dadosSku.total;
@@ -2180,6 +2210,19 @@ await db
                 const dadosAnterioresSku = docSnap.data();
                 totalFinal += dadosAnterioresSku.total || 0;
                 valorLiquidoFinal += dadosAnterioresSku.valorLiquido || 0;
+              } else if (legacySkuId !== skuId) {
+                const legacyDocRef = listaCollection.doc(legacySkuId);
+                const legacySnap = await legacyDocRef.get();
+                if (legacySnap.exists) {
+                  const dadosAnterioresSku = legacySnap.data();
+                  totalFinal += dadosAnterioresSku.total || 0;
+                  valorLiquidoFinal += dadosAnterioresSku.valorLiquido || 0;
+                  try {
+                    await legacyDocRef.delete();
+                  } catch (err) {
+                    console.warn('Não foi possível remover SKU legado', legacySkuId, err);
+                  }
+                }
               }
 
               await docRef.set({
@@ -2190,6 +2233,11 @@ await db
                 loja: loja,
                 uid: usuarioLogado.uid
               });
+
+              if (legacySkuId !== skuId) {
+                listaCollection.doc(legacySkuId).delete().catch(() => {});
+              }
+
               if (baseResp && respEmail) {
                 const skuPayload = {
                   sku: sku,
@@ -2200,12 +2248,16 @@ await db
                   uid: usuarioLogado.uid
                 };
                 const encSku = await encryptString(JSON.stringify(skuPayload), respEmail);
-                await baseResp
+                const baseRespLista = baseResp
                   .collection('skusVendidos')
                   .doc(dataReferencia)
-                  .collection('lista')
+                  .collection('lista');
+                await baseRespLista
                   .doc(skuId)
                   .set({ encrypted: encSku, uid: usuarioLogado.uid });
+                if (legacySkuId !== skuId) {
+                  baseRespLista.doc(legacySkuId).delete().catch(() => {});
+                }
               }
             }
 
