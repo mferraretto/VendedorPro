@@ -1849,6 +1849,84 @@ await db
       reader.readAsArrayBuffer(file);
     };
 
+    const faturamentoProgressModal = {
+      container: document.getElementById('faturamentoProgressModal'),
+      bar: document.getElementById('modalFaturamentoProgressBar'),
+      text: document.getElementById('modalFaturamentoProgressText'),
+      message: document.getElementById('modalFaturamentoProgressMessage'),
+      close: document.getElementById('modalFaturamentoClose')
+    };
+
+    function abrirModalProgressoFaturamento() {
+      const { container, bar, text, message, close } = faturamentoProgressModal;
+      if (!container) return;
+      container.classList.remove('hidden');
+      container.style.display = 'flex';
+      container.setAttribute('aria-hidden', 'false');
+      if (bar) bar.style.width = '0%';
+      if (text) text.textContent = '0%';
+      if (message) {
+        message.textContent = 'Não feche esta janela até finalizar.';
+        message.classList.remove('text-green-600', 'text-red-600', 'font-semibold');
+        message.classList.add('text-gray-500');
+      }
+      if (close) {
+        close.classList.add('hidden');
+        close.disabled = true;
+        close.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    function atualizarModalProgressoFaturamento(pct) {
+      const { bar, text } = faturamentoProgressModal;
+      if (bar) bar.style.width = `${pct}%`;
+      if (text) text.textContent = `${pct}%`;
+    }
+
+    function finalizarModalProgressoFaturamento(mensagem, sucesso = true) {
+      const { container, message, close } = faturamentoProgressModal;
+      if (!container) return;
+      if (message) {
+        message.textContent = mensagem;
+        message.classList.remove('text-gray-500', 'text-green-600', 'text-red-600', 'font-semibold');
+        message.classList.add(sucesso ? 'text-green-600' : 'text-red-600', 'font-semibold');
+      }
+      if (close) {
+        close.classList.remove('hidden');
+        close.disabled = false;
+        close.setAttribute('aria-hidden', 'false');
+        if (typeof close.focus === 'function') {
+          try {
+            close.focus({ preventScroll: true });
+          } catch (e) {
+            close.focus();
+          }
+        }
+      }
+    }
+
+    function esconderModalProgressoFaturamento() {
+      const { container, message, close } = faturamentoProgressModal;
+      if (!container) return;
+      container.classList.add('hidden');
+      container.style.display = 'none';
+      container.setAttribute('aria-hidden', 'true');
+      if (message) {
+        message.classList.remove('text-green-600', 'text-red-600', 'font-semibold');
+        message.classList.add('text-gray-500');
+        message.textContent = 'Não feche esta janela até finalizar.';
+      }
+      if (close) {
+        close.classList.add('hidden');
+        close.disabled = true;
+        close.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    if (faturamentoProgressModal.close) {
+      faturamentoProgressModal.close.addEventListener('click', esconderModalProgressoFaturamento);
+    }
+
     window.importarFaturamentoMassa = async function () {
       const input = document.getElementById("inputFaturamentoMassa");
       const file = input?.files?.[0];
@@ -1883,6 +1961,16 @@ await db
             return;
           }
 
+          const progressContainer = document.getElementById('progressContainer');
+          const progressBar = document.getElementById('faturamentoProgressBar');
+          const progressText = document.getElementById('faturamentoProgressText');
+          abrirModalProgressoFaturamento();
+          if (progressContainer && progressBar && progressText) {
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+          }
+
           const usuarioDoc = await db.collection('usuarios').doc(usuarioLogado.uid).get();
           const dadosUsuario = usuarioDoc.data() || {};
           const respEmail = dadosUsuario.responsavelFinanceiroEmail || null;
@@ -1911,24 +1999,16 @@ await db
             }
           }
 
-          const progressContainer = document.getElementById('progressContainer');
-          const progressBar = document.getElementById('faturamentoProgressBar');
-          const progressText = document.getElementById('faturamentoProgressText');
-          if (progressContainer && progressBar && progressText) {
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = '0%';
-            progressText.textContent = '0%';
-          }
-
           const totalRows = rows.length;
           let processedRows = 0;
           const updateProgress = async () => {
+            const pct = Math.round((processedRows / totalRows) * 100);
             if (progressBar && progressText) {
-              const pct = Math.round((processedRows / totalRows) * 100);
               progressBar.style.width = pct + '%';
               progressText.textContent = pct + '%';
-              if (processedRows % 50 === 0) await new Promise(r => setTimeout(r, 0));
             }
+            atualizarModalProgressoFaturamento(pct);
+            if (processedRows % 50 === 0) await new Promise(r => setTimeout(r, 0));
           };
 
           const grupos = {};
@@ -2032,6 +2112,8 @@ await db
           }
 
           if (!Object.keys(grupos).length) {
+            atualizarModalProgressoFaturamento(100);
+            finalizarModalProgressoFaturamento('Nenhum registro com data de pagamento foi encontrado.', false);
             mostrarErro('Nenhum registro com data de pagamento foi encontrado.');
             return;
           }
@@ -2359,6 +2441,7 @@ await db
             progressBar.style.width = '100%';
             progressText.textContent = '100%';
           }
+          atualizarModalProgressoFaturamento(100);
 
           const sucesso = resultados.filter(r => r.status === 'ok');
           const ignorados = resultados.filter(r => r.status === 'ignorado');
@@ -2386,10 +2469,12 @@ await db
           }
 
           document.getElementById('resultadoFaturamento').innerHTML = html || '<div class="alert alert-info"><i class="fas fa-info-circle"></i> Nenhum faturamento foi processado.</div>';
+          finalizarModalProgressoFaturamento('Processamento concluído com sucesso!');
           input.value = '';
         } catch (err) {
           mostrarErro('Erro ao importar: ' + err.message);
           console.error(err);
+          finalizarModalProgressoFaturamento('Ocorreu um erro durante o processamento.', false);
         }
       };
 

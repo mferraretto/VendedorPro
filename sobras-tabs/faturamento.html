@@ -78,3 +78,13 @@ exporte <strong>um único dia</strong> por vez. Ao importar o arquivo,
     </div>
   </div>
 </div>
+
+<div id="faturamentoProgressModal" class="modal hidden" aria-hidden="true">
+  <div class="modal-content text-center">
+    <h3 class="text-lg font-semibold mb-4">Processando planilha...</h3>
+    <div class="progress"><div id="modalFaturamentoProgressBar" class="progress-bar" style="width: 0%"></div></div>
+    <span id="modalFaturamentoProgressText" class="text-sm text-gray-600 mt-3 block">0%</span>
+    <p id="modalFaturamentoProgressMessage" class="text-sm text-gray-500 mt-4">Não feche esta janela até finalizar.</p>
+    <button id="modalFaturamentoClose" type="button" class="btn-primary mt-6 hidden">Fechar</button>
+  </div>
+</div>
