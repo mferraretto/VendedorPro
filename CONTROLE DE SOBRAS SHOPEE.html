@@ -1852,6 +1852,34 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
               ? { inicio: resumoPorDia[0].data, fim: resumoPorDia[resumoPorDia.length - 1].data }
               : { inicio: dataReferencia, fim: dataReferencia };
 
+          const resumoPedidos = {
+            data: dataReferencia,
+            loja,
+            plataforma: 'Mercado Livre',
+            atualizadoEm:
+              typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString(),
+            totalLinhas: totalRows,
+            totalPedidosAtivos: qtdVendas,
+            valorBruto: bruto,
+            valorLiquido: liquidoTotal,
+            taxas
+          };
+          await pedidosRef.doc(dataReferencia).set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
+          if (baseResp && respEmail) {
+            await baseResp
+              .collection('pedidosreais')
+              .doc(dataReferencia)
+              .set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
+          }
+          if (baseExp && gestorEmail) {
+            await baseExp
+              .collection('pedidosreais')
+              .doc(dataReferencia)
+              .set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
+          }
+
           const refSku = db
             .collection('uid')
             .doc(usuarioLogado.uid)
