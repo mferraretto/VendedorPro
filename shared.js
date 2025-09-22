@@ -639,6 +639,7 @@ document.addEventListener('sidebarLoaded', async () => {
     'menu-perfil-mentorado',
     'menu-equipes',
     'menu-produtos',
+    'menu-produtos-vendidos',
     'menu-sku-associado',
     'menu-desempenho',
   ];
@@ -704,6 +705,7 @@ document.addEventListener('sidebarLoaded', async () => {
     const mentoria = getLi('menu-mentoria');
     const perfilMentorado = getLi('menu-perfil-mentorado');
     const produtos = getLi('menu-produtos');
+    const produtosVendidos = getLi('menu-produtos-vendidos');
     const skuAssociado = getLi('menu-sku-associado');
     const comunicacao = getLi('menu-comunicacao');
     const equipes = getLi('menu-equipes');
@@ -752,6 +754,7 @@ document.addEventListener('sidebarLoaded', async () => {
       mentoria,
       perfilMentorado,
       produtos,
+      produtosVendidos,
       skuAssociado,
     ]);
     const comunicacaoGroup = createGroup(comunicacao, 'menuComunicacao', [

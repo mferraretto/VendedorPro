@@ -99,7 +99,11 @@
       </div>
 
       <!-- Aba de Produtos Vendidos (Gestores/Responsáveis Financeiros) -->
-      <div id="produtosVendidos" class="tab-content">
+      <div
+        id="produtosVendidos"
+        class="tab-content"
+        data-perfil="gestor,responsavel,gestor financeiro,responsavel financeiro"
+      >
 
       </div>
 
@@ -539,20 +543,70 @@ function escapeHtml(value) {
     // FUNÇÕES DE NAVEGAÇÃO E INTERFACE
     // =============================================
     
-    window.trocarAba = function trocarAba(id) {
-        // Remove a classe 'active' de todas as abas
-        document.querySelectorAll('.tab-content').forEach(aba => aba.classList.remove('active'));
+    function podeAcessarProdutosVendidos() {
+      const perfilRaw = (window.userPerfil || usuarioLogado.perfil || '')
+        .toString()
+        .toLowerCase();
+      const perfilNormalizado = perfilRaw
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+      const perfisPermitidos = new Set([
+        'gestor',
+        'responsavel',
+        'gestor financeiro',
+        'responsavel financeiro',
+        'adm',
+        'admin',
+        'administrador',
+      ]);
+      return (
+        perfisPermitidos.has(perfilNormalizado) ||
+        window.isFinanceiroResponsavel === true
+      );
+    }
 
-        // Ativa a aba correspondente, se existir
-        const abaSelecionada = document.getElementById(id);
-        if (abaSelecionada) {
-          abaSelecionada.classList.add('active');
+    function verificarPermissaoAba(id) {
+      if (id !== 'produtosVendidos') {
+        return true;
+      }
+      const autorizado = podeAcessarProdutosVendidos();
+      if (!autorizado) {
+        if (window.Swal) {
+          Swal.fire(
+            'Acesso restrito',
+            'Esta aba está disponível apenas para gestores ou responsáveis financeiros.',
+            'warning',
+          );
         } else {
-          console.warn(`❌ Aba com ID '${id}' não encontrada.`);
-          return;
+          alert(
+            'A aba Produtos Vendidos está disponível apenas para gestores ou responsáveis financeiros.',
+          );
         }
+      }
+      return autorizado;
+    }
 
-        // Atualiza gráficos, se necessário
+    window.trocarAba = function trocarAba(id) {
+      if (!verificarPermissaoAba(id)) {
+        return;
+      }
+
+      // Remove a classe 'active' de todas as abas
+      document
+        .querySelectorAll('.tab-content')
+        .forEach((aba) => aba.classList.remove('active'));
+
+      // Ativa a aba correspondente, se existir
+      const abaSelecionada = document.getElementById(id);
+      if (abaSelecionada) {
+        abaSelecionada.classList.add('active');
+      } else {
+        console.warn(`❌ Aba com ID '${id}' não encontrada.`);
+        return;
+      }
+
+      // Atualiza gráficos, se necessário
       if (id === 'graficos') {
         setTimeout(atualizarGraficos, 100);
       }
@@ -560,7 +614,7 @@ function escapeHtml(value) {
         if (!produtosVendidosCarregado) carregarProdutosVendidos();
         else renderProdutosVendidos();
       }
-        };
+    };
 
 
     // =============================================
