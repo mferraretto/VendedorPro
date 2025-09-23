@@ -20,11 +20,47 @@
 
 <script src="https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
 <script>
-  // Só configure o worker depois que pdf.min.js já foi carregado
-(window.pdfjsLib || globalThis.pdfjsLib).GlobalWorkerOptions.workerSrc = "…";
+  // use sempre window.pdfjsLib aqui
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
   console.log("PDF.js OK?", !!window.pdfjsLib);
 </script>
+  <!-- PDF.js -->
+<script id="pdfjs-script" src="https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
+<script>
+  (function ensurePDFJSReady() {
+    function setWorker() {
+      const lib = window.pdfjsLib || globalThis.pdfjsLib;
+      if (!lib) {
+        console.error("pdfjsLib ainda indefinido após o load.");
+        return;
+      }
+      lib.GlobalWorkerOptions.workerSrc =
+        "https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
+      console.log("PDF.js pronto:", !!lib);
+    }
+
+    // Se já carregou (ex.: cache muito rápido)
+    if (window.pdfjsLib) {
+      setWorker();
+      return;
+    }
+
+    // Espera o <script> de PDF.js carregar
+    const tag = document.getElementById("pdfjs-script");
+    if (tag) {
+      tag.addEventListener("load", setWorker, { once: true });
+      tag.addEventListener("error", () => {
+        console.error("Falha ao carregar PDF.js (pdf.min.js).");
+      }, { once: true });
+    } else {
+      console.error("Elemento #pdfjs-script não encontrado.");
+    }
+  })();
+</script>
+
+<!-- pdf-lib vem DEPOIS do PDF.js -->
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
 <!-- pdf-lib (depois do PDF.js) -->
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
