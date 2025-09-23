@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Etiqueta Shopee - Corte 15/2/2</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css?v=20240826" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
+  <script src="expedicao-notifier.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    .shopee-labels {
+      --labels-bg: #0f172a;
+      --labels-card: #111827;
+      --labels-muted: #94a3b8;
+      --labels-pad: 16px;
+      --labels-radius: 18px;
+      background: var(--labels-bg);
+      color: #e5e7eb;
+      border-radius: 24px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 25px 40px rgba(15, 23, 42, 0.35);
+      overflow: hidden;
+    }
+    .shopee-labels .labels-header {
+      padding: 28px 24px 12px;
+      text-align: center;
+    }
+    .shopee-labels .labels-title {
+      margin: 0 0 6px;
+      font-size: clamp(22px, 2.6vw, 30px);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .shopee-labels .labels-sub {
+      margin: 0;
+      color: var(--labels-muted);
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+    .shopee-labels .labels-wrap {
+      display: grid;
+      gap: 18px;
+      padding: 0 24px 28px;
+    }
+    .shopee-labels .labels-card {
+      background: var(--labels-card);
+      border: 1px solid #1f2937;
+      border-radius: var(--labels-radius);
+      padding: var(--labels-pad);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+    .shopee-labels .labels-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .shopee-labels .labels-upload {
+      display: inline-flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: #1f2937;
+      border: 1px dashed #374151;
+      cursor: pointer;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .shopee-labels .labels-upload:hover {
+      border-color: #60a5fa;
+      transform: translateY(-1px);
+    }
+    .shopee-labels input[type="file"] {
+      display: none;
+    }
+    .shopee-labels .labels-action {
+      all: unset;
+      display: inline-flex;
+      gap: 10px;
+      align-items: center;
+      background: linear-gradient(135deg, #06b6d4, #22d3ee);
+      color: #001018;
+      font-weight: 700;
+      padding: 12px 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .shopee-labels .labels-action:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+    .shopee-labels .labels-action:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(14, 165, 233, 0.25);
+    }
+    .shopee-labels .labels-action:not(:disabled):active {
+      transform: translateY(1px);
+    }
+    .shopee-labels .labels-mono {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      color: #cbd5e1;
+    }
+    .shopee-labels .labels-hint {
+      color: var(--labels-muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .shopee-labels .labels-ok {
+      color: #22c55e;
+      font-weight: 700;
+    }
+    .shopee-labels .labels-link {
+      color: #67e8f9;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+    .shopee-labels .labels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .shopee-labels .labels-chk {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 10px;
+      border: 1px solid #374151;
+      border-radius: 10px;
+      background: #1f2937;
+    }
+    .shopee-labels .labels-log {
+      background: rgba(15, 23, 42, 0.55);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    @media (max-width: 768px) {
+      .shopee-labels .labels-header {
+        padding: 24px 16px 12px;
+      }
+      .shopee-labels .labels-wrap {
+        padding: 0 16px 24px;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen">
+  <div class="app-container">
+    <div id="sidebar-container"></div>
+    <div id="navbar-container"></div>
+    <div class="main-content">
+      <div class="px-4 py-6">
+        <div class="max-w-5xl mx-auto space-y-6">
+          <div class="bg-white rounded-2xl shadow border border-gray-200 p-6 space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="h-12 w-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl">
+                <i class="fa-solid fa-scissors"></i>
+              </div>
+              <div>
+                <h1 class="text-2xl font-semibold text-gray-900">Etiqueta Shopee - Corte 15/2/2</h1>
+                <p class="text-sm text-gray-500">Processa PDFs A4, recorta etiqueta superior e checklist (colunas 3 e 5) com zoom. Resultado salvo automaticamente no Firebase.</p>
+              </div>
+            </div>
+            <div>
+              <label for="gestoresEmails" class="block text-sm font-medium text-gray-700">E-mails do gestor de expedição</label>
+              <input id="gestoresEmails" type="text" placeholder="Separados por vírgula" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <p class="text-xs text-gray-500 mt-1">Os PDFs serão compartilhados com os e-mails listados. Se houver mais de um, você poderá escolher durante o envio.</p>
+            </div>
+          </div>
+
+          <div class="shopee-labels">
+            <div class="labels-header">
+              <h2 class="labels-title">✂️ Etiqueta em cima + colunas 3 e 5 do checklist (com zoom)</h2>
+              <p class="labels-sub">A4 ➜ divide no meio (10,5 cm), pega 15 cm do topo (etiqueta), do checklist descarta 2 cm e usa os 2 cm seguintes ➜ divide em 5 colunas (2.2, 1.9, 1.9, 1.9, 1.9 cm), pega colunas 3 e 5 e remonta abaixo com zoom.</p>
+            </div>
+            <div class="labels-wrap">
+              <div class="labels-card">
+                <div class="labels-row">
+                  <label class="labels-upload">
+                    <input id="file" type="file" accept="application/pdf" />
+                    <span>📄 Escolher PDF A4…</span>
+                  </label>
+                  <button id="go" type="button" class="labels-action">
+                    <span>Processar</span>
+                  </button>
+                  <label class="labels-chk">
+                    <input id="debug" type="checkbox" />
+                    <span class="labels-mono">Gerar PDF DEBUG</span>
+                  </label>
+                  <span id="status" class="labels-mono"></span>
+                </div>
+                <div class="labels-hint" style="margin-top:8px">
+                  Colunas (cm): <b>[2.2, 1.9, 1.9, 1.9, 1.9]</b>. Zoom padrão: <b>120%</b> (ajustável no código: <code>zoomFactor</code>).
+                </div>
+              </div>
+
+              <div class="labels-grid">
+                <div class="labels-card">
+                  <div><strong>Saída</strong></div>
+                  <div id="out" class="labels-hint" style="margin-top:8px">Links para download aparecerão aqui.</div>
+                </div>
+                <div class="labels-card">
+                  <div><strong>Log</strong></div>
+                  <div class="labels-log">
+                    <pre id="log" class="labels-mono" style="white-space:pre-wrap;margin:0"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="gestorModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div class="bg-white w-full max-w-md p-4 rounded-xl shadow-lg space-y-4">
+      <div>
+        <h2 class="text-lg font-semibold text-gray-800">Enviar arquivo para qual gestor?</h2>
+        <p class="text-sm text-gray-500">Escolha o e-mail que receberá a etiqueta processada.</p>
+      </div>
+      <select id="gestorSelect" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
+      <div class="flex justify-end gap-2">
+        <button id="gestorCancel" type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
+        <button id="gestorConfirm" type="button" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { firebaseConfig } from './firebase-config.js';
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    const fileInput = document.getElementById('file');
+    const processBtn = document.getElementById('go');
+    const debugCheckbox = document.getElementById('debug');
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const outEl = document.getElementById('out');
+    const gestoresInput = document.getElementById('gestoresEmails');
+
+    const log = (text) => {
+      logEl.textContent += text + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    const setStatus = (text) => {
+      statusEl.textContent = text || '';
+    };
+
+    let currentUser = null;
+    let responsavelExpedicaoUid = null;
+    let horariosEtiquetas = [];
+    let isProcessing = false;
+
+    const gestorModal = document.getElementById('gestorModal');
+    const gestorSelect = document.getElementById('gestorSelect');
+    const gestorConfirm = document.getElementById('gestorConfirm');
+    const gestorCancel = document.getElementById('gestorCancel');
+
+    function toggleProcessingState(active) {
+      isProcessing = active;
+      processBtn.disabled = active || !currentUser;
+    }
+
+    function updateAuthUI() {
+      processBtn.disabled = isProcessing || !currentUser;
+      processBtn.classList.toggle('opacity-60', processBtn.disabled);
+    }
+
+    function escolherGestorEmail(emails) {
+      return new Promise((resolve) => {
+        if (!emails || !emails.length) {
+          resolve([]);
+          return;
+        }
+        if (emails.length === 1) {
+          resolve([emails[0]]);
+          return;
+        }
+
+        gestorSelect.innerHTML = '';
+        emails.forEach((email) => {
+          const opt = document.createElement('option');
+          opt.value = email;
+          opt.textContent = email;
+          gestorSelect.appendChild(opt);
+        });
+
+        function closeModal(value) {
+          gestorModal.classList.add('hidden');
+          gestorConfirm.removeEventListener('click', onConfirm);
+          gestorCancel.removeEventListener('click', onCancel);
+          gestorModal.removeEventListener('click', onBackdrop);
+          resolve(value ? [value] : [emails[0]]);
+        }
+
+        function onConfirm() {
+          closeModal(gestorSelect.value || emails[0]);
+        }
+
+        function onCancel() {
+          closeModal(emails[0]);
+        }
+
+        function onBackdrop(event) {
+          if (event.target === gestorModal) {
+            closeModal(emails[0]);
+          }
+        }
+
+        gestorConfirm.addEventListener('click', onConfirm);
+        gestorCancel.addEventListener('click', onCancel);
+        gestorModal.addEventListener('click', onBackdrop);
+        gestorModal.classList.remove('hidden');
+      });
+    }
+
+    async function carregarHorarios() {
+      if (!responsavelExpedicaoUid) return;
+      try {
+        const doc = await db.collection('uid').doc(responsavelExpedicaoUid).get();
+        const data = doc.data() || {};
+        horariosEtiquetas = Array.isArray(data.horariosEtiquetas) ? data.horariosEtiquetas : [];
+      } catch (error) {
+        console.error('Erro ao carregar horários de etiquetas:', error);
+      }
+    }
+
+    function foraDoHorario() {
+      if (!horariosEtiquetas.length) return false;
+      const now = new Date();
+      return !horariosEtiquetas.some((intervalo) => {
+        if (!intervalo?.inicio || !intervalo?.fim) return false;
+        const [ih, im] = intervalo.inicio.split(':').map(Number);
+        const [fh, fm] = intervalo.fim.split(':').map(Number);
+        const start = new Date(now);
+        start.setHours(ih || 0, im || 0, 0, 0);
+        const end = new Date(now);
+        end.setHours(fh || 0, fm || 0, 0, 0);
+        return now >= start && now <= end;
+      });
+    }
+
+    async function uploadPdfToFirebase(blob, fileName, meta = {}) {
+      if (!currentUser) {
+        throw new Error('Usuário não autenticado.');
+      }
+      try {
+        const gestoresRaw = (gestoresInput.value || '').split(',');
+        const gestoresEmails = gestoresRaw.map((email) => email.trim()).filter(Boolean);
+        const selecionado = await escolherGestorEmail(gestoresEmails);
+        const foraHorarioAtual = foraDoHorario();
+        const docPayload = {
+          ownerUid: currentUser.uid,
+          ownerEmail: currentUser.email,
+          gestoresExpedicaoEmails: selecionado,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          name: fileName,
+          foraHorario: foraHorarioAtual,
+        };
+        if (Number.isFinite(meta.totalPaginas)) {
+          docPayload.totalPaginas = Number(meta.totalPaginas);
+        }
+        if (Number.isFinite(meta.totalPaginasOrigem)) {
+          docPayload.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
+        }
+
+        const docRef = await db.collection('pdfDocs').add(docPayload);
+        const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
+        await fileRef.put(blob);
+        const url = await fileRef.getDownloadURL();
+        await docRef.update({ url, storagePath: fileRef.fullPath });
+
+        const resumo = {
+          name: fileName,
+          url,
+          path: fileRef.fullPath,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+        if (Number.isFinite(meta.totalPaginas)) {
+          resumo.totalPaginas = Number(meta.totalPaginas);
+        }
+        if (Number.isFinite(meta.totalPaginasOrigem)) {
+          resumo.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
+        }
+        await db.collection('users').doc(currentUser.uid).collection('etiquetaenvio').add(resumo);
+
+        if (
+          window.ExpedicaoNotifier &&
+          typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
+        ) {
+          await window.ExpedicaoNotifier.notifyNovaEtiqueta({
+            db,
+            firebase,
+            currentUser,
+            destinatarioEmails: selecionado,
+            destinatarioUids: responsavelExpedicaoUid ? [responsavelExpedicaoUid] : [],
+            arquivoNome: fileName,
+            totalPaginas: Number.isFinite(meta.totalPaginas) ? Number(meta.totalPaginas) : null,
+            foraHorario: foraHorarioAtual,
+            origem: 'Etiquetas Shopee (Corte 15/2/2)',
+            pdfDocId: docRef.id,
+          });
+        }
+
+        return { url, storagePath: fileRef.fullPath, docId: docRef.id };
+      } catch (error) {
+        console.error('Erro ao enviar PDF para o Firebase:', error);
+        throw error;
+      }
+    }
+
+    async function carregarDadosUsuario(user) {
+      try {
+        const doc = await db.collection('uid').doc(user.uid).get();
+        const data = doc.data() || {};
+        const emails = data.gestoresExpedicaoEmails || data.responsavelExpedicaoEmail || '';
+        if (Array.isArray(emails)) {
+          gestoresInput.value = emails.join(', ');
+        } else if (typeof emails === 'string') {
+          gestoresInput.value = emails;
+        }
+
+        const respEmail = Array.isArray(data.gestoresExpedicaoEmails)
+          ? data.gestoresExpedicaoEmails[0]
+          : data.responsavelExpedicaoEmail;
+        if (respEmail) {
+          const snap = await db.collection('uid').where('email', '==', respEmail).limit(1).get();
+          if (!snap.empty) {
+            responsavelExpedicaoUid = snap.docs[0].id;
+            await carregarHorarios();
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do usuário:', error);
+      }
+    }
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      currentUser = user;
+      if (!user) {
+        setStatus('Faça login para processar as etiquetas.');
+      } else {
+        setStatus('');
+        await carregarDadosUsuario(user);
+      }
+      updateAuthUI();
+    });
+
+    processBtn.addEventListener('click', async () => {
+      if (isProcessing) return;
+      if (!currentUser) {
+        alert('Faça login para processar e salvar PDFs.');
+        setStatus('Usuário não autenticado.');
+        return;
+      }
+      const file = fileInput.files?.[0];
+      if (!file) {
+        alert('Selecione um PDF.');
+        return;
+      }
+
+      logEl.textContent = '';
+      outEl.innerHTML = 'Processando...';
+      setStatus('Lendo PDF…');
+      toggleProcessingState(true);
+
+      try {
+        const wantDebug = debugCheckbox.checked;
+        const srcBytes = new Uint8Array(await file.arrayBuffer());
+        const srcDoc = await PDFLib.PDFDocument.load(srcBytes, { updateMetadata: false });
+        const outDoc = await PDFLib.PDFDocument.create();
+        const dbgDoc = wantDebug ? await PDFLib.PDFDocument.create() : null;
+
+        log(`Páginas originais: ${srcDoc.getPageCount()}`);
+
+        const CM_TO_PT = 28.3464566929;
+        const cm = (v) => v * CM_TO_PT;
+
+        const CM_TOP = 15;
+        const CM_DISCARD = 2.3;
+        const CM_TAKE = 1.7;
+        const COL_WIDTHS = [2.0, 1.9, 1.9, 1.9, 1.9];
+        const PICK = [3, 5];
+        const zoomFactor = 2.6;
+
+        let totalOutPages = 0;
+
+        for (let i = 0; i < srcDoc.getPageCount(); i++) {
+          const page = srcDoc.getPage(i);
+          const { width: W, height: H } = page.getSize();
+          const halfW = W / 2;
+
+          const topH = cm(CM_TOP);
+          const discardH = cm(CM_DISCARD);
+          const takeH = cm(CM_TAKE);
+
+          const checklistTop = H - topH;
+          const bandTop = checklistTop - discardH;
+          const bandBottom = bandTop - takeH;
+
+          if (bandBottom < 0) {
+            log(`Pg ${i + 1}: banda do checklist ficou fora da página.`);
+            continue;
+          }
+
+          for (const side of [0, 1]) {
+            const x0 = side === 0 ? 0 : halfW;
+            const x1 = x0 + halfW;
+
+            const topRegion = {
+              left: x0,
+              right: x1,
+              bottom: Math.max(H - topH, 0),
+              top: H,
+            };
+
+            const bandRegion = {
+              left: x0,
+              right: x1,
+              bottom: Math.max(bandBottom, 0),
+              top: Math.min(bandTop, H),
+            };
+
+            const widthsPt = COL_WIDTHS.map(cm);
+            const totalColsW = widthsPt.reduce((a, b) => a + b, 0);
+            const startX = x0 + (halfW - totalColsW) / 2;
+
+            let cursor = startX;
+            const colBoxes = [];
+            for (let c = 0; c < COL_WIDTHS.length; c++) {
+              const w = widthsPt[c];
+              colBoxes.push({
+                idx: c + 1,
+                left: cursor,
+                right: cursor + w,
+                bottom: bandRegion.bottom,
+                top: bandRegion.top,
+                width: w,
+              });
+              cursor += w;
+            }
+
+            const [embTop] = await outDoc.embedPages([page], [topRegion]);
+
+            const chosen = [];
+            for (const k of PICK) {
+              const box = colBoxes[k - 1];
+              const [emb] = await outDoc.embedPages([page], [box]);
+              chosen.push({ emb, box });
+            }
+
+            const bottomTrimCm = -0.4;
+            const outW = halfW;
+            const outH = (topH + takeH * zoomFactor) - cm(bottomTrimCm);
+            const outPage = outDoc.addPage([outW, outH]);
+            totalOutPages += 1;
+
+            outPage.drawPage(embTop, {
+              x: 0,
+              y: takeH * zoomFactor,
+              width: outW,
+              height: topH,
+            });
+
+            const pairW = chosen.reduce((s, { box }) => s + box.width, 0);
+            const pairWZoom = pairW * zoomFactor;
+            const cx = (outW - pairWZoom) / 1.5;
+
+            let dx = 0;
+            for (const { emb, box } of chosen) {
+              const w = box.width;
+              outPage.drawPage(emb, {
+                x: cx + dx * zoomFactor,
+                y: 0,
+                width: w * zoomFactor,
+                height: takeH * zoomFactor,
+              });
+              dx += w;
+            }
+
+            if (dbgDoc) {
+              const dbg = dbgDoc.addPage([W, H]);
+              const draw = (r, c) =>
+                dbg.drawRectangle({
+                  x: r.left,
+                  y: r.bottom,
+                  width: r.right - r.left,
+                  height: r.top - r.bottom,
+                  borderWidth: 1,
+                  borderColor: PDFLib.rgb(...c),
+                });
+              draw({ left: x0, bottom: 0, right: x1, top: H }, [0.25, 0.25, 0.25]);
+              draw(topRegion, [0.05, 0.85, 0.85]);
+              draw(bandRegion, [0.95, 0.8, 0.1]);
+              for (const k of PICK) draw(colBoxes[k - 1], [0.9, 0.2, 0.2]);
+            }
+
+            log(`OK ▶ Pg ${i + 1} ${side === 0 ? 'ESQ' : 'DIR'} ▶ etiqueta + col(3,5) com zoom.`);
+          }
+        }
+
+        if (outDoc.getPageCount() === 0) {
+          throw new Error('Nenhuma página válida foi gerada.');
+        }
+
+        setStatus('Salvando PDF…');
+        const outBytes = await outDoc.save();
+        const outBlob = new Blob([outBytes], { type: 'application/pdf' });
+        const baseName = file.name.replace(/\.pdf$/i, '') || 'etiquetas';
+        const finalFileName = `${baseName}-cols3-5-zoom.pdf`;
+
+        const uploadInfo = await uploadPdfToFirebase(outBlob, finalFileName, {
+          totalPaginas: totalOutPages,
+          totalPaginasOrigem: srcDoc.getPageCount(),
+        });
+
+        const outUrl = URL.createObjectURL(outBlob);
+        let html = `
+          <div class="labels-ok">✅ PDF final gerado e salvo no Firebase.</div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+            <a class="labels-link" href="${outUrl}" download="${finalFileName}">Baixar PDF final</a>
+            <a class="labels-link" href="${uploadInfo.url}" target="_blank" rel="noopener">Abrir no Firebase</a>
+          </div>
+        `;
+
+        if (dbgDoc) {
+          const dbgBytes = await dbgDoc.save();
+          const dbgBlob = new Blob([dbgBytes], { type: 'application/pdf' });
+          const dbgUrl = URL.createObjectURL(dbgBlob);
+          html += `<div class="labels-hint" style="margin-top:10px">DEBUG: <a class="labels-link" href="${dbgUrl}" download="debug_recortes.pdf">Baixar PDF com áreas de recorte</a></div>`;
+        }
+
+        outEl.innerHTML = html;
+        setStatus('Concluído.');
+      } catch (error) {
+        console.error(error);
+        setStatus('Erro.');
+        outEl.innerHTML = '';
+        log(`ERRO: ${error?.message || error}`);
+        alert('Erro ao processar o PDF.');
+      } finally {
+        toggleProcessingState(false);
+      }
+    });
+  </script>
+  <script src="shared.js"></script>
+</body>
+</html>
