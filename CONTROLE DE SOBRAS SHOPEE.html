@@ -3478,12 +3478,21 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const tabela = document.getElementById('produtosVendidosTabela');
       if (!tabela) return;
 
+      const formatCurrency = (valor) =>
+        Number(valor || 0).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        });
+
       const filtroSku = (document
         .getElementById('filtroSkuProdutosVendidos')?.value || '')
         .trim()
         .toLowerCase();
       const statusEl = document.getElementById('produtosVendidosStatus');
       const totalEl = document.getElementById('produtosVendidosTotalUnidades');
+      const totalLiquidoEl = document.getElementById(
+        'produtosVendidosTotalLiquido',
+      );
 
       const dadosFiltrados = produtosVendidosResumo.filter((item) => {
         if (!filtroSku) return true;
@@ -3494,7 +3503,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
 
       if (!dadosFiltrados.length) {
         tabela.innerHTML =
-          '<tr><td colspan="3" class="py-6 text-center text-gray-500">Nenhum SKU encontrado.</td></tr>';
+          '<tr><td colspan="4" class="py-6 text-center text-gray-500">Nenhum SKU encontrado.</td></tr>';
         if (statusEl) {
           if (produtosVendidosResumo.length && filtroSku) {
             statusEl.textContent = 'Nenhum SKU corresponde ao filtro aplicado.';
@@ -3506,6 +3515,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           }
         }
         if (totalEl) totalEl.textContent = '0';
+        if (totalLiquidoEl) totalLiquidoEl.textContent = formatCurrency(0);
         return;
       }
 
@@ -3513,6 +3523,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const linhas = ordenados
         .map((item) => {
           const totalFormatado = item.total.toLocaleString('pt-BR');
+          const valorLiquidoFormatado = formatCurrency(item.valorLiquido);
           const vendidosChips = item.vendidosPorSku
             .map(
               ([sku, qtd]) =>
@@ -3553,6 +3564,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 ${extrasHtml}
               </td>
               <td class="py-3 px-4 text-center font-medium text-gray-800">${totalFormatado}</td>
+              <td class="py-3 px-4 text-right font-medium text-gray-800">${valorLiquidoFormatado}</td>
               <td class="py-3 px-4 text-sm text-gray-600 leading-5">${
                 usuariosTexto || '<span class="text-gray-400">-</span>'
               }</td>
@@ -3571,23 +3583,38 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         const total = ordenados.reduce((acc, item) => acc + item.total, 0);
         totalEl.textContent = total.toLocaleString('pt-BR');
       }
+      if (totalLiquidoEl) {
+        const totalLiquido = ordenados.reduce(
+          (acc, item) => acc + Number(item.valorLiquido || 0),
+          0,
+        );
+        totalLiquidoEl.textContent = formatCurrency(totalLiquido);
+      }
     }
 
     async function carregarProdutosVendidos() {
       const tabela = document.getElementById('produtosVendidosTabela');
       const statusEl = document.getElementById('produtosVendidosStatus');
       const totalEl = document.getElementById('produtosVendidosTotalUnidades');
+      const totalLiquidoEl = document.getElementById(
+        'produtosVendidosTotalLiquido',
+      );
       produtosVendidosResumo = [];
       produtosVendidosCarregado = false;
 
       if (tabela) {
         tabela.innerHTML =
-          '<tr><td colspan="3" class="py-6 text-center text-gray-500">Carregando...</td></tr>';
+          '<tr><td colspan="4" class="py-6 text-center text-gray-500">Carregando...</td></tr>';
       }
       if (statusEl) {
         statusEl.textContent = 'Carregando dados de produtos vendidos...';
       }
       if (totalEl) totalEl.textContent = '0';
+      if (totalLiquidoEl)
+        totalLiquidoEl.textContent = Number(0).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        });
 
       const inicioInput = document.getElementById(
         'filtroProdutosVendidosInicio',
@@ -3611,7 +3638,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             'Período inválido: a data inicial é maior que a final.';
         if (tabela)
           tabela.innerHTML =
-            '<tr><td colspan="3" class="py-6 text-center text-red-500">Ajuste o período selecionado.</td></tr>';
+            '<tr><td colspan="4" class="py-6 text-center text-red-500">Ajuste o período selecionado.</td></tr>';
         return;
       }
 
@@ -3623,7 +3650,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               'Não foi possível identificar o responsável financeiro.';
           if (tabela)
             tabela.innerHTML =
-              '<tr><td colspan="3" class="py-6 text-center text-gray-500">Usuário não autenticado.</td></tr>';
+              '<tr><td colspan="4" class="py-6 text-center text-gray-500">Usuário não autenticado.</td></tr>';
           return;
         }
 
@@ -3660,7 +3687,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               'Nenhum usuário associado a este responsável financeiro.';
           if (tabela)
             tabela.innerHTML =
-              '<tr><td colspan="3" class="py-6 text-center text-gray-500">Sem usuários vinculados.</td></tr>';
+              '<tr><td colspan="4" class="py-6 text-center text-gray-500">Sem usuários vinculados.</td></tr>';
           return;
         }
 
@@ -3717,6 +3744,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 if (!skuOriginal) return;
                 const total = Number(dados.total || 0);
                 if (!Number.isFinite(total) || total <= 0) return;
+                const valorLiquido = Number(
+                  dados.valorLiquido ?? dados.liquido ?? 0,
+                );
+                const valorLiquidoNumero = Number.isFinite(valorLiquido)
+                  ? valorLiquido
+                  : 0;
 
                 const principal =
                   principalPorSku.get(normalizarSku(skuOriginal)) ||
@@ -3725,6 +3758,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                   agregados.set(principal, {
                     sku: principal,
                     total: 0,
+                    valorLiquido: 0,
                     usuarios: new Map(),
                     vendidosPorSku: new Map(),
                     grupoOficial:
@@ -3735,6 +3769,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
 
                 const registro = agregados.get(principal);
                 registro.total += total;
+                registro.valorLiquido += valorLiquidoNumero;
                 const nomeUsuario = info.nome || info.email || uid;
                 registro.usuarios.set(
                   nomeUsuario,
@@ -3770,6 +3805,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           return {
             sku: item.sku,
             total: item.total,
+            valorLiquido: item.valorLiquido,
             usuarios: Array.from(item.usuarios.entries()),
             vendidosPorSku,
             grupoCompleto,
@@ -3796,7 +3832,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             'Erro ao carregar dados de produtos vendidos.';
         if (tabela)
           tabela.innerHTML =
-            '<tr><td colspan="3" class="py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>';
+            '<tr><td colspan="4" class="py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>';
       }
     }
 
@@ -3805,6 +3841,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         skuPrincipal: item.sku,
         skusAgrupados: item.todosSkus.join(', '),
         quantidadeTotal: item.total,
+        valorLiquido: Number(item.valorLiquido || 0),
         skusVendidos: item.vendidosPorSku
           .map(
             ([sku, qtd]) => `${sku} (${qtd.toLocaleString('pt-BR')})`,
@@ -3832,6 +3869,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         'SKU Principal': linha.skuPrincipal,
         'SKUs Agrupados': linha.skusAgrupados,
         'Quantidade Vendida': linha.quantidadeTotal,
+        'Valor Líquido (R$)': linha.valorLiquido,
         'Detalhe por SKU': linha.skusVendidos,
         'Usuários Responsáveis': linha.usuarios,
       }));
@@ -3871,6 +3909,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`,
             )
             .join('<br>');
+          const valorLiquido = Number(item.valorLiquido || 0).toLocaleString(
+            'pt-BR',
+            { style: 'currency', currency: 'BRL' },
+          );
           return `
             <tr>
               <td style="padding:8px;border:1px solid #ddd;">
@@ -3883,6 +3925,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               <td style="padding:8px;border:1px solid #ddd;text-align:right;">${item.total.toLocaleString(
                 'pt-BR',
               )}</td>
+              <td style="padding:8px;border:1px solid #ddd;text-align:right;">${valorLiquido}</td>
               <td style="padding:8px;border:1px solid #ddd;">${usuarios || '-'}</td>
             </tr>`;
         })
@@ -3902,6 +3945,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">SKU Principal</th>
                 <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Detalhe dos SKUs Vendidos</th>
                 <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:right;">Quantidade Vendida</th>
+                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:right;">Valor Líquido</th>
                 <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Usuários Responsáveis</th>
               </tr>
             </thead>
