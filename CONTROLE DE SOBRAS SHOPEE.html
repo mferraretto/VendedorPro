@@ -3837,12 +3837,14 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     }
 
     function obterProdutosVendidosParaExportacao() {
-      return produtosVendidosResumo.map((item) => ({
-        skuPrincipal: item.sku,
-        skusAgrupados: item.todosSkus.join(', '),
-        quantidadeTotal: item.total,
-        valorLiquido: Number(item.valorLiquido || 0),
-        skusVendidos: item.vendidosPorSku
+      return [...produtosVendidosResumo]
+        .sort((a, b) => b.total - a.total)
+        .map((item) => ({
+          skuPrincipal: item.sku,
+          skusAgrupados: item.todosSkus.join(', '),
+          quantidadeTotal: item.total,
+          valorLiquido: Number(item.valorLiquido || 0),
+          skusVendidos: item.vendidosPorSku
           .map(
             ([sku, qtd]) => `${sku} (${qtd.toLocaleString('pt-BR')})`,
           )
@@ -3892,7 +3894,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         return;
       }
 
-      const linhas = produtosVendidosResumo
+      const ordenados = [...produtosVendidosResumo].sort(
+        (a, b) => b.total - a.total,
+      );
+      const linhas = ordenados
         .map((item) => {
           const vendidos = item.vendidosPorSku
             .map(
