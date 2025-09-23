@@ -3,17 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Etiqueta Shopee - Corte 15/2/2</title>
+  <title>Etiqueta Shopee - Corte 15/2/2 (Compacto)</title>
+
+  <!-- UI libs (seus) -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css?v=20240826" />
+
+  <!-- Firebase (seus) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="expedicao-notifier.js"></script>
+
+  <!-- PDF.js (para rasterizar o checklist em JPEG) -->
+  <script src="https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
+  </script>
+
+  <!-- pdf-lib (montagem do PDF final) -->
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
   <style>
     .shopee-labels {
       --labels-bg: #0f172a;
@@ -28,174 +42,34 @@
       box-shadow: 0 25px 40px rgba(15, 23, 42, 0.35);
       overflow: hidden;
     }
-    .shopee-labels .labels-header {
-      padding: 28px 24px 12px;
-      text-align: center;
-    }
-    .shopee-labels .labels-title {
-      margin: 0 0 6px;
-      font-size: clamp(22px, 2.6vw, 30px);
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-    .shopee-labels .labels-sub {
-      margin: 0;
-      color: var(--labels-muted);
-      font-size: 0.95rem;
-      line-height: 1.4;
-    }
-    .shopee-labels .labels-wrap {
-      display: grid;
-      gap: 18px;
-      padding: 0 24px 28px;
-    }
-    .shopee-labels .labels-card {
-      background: var(--labels-card);
-      border: 1px solid #1f2937;
-      border-radius: var(--labels-radius);
-      padding: var(--labels-pad);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
-    }
-    .shopee-labels .labels-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: center;
-    }
-    .shopee-labels .labels-upload {
-      display: inline-flex;
-      gap: 10px;
-      align-items: center;
-      padding: 10px 14px;
-      border-radius: 12px;
-      background: #1f2937;
-      border: 1px dashed #374151;
-      cursor: pointer;
-      transition: border-color 0.2s ease, transform 0.2s ease;
-    }
-    .shopee-labels .labels-upload:hover {
-      border-color: #60a5fa;
-      transform: translateY(-1px);
-    }
-    .shopee-labels input[type="file"] {
-      display: none;
-    }
-    .shopee-labels .labels-action {
-      all: unset;
-      display: inline-flex;
-      gap: 10px;
-      align-items: center;
-      background: linear-gradient(135deg, #06b6d4, #22d3ee);
-      color: #001018;
-      font-weight: 700;
-      padding: 12px 18px;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-    .shopee-labels .labels-action:disabled {
-      cursor: not-allowed;
-      opacity: 0.6;
-      transform: none !important;
-      box-shadow: none !important;
-    }
-    .shopee-labels .labels-action:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 18px rgba(14, 165, 233, 0.25);
-    }
-    .shopee-labels .labels-action:not(:disabled):active {
-      transform: translateY(1px);
-    }
-    .shopee-labels .labels-mono {
-      font-family: ui-monospace, Menlo, Consolas, monospace;
-      font-size: 12.5px;
-      color: #cbd5e1;
-    }
-    .shopee-labels .labels-hint {
-      color: var(--labels-muted);
-      font-size: 13px;
-      line-height: 1.4;
-    }
-    .shopee-labels .labels-ok {
-      color: #22c55e;
-      font-weight: 700;
-    }
-    .shopee-labels .labels-link {
-      color: #67e8f9;
-      text-decoration: underline;
-      font-weight: 600;
-    }
-    .shopee-labels .labels-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-    }
-    .shopee-labels .labels-chk {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      padding: 6px 10px;
-      border: 1px solid #374151;
-      border-radius: 10px;
-      background: #1f2937;
-    }
-    .shopee-labels .labels-log {
-      background: rgba(15, 23, 42, 0.55);
-      border-radius: 12px;
-      padding: 12px;
-      border: 1px solid rgba(148, 163, 184, 0.12);
-      max-height: 240px;
-      overflow-y: auto;
-    }
-    .progress-bar-bg {
-      background: linear-gradient(90deg, #cfd9df 0%, #e2ebf0 100%);
-      border-radius: 9999px;
-      height: 1.5rem;
-      overflow: hidden;
-      box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
-    }
-    .progress-bar-fill {
-      background: linear-gradient(90deg, #06B6D4 0%, #3B82F6 100%);
-      height: 100%;
-      border-radius: 9999px 0 0 9999px;
-      transition: width 0.3s cubic-bezier(.4,0,.2,1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      font-weight: 600;
-      font-size: 0.875rem;
-      background-size: 200% 100%;
-      animation: progress-animation 2s linear infinite;
-    }
-    .progress-bar-fill.completed {
-      background: linear-gradient(90deg, #16A34A 0%, #22C55E 100%);
-      animation: none;
-    }
-    .progress-bar-fill.failed {
-      background: linear-gradient(90deg, #DC2626 0%, #EF4444 100%);
-      animation: none;
-    }
-    @keyframes progress-animation {
-      0% { background-position: 0% 0; }
-      100% { background-position: -200% 0; }
-    }
-    #timerText {
-      font-size: 0.875rem;
-      color: #374151;
-      font-weight: 500;
-    }
-    #status {
-      min-height: 2rem;
-    }
-    @media (max-width: 768px) {
-      .shopee-labels .labels-header {
-        padding: 24px 16px 12px;
-      }
-      .shopee-labels .labels-wrap {
-        padding: 0 16px 24px;
-      }
-    }
+    .shopee-labels .labels-header { padding: 28px 24px 12px; text-align: center; }
+    .shopee-labels .labels-title { margin: 0 0 6px; font-size: clamp(22px, 2.6vw, 30px); font-weight: 700; letter-spacing: -0.01em; }
+    .shopee-labels .labels-sub { margin: 0; color: var(--labels-muted); font-size: 0.95rem; line-height: 1.4; }
+    .shopee-labels .labels-wrap { display: grid; gap: 18px; padding: 0 24px 28px; }
+    .shopee-labels .labels-card { background: var(--labels-card); border: 1px solid #1f2937; border-radius: var(--labels-radius); padding: var(--labels-pad); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02); }
+    .shopee-labels .labels-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .shopee-labels .labels-upload { display: inline-flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 12px; background: #1f2937; border: 1px dashed #374151; cursor: pointer; transition: border-color .2s, transform .2s; }
+    .shopee-labels .labels-upload:hover { border-color: #60a5fa; transform: translateY(-1px); }
+    .shopee-labels input[type="file"] { display: none; }
+    .shopee-labels .labels-action { all: unset; display: inline-flex; gap: 10px; align-items: center; background: linear-gradient(135deg, #06b6d4, #22d3ee); color: #001018; font-weight: 700; padding: 12px 18px; border-radius: 12px; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    .shopee-labels .labels-action:disabled { cursor: not-allowed; opacity: .6; transform: none !important; box-shadow: none !important; }
+    .shopee-labels .labels-action:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(14,165,233,.25); }
+    .shopee-labels .labels-action:not(:disabled):active { transform: translateY(1px); }
+    .shopee-labels .labels-mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; color: #cbd5e1; }
+    .shopee-labels .labels-hint { color: var(--labels-muted); font-size: 13px; line-height: 1.4; }
+    .shopee-labels .labels-ok { color: #22c55e; font-weight: 700; }
+    .shopee-labels .labels-link { color: #67e8f9; text-decoration: underline; font-weight: 600; }
+    .shopee-labels .labels-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 16px; }
+    .shopee-labels .labels-chk { display: inline-flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid #374151; border-radius: 10px; background: #1f2937; }
+    .shopee-labels .labels-log { background: rgba(15, 23, 42, .55); border-radius: 12px; padding: 12px; border: 1px solid rgba(148, 163, 184, .12); max-height: 240px; overflow-y: auto; }
+    .progress-bar-bg { background: linear-gradient(90deg,#cfd9df 0%,#e2ebf0 100%); border-radius: 9999px; height: 1.5rem; overflow: hidden; box-shadow: 0 2px 16px rgba(0,0,0,.08); }
+    .progress-bar-fill { background: linear-gradient(90deg,#06B6D4 0%,#3B82F6 100%); height: 100%; border-radius: 9999px 0 0 9999px; transition: width .3s cubic-bezier(.4,0,.2,1); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: .875rem; background-size: 200% 100%; animation: progress-animation 2s linear infinite; }
+    .progress-bar-fill.completed { background: linear-gradient(90deg,#16A34A 0%,#22C55E 100%); animation: none; }
+    .progress-bar-fill.failed { background: linear-gradient(90deg,#DC2626 0%,#EF4444 100%); animation: none; }
+    @keyframes progress-animation { 0% {background-position:0% 0;} 100% {background-position:-200% 0;} }
+    #timerText { font-size: .875rem; color: #374151; font-weight: 500; }
+    #status { min-height: 2rem; }
+    @media (max-width: 768px) { .shopee-labels .labels-header { padding: 24px 16px 12px; } .shopee-labels .labels-wrap { padding: 0 16px 24px; } }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen">
@@ -224,8 +98,8 @@
 
           <div class="shopee-labels">
             <div class="labels-header">
-              <h2 class="labels-title">✂️ Etiqueta em cima + colunas 3 e 5 do checklist (com zoom)</h2>
-              <p class="labels-sub">A4 ➜ divide no meio (10,5 cm), pega 15 cm do topo (etiqueta), do checklist descarta 2 cm e usa os 2 cm seguintes ➜ divide em 5 colunas (2.2, 1.9, 1.9, 1.9, 1.9 cm), pega colunas 3 e 5 e remonta abaixo com zoom.</p>
+              <h2 class="labels-title">✂️ Etiqueta em cima + colunas 3 e 5 do checklist (compacto)</h2>
+              <p class="labels-sub">A4 ➜ divide no meio (10,5 cm), corta 15 cm (etiqueta), do checklist descarta 2,3 cm e usa 1,7 cm seguintes ➜ divide em 5 colunas (2.0, 1.9, 1.9, 1.9, 1.9 cm), pega colunas 3 e 5 e remonta abaixo com zoom.</p>
             </div>
             <div class="labels-wrap">
               <div class="labels-card">
@@ -244,7 +118,7 @@
                   <span id="status" class="labels-mono"></span>
                 </div>
                 <div class="labels-hint" style="margin-top:8px">
-                  Colunas (cm): <b>[2.2, 1.9, 1.9, 1.9, 1.9]</b>. Zoom padrão: <b>120%</b> (ajustável no código: <code>zoomFactor</code>).
+                  Modo compacto ativo: checklist rasterizado em JPEG para reduzir o tamanho do arquivo. DPI/qualidade ajustáveis no código.
                 </div>
               </div>
 
@@ -261,12 +135,13 @@
                 </div>
               </div>
             </div>
-          </div>
+          </div> <!-- /shopee-labels -->
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Modal de processamento (seu) -->
   <div id="processingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-40 px-4">
     <div id="processingModalCard" class="w-full max-w-lg rounded-xl shadow-xl p-6 bg-white border-t-4 border-blue-500 space-y-5 transition-colors duration-300">
       <div class="flex items-start gap-3">
@@ -292,6 +167,7 @@
     </div>
   </div>
 
+  <!-- Modal escolha de gestor (seu) -->
   <div id="gestorModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
     <div class="bg-white w-full max-w-md p-4 rounded-xl shadow-lg space-y-4">
       <div>
@@ -306,6 +182,7 @@
     </div>
   </div>
 
+  <!-- App principal -->
   <script type="module">
     import { firebaseConfig } from './firebase-config.js';
 
@@ -316,6 +193,7 @@
     const db = firebase.firestore();
     const storage = firebase.storage();
 
+    // ------- elementos da UI -------
     const fileInput = document.getElementById('file');
     const processBtn = document.getElementById('go');
     const debugCheckbox = document.getElementById('debug');
@@ -334,189 +212,92 @@
     const processingIcon = document.getElementById('processingIcon');
     const processingClose = document.getElementById('processingClose');
 
-    const log = (text) => {
-      logEl.textContent += text + '\n';
-      logEl.scrollTop = logEl.scrollHeight;
-    };
-
-    const setStatus = (text) => {
-      statusEl.textContent = text || '';
-    };
-
-    let currentUser = null;
-    let responsavelExpedicaoUid = null;
-    let horariosEtiquetas = [];
-    let isProcessing = false;
-
     const gestorModal = document.getElementById('gestorModal');
     const gestorSelect = document.getElementById('gestorSelect');
     const gestorConfirm = document.getElementById('gestorConfirm');
     const gestorCancel = document.getElementById('gestorCancel');
 
+    // ------- helpers UI -------
+    const log = (text) => { logEl.textContent += text + '\n'; logEl.scrollTop = logEl.scrollHeight; };
+    const setStatus = (text) => { statusEl.textContent = text || ''; };
+
     processingModalCard.dataset.status = 'idle';
-
     function setProcessingModalTheme(state) {
-      processingModalCard.classList.remove('bg-white', 'border-blue-500', 'bg-green-50', 'border-green-500', 'bg-red-50', 'border-red-500');
-      processingTitle.classList.remove('text-gray-800', 'text-green-700', 'text-red-700');
-      processingSubtitle.classList.remove('text-gray-600', 'text-green-700', 'text-red-700');
-      timerText.classList.remove('text-gray-700', 'text-green-700', 'text-red-700');
-
+      processingModalCard.classList.remove('bg-white','border-blue-500','bg-green-50','border-green-500','bg-red-50','border-red-500');
+      processingTitle.classList.remove('text-gray-800','text-green-700','text-red-700');
+      processingSubtitle.classList.remove('text-gray-600','text-green-700','text-red-700');
+      timerText.classList.remove('text-gray-700','text-green-700','text-red-700');
       if (state === 'success') {
-        processingModalCard.classList.add('bg-green-50', 'border-green-500');
+        processingModalCard.classList.add('bg-green-50','border-green-500');
         processingTitle.classList.add('text-green-700');
         processingSubtitle.classList.add('text-green-700');
         timerText.classList.add('text-green-700');
       } else if (state === 'error') {
-        processingModalCard.classList.add('bg-red-50', 'border-red-500');
+        processingModalCard.classList.add('bg-red-50','border-red-500');
         processingTitle.classList.add('text-red-700');
         processingSubtitle.classList.add('text-red-700');
         timerText.classList.add('text-red-700');
       } else {
-        processingModalCard.classList.add('bg-white', 'border-blue-500');
+        processingModalCard.classList.add('bg-white','border-blue-500');
         processingTitle.classList.add('text-gray-800');
         processingSubtitle.classList.add('text-gray-600');
         timerText.classList.add('text-gray-700');
       }
     }
-
     function openProcessingModal() {
       setProcessingModalTheme('processing');
-      processingModal.classList.remove('hidden');
-      processingModal.classList.add('flex');
+      processingModal.classList.remove('hidden'); processingModal.classList.add('flex');
       document.body.classList.add('overflow-hidden');
       processingModalCard.dataset.status = 'processing';
       processingIcon.className = 'fa-solid fa-gear fa-spin text-blue-500 text-2xl mt-1';
       processingTitle.textContent = 'Processando etiquetas...';
       processingSubtitle.textContent = 'Por favor, não feche a página até concluirmos o processamento.';
-      progressBar.style.display = 'block';
-      progressFill.style.width = '0%';
-      progressFill.classList.remove('completed', 'failed');
-      progressText.textContent = '';
-      timerText.textContent = '';
-      processingClose.classList.add('hidden');
-      processingClose.setAttribute('aria-hidden', 'true');
-      processingClose.disabled = true;
+      progressBar.style.display = 'block'; progressFill.style.width = '0%';
+      progressFill.classList.remove('completed','failed'); progressText.textContent = ''; timerText.textContent = '';
+      processingClose.classList.add('hidden'); processingClose.setAttribute('aria-hidden','true'); processingClose.disabled = true;
     }
-
     function completeProcessingModal(totalSeconds) {
       setProcessingModalTheme('success');
       processingModalCard.dataset.status = 'completed';
       processingIcon.className = 'fa-solid fa-circle-check text-green-500 text-2xl mt-1';
       processingTitle.textContent = 'Tudo pronto!';
       processingSubtitle.textContent = 'Arquivo final salvo com sucesso. Agora você já pode fechar esta janela.';
-      progressFill.classList.add('completed');
-      progressFill.classList.remove('failed');
-      progressFill.style.width = '100%';
+      progressFill.classList.add('completed'); progressFill.classList.remove('failed'); progressFill.style.width = '100%';
       progressText.textContent = 'Processamento finalizado (100%)';
-      if (Number.isFinite(totalSeconds)) {
-        timerText.textContent = `Tempo total: ${formatTime(Math.max(0, Math.floor(totalSeconds)))}`;
-      }
-      processingClose.classList.remove('hidden');
-      processingClose.removeAttribute('aria-hidden');
-      processingClose.disabled = false;
+      if (Number.isFinite(totalSeconds)) timerText.textContent = `Tempo total: ${formatTime(Math.max(0, Math.floor(totalSeconds)))}`;
+      processingClose.classList.remove('hidden'); processingClose.removeAttribute('aria-hidden'); processingClose.disabled = false;
     }
-
     function failProcessingModal(message) {
       setProcessingModalTheme('error');
       processingModalCard.dataset.status = 'failed';
       processingIcon.className = 'fa-solid fa-circle-exclamation text-red-500 text-2xl mt-1';
       processingTitle.textContent = 'Algo deu errado';
       processingSubtitle.textContent = message || 'Não foi possível concluir o processamento. Tente novamente.';
-      progressFill.classList.add('failed');
-      progressFill.classList.remove('completed');
-      processingClose.classList.remove('hidden');
-      processingClose.removeAttribute('aria-hidden');
-      processingClose.disabled = false;
+      progressFill.classList.add('failed'); progressFill.classList.remove('completed');
+      processingClose.classList.remove('hidden'); processingClose.removeAttribute('aria-hidden'); processingClose.disabled = false;
     }
+    function hideProcessingModal() { processingModal.classList.add('hidden'); processingModal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); progressBar.style.display = 'none'; processingModalCard.dataset.status = 'idle'; }
+    if (processingClose) { processingClose.addEventListener('click', () => { if (processingModalCard.dataset.status !== 'processing') hideProcessingModal(); }); }
 
-    function hideProcessingModal() {
-      processingModal.classList.add('hidden');
-      processingModal.classList.remove('flex');
-      document.body.classList.remove('overflow-hidden');
-      progressBar.style.display = 'none';
-      processingModalCard.dataset.status = 'idle';
-    }
-
-    if (processingClose) {
-      processingClose.addEventListener('click', () => {
-        if (processingModalCard.dataset.status !== 'processing') {
-          hideProcessingModal();
-        }
-      });
-    }
-
-    function toggleProcessingState(active) {
-      isProcessing = active;
-      processBtn.disabled = active || !currentUser;
-    }
-
-    function updateAuthUI() {
-      processBtn.disabled = isProcessing || !currentUser;
-      processBtn.classList.toggle('opacity-60', processBtn.disabled);
-    }
-
-    function formatTime(seconds) {
-      const m = Math.floor(seconds / 60);
-      const s = seconds % 60;
-      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-
-    function updateProgress(current, total, startTime, progressFillEl, progressTextEl, timerTextEl) {
-      const progress = total > 0 ? Math.round((current / total) * 100) : 0;
-      progressFillEl.style.width = `${Math.min(100, Math.max(0, progress))}%`;
-      if (current > 0) {
-        progressTextEl.textContent = `Processando página ${current} de ${total} (${progress}%)`;
-        const elapsed = (Date.now() - startTime) / 1000;
-        const avg = elapsed / current;
-        const remaining = Math.max(0, Math.round(avg * (total - current)));
-        timerTextEl.textContent = `Tempo restante: ${formatTime(remaining)}`;
-      } else {
-        progressTextEl.textContent = total > 0 ? `Preparando (${total} páginas)...` : 'Preparando...';
-        timerTextEl.textContent = '';
-      }
-    }
+    let isProcessing = false;
+    let currentUser = null;
+    let responsavelExpedicaoUid = null;
+    let horariosEtiquetas = [];
+    function toggleProcessingState(active) { isProcessing = active; processBtn.disabled = active || !currentUser; processBtn.classList.toggle('opacity-60', processBtn.disabled); }
+    function updateAuthUI() { processBtn.disabled = isProcessing || !currentUser; processBtn.classList.toggle('opacity-60', processBtn.disabled); }
+    function formatTime(seconds){ const m=Math.floor(seconds/60), s=seconds%60; return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }
+    function updateProgress(current,total,start,fillEl,textEl,timerEl){ const p= total>0? Math.round((current/total)*100):0; fillEl.style.width=`${Math.min(100,Math.max(0,p))}%`; if(current>0){ textEl.textContent=`Processando página ${current} de ${total} (${p}%)`; const elapsed=(Date.now()-start)/1000; const avg=elapsed/current; const remaining=Math.max(0,Math.round(avg*(total-current))); timerEl.textContent=`Tempo restante: ${formatTime(remaining)}`; } else { textEl.textContent= total>0?`Preparando (${total} páginas)...`:'Preparando...'; timerEl.textContent=''; } }
 
     function escolherGestorEmail(emails) {
       return new Promise((resolve) => {
-        if (!emails || !emails.length) {
-          resolve([]);
-          return;
-        }
-        if (emails.length === 1) {
-          resolve([emails[0]]);
-          return;
-        }
-
+        if (!emails || !emails.length) { resolve([]); return; }
+        if (emails.length === 1) { resolve([emails[0]]); return; }
         gestorSelect.innerHTML = '';
-        emails.forEach((email) => {
-          const opt = document.createElement('option');
-          opt.value = email;
-          opt.textContent = email;
-          gestorSelect.appendChild(opt);
-        });
-
-        function closeModal(value) {
-          gestorModal.classList.add('hidden');
-          gestorConfirm.removeEventListener('click', onConfirm);
-          gestorCancel.removeEventListener('click', onCancel);
-          gestorModal.removeEventListener('click', onBackdrop);
-          resolve(value ? [value] : [emails[0]]);
-        }
-
-        function onConfirm() {
-          closeModal(gestorSelect.value || emails[0]);
-        }
-
-        function onCancel() {
-          closeModal(emails[0]);
-        }
-
-        function onBackdrop(event) {
-          if (event.target === gestorModal) {
-            closeModal(emails[0]);
-          }
-        }
-
+        emails.forEach((email) => { const opt=document.createElement('option'); opt.value=email; opt.textContent=email; gestorSelect.appendChild(opt); });
+        function closeModal(value){ gestorModal.classList.add('hidden'); gestorConfirm.removeEventListener('click', onConfirm); gestorCancel.removeEventListener('click', onCancel); gestorModal.removeEventListener('click', onBackdrop); resolve(value ? [value] : [emails[0]]); }
+        function onConfirm(){ closeModal(gestorSelect.value || emails[0]); }
+        function onCancel(){ closeModal(emails[0]); }
+        function onBackdrop(e){ if(e.target===gestorModal) closeModal(emails[0]); }
         gestorConfirm.addEventListener('click', onConfirm);
         gestorCancel.addEventListener('click', onCancel);
         gestorModal.addEventListener('click', onBackdrop);
@@ -530,9 +311,7 @@
         const doc = await db.collection('uid').doc(responsavelExpedicaoUid).get();
         const data = doc.data() || {};
         horariosEtiquetas = Array.isArray(data.horariosEtiquetas) ? data.horariosEtiquetas : [];
-      } catch (error) {
-        console.error('Erro ao carregar horários de etiquetas:', error);
-      }
+      } catch (error) { console.error('Erro ao carregar horários de etiquetas:', error); }
     }
 
     function foraDoHorario() {
@@ -542,23 +321,20 @@
         if (!intervalo?.inicio || !intervalo?.fim) return false;
         const [ih, im] = intervalo.inicio.split(':').map(Number);
         const [fh, fm] = intervalo.fim.split(':').map(Number);
-        const start = new Date(now);
-        start.setHours(ih || 0, im || 0, 0, 0);
-        const end = new Date(now);
-        end.setHours(fh || 0, fm || 0, 0, 0);
+        const start = new Date(now); start.setHours(ih||0, im||0, 0, 0);
+        const end = new Date(now); end.setHours(fh||0, fm||0, 0, 0);
         return now >= start && now <= end;
       });
     }
 
     async function uploadPdfToFirebase(blob, fileName, meta = {}) {
-      if (!currentUser) {
-        throw new Error('Usuário não autenticado.');
-      }
+      if (!currentUser) throw new Error('Usuário não autenticado.');
       try {
-        const gestoresRaw = (gestoresInput.value || '').split(',');
-        const gestoresEmails = gestoresRaw.map((email) => email.trim()).filter(Boolean);
+        const gestoresRaw = (document.getElementById('gestoresEmails').value || '').split(',');
+        const gestoresEmails = gestoresRaw.map((e) => e.trim()).filter(Boolean);
         const selecionado = await escolherGestorEmail(gestoresEmails);
         const foraHorarioAtual = foraDoHorario();
+
         const docPayload = {
           ownerUid: currentUser.uid,
           ownerEmail: currentUser.email,
@@ -567,12 +343,8 @@
           name: fileName,
           foraHorario: foraHorarioAtual,
         };
-        if (Number.isFinite(meta.totalPaginas)) {
-          docPayload.totalPaginas = Number(meta.totalPaginas);
-        }
-        if (Number.isFinite(meta.totalPaginasOrigem)) {
-          docPayload.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
-        }
+        if (Number.isFinite(meta.totalPaginas)) docPayload.totalPaginas = Number(meta.totalPaginas);
+        if (Number.isFinite(meta.totalPaginasOrigem)) docPayload.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
 
         const docRef = await db.collection('pdfDocs').add(docPayload);
         const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
@@ -580,28 +352,14 @@
         const url = await fileRef.getDownloadURL();
         await docRef.update({ url, storagePath: fileRef.fullPath });
 
-        const resumo = {
-          name: fileName,
-          url,
-          path: fileRef.fullPath,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        };
-        if (Number.isFinite(meta.totalPaginas)) {
-          resumo.totalPaginas = Number(meta.totalPaginas);
-        }
-        if (Number.isFinite(meta.totalPaginasOrigem)) {
-          resumo.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
-        }
+        const resumo = { name: fileName, url, path: fileRef.fullPath, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+        if (Number.isFinite(meta.totalPaginas)) resumo.totalPaginas = Number(meta.totalPaginas);
+        if (Number.isFinite(meta.totalPaginasOrigem)) resumo.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
         await db.collection('users').doc(currentUser.uid).collection('etiquetaenvio').add(resumo);
 
-        if (
-          window.ExpedicaoNotifier &&
-          typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
-        ) {
+        if (window.ExpedicaoNotifier && typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function') {
           await window.ExpedicaoNotifier.notifyNovaEtiqueta({
-            db,
-            firebase,
-            currentUser,
+            db, firebase, currentUser,
             destinatarioEmails: selecionado,
             destinatarioUids: responsavelExpedicaoUid ? [responsavelExpedicaoUid] : [],
             arquivoNome: fileName,
@@ -624,50 +382,71 @@
         const doc = await db.collection('uid').doc(user.uid).get();
         const data = doc.data() || {};
         const emails = data.gestoresExpedicaoEmails || data.responsavelExpedicaoEmail || '';
-        if (Array.isArray(emails)) {
-          gestoresInput.value = emails.join(', ');
-        } else if (typeof emails === 'string') {
-          gestoresInput.value = emails;
-        }
+        if (Array.isArray(emails)) document.getElementById('gestoresEmails').value = emails.join(', ');
+        else if (typeof emails === 'string') document.getElementById('gestoresEmails').value = emails;
 
-        const respEmail = Array.isArray(data.gestoresExpedicaoEmails)
-          ? data.gestoresExpedicaoEmails[0]
-          : data.responsavelExpedicaoEmail;
+        const respEmail = Array.isArray(data.gestoresExpedicaoEmails) ? data.gestoresExpedicaoEmails[0] : data.responsavelExpedicaoEmail;
         if (respEmail) {
           const snap = await db.collection('uid').where('email', '==', respEmail).limit(1).get();
-          if (!snap.empty) {
-            responsavelExpedicaoUid = snap.docs[0].id;
-            await carregarHorarios();
-          }
+          if (!snap.empty) { responsavelExpedicaoUid = snap.docs[0].id; await carregarHorarios(); }
         }
-      } catch (error) {
-        console.error('Erro ao carregar dados do usuário:', error);
-      }
+      } catch (error) { console.error('Erro ao carregar dados do usuário:', error); }
     }
 
     firebase.auth().onAuthStateChanged(async (user) => {
       currentUser = user;
-      if (!user) {
-        setStatus('Faça login para processar as etiquetas.');
-      } else {
-        setStatus('');
-        await carregarDadosUsuario(user);
-      }
+      if (!user) setStatus('Faça login para processar as etiquetas.');
+      else { setStatus(''); await carregarDadosUsuario(user); }
       updateAuthUI();
     });
 
+    // ------------------------ PDF Helpers ------------------------
+    const CM_TO_PT = 28.3464566929;
+    const cm = (v) => v * CM_TO_PT;
+
+    // Rasteriza uma região (em pontos) de uma página em JPEG (Uint8Array)
+    async function rasterizeRegionToJpeg(srcBytes, pageIndex, regionPt, dpi = 144, quality = 0.65) {
+      const scale = dpi / 72; // 72 dpi base PDF
+      const loadingTask = pdfjsLib.getDocument({ data: srcBytes });
+      const pdf = await loadingTask.promise;
+      const page = await pdf.getPage(pageIndex + 1);
+
+      const viewport = page.getViewport({ scale });
+      const pt2px = scale;
+
+      // Converter região pt -> px (PDF.js usa origem no topo)
+      const x = regionPt.left * pt2px;
+      const yTop = viewport.height - regionPt.top * pt2px;
+      const w = (regionPt.right - regionPt.left) * pt2px;
+      const h = (regionPt.top - regionPt.bottom) * pt2px;
+
+      // Renderiza a página inteira e recorta a subárea
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const crop = document.createElement('canvas');
+      crop.width = Math.max(1, Math.floor(w));
+      crop.height = Math.max(1, Math.floor(h));
+      const cctx = crop.getContext('2d');
+      cctx.drawImage(canvas, Math.floor(x), Math.floor(yTop), Math.floor(w), Math.floor(h), 0, 0, crop.width, crop.height);
+
+      // Exporta JPEG compactado
+      const dataUrl = crop.toDataURL('image/jpeg', quality);
+      const bin = atob(dataUrl.split(',')[1]);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
+    // ------------------------ PROCESSAMENTO ------------------------
     processBtn.addEventListener('click', async () => {
       if (isProcessing) return;
-      if (!currentUser) {
-        alert('Faça login para processar e salvar PDFs.');
-        setStatus('Usuário não autenticado.');
-        return;
-      }
+      if (!currentUser) { alert('Faça login para processar e salvar PDFs.'); setStatus('Usuário não autenticado.'); return; }
       const file = fileInput.files?.[0];
-      if (!file) {
-        alert('Selecione um PDF.');
-        return;
-      }
+      if (!file) { alert('Selecione um PDF.'); return; }
 
       logEl.textContent = '';
       outEl.innerHTML = 'Processando...';
@@ -687,15 +466,17 @@
         log(`Páginas originais: ${totalPages}`);
         updateProgress(0, totalPages, startTime, progressFill, progressText, timerText);
 
-        const CM_TO_PT = 28.3464566929;
-        const cm = (v) => v * CM_TO_PT;
-
+        // Medidas/cortes (como no seu fluxo)
         const CM_TOP = 15;
         const CM_DISCARD = 2.3;
         const CM_TAKE = 1.7;
         const COL_WIDTHS = [2.0, 1.9, 1.9, 1.9, 1.9];
         const PICK = [3, 5];
         const zoomFactor = 2.6;
+
+        // Parâmetros do Modo Compacto (ajuste aqui se quiser ainda menor)
+        const JPEG_DPI = 144;        // 96–144 bons; 120 costuma ficar ótimo
+        const JPEG_QLT = 0.65;       // 0.55–0.75 bom equilíbrio
 
         let totalOutPages = 0;
 
@@ -722,20 +503,10 @@
             const x0 = side === 0 ? 0 : halfW;
             const x1 = x0 + halfW;
 
-            const topRegion = {
-              left: x0,
-              right: x1,
-              bottom: Math.max(H - topH, 0),
-              top: H,
-            };
+            const topRegion = { left: x0, right: x1, bottom: Math.max(H - topH, 0), top: H };
+            const bandRegion = { left: x0, right: x1, bottom: Math.max(bandBottom, 0), top: Math.min(bandTop, H) };
 
-            const bandRegion = {
-              left: x0,
-              right: x1,
-              bottom: Math.max(bandBottom, 0),
-              top: Math.min(bandTop, H),
-            };
-
+            // Grade de colunas dentro da banda
             const widthsPt = COL_WIDTHS.map(cm);
             const totalColsW = widthsPt.reduce((a, b) => a + b, 0);
             const startX = x0 + (halfW - totalColsW) / 2;
@@ -744,47 +515,40 @@
             const colBoxes = [];
             for (let c = 0; c < COL_WIDTHS.length; c++) {
               const w = widthsPt[c];
-              colBoxes.push({
-                idx: c + 1,
-                left: cursor,
-                right: cursor + w,
-                bottom: bandRegion.bottom,
-                top: bandRegion.top,
-                width: w,
-              });
+              colBoxes.push({ idx: c + 1, left: cursor, right: cursor + w, bottom: bandRegion.bottom, top: bandRegion.top, width: w });
               cursor += w;
             }
 
+            // Etiqueta (vetor)
             const [embTop] = await outDoc.embedPages([page], [topRegion]);
 
+            // Checklist (rasterizado em JPEG) — Modo Compacto
             const chosen = [];
             for (const k of PICK) {
               const box = colBoxes[k - 1];
-              const [emb] = await outDoc.embedPages([page], [box]);
-              chosen.push({ emb, box });
+              const jpegBytes = await rasterizeRegionToJpeg(srcBytes, i, box, JPEG_DPI, JPEG_QLT);
+              const embImg = await outDoc.embedJpg(jpegBytes);
+              chosen.push({ img: embImg, box });
             }
 
-            const bottomTrimCm = -0.4;
+            // Página final: largura = metade; altura = etiqueta + banda (com zoom)
             const outW = halfW;
-            const outH = (topH + takeH * zoomFactor) - cm(bottomTrimCm);
+            const outH = topH + takeH * zoomFactor; // ajuste se quiser tirar sobra
             const outPage = outDoc.addPage([outW, outH]);
             totalOutPages += 1;
 
-            outPage.drawPage(embTop, {
-              x: 0,
-              y: takeH * zoomFactor,
-              width: outW,
-              height: topH,
-            });
+            // Desenha etiqueta (em cima)
+            outPage.drawPage(embTop, { x: 0, y: takeH * zoomFactor, width: outW, height: topH });
 
+            // Desenha colunas 3 e 5 (JPEG) centralizadas embaixo
             const pairW = chosen.reduce((s, { box }) => s + box.width, 0);
             const pairWZoom = pairW * zoomFactor;
-            const cx = (outW - pairWZoom) / 1.5;
+            const cx = (outW - pairWZoom) / 2; // centralizado
 
             let dx = 0;
-            for (const { emb, box } of chosen) {
+            for (const { img, box } of chosen) {
               const w = box.width;
-              outPage.drawPage(emb, {
+              outPage.drawImage(img, {
                 x: cx + dx * zoomFactor,
                 y: 0,
                 width: w * zoomFactor,
@@ -795,44 +559,39 @@
 
             if (dbgDoc) {
               const dbg = dbgDoc.addPage([W, H]);
-              const draw = (r, c) =>
-                dbg.drawRectangle({
-                  x: r.left,
-                  y: r.bottom,
-                  width: r.right - r.left,
-                  height: r.top - r.bottom,
-                  borderWidth: 1,
-                  borderColor: PDFLib.rgb(...c),
-                });
+              const draw = (r, c) => dbg.drawRectangle({
+                x: r.left, y: r.bottom, width: r.right - r.left, height: r.top - r.bottom,
+                borderWidth: 1, borderColor: PDFLib.rgb(...c)
+              });
               draw({ left: x0, bottom: 0, right: x1, top: H }, [0.25, 0.25, 0.25]);
               draw(topRegion, [0.05, 0.85, 0.85]);
               draw(bandRegion, [0.95, 0.8, 0.1]);
               for (const k of PICK) draw(colBoxes[k - 1], [0.9, 0.2, 0.2]);
             }
 
-            log(`OK ▶ Pg ${i + 1} ${side === 0 ? 'ESQ' : 'DIR'} ▶ etiqueta + col(3,5) com zoom.`);
+            log(`OK ▶ Pg ${i + 1} ${side === 0 ? 'ESQ' : 'DIR'} ▶ etiqueta + col(3,5) compactas.`);
           }
+
           updateProgress(i + 1, totalPages, startTime, progressFill, progressText, timerText);
         }
 
-        if (outDoc.getPageCount() === 0) {
-          throw new Error('Nenhuma página válida foi gerada.');
-        }
+        if (outDoc.getPageCount() === 0) throw new Error('Nenhuma página válida foi gerada.');
 
         setStatus('Salvando PDF…');
-        const outBytes = await outDoc.save();
+        // Salva com compressão de objetos (arquivo menor)
+        const outBytes = await outDoc.save({ useObjectStreams: true });
         const outBlob = new Blob([outBytes], { type: 'application/pdf' });
         const baseName = file.name.replace(/\.pdf$/i, '') || 'etiquetas';
-        const finalFileName = `${baseName}-cols3-5-zoom.pdf`;
+        const finalFileName = `${baseName}-compacto.pdf`;
 
         const uploadInfo = await uploadPdfToFirebase(outBlob, finalFileName, {
-          totalPaginas: totalOutPages,
+          totalPaginas: outDoc.getPageCount(),
           totalPaginasOrigem: srcDoc.getPageCount(),
         });
 
         const outUrl = URL.createObjectURL(outBlob);
         let html = `
-          <div class="labels-ok">✅ PDF final gerado e salvo no Firebase.</div>
+          <div class="labels-ok">✅ PDF final gerado (compacto) e salvo no Firebase.</div>
           <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
             <a class="labels-link" href="${outUrl}" download="${finalFileName}">Baixar PDF final</a>
             <a class="labels-link" href="${uploadInfo.url}" target="_blank" rel="noopener">Abrir no Firebase</a>
@@ -840,7 +599,7 @@
         `;
 
         if (dbgDoc) {
-          const dbgBytes = await dbgDoc.save();
+          const dbgBytes = await dbgDoc.save({ useObjectStreams: true });
           const dbgBlob = new Blob([dbgBytes], { type: 'application/pdf' });
           const dbgUrl = URL.createObjectURL(dbgBlob);
           html += `<div class="labels-hint" style="margin-top:10px">DEBUG: <a class="labels-link" href="${dbgUrl}" download="debug_recortes.pdf">Baixar PDF com áreas de recorte</a></div>`;
@@ -850,6 +609,7 @@
         setStatus('Concluído.');
         const finalTime = Math.round((Date.now() - startTime) / 1000);
         completeProcessingModal(finalTime);
+
       } catch (error) {
         console.error(error);
         setStatus('Erro.');
@@ -862,6 +622,7 @@
       }
     });
   </script>
+
   <script src="shared.js"></script>
 </body>
 </html>
