@@ -3837,12 +3837,14 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     }
 
     function obterProdutosVendidosParaExportacao() {
-      return produtosVendidosResumo.map((item) => ({
-        skuPrincipal: item.sku,
-        skusAgrupados: item.todosSkus.join(', '),
-        quantidadeTotal: item.total,
-        valorLiquido: Number(item.valorLiquido || 0),
-        skusVendidos: item.vendidosPorSku
+      return [...produtosVendidosResumo]
+        .sort((a, b) => b.total - a.total)
+        .map((item) => ({
+          skuPrincipal: item.sku,
+          skusAgrupados: item.todosSkus.join(', '),
+          quantidadeTotal: item.total,
+          valorLiquido: Number(item.valorLiquido || 0),
+          skusVendidos: item.vendidosPorSku
           .map(
             ([sku, qtd]) => `${sku} (${qtd.toLocaleString('pt-BR')})`,
           )
@@ -3882,7 +3884,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       mostrarSucesso('Arquivo Excel gerado com sucesso.');
     }
 
-    function exportarProdutosVendidosPDF() {
+    async function exportarProdutosVendidosPDF() {
       if (!produtosVendidosResumo.length) {
         mostrarErro('Nenhum dado disponível para exportar.');
         return;
@@ -3892,7 +3894,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         return;
       }
 
-      const linhas = produtosVendidosResumo
+      const ordenados = [...produtosVendidosResumo].sort(
+        (a, b) => b.total - a.total,
+      );
+      const linhas = ordenados
         .map((item) => {
           const vendidos = item.vendidosPorSku
             .map(
@@ -3900,7 +3905,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 `${escapeHtml(sku)} (${qtd.toLocaleString('pt-BR')})`,
             )
             .join('<br>');
-          const associados = item.grupoCompleto
+          const associados = (item.grupoCompleto || item.todosSkus || [])
             .map((sku) => escapeHtml(sku))
             .join(', ');
           const usuarios = item.usuarios
@@ -3915,56 +3920,89 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           );
           return `
             <tr>
-              <td style="padding:8px;border:1px solid #ddd;">
-                <strong>${escapeHtml(item.sku)}</strong>
-                <div style="margin-top:4px;font-size:11px;color:#555;">
-                  Grupo: ${associados || '-'}
-                </div>
+              <td>
+                <div class="sku-principal">${escapeHtml(item.sku)}</div>
+                <div class="sku-grupo">Grupo: ${associados || '-'}</div>
               </td>
-              <td style="padding:8px;border:1px solid #ddd;">${vendidos || '-'}</td>
-              <td style="padding:8px;border:1px solid #ddd;text-align:right;">${item.total.toLocaleString(
-                'pt-BR',
-              )}</td>
-              <td style="padding:8px;border:1px solid #ddd;text-align:right;">${valorLiquido}</td>
-              <td style="padding:8px;border:1px solid #ddd;">${usuarios || '-'}</td>
+              <td>${vendidos || '-'}</td>
+              <td class="numero">${item.total.toLocaleString('pt-BR')}</td>
+              <td class="numero">${valorLiquido}</td>
+              <td>${usuarios || '-'}</td>
             </tr>`;
         })
         .join('');
 
       const wrapper = document.createElement('div');
+      wrapper.style.position = 'fixed';
+      wrapper.style.left = '-10000px';
+      wrapper.style.top = '0';
+      wrapper.style.width = '1120px';
+      wrapper.style.padding = '24px';
+      wrapper.style.background = '#ffffff';
+      wrapper.style.color = '#111827';
+      wrapper.style.fontFamily = "'Inter', Arial, sans-serif";
+
       const dataGeracao = new Date().toLocaleString('pt-BR');
       wrapper.innerHTML = `
-        <div style="font-family: 'Inter', Arial, sans-serif;">
-          <h2 style="margin-bottom:8px;">Produtos Vendidos</h2>
-          <p style="margin-top:0;margin-bottom:16px;font-size:12px;color:#555;">
+        <style>
+          * { box-sizing: border-box; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          th, td { border: 1px solid #d1d5db; padding: 8px; font-size: 12px; vertical-align: top; word-break: break-word; }
+          th { background: #f3f4f6; text-align: left; }
+          th:nth-child(3), th:nth-child(4), td:nth-child(3), td:nth-child(4) { text-align: right; }
+          .numero { text-align: right; }
+          tr { page-break-inside: avoid; }
+          .sku-principal { font-weight: 600; font-size: 13px; }
+          .sku-grupo { margin-top: 4px; font-size: 11px; color: #6b7280; }
+        </style>
+        <div>
+          <h2 style="margin:0 0 8px; font-size:18px;">Produtos Vendidos</h2>
+          <p style="margin:0 0 16px; font-size:12px; color:#6b7280;">
             Relatório gerado em ${dataGeracao}
           </p>
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <table>
             <thead>
               <tr>
-                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">SKU Principal</th>
-                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Detalhe dos SKUs Vendidos</th>
-                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:right;">Quantidade Vendida</th>
-                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:right;">Valor Líquido</th>
-                <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Usuários Responsáveis</th>
+                <th>SKU Principal</th>
+                <th>Detalhe dos SKUs Vendidos</th>
+                <th>Quantidade Vendida</th>
+                <th>Valor Líquido</th>
+                <th>Usuários Responsáveis</th>
               </tr>
             </thead>
             <tbody>${linhas}</tbody>
           </table>
         </div>`;
 
+      document.body.appendChild(wrapper);
+
       const opt = {
-        margin: 0.5,
+        margin: [10, 12, 10, 12],
         filename: `produtos_vendidos_${new Date()
           .toISOString()
           .slice(0, 10)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          scrollY: 0,
+          windowWidth: wrapper.scrollWidth,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['css', 'legacy'] },
       };
 
-      html2pdf().set(opt).from(wrapper).save();
-      mostrarSucesso('Arquivo PDF gerado com sucesso.');
+      try {
+        await html2pdf().set(opt).from(wrapper).save();
+        mostrarSucesso('Arquivo PDF gerado com sucesso.');
+      } catch (erro) {
+        console.error('Erro ao gerar PDF de produtos vendidos', erro);
+        mostrarErro('Não foi possível gerar o PDF. Tente novamente.');
+      } finally {
+        if (wrapper.parentNode) {
+          wrapper.parentNode.removeChild(wrapper);
+        }
+      }
     }
 
     async function carregarControleVendas() {
