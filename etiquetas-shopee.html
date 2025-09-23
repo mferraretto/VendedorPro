@@ -407,40 +407,41 @@
 
     // Rasteriza uma região (em pontos) de uma página em JPEG (Uint8Array)
     async function rasterizeRegionToJpeg(srcBytes, pageIndex, regionPt, dpi = 144, quality = 0.65) {
-      const scale = dpi / 72; // 72 dpi base PDF
-      const loadingTask = pdfjsLib.getDocument({ data: srcBytes });
-      const pdf = await loadingTask.promise;
-      const page = await pdf.getPage(pageIndex + 1);
+  const pdfjs = window.pdfjsLib || globalThis.pdfjsLib;
+  if (!pdfjs) throw new Error("PDF.js não carregado (window.pdfjsLib indisponível).");
 
-      const viewport = page.getViewport({ scale });
-      const pt2px = scale;
+  const scale = dpi / 72;
+  const loadingTask = pdfjs.getDocument({ data: srcBytes });
+  const pdf = await loadingTask.promise;
+  const page = await pdf.getPage(pageIndex + 1);
 
-      // Converter região pt -> px (PDF.js usa origem no topo)
-      const x = regionPt.left * pt2px;
-      const yTop = viewport.height - regionPt.top * pt2px;
-      const w = (regionPt.right - regionPt.left) * pt2px;
-      const h = (regionPt.top - regionPt.bottom) * pt2px;
+  const viewport = page.getViewport({ scale });
+  const pt2px = scale;
 
-      // Renderiza a página inteira e recorta a subárea
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      await page.render({ canvasContext: ctx, viewport }).promise;
+  const x = regionPt.left * pt2px;
+  const yTop = viewport.height - regionPt.top * pt2px;
+  const w = (regionPt.right - regionPt.left) * pt2px;
+  const h = (regionPt.top - regionPt.bottom) * pt2px;
 
-      const crop = document.createElement('canvas');
-      crop.width = Math.max(1, Math.floor(w));
-      crop.height = Math.max(1, Math.floor(h));
-      const cctx = crop.getContext('2d');
-      cctx.drawImage(canvas, Math.floor(x), Math.floor(yTop), Math.floor(w), Math.floor(h), 0, 0, crop.width, crop.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  await page.render({ canvasContext: ctx, viewport }).promise;
 
-      // Exporta JPEG compactado
-      const dataUrl = crop.toDataURL('image/jpeg', quality);
-      const bin = atob(dataUrl.split(',')[1]);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return bytes;
-    }
+  const crop = document.createElement('canvas');
+  crop.width = Math.max(1, Math.floor(w));
+  crop.height = Math.max(1, Math.floor(h));
+  const cctx = crop.getContext('2d');
+  cctx.drawImage(canvas, Math.floor(x), Math.floor(yTop), Math.floor(w), Math.floor(h), 0, 0, crop.width, crop.height);
+
+  const dataUrl = crop.toDataURL('image/jpeg', quality);
+  const bin = atob(dataUrl.split(',')[1]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
 
     // ------------------------ PROCESSAMENTO ------------------------
     processBtn.addEventListener('click', async () => {
