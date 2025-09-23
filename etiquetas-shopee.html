@@ -13,6 +13,12 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="expedicao-notifier.js"></script>
+  <!-- PDF.js (para rasterização opcional do checklist) -->
+  <script src="https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js';
+  </script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
     .shopee-labels {
@@ -238,6 +244,34 @@
                     <span>Processar</span>
                   </button>
                   <label class="labels-chk">
+                    <input id="compact" type="checkbox" checked />
+                    <span class="labels-mono">Modo compacto (rasterizar checklist)</span>
+                  </label>
+                  <label class="labels-chk">
+                    <span class="labels-mono">DPI:</span>
+                    <input
+                      id="dpi"
+                      type="number"
+                      value="144"
+                      min="72"
+                      max="300"
+                      step="12"
+                      style="width:80px;background:#0b1220;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:4px"
+                    />
+                  </label>
+                  <label class="labels-chk">
+                    <span class="labels-mono">Qualidade:</span>
+                    <input
+                      id="jpgq"
+                      type="number"
+                      value="0.65"
+                      min="0.3"
+                      max="0.95"
+                      step="0.05"
+                      style="width:80px;background:#0b1220;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:4px"
+                    />
+                  </label>
+                  <label class="labels-chk">
                     <input id="debug" type="checkbox" />
                     <span class="labels-mono">Gerar PDF DEBUG</span>
                   </label>
@@ -319,6 +353,9 @@
     const fileInput = document.getElementById('file');
     const processBtn = document.getElementById('go');
     const debugCheckbox = document.getElementById('debug');
+    const compactCheckbox = document.getElementById('compact');
+    const dpiInput = document.getElementById('dpi');
+    const jpgqInput = document.getElementById('jpgq');
     const statusEl = document.getElementById('status');
     const logEl = document.getElementById('log');
     const outEl = document.getElementById('out');
@@ -690,6 +727,66 @@
         const CM_TO_PT = 28.3464566929;
         const cm = (v) => v * CM_TO_PT;
 
+        // Rasteriza uma região (em pontos) de uma página em JPEG (Uint8Array)
+        let rasterCache = null;
+        async function rasterizeRegionToJpeg(srcBytes, pageIndex, regionPt, dpi = 144, quality = 0.65) {
+          const pdfjs = window.pdfjsLib;
+          if (!pdfjs || !pdfjs.getDocument) {
+            throw new Error('PDF.js não carregado para rasterização.');
+          }
+          if (!rasterCache || rasterCache.src !== srcBytes) {
+            const loadingTask = pdfjs.getDocument({ data: srcBytes });
+            rasterCache = { src: srcBytes, pdfPromise: loadingTask.promise, renders: new Map() };
+          }
+          const pdf = await rasterCache.pdfPromise;
+
+          const scale = Math.max(72, dpi) / 72;
+          const cacheKey = `${pageIndex}|${scale}`;
+          let render = rasterCache.renders.get(cacheKey);
+          if (!render) {
+            const page = await pdf.getPage(pageIndex + 1);
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.ceil(viewport.width);
+            canvas.height = Math.ceil(viewport.height);
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            render = { canvas, viewport };
+            rasterCache.renders.set(cacheKey, render);
+          }
+
+          const { canvas, viewport } = render;
+          const pt2px = scale;
+
+          const x = regionPt.left * pt2px;
+          const yTop = viewport.height - regionPt.top * pt2px;
+          const w = (regionPt.right - regionPt.left) * pt2px;
+          const h = (regionPt.top - regionPt.bottom) * pt2px;
+
+          const crop = document.createElement('canvas');
+          crop.width = Math.max(1, Math.floor(w));
+          crop.height = Math.max(1, Math.floor(h));
+          const cctx = crop.getContext('2d');
+          cctx.drawImage(
+            canvas,
+            Math.floor(x),
+            Math.floor(yTop),
+            Math.floor(w),
+            Math.floor(h),
+            0,
+            0,
+            crop.width,
+            crop.height
+          );
+
+          const safeQuality = Math.max(0.3, Math.min(0.95, quality || 0.65));
+          const dataUrl = crop.toDataURL('image/jpeg', safeQuality);
+          const bin = atob(dataUrl.split(',')[1]);
+          const bytes = new Uint8Array(bin.length);
+          for (let idx = 0; idx < bin.length; idx++) bytes[idx] = bin.charCodeAt(idx);
+          return bytes;
+        }
+
         const CM_TOP = 15;
         const CM_DISCARD = 2.3;
         const CM_TAKE = 1.7;
@@ -757,11 +854,21 @@
 
             const [embTop] = await outDoc.embedPages([page], [topRegion]);
 
+            const compact = Boolean(compactCheckbox?.checked);
+            const dpi = Math.max(72, Math.min(300, parseInt(dpiInput?.value || '144', 10) || 144));
+            const jpgq = Math.max(0.3, Math.min(0.95, parseFloat(jpgqInput?.value || '0.65') || 0.65));
+
             const chosen = [];
             for (const k of PICK) {
               const box = colBoxes[k - 1];
-              const [emb] = await outDoc.embedPages([page], [box]);
-              chosen.push({ emb, box });
+              if (compact) {
+                const jpegBytes = await rasterizeRegionToJpeg(srcBytes, i, box, dpi, jpgq);
+                const embImg = await outDoc.embedJpg(jpegBytes);
+                chosen.push({ type: 'img', img: embImg, box });
+              } else {
+                const [emb] = await outDoc.embedPages([page], [box]);
+                chosen.push({ type: 'page', emb, box });
+              }
             }
 
             const bottomTrimCm = -0.4;
@@ -777,19 +884,28 @@
               height: topH,
             });
 
-            const pairW = chosen.reduce((s, { box }) => s + box.width, 0);
+            const pairW = chosen.reduce((s, it) => s + it.box.width, 0);
             const pairWZoom = pairW * zoomFactor;
-            const cx = (outW - pairWZoom) / 1.5;
+            const cx = (outW - pairWZoom) / 2;
 
             let dx = 0;
-            for (const { emb, box } of chosen) {
-              const w = box.width;
-              outPage.drawPage(emb, {
-                x: cx + dx * zoomFactor,
-                y: 0,
-                width: w * zoomFactor,
-                height: takeH * zoomFactor,
-              });
+            for (const it of chosen) {
+              const w = it.box.width;
+              if (it.type === 'img') {
+                outPage.drawImage(it.img, {
+                  x: cx + dx * zoomFactor,
+                  y: 0,
+                  width: w * zoomFactor,
+                  height: takeH * zoomFactor,
+                });
+              } else {
+                outPage.drawPage(it.emb, {
+                  x: cx + dx * zoomFactor,
+                  y: 0,
+                  width: w * zoomFactor,
+                  height: takeH * zoomFactor,
+                });
+              }
               dx += w;
             }
 
@@ -820,7 +936,7 @@
         }
 
         setStatus('Salvando PDF…');
-        const outBytes = await outDoc.save();
+        const outBytes = await outDoc.save({ useObjectStreams: true });
         const outBlob = new Blob([outBytes], { type: 'application/pdf' });
         const baseName = file.name.replace(/\.pdf$/i, '') || 'etiquetas';
         const finalFileName = `${baseName}-cols3-5-zoom.pdf`;
