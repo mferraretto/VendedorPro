@@ -21,8 +21,9 @@
 <script src="https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
 <script>
   // Só configure o worker depois que pdf.min.js já foi carregado
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
+  console.log("PDF.js OK?", !!window.pdfjsLib);
 </script>
 
 <!-- pdf-lib (depois do PDF.js) -->
