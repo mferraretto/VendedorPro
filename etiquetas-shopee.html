@@ -18,15 +18,15 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="expedicao-notifier.js"></script>
 
-  <!-- PDF.js (para rasterizar o checklist em JPEG) -->
-  <script src="https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
-  </script>
+<script src="https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
+<script>
+  // Só configure o worker depois que pdf.min.js já foi carregado
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
+</script>
 
-  <!-- pdf-lib (montagem do PDF final) -->
-  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<!-- pdf-lib (depois do PDF.js) -->
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
   <style>
     .shopee-labels {
