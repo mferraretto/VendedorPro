@@ -181,6 +181,40 @@
     };
     const CARD_STATUS_CLASSES = Object.values(CARD_STATUS_CLASS_MAP);
 
+    const STATUS_UI_CONFIG = {
+      nao_impresso: {
+        text: 'Não impresso',
+        icon: 'fa-circle-exclamation',
+        buttonClass: 'expedicao-status-button--nao-impresso',
+        badgeClass: 'expedicao-status-badge--nao-impresso',
+        buttonIcon: 'fa-circle-xmark'
+      },
+      impresso: {
+        text: 'Impresso',
+        icon: 'fa-circle-check',
+        buttonClass: 'expedicao-status-button--impresso',
+        badgeClass: 'expedicao-status-badge--impresso',
+        buttonIcon: 'fa-circle-check'
+      },
+      concluido: {
+        text: 'Concluído',
+        icon: 'fa-flag-checkered',
+        buttonClass: 'expedicao-status-button--concluido',
+        badgeClass: 'expedicao-status-badge--concluido',
+        buttonIcon: 'fa-flag-checkered'
+      }
+    };
+
+    function getStatusUiConfig(status) {
+      return STATUS_UI_CONFIG[status] || STATUS_UI_CONFIG.nao_impresso;
+    }
+
+    function buildStatusButtonContent(statusUi) {
+      const iconClass = statusUi.buttonIcon || 'fa-circle';
+      const label = (statusUi.text || '').toUpperCase();
+      return `<span class="expedicao-status-button__icon"><i class="fas ${iconClass}"></i></span><span>${label}</span>`;
+    }
+
     function applyPdfCardStatus(card, status) {
       if (!card) return;
       card.classList.remove(...CARD_STATUS_CLASSES);
@@ -1250,33 +1284,15 @@
     function createPdfCard(doc, ownerName) {
       const data = doc.data();
       const rawStatus = data.status || 'nao_impresso';
-      const statusInfo = {
-        nao_impresso: {
-          text: 'Não impresso',
-          icon: 'fa-times',
-          badgeClass: 'expedicao-status-badge--nao-impresso',
-          buttonClass: 'expedicao-status-button--nao-impresso'
-        },
-        impresso: {
-          text: 'Impresso',
-          icon: 'fa-check',
-          badgeClass: 'expedicao-status-badge--impresso',
-          buttonClass: 'expedicao-status-button--impresso'
-        },
-        concluido: {
-          text: 'Concluído',
-          icon: 'fa-check',
-          badgeClass: 'expedicao-status-badge--concluido',
-          buttonClass: 'expedicao-status-button--concluido'
-        }
-      };
-      const statusKey = statusInfo[rawStatus] ? rawStatus : 'nao_impresso';
-      const statusData = statusInfo[statusKey];
+      const statusKey = STATUS_UI_CONFIG[rawStatus] ? rawStatus : 'nao_impresso';
+      const statusData = getStatusUiConfig(statusKey);
       const attention = data.attention || false;
       const foraHorario = data.foraHorario || false;
       const name = data.name || 'PDF';
       const url = data.url;
       const owner = ownerName || 'Desconhecido';
+      const safeUrl = encodeURIComponent(url || '');
+      const safeName = encodeURIComponent(name || 'Etiqueta');
       const createdDate = data.createdAt && data.createdAt.toDate
         ? data.createdAt.toDate()
         : null;
@@ -1287,8 +1303,11 @@
       div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
         <div class="expedicao-pdf-header">
-          <span class="expedicao-pdf-owner">${owner}</span>
-          <span class="expedicao-pdf-date">${createdDateStr}</span>
+          <div class="expedicao-pdf-header-content">
+            <span class="expedicao-pdf-owner">${owner}</span>
+            <span class="expedicao-pdf-date">${createdDateStr}</span>
+          </div>
+          ${foraHorario ? '<span class="expedicao-alert-badge">Fora do horário</span>' : ''}
         </div>
         <div class="expedicao-pdf-status">
           <div class="expedicao-pdf-icon">
@@ -1300,18 +1319,16 @@
           <button
             class="expedicao-status-button ${statusData.buttonClass}"
             data-status="${statusKey}"
-            onclick="toggleImpressoCard('${doc.id}', this, this.closest('.pdf-card'))">
-            ${statusData.text}
-          </button>
-          ${foraHorario ? '<span class="expedicao-alert-badge">Fora do horário</span>' : ''}
+            onclick="toggleImpressoCard('${doc.id}', this, this.closest('.pdf-card'))"
+          >${buildStatusButtonContent(statusData)}</button>
         </div>
         <div class="expedicao-pdf-body">
-          <p class="expedicao-pdf-name">${name}</p>
+          <p class="expedicao-pdf-name" title="${name}">${name}</p>
           <p class="expedicao-pdf-quantity">Quantidade: ${data.quantidade || 0} etiquetas</p>
         </div>
         <div class="expedicao-pdf-actions">
           <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
-          <button class="expedicao-card-btn" onclick="baixarArquivo('${encodeURIComponent(url || '')}', '${encodeURIComponent(name || 'Etiqueta')}')">Baixar</button>
+          <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
           <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
@@ -1554,29 +1571,9 @@
       await db.collection('pdfDocs').doc(id).update({ status: newStatus });
 
       button.dataset.status = newStatus;
-      const statusMap = {
-        nao_impresso: {
-          text: 'Não impresso',
-          buttonClass: 'expedicao-status-button--nao-impresso',
-          badgeClass: 'expedicao-status-badge--nao-impresso',
-          icon: 'fa-times'
-        },
-        impresso: {
-          text: 'Impresso',
-          buttonClass: 'expedicao-status-button--impresso',
-          badgeClass: 'expedicao-status-badge--impresso',
-          icon: 'fa-check'
-        },
-        concluido: {
-          text: 'Concluído',
-          buttonClass: 'expedicao-status-button--concluido',
-          badgeClass: 'expedicao-status-badge--concluido',
-          icon: 'fa-check'
-        }
-      };
-      const mapItem = statusMap[newStatus] || statusMap.nao_impresso;
+      const mapItem = getStatusUiConfig(newStatus);
 
-      button.textContent = mapItem.text;
+      button.innerHTML = buildStatusButtonContent(mapItem);
       button.classList.remove(
         'expedicao-status-button--nao-impresso',
         'expedicao-status-button--impresso',
