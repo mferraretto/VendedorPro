@@ -782,7 +782,7 @@ firebase.auth().onAuthStateChanged(async u => {
 
         for (let i = 0; i < pdf.numPages; i++) {
           const page = await pdf.getPage(i + 1);
-          const scale = 5;
+          const scale = 6;
           const viewport = page.getViewport({ scale });
 
           canvas.width = viewport.width;
@@ -815,7 +815,7 @@ firebase.auth().onAuthStateChanged(async u => {
 
           for (const par of pares) {
             const proporcaoEtiqueta = 0.88;
-            const proporcaoChecklist = 0.20;
+            const proporcaoChecklist = 0.12;
 
             const alturaEtiquetaPrincipal = rowHeight * proporcaoEtiqueta;
             const alturaChecklist = rowHeight * proporcaoChecklist;
@@ -840,7 +840,7 @@ firebase.auth().onAuthStateChanged(async u => {
             const chkCanvas = document.createElement("canvas");
             const deslocamentoY = 60;
             const novaAlturaChecklist = Math.max(alturaChecklist - deslocamentoY, 100);
-            const scaleChecklist = 8;
+            const scaleChecklist = 7;
             chkCanvas.width = Math.floor(colWidth * scaleChecklist);
             chkCanvas.height = Math.floor(novaAlturaChecklist * scaleChecklist);
             const chkCtx = chkCanvas.getContext("2d");
