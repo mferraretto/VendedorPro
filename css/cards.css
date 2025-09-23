@@ -244,9 +244,53 @@
 }
 
 .expedicao-pdf-card {
+  --exp-card-border: rgba(148, 163, 184, 0.2);
+  --exp-card-shadow: 0 24px 46px -30px rgba(15, 23, 42, 0.45);
+  --exp-card-surface: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.96),
+    rgba(248, 250, 252, 0.92)
+  );
+  --exp-card-text-strong: #0f172a;
+  --exp-card-text-muted: #475569;
+  --exp-card-status-ring: rgba(79, 70, 229, 0.45);
+  --exp-card-icon-bg: rgba(79, 70, 229, 0.12);
+  --exp-card-action-border: rgba(148, 163, 184, 0.35);
+  --exp-card-action-color: #0f172a;
+  --exp-card-action-hover-bg: rgba(15, 23, 42, 0.06);
+  --exp-card-action-hover-color: #111827;
+  --exp-card-status-shadow: rgba(79, 70, 229, 0.35);
+  position: relative;
   min-width: 210px;
-  gap: 0.65rem;
   min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.35rem 1.4rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--exp-card-border);
+  background: var(--exp-card-surface);
+  box-shadow: var(--exp-card-shadow);
+  color: var(--exp-card-text-strong);
+  overflow: hidden;
+}
+
+.expedicao-pdf-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at top left,
+    rgba(255, 255, 255, 0.55),
+    transparent 58%
+  );
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.expedicao-pdf-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 #labelsList.grid {
@@ -277,55 +321,94 @@
 .expedicao-pdf-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
-  color: var(--text);
-  font-weight: 600;
-  font-size: 0.875rem;
+}
+
+.expedicao-pdf-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.expedicao-pdf-owner {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: inherit;
 }
 
 .expedicao-pdf-date {
-  font-size: 0.75rem;
-  color: var(--text-light);
+  font-size: 0.78rem;
+  color: var(--exp-card-text-muted);
   font-weight: 500;
+}
+
+.expedicao-alert-badge {
+  align-self: flex-start;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.92);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  box-shadow: 0 10px 24px -18px rgba(239, 68, 68, 0.4);
 }
 
 .expedicao-pdf-status {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.94),
+    rgba(255, 255, 255, 0.78)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 1px var(--exp-card-status-ring),
+    0 16px 36px -28px var(--exp-card-status-shadow);
 }
 
 .expedicao-pdf-icon {
   position: relative;
-  width: 64px;
-  height: 64px;
-  border-radius: 9999px;
-  background: rgba(79, 70, 229, 0.08);
-  color: #4b5563;
+  width: 56px;
+  height: 56px;
+  border-radius: 1.25rem;
+  background: var(--exp-card-icon-bg);
+  color: var(--exp-card-status-ring);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 14px 26px -18px var(--exp-card-status-shadow);
 }
 
 .expedicao-pdf-icon i {
-  font-size: 2rem;
+  font-size: 1.6rem;
 }
 
 .expedicao-status-badge {
   position: absolute;
   top: -6px;
   right: -6px;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 2px solid;
-  background: var(--white);
+  border: 2px solid var(--exp-card-status-ring);
+  background: rgba(255, 255, 255, 0.96);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
+  color: var(--exp-card-status-ring);
+  box-shadow: 0 12px 24px -18px var(--exp-card-status-shadow);
 }
 
 .expedicao-status-badge i {
@@ -333,133 +416,160 @@
 }
 
 .expedicao-status-badge--nao-impresso {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: #f97316;
+  color: #ea580c;
+  box-shadow: 0 12px 24px -18px rgba(249, 115, 22, 0.45);
 }
 
 .expedicao-status-badge--impresso {
-  border-color: #f59e0b;
-  color: #b45309;
+  border-color: #22c55e;
+  color: #15803d;
+  box-shadow: 0 12px 24px -18px rgba(34, 197, 94, 0.4);
 }
 
 .expedicao-status-badge--concluido {
-  border-color: #22c55e;
-  color: #15803d;
+  border-color: #0ea5e9;
+  color: #0369a1;
+  box-shadow: 0 12px 24px -18px rgba(14, 165, 233, 0.4);
 }
 
 .expedicao-status-button {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.4rem 0.9rem;
-  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   border: none;
-  color: var(--white);
+  border-radius: 9999px;
+  background: var(--exp-card-status-bg, #4f46e5);
+  color: var(--exp-card-status-color, #fff);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.55rem 1.3rem;
   cursor: pointer;
+  box-shadow: 0 16px 30px -20px var(--exp-card-status-shadow);
   transition:
     transform 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .expedicao-status-button:hover {
   transform: translateY(-1px);
+  background: var(--exp-card-status-hover, var(--exp-card-status-bg));
+  box-shadow: 0 20px 36px -22px var(--exp-card-status-shadow);
+}
+
+.expedicao-status-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font-size: 0.95rem;
 }
 
 .expedicao-status-button--nao-impresso {
-  background: #ef4444;
-  box-shadow: 0 10px 20px rgba(239, 68, 68, 0.25);
+  --exp-card-status-bg: #f97316;
+  --exp-card-status-hover: #ea580c;
+  --exp-card-status-shadow: rgba(249, 115, 22, 0.45);
 }
 
 .expedicao-status-button--impresso {
-  background: #f59e0b;
-  box-shadow: 0 10px 20px rgba(245, 158, 11, 0.25);
+  --exp-card-status-bg: #22c55e;
+  --exp-card-status-hover: #16a34a;
+  --exp-card-status-shadow: rgba(34, 197, 94, 0.45);
 }
 
 .expedicao-status-button--concluido {
-  background: #16a34a;
-  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.25);
-}
-
-.expedicao-alert-badge {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--white);
-  background: #ef4444;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
+  --exp-card-status-bg: #0ea5e9;
+  --exp-card-status-hover: #0284c7;
+  --exp-card-status-shadow: rgba(14, 165, 233, 0.45);
 }
 
 .expedicao-pdf-body {
-  text-align: center;
-  gap: 0.35rem;
   display: flex;
   flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
 }
 
 .expedicao-pdf-name {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--exp-card-text-strong);
   word-break: break-word;
 }
 
 .expedicao-pdf-quantity {
-  font-size: 0.75rem;
-  color: var(--text-light);
+  font-size: 0.78rem;
+  color: var(--exp-card-text-muted);
+  font-weight: 500;
 }
 
 .expedicao-pdf-actions {
   margin-top: auto;
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 0.75rem;
 }
 
 .expedicao-card-btn {
+  flex: 1 1 calc(33.333% - 0.75rem);
+  min-width: 90px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  padding: 0.5rem 1.1rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 600;
+  padding: 0.55rem 0.95rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--exp-card-action-border);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--exp-card-action-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition:
     color 0.2s ease,
     background 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .expedicao-card-btn:hover {
-  background: rgba(79, 70, 229, 0.08);
-  color: #4f46e5;
+  background: var(--exp-card-action-hover-bg);
+  color: var(--exp-card-action-hover-color);
   transform: translateY(-1px);
+  box-shadow: 0 16px 32px -24px rgba(15, 23, 42, 0.28);
 }
 
 .expedicao-card-btn--danger {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.82);
 }
 
 .expedicao-card-btn--danger:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: #b91c1c;
+  background: rgba(248, 113, 113, 0.18);
+  color: #991b1b;
+  box-shadow: 0 16px 30px -24px rgba(239, 68, 68, 0.45);
 }
 
 .expedicao-card-btn--success {
-  border-color: #16a34a;
-  background: #16a34a;
-  color: var(--white);
+  border-color: transparent;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  box-shadow: 0 16px 32px -24px rgba(34, 197, 94, 0.5);
 }
 
 .expedicao-card-btn--success:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  box-shadow: 0 20px 36px -24px rgba(34, 197, 94, 0.55);
 }
 
 .expedicao-icon-btn {
@@ -610,47 +720,66 @@
 }
 
 .expedicao-pdf-card--pending {
-  background: #fefce8;
-  border-color: rgba(234, 179, 8, 0.4);
+  --exp-card-surface: linear-gradient(
+    160deg,
+    rgba(255, 248, 237, 0.95),
+    rgba(255, 237, 213, 0.92)
+  );
+  --exp-card-border: rgba(249, 115, 22, 0.28);
+  --exp-card-shadow: 0 28px 48px -30px rgba(249, 115, 22, 0.5);
+  --exp-card-status-ring: rgba(249, 115, 22, 0.55);
+  --exp-card-icon-bg: rgba(249, 115, 22, 0.18);
+  --exp-card-text-strong: #78350f;
+  --exp-card-text-muted: #9a5b16;
+  --exp-card-action-border: rgba(249, 115, 22, 0.35);
+  --exp-card-action-color: #9a3412;
+  --exp-card-action-hover-bg: rgba(249, 115, 22, 0.18);
+  --exp-card-action-hover-color: #7c2d12;
+  --exp-card-status-shadow: rgba(249, 115, 22, 0.4);
 }
 
-.expedicao-pdf-card--printed,
+.expedicao-pdf-card--printed {
+  --exp-card-surface: linear-gradient(
+    160deg,
+    rgba(234, 255, 244, 0.95),
+    rgba(209, 250, 229, 0.92)
+  );
+  --exp-card-border: rgba(34, 197, 94, 0.28);
+  --exp-card-shadow: 0 28px 48px -30px rgba(34, 197, 94, 0.45);
+  --exp-card-status-ring: rgba(34, 197, 94, 0.55);
+  --exp-card-icon-bg: rgba(34, 197, 94, 0.16);
+  --exp-card-text-strong: #14532d;
+  --exp-card-text-muted: #166534;
+  --exp-card-action-border: rgba(34, 197, 94, 0.3);
+  --exp-card-action-color: #166534;
+  --exp-card-action-hover-bg: rgba(34, 197, 94, 0.16);
+  --exp-card-action-hover-color: #14532d;
+  --exp-card-status-shadow: rgba(34, 197, 94, 0.38);
+}
+
 .expedicao-pdf-card--done {
-  background: #16a34a;
-  border-color: #15803d;
-  color: var(--white);
+  --exp-card-surface: linear-gradient(
+    160deg,
+    rgba(219, 244, 255, 0.95),
+    rgba(191, 219, 254, 0.92)
+  );
+  --exp-card-border: rgba(14, 165, 233, 0.3);
+  --exp-card-shadow: 0 28px 48px -30px rgba(14, 165, 233, 0.48);
+  --exp-card-status-ring: rgba(14, 165, 233, 0.55);
+  --exp-card-icon-bg: rgba(14, 165, 233, 0.18);
+  --exp-card-text-strong: #0c4a6e;
+  --exp-card-text-muted: #0369a1;
+  --exp-card-action-border: rgba(14, 165, 233, 0.35);
+  --exp-card-action-color: #0c4a6e;
+  --exp-card-action-hover-bg: rgba(14, 165, 233, 0.18);
+  --exp-card-action-hover-color: #0b4f74;
+  --exp-card-status-shadow: rgba(14, 165, 233, 0.38);
 }
 
-.expedicao-pdf-card--printed .expedicao-pdf-header,
-.expedicao-pdf-card--done .expedicao-pdf-header,
-.expedicao-pdf-card--printed .expedicao-pdf-name,
-.expedicao-pdf-card--done .expedicao-pdf-name {
-  color: var(--white);
-}
-
-.expedicao-pdf-card--printed .expedicao-pdf-date,
-.expedicao-pdf-card--done .expedicao-pdf-date,
-.expedicao-pdf-card--printed .expedicao-pdf-quantity,
-.expedicao-pdf-card--done .expedicao-pdf-quantity {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.expedicao-pdf-card--printed .expedicao-pdf-icon,
-.expedicao-pdf-card--done .expedicao-pdf-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--white);
-}
-
-.expedicao-pdf-card--printed .expedicao-card-btn,
-.expedicao-pdf-card--done .expedicao-card-btn {
-  border-color: rgba(255, 255, 255, 0.65);
-  color: var(--white);
-}
-
-.expedicao-pdf-card--printed .expedicao-card-btn:hover,
-.expedicao-pdf-card--done .expedicao-card-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: var(--white);
+@media (max-width: 640px) {
+  .expedicao-card-btn {
+    flex: 1 1 100%;
+  }
 }
 
 @media (min-width: 768px) {
