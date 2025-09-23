@@ -550,6 +550,27 @@
       });
     }
 
+    async function getNextShopeeLabelNumber(total) {
+      if (!currentUser) return 1;
+      const value = Number(total);
+      if (!Number.isFinite(value) || value <= 0) return 1;
+      const totalSanitizado = Math.max(1, Math.floor(value));
+      const ref = db.collection('uid').doc(currentUser.uid).collection('config').doc('contadores');
+      try {
+        return await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          const atual = snap.exists ? Number(snap.data().shopeeLastNumber || 0) : 0;
+          const inicio = atual + 1;
+          const proximo = atual + totalSanitizado;
+          tx.set(ref, { shopeeLastNumber: proximo }, { merge: true });
+          return inicio;
+        });
+      } catch (error) {
+        console.error('Erro ao atualizar o contador de etiquetas Shopee:', error);
+        return 1;
+      }
+    }
+
     async function uploadPdfToFirebase(blob, fileName, meta = {}) {
       if (!currentUser) {
         throw new Error('Usuário não autenticado.');
@@ -559,6 +580,12 @@
         const gestoresEmails = gestoresRaw.map((email) => email.trim()).filter(Boolean);
         const selecionado = await escolherGestorEmail(gestoresEmails);
         const foraHorarioAtual = foraDoHorario();
+        const contadorInicialMeta = Number.isFinite(meta.contadorInicial)
+          ? Math.floor(meta.contadorInicial)
+          : null;
+        const contadorFinalMeta = Number.isFinite(meta.contadorFinal)
+          ? Math.floor(meta.contadorFinal)
+          : null;
         const docPayload = {
           ownerUid: currentUser.uid,
           ownerEmail: currentUser.email,
@@ -572,6 +599,12 @@
         }
         if (Number.isFinite(meta.totalPaginasOrigem)) {
           docPayload.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
+        }
+        if (contadorInicialMeta !== null) {
+          docPayload.contadorInicial = contadorInicialMeta;
+        }
+        if (contadorFinalMeta !== null) {
+          docPayload.contadorFinal = contadorFinalMeta;
         }
 
         const docRef = await db.collection('pdfDocs').add(docPayload);
@@ -592,13 +625,22 @@
         if (Number.isFinite(meta.totalPaginasOrigem)) {
           resumo.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
         }
+        if (contadorInicialMeta !== null) {
+          resumo.contadorInicial = contadorInicialMeta;
+        }
+        if (contadorFinalMeta !== null) {
+          resumo.contadorFinal = contadorFinalMeta;
+        }
         await db.collection('users').doc(currentUser.uid).collection('etiquetaenvio').add(resumo);
 
         if (
           window.ExpedicaoNotifier &&
           typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
         ) {
-          await window.ExpedicaoNotifier.notifyNovaEtiqueta({
+          const additionalData = {};
+          if (contadorInicialMeta !== null) additionalData.contadorInicial = contadorInicialMeta;
+          if (contadorFinalMeta !== null) additionalData.contadorFinal = contadorFinalMeta;
+          const notifyPayload = {
             db,
             firebase,
             currentUser,
@@ -609,7 +651,11 @@
             foraHorario: foraHorarioAtual,
             origem: 'Etiquetas Shopee (Corte 15/2/2)',
             pdfDocId: docRef.id,
-          });
+          };
+          if (Object.keys(additionalData).length) {
+            notifyPayload.additionalData = additionalData;
+          }
+          await window.ExpedicaoNotifier.notifyNovaEtiqueta(notifyPayload);
         }
 
         return { url, storagePath: fileRef.fullPath, docId: docRef.id };
@@ -683,6 +729,20 @@
         const outDoc = await PDFLib.PDFDocument.create();
         const dbgDoc = wantDebug ? await PDFLib.PDFDocument.create() : null;
         const totalPages = srcDoc.getPageCount();
+        const expectedOutPages = totalPages * 2;
+        const labelFont = await outDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+        let contadorInicial = null;
+        let proximoNumeroEtiqueta = 1;
+        let contadorInicializado = false;
+        if (expectedOutPages > 0) {
+          const inicial = await getNextShopeeLabelNumber(expectedOutPages);
+          const inicialSanitizado = Number.isFinite(inicial)
+            ? Math.max(1, Math.floor(inicial))
+            : 1;
+          contadorInicial = inicialSanitizado;
+          proximoNumeroEtiqueta = inicialSanitizado;
+          contadorInicializado = true;
+        }
 
         log(`Páginas originais: ${totalPages}`);
         updateProgress(0, totalPages, startTime, progressFill, progressText, timerText);
@@ -769,6 +829,8 @@
             const outH = (topH + takeH * zoomFactor) - cm(bottomTrimCm);
             const outPage = outDoc.addPage([outW, outH]);
             totalOutPages += 1;
+            const numeroEtiquetaAtual = proximoNumeroEtiqueta;
+            proximoNumeroEtiqueta += 1;
 
             outPage.drawPage(embTop, {
               x: 0,
@@ -792,6 +854,34 @@
               });
               dx += w;
             }
+
+            const numeroTxt = `Etiqueta Nº: ${numeroEtiquetaAtual}`;
+            const numeroFontSize = 12;
+            const numeroPadding = 6;
+            const numeroMargin = 12;
+            const numeroTextWidth = labelFont.widthOfTextAtSize(numeroTxt, numeroFontSize);
+            const numeroBoxWidth = numeroTextWidth + numeroPadding * 2;
+            const numeroBoxHeight = numeroFontSize + numeroPadding * 2;
+            const numeroBoxDefaultX = outW - numeroBoxWidth - numeroMargin;
+            const numeroBoxX = numeroBoxDefaultX >= numeroMargin ? numeroBoxDefaultX : numeroMargin;
+            const numeroBoxY = numeroMargin;
+            outPage.drawRectangle({
+              x: numeroBoxX,
+              y: numeroBoxY,
+              width: numeroBoxWidth,
+              height: numeroBoxHeight,
+              color: PDFLib.rgb(1, 1, 1),
+              opacity: 0.9,
+              borderColor: PDFLib.rgb(0, 0, 0),
+              borderWidth: 0.5,
+            });
+            outPage.drawText(numeroTxt, {
+              x: numeroBoxX + numeroPadding,
+              y: numeroBoxY + numeroPadding,
+              size: numeroFontSize,
+              font: labelFont,
+              color: PDFLib.rgb(0, 0, 0),
+            });
 
             if (dbgDoc) {
               const dbg = dbgDoc.addPage([W, H]);
@@ -825,9 +915,12 @@
         const baseName = file.name.replace(/\.pdf$/i, '') || 'etiquetas';
         const finalFileName = `${baseName}-cols3-5-zoom.pdf`;
 
+        const contadorFinal = contadorInicializado ? (proximoNumeroEtiqueta - 1) : null;
         const uploadInfo = await uploadPdfToFirebase(outBlob, finalFileName, {
           totalPaginas: totalOutPages,
           totalPaginasOrigem: srcDoc.getPageCount(),
+          contadorInicial: contadorInicializado ? contadorInicial : null,
+          contadorFinal,
         });
 
         const outUrl = URL.createObjectURL(outBlob);
@@ -847,6 +940,9 @@
         }
 
         outEl.innerHTML = html;
+        if (contadorInicializado) {
+          log(`Numeração aplicada: ${contadorInicial} até ${contadorFinal}`);
+        }
         setStatus('Concluído.');
         const finalTime = Math.round((Date.now() - startTime) / 1000);
         completeProcessingModal(finalTime);
