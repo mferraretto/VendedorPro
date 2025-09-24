@@ -144,23 +144,6 @@
     </div>
   </div>
 
-  <div id="storeNameModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md p-4 rounded shadow-lg">
-      <h2 class="text-lg font-semibold mb-3">Informe o nome da loja</h2>
-      <input
-        type="text"
-        id="storeNameInput"
-        class="form-control mb-4"
-        placeholder="Digite o nome da loja"
-        autocomplete="off"
-      />
-      <div class="flex justify-end gap-2">
-        <button id="storeNameCancel" class="btn btn-secondary">Cancelar</button>
-        <button id="storeNameConfirm" class="btn btn-primary">Confirmar</button>
-      </div>
-    </div>
-  </div>
-
  <script type="module">
     import { firebaseConfig, getPassphrase } from './firebase-config.js';
     import { decryptString } from './crypto.js';
@@ -380,62 +363,6 @@
         modal.addEventListener('click', onBackdrop);
 
         modal.classList.remove('hidden');
-      });
-    }
-
-    function solicitarNomeLoja(valorInicial = '') {
-      return new Promise(resolve => {
-        const modal = document.getElementById('storeNameModal');
-        const input = document.getElementById('storeNameInput');
-        const confirmBtn = document.getElementById('storeNameConfirm');
-        const cancelBtn = document.getElementById('storeNameCancel');
-
-        if (!modal || !input || !confirmBtn || !cancelBtn) {
-          resolve(valorInicial || '');
-          return;
-        }
-
-        function cleanup(result) {
-          confirmBtn.removeEventListener('click', handleConfirm);
-          cancelBtn.removeEventListener('click', handleCancel);
-          modal.removeEventListener('click', handleBackdrop);
-          input.removeEventListener('keydown', handleKeydown);
-          modal.classList.add('hidden');
-          resolve(result);
-        }
-
-        function handleConfirm() {
-          cleanup(input.value.trim());
-        }
-
-        function handleCancel() {
-          cleanup(null);
-        }
-
-        function handleBackdrop(event) {
-          if (event.target === modal) {
-            cleanup(null);
-          }
-        }
-
-        function handleKeydown(event) {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            handleConfirm();
-          } else if (event.key === 'Escape') {
-            event.preventDefault();
-            handleCancel();
-          }
-        }
-
-        modal.classList.remove('hidden');
-        input.value = valorInicial || '';
-        setTimeout(() => input.focus(), 50);
-
-        confirmBtn.addEventListener('click', handleConfirm);
-        cancelBtn.addEventListener('click', handleCancel);
-        modal.addEventListener('click', handleBackdrop);
-        input.addEventListener('keydown', handleKeydown);
       });
     }
 
@@ -1218,7 +1145,6 @@
       const ctx = canvas.getContext('2d');
       let itens = [];
       let loja = '';
-      const totalPaginas = Number.isFinite(pdf.numPages) ? pdf.numPages : 0;
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
         const viewport = page.getViewport({ scale: 2 });
@@ -1229,7 +1155,7 @@
         if (!loja) loja = extractStoreFromText(text);
         itens.push(...extractSkuQuantitiesFromText(text));
       }
-      return { loja, itens, totalPaginas };
+      return { loja, itens };
     }
 
     async function savePrintedSkuQuantities(items, loja) {
@@ -1252,12 +1178,11 @@
       await batch.commit();
     }
 
-    async function processManualLabel(file, lojaManual = '', parsedData = null) {
+    async function processManualLabel(file) {
       try {
-        const data = parsedData || (await extractDataFromPdf(file));
-        const loja = lojaManual || data.loja || '';
-        if (data.itens.length) {
-          await savePrintedSkuQuantities(data.itens, loja);
+        const { loja, itens } = await extractDataFromPdf(file);
+        if (itens.length) {
+          await savePrintedSkuQuantities(itens, loja);
         }
       } catch (e) {
         console.error('Erro ao processar OCR da etiqueta:', e);
@@ -1271,19 +1196,9 @@
         return;
       }
       try {
-        const parsedData = await extractDataFromPdf(file);
-        const lojaInformada = await solicitarNomeLoja(parsedData.loja || '');
-        if (lojaInformada === null) {
-          manualPdfInput.value = '';
-          return;
-        }
-        const lojaFinal = (lojaInformada || parsedData.loja || '').trim();
-        const totalPaginas = Number.isFinite(parsedData.totalPaginas) && parsedData.totalPaginas > 0
-          ? parsedData.totalPaginas
-          : null;
         const selecionado = await escolherGestorEmail(gestoresEmails);
         const foraHorarioAtual = foraDoHorario();
-        const docPayload = {
+        const docRef = await db.collection('pdfDocs').add({
           ownerUid: currentUser.uid,
           ownerEmail: currentUser.email,
           ownerName: currentUserName,
@@ -1291,20 +1206,12 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           name: file.name,
           status: 'nao_impresso',
-          foraHorario: foraHorarioAtual,
-          loja: lojaFinal
-        };
-        if (totalPaginas != null) {
-          docPayload.totalPaginas = totalPaginas;
-        }
-        const docRef = await db.collection('pdfDocs').add(docPayload);
+          foraHorario: foraHorarioAtual
+        });
         const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
         await fileRef.put(file);
         const url = await fileRef.getDownloadURL();
-        const updatePayload = { url: url, storagePath: fileRef.fullPath };
-        if (totalPaginas != null) updatePayload.totalPaginas = totalPaginas;
-        if (lojaFinal) updatePayload.loja = lojaFinal;
-        await docRef.update(updatePayload);
+        await docRef.update({ url: url, storagePath: fileRef.fullPath });
         if (
           window.ExpedicaoNotifier &&
           typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
@@ -1323,7 +1230,7 @@
             pdfDocId: docRef.id,
           });
         }
-        await processManualLabel(file, lojaFinal, parsedData);
+        await processManualLabel(file);
         manualPdfInput.value = '';
         showToast('Etiqueta salva');
         await carregarEtiquetas();
@@ -1432,10 +1339,6 @@
         ? createdDate.toLocaleString('pt-BR')
         : 'Data desconhecida';
       const quantidadeEtiquetas = getResumoQuantidade(data);
-      const loja = (data.loja || '').trim();
-      const totalPaginas = Number.isFinite(data.totalPaginas) && data.totalPaginas > 0
-        ? data.totalPaginas
-        : null;
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1467,8 +1370,6 @@
         <div class="expedicao-pdf-body">
           <p class="expedicao-pdf-name" title="${name}">${name}</p>
           <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
-          ${loja ? `<p class="expedicao-pdf-store">Loja: ${loja}</p>` : ''}
-          ${totalPaginas != null ? `<p class="expedicao-pdf-pages">Páginas: ${totalPaginas}</p>` : ''}
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
@@ -1495,10 +1396,6 @@
       const createdAt = data.createdAt && data.createdAt.toDate
         ? data.createdAt.toDate().toLocaleString('pt-BR')
         : 'Data desconhecida';
-      const loja = (data.loja || '').trim();
-      const totalPaginas = Number.isFinite(data.totalPaginas) && data.totalPaginas > 0
-        ? data.totalPaginas
-        : null;
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1507,8 +1404,6 @@
             <p class="expedicao-pdf-name">${name}</p>
             <p class="expedicao-pdf-meta">Criado por: ${owner} em ${createdAt}</p>
             ${foraHorario ? '<p class="expedicao-alert-text">Fora do horário</p>' : ''}
-            ${loja ? `<p class="expedicao-pdf-meta">Loja: ${loja}</p>` : ''}
-            ${totalPaginas != null ? `<p class="expedicao-pdf-meta">Páginas: ${totalPaginas}</p>` : ''}
             <div class="expedicao-pdf-list-toolbar">
               <button class="expedicao-icon-btn" onclick="visualizar('${url}')" title="Visualizar"><i class="fas fa-eye"></i></button>
               <button class="expedicao-icon-btn" onclick="imprimir('${url}')" title="Imprimir"><i class="fas fa-print"></i></button>
