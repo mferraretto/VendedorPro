@@ -1338,6 +1338,7 @@
       const createdDateStr = createdDate
         ? createdDate.toLocaleString('pt-BR')
         : 'Data desconhecida';
+      const quantidadeEtiquetas = getResumoQuantidade(data);
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1368,7 +1369,7 @@
         </div>
         <div class="expedicao-pdf-body">
           <p class="expedicao-pdf-name" title="${name}">${name}</p>
-          <p class="expedicao-pdf-quantity">Quantidade: ${data.quantidade || 0} etiquetas</p>
+          <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
