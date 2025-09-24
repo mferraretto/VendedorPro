@@ -106,6 +106,35 @@
     .shopee-labels .labels-action:not(:disabled):active {
       transform: translateY(1px);
     }
+    .shopee-labels .labels-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .shopee-labels .labels-field-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      color: var(--labels-muted);
+      text-transform: uppercase;
+    }
+    .shopee-labels .labels-input {
+      background: #0b162b;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      color: #e2e8f0;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      width: 220px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .shopee-labels .labels-input::placeholder {
+      color: var(--labels-muted);
+    }
+    .shopee-labels .labels-input:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+    }
     .shopee-labels .labels-mono {
       font-family: ui-monospace, Menlo, Consolas, monospace;
       font-size: 12.5px;
@@ -237,6 +266,10 @@
                   <button id="go" type="button" class="labels-action">
                     <span>Processar</span>
                   </button>
+                  <label class="labels-field">
+                    <span class="labels-field-label">Loja</span>
+                    <input id="storeName" type="text" class="labels-input" placeholder="Ex.: Loja Principal" />
+                  </label>
                   <label class="labels-chk">
                     <input id="debug" type="checkbox" />
                     <span class="labels-mono">Gerar PDF DEBUG</span>
@@ -323,6 +356,7 @@
     const logEl = document.getElementById('log');
     const outEl = document.getElementById('out');
     const gestoresInput = document.getElementById('gestoresEmails');
+    const storeNameInput = document.getElementById('storeName');
     const progressBar = document.getElementById('progressBar');
     const progressFill = document.getElementById('progressFill');
     const progressText = document.getElementById('progressText');
@@ -461,6 +495,24 @@
       return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
 
+    function formatShortDate(date = new Date()) {
+      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = months[date.getMonth()] || '';
+      const year = String(date.getFullYear()).slice(-2);
+      return `${day}${month}${year}`;
+    }
+
+    function sanitizeFileNameSegment(text) {
+      return String(text)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase();
+    }
+
     function updateProgress(current, total, startTime, progressFillEl, progressTextEl, timerTextEl) {
       const progress = total > 0 ? Math.round((current / total) * 100) : 0;
       progressFillEl.style.width = `${Math.min(100, Math.max(0, progress))}%`;
@@ -586,6 +638,8 @@
         const contadorFinalMeta = Number.isFinite(meta.contadorFinal)
           ? Math.floor(meta.contadorFinal)
           : null;
+        const lojaMeta = typeof meta.loja === 'string' ? meta.loja.trim() : '';
+        const dataCurtaMeta = typeof meta.dataProcessamento === 'string' ? meta.dataProcessamento.trim() : '';
         const docPayload = {
           ownerUid: currentUser.uid,
           ownerEmail: currentUser.email,
@@ -594,6 +648,12 @@
           name: fileName,
           foraHorario: foraHorarioAtual,
         };
+        if (lojaMeta) {
+          docPayload.loja = lojaMeta;
+        }
+        if (dataCurtaMeta) {
+          docPayload.dataProcessamento = dataCurtaMeta;
+        }
         if (Number.isFinite(meta.totalPaginas)) {
           docPayload.totalPaginas = Number(meta.totalPaginas);
         }
@@ -619,6 +679,12 @@
           path: fileRef.fullPath,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         };
+        if (lojaMeta) {
+          resumo.loja = lojaMeta;
+        }
+        if (dataCurtaMeta) {
+          resumo.dataProcessamento = dataCurtaMeta;
+        }
         if (Number.isFinite(meta.totalPaginas)) {
           resumo.totalPaginas = Number(meta.totalPaginas);
         }
@@ -640,6 +706,8 @@
           const additionalData = {};
           if (contadorInicialMeta !== null) additionalData.contadorInicial = contadorInicialMeta;
           if (contadorFinalMeta !== null) additionalData.contadorFinal = contadorFinalMeta;
+          if (lojaMeta) additionalData.loja = lojaMeta;
+          if (dataCurtaMeta) additionalData.dataProcessamento = dataCurtaMeta;
           const notifyPayload = {
             db,
             firebase,
@@ -652,6 +720,12 @@
             origem: 'Etiquetas Shopee (Corte 15/2/2)',
             pdfDocId: docRef.id,
           };
+          if (lojaMeta) {
+            notifyPayload.loja = lojaMeta;
+          }
+          if (dataCurtaMeta) {
+            notifyPayload.dataProcessamento = dataCurtaMeta;
+          }
           if (Object.keys(additionalData).length) {
             notifyPayload.additionalData = additionalData;
           }
@@ -715,6 +789,15 @@
         return;
       }
 
+      const storeNameValue = (storeNameInput.value || '').replace(/\s+/g, ' ').trim();
+      if (!storeNameValue) {
+        alert('Informe o nome da loja das etiquetas.');
+        storeNameInput.focus();
+        return;
+      }
+      const shortDate = formatShortDate(new Date());
+      const storeFileSegment = sanitizeFileNameSegment(storeNameValue) || 'loja';
+
       logEl.textContent = '';
       outEl.innerHTML = 'Processando...';
       setStatus('Lendo PDF…');
@@ -731,6 +814,7 @@
         const totalPages = srcDoc.getPageCount();
         const expectedOutPages = totalPages * 2;
         const labelFont = await outDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+        log(`Loja selecionada: ${storeNameValue}`);
         let contadorInicial = null;
         let proximoNumeroEtiqueta = 1;
         let contadorInicializado = false;
@@ -855,33 +939,54 @@
               dx += w;
             }
 
-            const numeroTxt = `Etiqueta Nº: ${numeroEtiquetaAtual}`;
-            const numeroFontSize = 12;
-            const numeroPadding = 6;
-            const numeroMargin = 12;
-            const numeroTextWidth = labelFont.widthOfTextAtSize(numeroTxt, numeroFontSize);
-            const numeroBoxWidth = numeroTextWidth + numeroPadding * 2;
-            const numeroBoxHeight = numeroFontSize + numeroPadding * 2;
-            const numeroBoxDefaultX = outW - numeroBoxWidth - numeroMargin;
-            const numeroBoxX = numeroBoxDefaultX >= numeroMargin ? numeroBoxDefaultX : numeroMargin;
-            const numeroBoxY = numeroMargin;
+            const infoLines = [`Etiqueta Nº: ${numeroEtiquetaAtual}`];
+            if (storeNameValue) {
+              infoLines.push(`Loja: ${storeNameValue}`);
+            }
+            const infoMargin = 12;
+            const infoPaddingX = 8;
+            const infoPaddingY = 6;
+            let infoFontSize = 12;
+            const maxBoxWidth = Math.max(infoMargin * 2, outW - infoMargin * 2);
+            let widestLine = Math.max(
+              ...infoLines.map((line) => labelFont.widthOfTextAtSize(line, infoFontSize))
+            );
+            if (widestLine + infoPaddingX * 2 > maxBoxWidth) {
+              const scale = (maxBoxWidth - infoPaddingX * 2) / Math.max(widestLine, 1);
+              if (scale > 0) {
+                infoFontSize = Math.max(8, Math.floor(infoFontSize * scale));
+                widestLine = Math.max(
+                  ...infoLines.map((line) => labelFont.widthOfTextAtSize(line, infoFontSize))
+                );
+              }
+            }
+            const infoBoxWidth = Math.min(maxBoxWidth, widestLine + infoPaddingX * 2);
+            const lineHeight = infoFontSize + 4;
+            const infoBoxHeight = infoPaddingY * 2 + lineHeight * infoLines.length;
+            const infoBoxDefaultX = outW - infoBoxWidth - infoMargin;
+            const infoBoxX = infoBoxDefaultX >= infoMargin ? infoBoxDefaultX : infoMargin;
+            const infoBoxY = infoMargin;
             outPage.drawRectangle({
-              x: numeroBoxX,
-              y: numeroBoxY,
-              width: numeroBoxWidth,
-              height: numeroBoxHeight,
+              x: infoBoxX,
+              y: infoBoxY,
+              width: infoBoxWidth,
+              height: infoBoxHeight,
               color: PDFLib.rgb(1, 1, 1),
               opacity: 0.9,
               borderColor: PDFLib.rgb(0, 0, 0),
               borderWidth: 0.5,
             });
-            outPage.drawText(numeroTxt, {
-              x: numeroBoxX + numeroPadding,
-              y: numeroBoxY + numeroPadding,
-              size: numeroFontSize,
-              font: labelFont,
-              color: PDFLib.rgb(0, 0, 0),
-            });
+            let textY = infoBoxY + infoBoxHeight - infoPaddingY - infoFontSize;
+            for (const line of infoLines) {
+              outPage.drawText(line, {
+                x: infoBoxX + infoPaddingX,
+                y: textY,
+                size: infoFontSize,
+                font: labelFont,
+                color: PDFLib.rgb(0, 0, 0),
+              });
+              textY -= lineHeight;
+            }
 
             if (dbgDoc) {
               const dbg = dbgDoc.addPage([W, H]);
@@ -912,8 +1017,8 @@
         setStatus('Salvando PDF…');
         const outBytes = await outDoc.save();
         const outBlob = new Blob([outBytes], { type: 'application/pdf' });
-        const baseName = file.name.replace(/\.pdf$/i, '') || 'etiquetas';
-        const finalFileName = `${baseName}-cols3-5-zoom.pdf`;
+        const finalFileName = `${storeFileSegment}-${shortDate}.pdf`;
+        log(`Arquivo final: ${finalFileName}`);
 
         const contadorFinal = contadorInicializado ? (proximoNumeroEtiqueta - 1) : null;
         const uploadInfo = await uploadPdfToFirebase(outBlob, finalFileName, {
@@ -921,6 +1026,8 @@
           totalPaginasOrigem: srcDoc.getPageCount(),
           contadorInicial: contadorInicializado ? contadorInicial : null,
           contadorFinal,
+          loja: storeNameValue,
+          dataProcessamento: shortDate,
         });
 
         const outUrl = URL.createObjectURL(outBlob);
@@ -940,6 +1047,11 @@
         }
 
         outEl.innerHTML = html;
+        const storeInfo = document.createElement('div');
+        storeInfo.className = 'labels-hint';
+        storeInfo.style.marginTop = '6px';
+        storeInfo.textContent = `Loja: ${storeNameValue} • Data: ${shortDate}`;
+        outEl.appendChild(storeInfo);
         if (contadorInicializado) {
           log(`Numeração aplicada: ${contadorInicial} até ${contadorFinal}`);
         }
