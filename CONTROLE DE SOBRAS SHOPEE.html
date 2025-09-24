@@ -3919,7 +3919,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             { style: 'currency', currency: 'BRL' },
           );
           return `
-            <tr>
+            <tr class="pdf-row">
               <td style="padding:8px;border:1px solid #ddd;">
                 <strong>${escapeHtml(item.sku)}</strong>
                 <div style="margin-top:4px;font-size:11px;color:#555;">
@@ -3944,9 +3944,25 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           <p style="margin-top:0;margin-bottom:16px;font-size:12px;color:#555;">
             Relatório gerado em ${dataGeracao}
           </p>
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <style>
+            .pdf-table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 12px;
+            }
+            .pdf-table th,
+            .pdf-table td {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .pdf-row {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+          </style>
+          <table class="pdf-table" style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead>
-              <tr>
+              <tr class="pdf-row">
                 <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">SKU Principal</th>
                 <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;">Detalhe dos SKUs Vendidos</th>
                 <th style="padding:8px;border:1px solid #ddd;background:#f3f4f6;text-align:right;">Quantidade Vendida</th>
@@ -3966,6 +3982,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
         jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       };
 
       html2pdf().set(opt).from(wrapper).save();
