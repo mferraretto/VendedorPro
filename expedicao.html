@@ -144,6 +144,17 @@
     </div>
   </div>
 
+  <div id="storeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white w-full max-w-md p-4 rounded shadow-lg">
+      <h2 class="text-lg font-semibold mb-2">Informe o nome da loja</h2>
+      <input id="storeNameInput" type="text" class="form-control w-full mb-4" placeholder="Nome da loja" />
+      <div class="flex justify-end gap-2">
+        <button id="storeCancelBtn" class="btn btn-secondary">Cancelar</button>
+        <button id="storeConfirmBtn" class="btn btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
  <script type="module">
     import { firebaseConfig, getPassphrase } from './firebase-config.js';
     import { decryptString } from './crypto.js';
@@ -366,6 +377,61 @@
       });
     }
 
+    function solicitarNomeLoja(valorInicial = '') {
+      if (!storeModal || !storeNameInput || !storeConfirmBtn || !storeCancelBtn) {
+        return Promise.resolve(valorInicial || '');
+      }
+      return new Promise(resolve => {
+        function finalizar(resultado) {
+          storeModal.classList.add('hidden');
+          storeConfirmBtn.removeEventListener('click', onConfirmar);
+          storeCancelBtn.removeEventListener('click', onCancelar);
+          storeModal.removeEventListener('click', onBackdrop);
+          storeNameInput.removeEventListener('keydown', onKeyDown);
+          resolve(resultado);
+        }
+
+        function onConfirmar() {
+          const valor = storeNameInput.value.trim();
+          if (!valor) {
+            alert('Informe o nome da loja.');
+            storeNameInput.focus();
+            return;
+          }
+          finalizar(valor);
+        }
+
+        function onCancelar() {
+          finalizar(null);
+        }
+
+        function onBackdrop(e) {
+          if (e.target === storeModal) finalizar(null);
+        }
+
+        function onKeyDown(e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onConfirmar();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancelar();
+          }
+        }
+
+        storeNameInput.value = valorInicial || '';
+        storeModal.classList.remove('hidden');
+        storeConfirmBtn.addEventListener('click', onConfirmar);
+        storeCancelBtn.addEventListener('click', onCancelar);
+        storeModal.addEventListener('click', onBackdrop);
+        storeNameInput.addEventListener('keydown', onKeyDown);
+        setTimeout(() => {
+          storeNameInput.focus();
+          storeNameInput.select();
+        }, 50);
+      });
+    }
+
     const startBtn = document.getElementById('startDayBtn');
     const closeBtn = document.getElementById('closeDayBtn');
     startBtn.addEventListener('click', iniciarDia);
@@ -385,6 +451,10 @@
     const exportChecklistBtn = document.getElementById('exportChecklistBtn');
     const checklistTotals = document.getElementById('checklistTotals');
     const checklistEnvioTotals = document.getElementById('checklistEnvioTotals');
+    const storeModal = document.getElementById('storeModal');
+    const storeNameInput = document.getElementById('storeNameInput');
+    const storeConfirmBtn = document.getElementById('storeConfirmBtn');
+    const storeCancelBtn = document.getElementById('storeCancelBtn');
     
     if (uploadManualBtn) {
       uploadManualBtn.addEventListener('click', () => {
@@ -1145,6 +1215,7 @@
       const ctx = canvas.getContext('2d');
       let itens = [];
       let loja = '';
+      const totalPaginas = Number.isFinite(pdf.numPages) ? pdf.numPages : 0;
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
         const viewport = page.getViewport({ scale: 2 });
@@ -1155,7 +1226,7 @@
         if (!loja) loja = extractStoreFromText(text);
         itens.push(...extractSkuQuantitiesFromText(text));
       }
-      return { loja, itens };
+      return { loja, itens, totalPaginas };
     }
 
     async function savePrintedSkuQuantities(items, loja) {
@@ -1180,12 +1251,10 @@
 
     async function processManualLabel(file) {
       try {
-        const { loja, itens } = await extractDataFromPdf(file);
-        if (itens.length) {
-          await savePrintedSkuQuantities(itens, loja);
-        }
+        return await extractDataFromPdf(file);
       } catch (e) {
         console.error('Erro ao processar OCR da etiqueta:', e);
+        return { loja: '', itens: [], totalPaginas: 0 };
       }
     }
 
@@ -1196,6 +1265,15 @@
         return;
       }
       try {
+        const analise = await processManualLabel(file);
+        const lojaDetectada = analise?.loja || '';
+        const respostaLoja = await solicitarNomeLoja(lojaDetectada);
+        if (respostaLoja === null) {
+          manualPdfInput.value = '';
+          return;
+        }
+        const lojaSelecionada = (respostaLoja || lojaDetectada || '').trim();
+        const totalPaginas = Number.isFinite(analise?.totalPaginas) ? analise.totalPaginas : 0;
         const selecionado = await escolherGestorEmail(gestoresEmails);
         const foraHorarioAtual = foraDoHorario();
         const docRef = await db.collection('pdfDocs').add({
@@ -1206,12 +1284,19 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           name: file.name,
           status: 'nao_impresso',
-          foraHorario: foraHorarioAtual
+          foraHorario: foraHorarioAtual,
+          totalPaginas,
+          loja: lojaSelecionada
         });
         const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
         await fileRef.put(file);
         const url = await fileRef.getDownloadURL();
-        await docRef.update({ url: url, storagePath: fileRef.fullPath });
+        await docRef.update({
+          url: url,
+          storagePath: fileRef.fullPath,
+          totalPaginas,
+          loja: lojaSelecionada
+        });
         if (
           window.ExpedicaoNotifier &&
           typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
@@ -1230,7 +1315,9 @@
             pdfDocId: docRef.id,
           });
         }
-        await processManualLabel(file);
+        if (Array.isArray(analise?.itens) && analise.itens.length) {
+          await savePrintedSkuQuantities(analise.itens, lojaSelecionada);
+        }
         manualPdfInput.value = '';
         showToast('Etiqueta salva');
         await carregarEtiquetas();
@@ -1339,6 +1426,9 @@
         ? createdDate.toLocaleString('pt-BR')
         : 'Data desconhecida';
       const quantidadeEtiquetas = getResumoQuantidade(data);
+      const paginasTotal = Number.isFinite(data.totalPaginas) ? data.totalPaginas : null;
+      const paginasTexto = paginasTotal != null ? paginasTotal : '-';
+      const lojaTexto = (data.loja || '').trim() || 'Não informado';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1370,6 +1460,8 @@
         <div class="expedicao-pdf-body">
           <p class="expedicao-pdf-name" title="${name}">${name}</p>
           <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
+          <p class="expedicao-pdf-meta">Páginas: ${paginasTexto}</p>
+          <p class="expedicao-pdf-meta">Loja: ${lojaTexto}</p>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
@@ -1396,6 +1488,9 @@
       const createdAt = data.createdAt && data.createdAt.toDate
         ? data.createdAt.toDate().toLocaleString('pt-BR')
         : 'Data desconhecida';
+      const paginasTotal = Number.isFinite(data.totalPaginas) ? data.totalPaginas : null;
+      const paginasTexto = paginasTotal != null ? paginasTotal : '-';
+      const lojaTexto = (data.loja || '').trim() || 'Não informado';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1403,6 +1498,8 @@
           <div class="expedicao-pdf-list-info">
             <p class="expedicao-pdf-name">${name}</p>
             <p class="expedicao-pdf-meta">Criado por: ${owner} em ${createdAt}</p>
+            <p class="expedicao-pdf-meta">Loja: ${lojaTexto}</p>
+            <p class="expedicao-pdf-meta">Páginas: ${paginasTexto}</p>
             ${foraHorario ? '<p class="expedicao-alert-text">Fora do horário</p>' : ''}
             <div class="expedicao-pdf-list-toolbar">
               <button class="expedicao-icon-btn" onclick="visualizar('${url}')" title="Visualizar"><i class="fas fa-eye"></i></button>
