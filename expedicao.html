@@ -1306,15 +1306,7 @@
           <div class="expedicao-pdf-header-content">
             <span class="expedicao-pdf-owner">${owner}</span>
             <span class="expedicao-pdf-date">${createdDateStr}</span>
-          </div>
-          ${foraHorario ? '<span class="expedicao-alert-badge">Fora do horário</span>' : ''}
-        </div>
-        <div class="expedicao-pdf-status">
-          <div class="expedicao-pdf-icon">
-            <i class="fas fa-print"></i>
-            <span class="expedicao-status-badge ${statusData.badgeClass}">
-              <i class="fas ${statusData.icon}"></i>
-            </span>
+            ${foraHorario ? '<span class="expedicao-alert-badge">Fora do horário</span>' : ''}
           </div>
           <button
             class="expedicao-status-button ${statusData.buttonClass}"
@@ -1322,14 +1314,22 @@
             onclick="toggleImpressoCard('${doc.id}', this, this.closest('.pdf-card'))"
           >${buildStatusButtonContent(statusData)}</button>
         </div>
+        <div class="expedicao-pdf-main">
+          <div class="expedicao-pdf-icon">
+            <i class="fas fa-print"></i>
+            <span class="expedicao-status-badge ${statusData.badgeClass}">
+              <i class="fas ${statusData.icon}"></i>
+            </span>
+          </div>
+          <div class="expedicao-pdf-actions">
+            <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
+            <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
+            <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
+          </div>
+        </div>
         <div class="expedicao-pdf-body">
           <p class="expedicao-pdf-name" title="${name}">${name}</p>
           <p class="expedicao-pdf-quantity">Quantidade: ${data.quantidade || 0} etiquetas</p>
-        </div>
-        <div class="expedicao-pdf-actions">
-          <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
-          <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
-          <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
@@ -1581,7 +1581,7 @@
       );
       button.classList.add(mapItem.buttonClass);
 
-      const iconContainer = button.previousElementSibling;
+      const iconContainer = card ? card.querySelector('.expedicao-pdf-icon') : button.closest('.pdf-card')?.querySelector('.expedicao-pdf-icon');
       if (iconContainer) {
         const badge = iconContainer.querySelector('.expedicao-status-badge');
         const icon = badge ? badge.querySelector('i') : null;
