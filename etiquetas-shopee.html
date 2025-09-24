@@ -638,6 +638,11 @@
         const contadorFinalMeta = Number.isFinite(meta.contadorFinal)
           ? Math.floor(meta.contadorFinal)
           : null;
+        const quantidadeMeta = Number.isFinite(meta.quantidade)
+          ? Number(meta.quantidade)
+          : Number.isFinite(meta.totalPaginas)
+            ? Number(meta.totalPaginas)
+            : null;
         const lojaMeta = typeof meta.loja === 'string' ? meta.loja.trim() : '';
         const dataCurtaMeta = typeof meta.dataProcessamento === 'string' ? meta.dataProcessamento.trim() : '';
         const docPayload = {
@@ -659,6 +664,9 @@
         }
         if (Number.isFinite(meta.totalPaginasOrigem)) {
           docPayload.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
+        }
+        if (quantidadeMeta !== null) {
+          docPayload.quantidade = quantidadeMeta;
         }
         if (contadorInicialMeta !== null) {
           docPayload.contadorInicial = contadorInicialMeta;
@@ -690,6 +698,9 @@
         }
         if (Number.isFinite(meta.totalPaginasOrigem)) {
           resumo.totalPaginasOrigem = Number(meta.totalPaginasOrigem);
+        }
+        if (quantidadeMeta !== null) {
+          resumo.quantidade = quantidadeMeta;
         }
         if (contadorInicialMeta !== null) {
           resumo.contadorInicial = contadorInicialMeta;
