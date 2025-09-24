@@ -173,6 +173,7 @@
     let attentionOnly = false;
     const equipeUsuarios = new Map();
     let checklistRows = [];
+    const collapsedOwners = new Set();
 
     const CARD_STATUS_CLASS_MAP = {
       nao_impresso: 'expedicao-pdf-card--pending',
@@ -932,15 +933,53 @@
         owners.forEach(owner => {
           const wrapper = document.createElement('div');
           wrapper.className = 'flex flex-col gap-2';
-          const title = document.createElement('h2');
-          title.className = 'font-semibold text-gray-700';
-          title.textContent = owner;
+          const header = document.createElement('button');
+          header.type = 'button';
+          header.className = 'font-semibold text-gray-700 flex items-center justify-between cursor-pointer select-none focus:outline-none';
+          header.style.background = 'transparent';
+          header.style.border = 'none';
+          header.style.padding = '0';
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = owner;
+          const icon = document.createElement('i');
+          icon.className = 'fas fa-chevron-up text-sm transition-transform duration-200';
+          const cardsCount = document.createElement('span');
+          cardsCount.className = 'text-xs font-medium text-gray-500 ml-2';
+          cardsCount.textContent = `(${grouped[owner].length})`;
+          const titleWrapper = document.createElement('div');
+          titleWrapper.className = 'flex items-center gap-2';
+          titleWrapper.appendChild(nameSpan);
+          titleWrapper.appendChild(cardsCount);
+          header.appendChild(titleWrapper);
+          header.appendChild(icon);
           const row = document.createElement('div');
-          row.className = 'expedicao-owner-row flex flex-row gap-4';
+          row.className = 'expedicao-owner-row flex flex-row gap-4 flex-wrap';
           grouped[owner].forEach(r => {
             row.appendChild(createPdfCard(r.doc, r.ownerName));
           });
-          wrapper.appendChild(title);
+          const isCollapsed = collapsedOwners.has(owner);
+          if (isCollapsed) {
+            row.classList.add('hidden');
+            icon.style.transform = 'rotate(180deg)';
+          } else {
+            icon.style.transform = 'rotate(0deg)';
+          }
+          header.setAttribute('aria-expanded', (!isCollapsed).toString());
+          header.addEventListener('click', () => {
+            const currentlyCollapsed = collapsedOwners.has(owner);
+            if (currentlyCollapsed) {
+              collapsedOwners.delete(owner);
+              row.classList.remove('hidden');
+              icon.style.transform = 'rotate(0deg)';
+              header.setAttribute('aria-expanded', 'true');
+            } else {
+              collapsedOwners.add(owner);
+              row.classList.add('hidden');
+              icon.style.transform = 'rotate(180deg)';
+              header.setAttribute('aria-expanded', 'false');
+            }
+          });
+          wrapper.appendChild(header);
           wrapper.appendChild(row);
           list.appendChild(wrapper);
         });
