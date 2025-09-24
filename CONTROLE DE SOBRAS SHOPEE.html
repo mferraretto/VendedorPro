@@ -265,6 +265,620 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+async function obterBasesUsuario() {
+  const usuarioDoc = await db.collection('usuarios').doc(usuarioLogado.uid).get();
+  const dadosUsuario = usuarioDoc.data() || {};
+  const respEmail = dadosUsuario.responsavelFinanceiroEmail || null;
+  let baseResp = null;
+  if (respEmail) {
+    try {
+      const respSnap = await db.collection('usuarios').where('email', '==', respEmail).limit(1).get();
+      if (!respSnap.empty) {
+        const respDoc = respSnap.docs[0];
+        const respData = respDoc.data() || {};
+        const responsavelUid = respData.uid || respDoc.id;
+        baseResp = db.collection('uid').doc(responsavelUid).collection('uid').doc(usuarioLogado.uid);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar responsável financeiro', err);
+    }
+  }
+
+  const gestorEmail = Array.isArray(dadosUsuario.gestoresExpedicaoEmails)
+    ? dadosUsuario.gestoresExpedicaoEmails[0]
+    : dadosUsuario.responsavelExpedicaoEmail || null;
+  let baseExp = null;
+  if (gestorEmail) {
+    try {
+      const expSnap = await db.collection('usuarios').where('email', '==', gestorEmail).limit(1).get();
+      if (!expSnap.empty) {
+        const expDoc = expSnap.docs[0];
+        const expData = expDoc.data() || {};
+        const gestorUid = expData.uid || expDoc.id;
+        baseExp = db.collection('uid').doc(gestorUid).collection('uid').doc(usuarioLogado.uid);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar base do gestor de expedição', err);
+    }
+  }
+
+  return { dadosUsuario, respEmail, baseResp, gestorEmail, baseExp };
+}
+
+async function processarPlanilhaVendas({
+  rows,
+  dataReferencia,
+  loja,
+  plataforma,
+  resultadoId,
+  progressIds = {},
+  rowParser
+}) {
+  const { containerId, barId, textId } = progressIds || {};
+  const progressContainer = containerId ? document.getElementById(containerId) : null;
+  const progressBar = barId ? document.getElementById(barId) : null;
+  const progressText = textId ? document.getElementById(textId) : null;
+
+  if (progressContainer) progressContainer.classList.remove('hidden');
+  if (progressBar) progressBar.style.width = '0%';
+  if (progressText) progressText.textContent = '0%';
+
+  const { baseResp, respEmail, gestorEmail, baseExp } = await obterBasesUsuario();
+  const { encryptString, decryptString } = await import('./crypto.js');
+  const pass = getPassphrase() || usuarioLogado.uid;
+
+  const ref = db
+    .collection('uid')
+    .doc(usuarioLogado.uid)
+    .collection('faturamento')
+    .doc(dataReferencia)
+    .collection('lojas')
+    .doc(loja);
+
+  const doc = await ref.get();
+  let operacao = 'substituir';
+  let dadosAnteriores = null;
+
+  if (doc.exists) {
+    const { isConfirmed: substituir, isDenied: somar } = await Swal.fire({
+      title: 'Registro existente',
+      text: `Já existe um registro para ${loja} em ${dataReferencia}. O que deseja fazer?`,
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Substituir',
+      denyButtonText: 'Somar',
+      cancelButtonText: 'Pular'
+    });
+    if (!substituir && !somar) {
+      if (progressContainer) progressContainer.classList.add('hidden');
+      return null;
+    }
+    operacao = somar ? 'somar' : 'substituir';
+    const docData = doc.data();
+    if (docData?.encrypted) {
+      try {
+        dadosAnteriores = JSON.parse(await decryptString(docData.encrypted, pass));
+      } catch (err) {
+        console.error('Erro ao descriptografar faturamento existente', err);
+      }
+    } else {
+      dadosAnteriores = docData;
+    }
+  }
+
+  let bruto = 0;
+  let liquidoTotal = 0;
+  let qtdVendas = 0;
+  const skusVendidos = {};
+  const faturamentoPorDia = {};
+  const pedidosRef = db.collection('uid').doc(usuarioLogado.uid).collection('pedidosreais');
+  const totalRows = rows.length;
+  let processedRows = 0;
+
+  const updateProgress = async () => {
+    if (!progressBar || !progressText) return;
+    const pct = totalRows ? Math.round((processedRows / totalRows) * 100) : 0;
+    progressBar.style.width = pct + '%';
+    progressText.textContent = pct + '%';
+    if (processedRows % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+  };
+
+  for (const row of rows) {
+    const parsed = typeof rowParser === 'function' ? rowParser(row, { dataReferencia }) : null;
+    if (!parsed || !parsed.numeroVenda) {
+      processedRows++;
+      await updateProgress();
+      continue;
+    }
+
+    const {
+      numeroVenda,
+      estado = '',
+      sku = '',
+      unidades,
+      receitaProdutos = 0,
+      receitaAcrescimo = 0,
+      receitaEnvio = 0,
+      taxaParcelamento = 0,
+      tarifaVenda = 0,
+      tarifasEnvio = 0,
+      cancelamentos = 0,
+      totalLinha,
+      dataVenda: dataVendaOriginal,
+      ativo: ativoOverride,
+      extrasPedido = {}
+    } = parsed;
+
+    const unidadesNumero = Number.isFinite(unidades) ? unidades : parseNumber(unidades);
+    const brutoLinha = Number(receitaProdutos || 0) + Number(receitaAcrescimo || 0) + Number(receitaEnvio || 0);
+    const liquidoCalculado = brutoLinha - (Number(taxaParcelamento || 0) + Number(tarifaVenda || 0) + Number(tarifasEnvio || 0) + Math.abs(Number(cancelamentos || 0)));
+    const liquidoLinha = Number.isFinite(totalLinha) ? Number(totalLinha) : liquidoCalculado;
+    const taxasLinha = Math.max(0, brutoLinha - liquidoLinha);
+    const dataVenda = normalizeDate(dataVendaOriginal) || dataReferencia;
+
+    const statusLower = String(estado || '').toLowerCase();
+    const ativo = typeof ativoOverride === 'boolean'
+      ? ativoOverride
+      : !(statusLower.includes('cancel') || statusLower.includes('devol') || statusLower.includes('reemb'));
+
+    if (ativo) {
+      bruto += brutoLinha;
+      liquidoTotal += liquidoLinha;
+      qtdVendas += 1;
+      if (sku) {
+        if (!skusVendidos[sku]) skusVendidos[sku] = { total: 0, valorLiquido: 0 };
+        skusVendidos[sku].total += 1;
+        skusVendidos[sku].valorLiquido += liquidoLinha;
+      }
+      const diaResumo = dataVenda || dataReferencia;
+      if (diaResumo) {
+        if (!faturamentoPorDia[diaResumo]) {
+          faturamentoPorDia[diaResumo] = { bruto: 0, liquido: 0, vendas: 0 };
+        }
+        faturamentoPorDia[diaResumo].bruto += brutoLinha;
+        faturamentoPorDia[diaResumo].liquido += liquidoLinha;
+        faturamentoPorDia[diaResumo].vendas += 1;
+      }
+    }
+
+    const extrasLimpos = {};
+    if (extrasPedido && typeof extrasPedido === 'object') {
+      for (const [key, value] of Object.entries(extrasPedido)) {
+        if (value !== undefined) extrasLimpos[key] = value;
+      }
+    }
+
+    const pedidoPayload = {
+      pedidoId: numeroVenda,
+      numeroVenda,
+      status: estado,
+      sku,
+      loja,
+      data: dataReferencia,
+      dataVenda,
+      horaPagamento: dataVenda,
+      unidades: Number.isFinite(unidadesNumero) ? unidadesNumero : 0,
+      subtotal: brutoLinha,
+      taxas: taxasLinha,
+      liquido: liquidoLinha,
+      receitaProdutos,
+      receitaAcrescimoPreco: receitaAcrescimo,
+      receitaEnvio,
+      taxaParcelamentoAcrescimo: taxaParcelamento,
+      tarifasEnvio,
+      tarifaVendaImpostos: tarifaVenda,
+      cancelamentosReembolsos: cancelamentos,
+      total: Number.isFinite(totalLinha) ? Number(totalLinha) : liquidoLinha,
+      plataforma,
+      ...extrasLimpos
+    };
+
+    const pedidoDocRef = pedidosRef
+      .doc(dataReferencia)
+      .collection('lista')
+      .doc(numeroVenda);
+    const pedidoDoc = await pedidoDocRef.get();
+    let needsUpdate = true;
+    if (pedidoDoc.exists) {
+      try {
+        const atual = JSON.parse(await decryptString(pedidoDoc.data().encrypted, pass));
+        if (JSON.stringify(atual) === JSON.stringify(pedidoPayload)) {
+          needsUpdate = false;
+        }
+      } catch (err) {
+        console.error('Erro ao comparar pedido existente', err);
+      }
+    }
+    if (needsUpdate) {
+      const encPedido = await encryptString(JSON.stringify(pedidoPayload), pass);
+      await pedidoDocRef.set({ encrypted: encPedido, uid: usuarioLogado.uid });
+      if (baseResp && respEmail) {
+        const encPedidoResp = await encryptString(JSON.stringify(pedidoPayload), respEmail);
+        await baseResp
+          .collection('pedidosreais')
+          .doc(dataReferencia)
+          .collection('lista')
+          .doc(numeroVenda)
+          .set({ encrypted: encPedidoResp, uid: usuarioLogado.uid });
+      }
+      if (baseExp && gestorEmail) {
+        const encPedidoExp = await encryptString(JSON.stringify(pedidoPayload), gestorEmail);
+        await baseExp
+          .collection('pedidosreais')
+          .doc(dataReferencia)
+          .collection('lista')
+          .doc(numeroVenda)
+          .set({ encrypted: encPedidoExp, uid: usuarioLogado.uid });
+      }
+    }
+
+    processedRows++;
+    await updateProgress();
+  }
+
+  if (operacao === 'somar' && dadosAnteriores) {
+    bruto += Number(dadosAnteriores.valorBruto || 0);
+    liquidoTotal += Number(dadosAnteriores.valorLiquido || 0);
+    qtdVendas += Number(dadosAnteriores.qtdVendas || 0);
+    if (Array.isArray(dadosAnteriores.resumoPorDia)) {
+      for (const diaAnterior of dadosAnteriores.resumoPorDia) {
+        const chaveDia =
+          diaAnterior?.data ||
+          diaAnterior?.dia ||
+          diaAnterior?.dataVenda ||
+          dadosAnteriores.data ||
+          dataReferencia;
+        if (!chaveDia) continue;
+        if (!faturamentoPorDia[chaveDia]) {
+          faturamentoPorDia[chaveDia] = { bruto: 0, liquido: 0, vendas: 0 };
+        }
+        faturamentoPorDia[chaveDia].bruto += Number(diaAnterior.valorBruto || diaAnterior.bruto || 0);
+        faturamentoPorDia[chaveDia].liquido += Number(diaAnterior.valorLiquido || diaAnterior.liquido || 0);
+        faturamentoPorDia[chaveDia].vendas += Number(
+          diaAnterior.vendas ||
+          diaAnterior.qtdVendas ||
+          diaAnterior.quantidade ||
+          0
+        );
+      }
+    } else {
+      const chaveDiaAnterior = dadosAnteriores.data || dataReferencia;
+      if (chaveDiaAnterior) {
+        if (!faturamentoPorDia[chaveDiaAnterior]) {
+          faturamentoPorDia[chaveDiaAnterior] = { bruto: 0, liquido: 0, vendas: 0 };
+        }
+        faturamentoPorDia[chaveDiaAnterior].bruto += Number(dadosAnteriores.valorBruto || 0);
+        faturamentoPorDia[chaveDiaAnterior].liquido += Number(dadosAnteriores.valorLiquido || 0);
+        faturamentoPorDia[chaveDiaAnterior].vendas += Number(
+          dadosAnteriores.qtdVendas ||
+          dadosAnteriores.vendas ||
+          0
+        );
+      }
+    }
+  }
+
+  const taxas = Math.max(0, bruto - liquidoTotal);
+
+  const resumoPorDia = Object.entries(faturamentoPorDia)
+    .map(([dia, valores]) => {
+      const brutoDia = Number(valores?.bruto || 0);
+      const liquidoDia = Number(valores?.liquido || 0);
+      return {
+        data: dia,
+        valorBruto: brutoDia,
+        valorLiquido: liquidoDia,
+        taxas: Math.max(0, brutoDia - liquidoDia),
+        vendas: Number(valores?.vendas || 0)
+      };
+    })
+    .sort((a, b) => new Date(a.data) - new Date(b.data));
+
+  const periodoResumo =
+    resumoPorDia.length > 0
+      ? { inicio: resumoPorDia[0].data, fim: resumoPorDia[resumoPorDia.length - 1].data }
+      : { inicio: dataReferencia, fim: dataReferencia };
+
+  const resumoPedidos = {
+    data: dataReferencia,
+    loja,
+    plataforma,
+    atualizadoEm:
+      typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
+        ? firebase.firestore.FieldValue.serverTimestamp()
+        : new Date().toISOString(),
+    totalLinhas: totalRows,
+    totalPedidosAtivos: qtdVendas,
+    valorBruto: bruto,
+    valorLiquido: liquidoTotal,
+    taxas
+  };
+
+  await pedidosRef.doc(dataReferencia).set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
+  if (baseResp && respEmail) {
+    await baseResp
+      .collection('pedidosreais')
+      .doc(dataReferencia)
+      .set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
+  }
+  if (baseExp && gestorEmail) {
+    await baseExp
+      .collection('pedidosreais')
+      .doc(dataReferencia)
+      .set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
+  }
+
+  const refSku = db
+    .collection('uid')
+    .doc(usuarioLogado.uid)
+    .collection('skusVendidos')
+    .doc(dataReferencia);
+  await refSku.set({ data: dataReferencia, uid: usuarioLogado.uid }, { merge: true });
+  if (baseResp) {
+    await baseResp
+      .collection('skusVendidos')
+      .doc(dataReferencia)
+      .set({ data: dataReferencia, uid: usuarioLogado.uid }, { merge: true });
+  }
+
+  for (const [skuItem, dadosSku] of Object.entries(skusVendidos)) {
+    const skuId = makeSkuDocId(skuItem);
+    const legacySkuId = makeLegacySkuDocId(skuItem);
+    const listaCollection = db
+      .collection('uid')
+      .doc(usuarioLogado.uid)
+      .collection('skusVendidos')
+      .doc(dataReferencia)
+      .collection('lista');
+    const docRef = listaCollection.doc(skuId);
+    const docSnap = await docRef.get();
+
+    let totalFinal = dadosSku.total;
+    let valorLiquidoFinal = dadosSku.valorLiquido;
+    if (docSnap.exists) {
+      const dadosAnterioresSku = docSnap.data();
+      totalFinal += dadosAnterioresSku.total || 0;
+      valorLiquidoFinal += dadosAnterioresSku.valorLiquido || 0;
+    } else if (legacySkuId !== skuId) {
+      const legacyDocRef = listaCollection.doc(legacySkuId);
+      const legacySnap = await legacyDocRef.get();
+      if (legacySnap.exists) {
+        const dadosAnterioresSku = legacySnap.data();
+        totalFinal += dadosAnterioresSku.total || 0;
+        valorLiquidoFinal += dadosAnterioresSku.valorLiquido || 0;
+        try {
+          await legacyDocRef.delete();
+        } catch (err) {
+          console.warn('Não foi possível remover SKU legado', legacySkuId, err);
+        }
+      }
+    }
+
+    await docRef.set({
+      sku: skuItem,
+      total: totalFinal,
+      valorLiquido: valorLiquidoFinal,
+      data: dataReferencia,
+      loja,
+      uid: usuarioLogado.uid
+    });
+
+    if (baseResp && respEmail) {
+      const skuPayload = {
+        sku: skuItem,
+        total: totalFinal,
+        valorLiquido: valorLiquidoFinal,
+        data: dataReferencia,
+        loja,
+        uid: usuarioLogado.uid
+      };
+      const encSku = await encryptString(JSON.stringify(skuPayload), respEmail);
+      const baseRespLista = baseResp
+        .collection('skusVendidos')
+        .doc(dataReferencia)
+        .collection('lista');
+      await baseRespLista.doc(skuId).set({ encrypted: encSku, uid: usuarioLogado.uid });
+    }
+
+    if (baseExp && gestorEmail) {
+      const skuPayload = {
+        sku: skuItem,
+        total: totalFinal,
+        valorLiquido: valorLiquidoFinal,
+        data: dataReferencia,
+        loja,
+        uid: usuarioLogado.uid
+      };
+      const encSku = await encryptString(JSON.stringify(skuPayload), gestorEmail);
+      const baseExpLista = baseExp
+        .collection('skusVendidos')
+        .doc(dataReferencia)
+        .collection('lista');
+      await baseExpLista.doc(skuId).set({ encrypted: encSku, uid: usuarioLogado.uid });
+    }
+  }
+
+  if (progressBar && progressText) {
+    progressBar.style.width = '100%';
+    progressText.textContent = '100%';
+  }
+
+  const lojaPayload = {
+    valorBruto: bruto,
+    taxasPlataforma: taxas,
+    valorLiquido: liquidoTotal,
+    qtdVendas,
+    loja,
+    atualizadoEm: new Date(),
+    uid: usuarioLogado.uid
+  };
+  const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
+  await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
+  if (baseResp && respEmail) {
+    const encLojaResp = await encryptString(JSON.stringify(lojaPayload), respEmail);
+    await baseResp
+      .collection('faturamento')
+      .doc(dataReferencia)
+      .collection('lojas')
+      .doc(loja)
+      .set({ encrypted: encLojaResp, uid: usuarioLogado.uid });
+  }
+
+  const resumoPayload = {
+    valorBruto: bruto,
+    valorLiquido: liquidoTotal,
+    taxasPlataforma: taxas,
+    vendas: qtdVendas,
+    plataforma,
+    atualizadoEm: new Date(),
+    uid: usuarioLogado.uid,
+    resumoPorDia,
+    periodoVendas: periodoResumo
+  };
+  const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
+  await db
+    .collection('uid')
+    .doc(usuarioLogado.uid)
+    .collection('faturamento')
+    .doc(dataReferencia)
+    .set({ encrypted: encResumo, uid: usuarioLogado.uid }, { merge: true });
+  if (baseResp && respEmail) {
+    const encResumoResp = await encryptString(JSON.stringify(resumoPayload), respEmail);
+    await baseResp
+      .collection('faturamento')
+      .doc(dataReferencia)
+      .set({ encrypted: encResumoResp, uid: usuarioLogado.uid }, { merge: true });
+  }
+
+  await notificarResponsavelFinanceiro(dataReferencia, loja, bruto, liquidoTotal, qtdVendas);
+
+  if (resultadoId) {
+    const resultado = document.getElementById(resultadoId);
+    if (resultado) {
+      const formatCurrency = (valor) =>
+        Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const formatDateBr = (iso) => {
+        if (!iso || typeof iso !== 'string') return iso || '';
+        const partes = iso.split('-');
+        if (partes.length !== 3) return iso;
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      };
+      const periodoTexto =
+        periodoResumo.inicio === periodoResumo.fim
+          ? formatDateBr(periodoResumo.inicio)
+          : `${formatDateBr(periodoResumo.inicio)} até ${formatDateBr(periodoResumo.fim)}`;
+      const resumoDiasHtml = resumoPorDia.length
+        ? `
+          <div class="mt-4">
+            <h4 class="font-semibold text-sm text-gray-700 mb-2">Faturamento por dia</h4>
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-xs text-left text-gray-600">
+                <thead class="bg-gray-100 text-gray-700">
+                  <tr>
+                    <th class="px-3 py-2 font-medium">Data</th>
+                    <th class="px-3 py-2 font-medium">Bruto</th>
+                    <th class="px-3 py-2 font-medium">Líquido</th>
+                    <th class="px-3 py-2 font-medium">Taxas</th>
+                    <th class="px-3 py-2 font-medium">Vendas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${resumoPorDia
+                    .map(
+                      (dia) => `
+                        <tr class="border-b last:border-none">
+                          <td class="px-3 py-2">${formatDateBr(dia.data)}</td>
+                          <td class="px-3 py-2">${formatCurrency(dia.valorBruto)}</td>
+                          <td class="px-3 py-2">${formatCurrency(dia.valorLiquido)}</td>
+                          <td class="px-3 py-2">${formatCurrency(dia.taxas)}</td>
+                          <td class="px-3 py-2">${dia.vendas}</td>
+                        </tr>
+                      `
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `
+        : `<p class="mt-4 text-sm text-gray-500">Nenhum faturamento ativo encontrado na planilha.</p>`;
+
+      resultado.innerHTML = `
+        <div class="alert alert-success">
+          <i class="fas fa-check-circle"></i> Faturamento ${escapeHtml(plataforma)} processado com sucesso!<br>
+          <strong>Loja:</strong> ${escapeHtml(loja)}<br>
+          <strong>Período identificado:</strong> ${periodoTexto}<br>
+          <strong>Bruto total:</strong> ${formatCurrency(bruto)}<br>
+          <strong>Líquido total:</strong> ${formatCurrency(liquidoTotal)}<br>
+          <strong>Vendas:</strong> ${qtdVendas}
+        </div>
+        ${resumoDiasHtml}
+      `;
+    }
+  }
+
+  mostrarSucesso(`Faturamento ${plataforma} importado com sucesso!`);
+  return { bruto, liquidoTotal, qtdVendas };
+}
+
+function extrairLinhaMercadoLivre(row, { dataReferencia } = {}) {
+  const headerMap = buildHeaderMap(row);
+  const numeroVenda = String(getFieldByKey(row, headerMap, 'ndevenda') || '').trim();
+  if (!numeroVenda) return null;
+  return {
+    numeroVenda,
+    estado: String(getFieldByKey(row, headerMap, 'estado') || '').trim(),
+    sku: String(getFieldByKey(row, headerMap, 'sku') || '').trim(),
+    unidades: parseNumber(getFieldByKey(row, headerMap, 'unidades')),
+    receitaProdutos: parseNumber(getFieldByKey(row, headerMap, 'receitaporprodutosbrl')),
+    receitaAcrescimo: parseNumber(getFieldByKey(row, headerMap, 'receitaporacrescimonoprecopagopelocomprador')),
+    receitaEnvio: parseNumber(getFieldByKey(row, headerMap, 'receitaporenviobrl')),
+    taxaParcelamento: parseNumber(getFieldByKey(row, headerMap, 'taxadeparcelamentoequivalenteaoacrescimo')),
+    tarifaVenda: parseNumber(getFieldByKey(row, headerMap, 'tarifadevendaeimpostosbrl')),
+    tarifasEnvio: parseNumber(getFieldByKey(row, headerMap, 'tarifasdeenviobrl')),
+    cancelamentos: parseNumber(getFieldByKey(row, headerMap, 'cancelamentoseerembolsosbrl')),
+    totalLinha: parseNumber(getFieldByKey(row, headerMap, 'totalbrl')),
+    dataVenda: getFieldByKey(row, headerMap, 'datadavenda') || dataReferencia
+  };
+}
+
+function extrairLinhaTiny(row, { dataReferencia } = {}) {
+  const headerMap = buildHeaderMap(row);
+  const numeroVenda = String(getFieldByKey(row, headerMap, 'numerodaordemdecompra') || '').trim();
+  if (!numeroVenda) return null;
+  const quantidade = parseNumber(getFieldByKey(row, headerMap, 'quantidade'));
+  const valorUnitario = parseNumber(getFieldByKey(row, headerMap, 'valorunitario'));
+  const totalCalculado = Number(valorUnitario || 0) * (Number(quantidade || 0) || 0);
+  const dataPrevistaBruta = getFieldByKey(row, headerMap, 'dataprevista');
+  const dataPrevistaNormalizada = normalizeDate(dataPrevistaBruta);
+  const extras = {};
+  if (dataPrevistaNormalizada) {
+    extras.dataPrevista = dataPrevistaNormalizada;
+  } else if (dataPrevistaBruta) {
+    extras.dataPrevistaTexto = String(dataPrevistaBruta);
+  }
+  if (Number.isFinite(valorUnitario)) {
+    extras.valorUnitario = valorUnitario;
+  }
+  return {
+    numeroVenda,
+    estado: String(getFieldByKey(row, headerMap, 'situacao') || '').trim(),
+    sku: String(getFieldByKey(row, headerMap, 'codigosku') || '').trim(),
+    unidades: quantidade,
+    receitaProdutos: totalCalculado,
+    receitaAcrescimo: 0,
+    receitaEnvio: 0,
+    taxaParcelamento: 0,
+    tarifaVenda: 0,
+    tarifasEnvio: 0,
+    cancelamentos: 0,
+    totalLinha: totalCalculado,
+    dataVenda: getFieldByKey(row, headerMap, 'data') || dataReferencia,
+    extrasPedido: extras
+  };
+}
+
    const tabIds = ['importar','metas','graficos','historico','faturamento','vendasML','registroFaturamento','controleVendas','produtosVendidos','sobras','previsao','acompanhamento','acompanhamentoGestor'];
       const tabsLoaded = Promise.all(
         tabIds.map(t =>
@@ -1628,7 +2242,10 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
 
       const { value: form, isConfirmed } = await Swal.fire({
         title: 'Faturamento Mercado Livre',
-        html: `\n          <input type="date" id="swal-data-ml" class="swal2-input" />\n          <input type="text" id="swal-loja-ml" class="swal2-input" placeholder="Nome da Loja" />\n        `,
+        html: `
+          <input type="date" id="swal-data-ml" class="swal2-input" />
+          <input type="text" id="swal-loja-ml" class="swal2-input" placeholder="Nome da Loja" />
+        `,
         focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'Continuar',
@@ -1646,13 +2263,6 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
       const dataReferencia = form.data;
       const loja = form.loja;
 
-      const progressContainer = document.getElementById('progressContainerML');
-      const progressBar = document.getElementById('progressBarVendasML');
-      const progressText = document.getElementById('progressTextVendasML');
-      if (progressContainer) progressContainer.classList.remove('hidden');
-      if (progressBar) progressBar.style.width = '0%';
-      if (progressText) progressText.textContent = '0%';
-
       const reader = new FileReader();
       reader.onload = async function (e) {
         try {
@@ -1662,499 +2272,98 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
           const rows = XLSX.utils.sheet_to_json(sheet, { range: 5, defval: '' });
           if (!rows.length) {
             mostrarErro('Nenhum dado encontrado na planilha do Mercado Livre.');
+            const progressContainer = document.getElementById('progressContainerML');
             if (progressContainer) progressContainer.classList.add('hidden');
             return;
           }
 
-          const usuarioDoc = await db.collection('usuarios').doc(usuarioLogado.uid).get();
-          const dadosUsuario = usuarioDoc.data() || {};
-          const respEmail = dadosUsuario.responsavelFinanceiroEmail || null;
-          let baseResp = null;
-          if (respEmail) {
-            const respSnap = await db.collection('usuarios').where('email', '==', respEmail).limit(1).get();
-            if (!respSnap.empty) {
-              const respDoc = respSnap.docs[0];
-              const respData = respDoc.data() || {};
-              const responsavelUid = respData.uid || respDoc.id;
-              baseResp = db.collection('uid').doc(responsavelUid).collection('uid').doc(usuarioLogado.uid);
-            }
-          }
-
-          const gestorEmail = Array.isArray(dadosUsuario.gestoresExpedicaoEmails)
-            ? dadosUsuario.gestoresExpedicaoEmails[0]
-            : dadosUsuario.responsavelExpedicaoEmail || null;
-          let baseExp = null;
-          if (gestorEmail) {
-            const expSnap = await db.collection('usuarios').where('email', '==', gestorEmail).limit(1).get();
-            if (!expSnap.empty) {
-              const expDoc = expSnap.docs[0];
-              const expData = expDoc.data() || {};
-              const gestorUid = expData.uid || expDoc.id;
-              baseExp = db.collection('uid').doc(gestorUid).collection('uid').doc(usuarioLogado.uid);
-            }
-          }
-
-          const ref = db
-            .collection('uid')
-            .doc(usuarioLogado.uid)
-            .collection('faturamento')
-            .doc(dataReferencia)
-            .collection('lojas')
-            .doc(loja);
-
-          const { encryptString, decryptString } = await import('./crypto.js');
-          const pass = getPassphrase() || usuarioLogado.uid;
-          const doc = await ref.get();
-          let operacao = 'substituir';
-          let dadosAnteriores = null;
-
-          if (doc.exists) {
-            const { isConfirmed: substituir, isDenied: somar } = await Swal.fire({
-              title: 'Registro existente',
-              text: `Já existe um registro para ${loja} em ${dataReferencia}. O que deseja fazer?`,
-              showDenyButton: true,
-              showCancelButton: true,
-              confirmButtonText: 'Substituir',
-              denyButtonText: 'Somar',
-              cancelButtonText: 'Pular'
-            });
-            if (!substituir && !somar) {
-              if (progressContainer) progressContainer.classList.add('hidden');
-              return;
-            }
-            operacao = somar ? 'somar' : 'substituir';
-            const docData = doc.data();
-            if (docData?.encrypted) {
-              try {
-                dadosAnteriores = JSON.parse(await decryptString(docData.encrypted, pass));
-              } catch (err) {
-                console.error('Erro ao descriptografar faturamento existente', err);
-              }
-            } else {
-              dadosAnteriores = docData;
-            }
-          }
-
-          let bruto = 0;
-          let liquidoTotal = 0;
-          let qtdVendas = 0;
-          const skusVendidos = {};
-          const faturamentoPorDia = {};
-          const pedidosRef = db.collection('uid').doc(usuarioLogado.uid).collection('pedidosreais');
-          const totalRows = rows.length;
-          let processedRows = 0;
-
-          const updateProgress = async () => {
-            if (!progressBar || !progressText) return;
-            const pct = totalRows ? Math.round((processedRows / totalRows) * 100) : 0;
-            progressBar.style.width = pct + '%';
-            progressText.textContent = pct + '%';
-            if (processedRows % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
-          };
-
-          for (const row of rows) {
-            const headerMap = buildHeaderMap(row);
-            const numeroVenda = String(getFieldByKey(row, headerMap, 'ndevenda') || '').trim();
-            if (!numeroVenda) {
-              processedRows++;
-              await updateProgress();
-              continue;
-            }
-            const estado = String(getFieldByKey(row, headerMap, 'estado') || '').trim();
-            const sku = String(getFieldByKey(row, headerMap, 'sku') || '').trim();
-            const unidades = parseNumber(getFieldByKey(row, headerMap, 'unidades'));
-            const receitaProdutos = parseNumber(getFieldByKey(row, headerMap, 'receitaporprodutosbrl'));
-            const receitaAcrescimo = parseNumber(getFieldByKey(row, headerMap, 'receitaporacrescimonoprecopagopelocomprador'));
-            const receitaEnvio = parseNumber(getFieldByKey(row, headerMap, 'receitaporenviobrl'));
-            const taxaParcelamento = parseNumber(getFieldByKey(row, headerMap, 'taxadeparcelamentoequivalenteaoacrescimo'));
-            const tarifaVenda = parseNumber(getFieldByKey(row, headerMap, 'tarifadevendaeimpostosbrl'));
-            const tarifasEnvio = parseNumber(getFieldByKey(row, headerMap, 'tarifasdeenviobrl'));
-            const cancelamentos = parseNumber(getFieldByKey(row, headerMap, 'cancelamentoseerembolsosbrl'));
-            const totalLinha = parseNumber(getFieldByKey(row, headerMap, 'totalbrl'));
-            const brutoLinha = receitaProdutos + receitaAcrescimo + receitaEnvio;
-            const liquidoLinha = totalLinha || (brutoLinha - (taxaParcelamento + tarifaVenda + tarifasEnvio + Math.abs(cancelamentos)));
-            const taxasLinha = Math.max(0, brutoLinha - liquidoLinha);
-            const dataVenda = normalizeDate(getFieldByKey(row, headerMap, 'datadavenda')) || dataReferencia;
-
-            const statusLower = estado.toLowerCase();
-            const ativo = !(statusLower.includes('cancel') || statusLower.includes('devol') || statusLower.includes('reemb'));
-            if (ativo) {
-              bruto += brutoLinha;
-              liquidoTotal += liquidoLinha;
-              qtdVendas += 1;
-              if (sku) {
-                if (!skusVendidos[sku]) skusVendidos[sku] = { total: 0, valorLiquido: 0 };
-                skusVendidos[sku].total += 1;
-                skusVendidos[sku].valorLiquido += liquidoLinha;
-              }
-              const diaResumo = dataVenda || dataReferencia;
-              if (diaResumo) {
-                if (!faturamentoPorDia[diaResumo]) {
-                  faturamentoPorDia[diaResumo] = { bruto: 0, liquido: 0, vendas: 0 };
-                }
-                faturamentoPorDia[diaResumo].bruto += brutoLinha;
-                faturamentoPorDia[diaResumo].liquido += liquidoLinha;
-                faturamentoPorDia[diaResumo].vendas += 1;
-              }
-            }
-
-            const pedidoPayload = {
-              pedidoId: numeroVenda,
-              numeroVenda,
-              status: estado,
-              sku,
-              loja,
-              data: dataReferencia,
-              dataVenda,
-              horaPagamento: dataVenda,
-              unidades: Number.isFinite(unidades) ? unidades : 0,
-              subtotal: brutoLinha,
-              taxas: taxasLinha,
-              liquido: liquidoLinha,
-              receitaProdutos,
-              receitaAcrescimoPreco: receitaAcrescimo,
-              receitaEnvio,
-              taxaParcelamentoAcrescimo: taxaParcelamento,
-              tarifasEnvio,
-              tarifaVendaImpostos: tarifaVenda,
-              cancelamentosReembolsos: cancelamentos,
-              total: totalLinha,
-              plataforma: 'Mercado Livre'
-            };
-
-            const pedidoDocRef = pedidosRef
-              .doc(dataReferencia)
-              .collection('lista')
-              .doc(numeroVenda);
-            const pedidoDoc = await pedidoDocRef.get();
-            let needsUpdate = true;
-            if (pedidoDoc.exists) {
-              try {
-                const atual = JSON.parse(await decryptString(pedidoDoc.data().encrypted, pass));
-                if (JSON.stringify(atual) === JSON.stringify(pedidoPayload)) {
-                  needsUpdate = false;
-                }
-              } catch (err) {
-                console.error('Erro ao comparar pedido existente', err);
-              }
-            }
-            if (needsUpdate) {
-              const encPedido = await encryptString(JSON.stringify(pedidoPayload), pass);
-              await pedidoDocRef.set({ encrypted: encPedido, uid: usuarioLogado.uid });
-              if (baseResp && respEmail) {
-                const encPedidoResp = await encryptString(JSON.stringify(pedidoPayload), respEmail);
-                await baseResp
-                  .collection('pedidosreais')
-                  .doc(dataReferencia)
-                  .collection('lista')
-                  .doc(numeroVenda)
-                  .set({ encrypted: encPedidoResp, uid: usuarioLogado.uid });
-              }
-              if (baseExp && gestorEmail) {
-                const encPedidoExp = await encryptString(JSON.stringify(pedidoPayload), gestorEmail);
-                await baseExp
-                  .collection('pedidosreais')
-                  .doc(dataReferencia)
-                  .collection('lista')
-                  .doc(numeroVenda)
-                  .set({ encrypted: encPedidoExp, uid: usuarioLogado.uid });
-              }
-            }
-
-            processedRows++;
-            await updateProgress();
-          }
-
-          if (operacao === 'somar' && dadosAnteriores) {
-            bruto += dadosAnteriores.valorBruto || 0;
-            liquidoTotal += dadosAnteriores.valorLiquido || 0;
-            qtdVendas += dadosAnteriores.qtdVendas || 0;
-            if (Array.isArray(dadosAnteriores.resumoPorDia)) {
-              for (const diaAnterior of dadosAnteriores.resumoPorDia) {
-                const chaveDia =
-                  diaAnterior?.data ||
-                  diaAnterior?.dia ||
-                  diaAnterior?.dataVenda ||
-                  dadosAnteriores.data ||
-                  dataReferencia;
-                if (!chaveDia) continue;
-                if (!faturamentoPorDia[chaveDia]) {
-                  faturamentoPorDia[chaveDia] = { bruto: 0, liquido: 0, vendas: 0 };
-                }
-                faturamentoPorDia[chaveDia].bruto += Number(diaAnterior.valorBruto || diaAnterior.bruto || 0);
-                faturamentoPorDia[chaveDia].liquido += Number(diaAnterior.valorLiquido || diaAnterior.liquido || 0);
-                faturamentoPorDia[chaveDia].vendas += Number(
-                  diaAnterior.vendas ||
-                    diaAnterior.qtdVendas ||
-                    diaAnterior.quantidade ||
-                    0
-                );
-              }
-            } else {
-              const chaveDiaAnterior = dadosAnteriores.data || dataReferencia;
-              if (chaveDiaAnterior) {
-                if (!faturamentoPorDia[chaveDiaAnterior]) {
-                  faturamentoPorDia[chaveDiaAnterior] = { bruto: 0, liquido: 0, vendas: 0 };
-                }
-                faturamentoPorDia[chaveDiaAnterior].bruto += Number(dadosAnteriores.valorBruto || 0);
-                faturamentoPorDia[chaveDiaAnterior].liquido += Number(dadosAnteriores.valorLiquido || 0);
-                faturamentoPorDia[chaveDiaAnterior].vendas += Number(
-                  dadosAnteriores.qtdVendas || dadosAnteriores.vendas || 0
-                );
-              }
-            }
-          }
-
-          const taxas = Math.max(0, bruto - liquidoTotal);
-
-          const resumoPorDia = Object.entries(faturamentoPorDia)
-            .map(([dia, valores]) => {
-              const brutoDia = Number(valores?.bruto || 0);
-              const liquidoDia = Number(valores?.liquido || 0);
-              return {
-                data: dia,
-                valorBruto: brutoDia,
-                valorLiquido: liquidoDia,
-                taxas: Math.max(0, brutoDia - liquidoDia),
-                vendas: Number(valores?.vendas || 0)
-              };
-            })
-            .sort((a, b) => new Date(a.data) - new Date(b.data));
-
-          const periodoResumo =
-            resumoPorDia.length > 0
-              ? { inicio: resumoPorDia[0].data, fim: resumoPorDia[resumoPorDia.length - 1].data }
-              : { inicio: dataReferencia, fim: dataReferencia };
-
-          const resumoPedidos = {
-            data: dataReferencia,
+          const resultadoProcessamento = await processarPlanilhaVendas({
+            rows,
+            dataReferencia,
             loja,
             plataforma: 'Mercado Livre',
-            atualizadoEm:
-              typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
-                ? firebase.firestore.FieldValue.serverTimestamp()
-                : new Date().toISOString(),
-            totalLinhas: totalRows,
-            totalPedidosAtivos: qtdVendas,
-            valorBruto: bruto,
-            valorLiquido: liquidoTotal,
-            taxas
-          };
-          await pedidosRef.doc(dataReferencia).set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
-          if (baseResp && respEmail) {
-            await baseResp
-              .collection('pedidosreais')
-              .doc(dataReferencia)
-              .set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
+            resultadoId: 'resultadoVendasML',
+            progressIds: {
+              containerId: 'progressContainerML',
+              barId: 'progressBarVendasML',
+              textId: 'progressTextVendasML'
+            },
+            rowParser: (row, contexto) => extrairLinhaMercadoLivre(row, contexto)
+          });
+
+          if (resultadoProcessamento) {
+            input.value = '';
           }
-          if (baseExp && gestorEmail) {
-            await baseExp
-              .collection('pedidosreais')
-              .doc(dataReferencia)
-              .set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
-          }
-
-          const refSku = db
-            .collection('uid')
-            .doc(usuarioLogado.uid)
-            .collection('skusVendidos')
-            .doc(dataReferencia);
-          await refSku.set({ data: dataReferencia, uid: usuarioLogado.uid }, { merge: true });
-          if (baseResp) {
-            await baseResp
-              .collection('skusVendidos')
-              .doc(dataReferencia)
-              .set({ data: dataReferencia, uid: usuarioLogado.uid }, { merge: true });
-          }
-
-          for (const [sku, dadosSku] of Object.entries(skusVendidos)) {
-            const skuId = makeSkuDocId(sku);
-            const legacySkuId = makeLegacySkuDocId(sku);
-            const listaCollection = db
-              .collection('uid')
-              .doc(usuarioLogado.uid)
-              .collection('skusVendidos')
-              .doc(dataReferencia)
-              .collection('lista');
-            const docRef = listaCollection.doc(skuId);
-            const docSnap = await docRef.get();
-
-            let totalFinal = dadosSku.total;
-            let valorLiquidoFinal = dadosSku.valorLiquido;
-            if (docSnap.exists) {
-              const dadosAnterioresSku = docSnap.data();
-              totalFinal += dadosAnterioresSku.total || 0;
-              valorLiquidoFinal += dadosAnterioresSku.valorLiquido || 0;
-            } else if (legacySkuId !== skuId) {
-              const legacyDocRef = listaCollection.doc(legacySkuId);
-              const legacySnap = await legacyDocRef.get();
-              if (legacySnap.exists) {
-                const dadosAnterioresSku = legacySnap.data();
-                totalFinal += dadosAnterioresSku.total || 0;
-                valorLiquidoFinal += dadosAnterioresSku.valorLiquido || 0;
-                try {
-                  await legacyDocRef.delete();
-                } catch (err) {
-                  console.warn('Não foi possível remover SKU legado', legacySkuId, err);
-                }
-              }
-            }
-
-            await docRef.set({
-              sku: sku,
-              total: totalFinal,
-              valorLiquido: valorLiquidoFinal,
-              data: dataReferencia,
-              loja: loja,
-              uid: usuarioLogado.uid
-            });
-
-            if (baseResp && respEmail) {
-              const skuPayload = {
-                sku: sku,
-                total: totalFinal,
-                valorLiquido: valorLiquidoFinal,
-                data: dataReferencia,
-                loja: loja,
-                uid: usuarioLogado.uid
-              };
-              const encSku = await encryptString(JSON.stringify(skuPayload), respEmail);
-              const baseRespLista = baseResp
-                .collection('skusVendidos')
-                .doc(dataReferencia)
-                .collection('lista');
-              await baseRespLista.doc(skuId).set({ encrypted: encSku, uid: usuarioLogado.uid });
-              if (legacySkuId !== skuId) {
-                baseRespLista.doc(legacySkuId).delete().catch(() => {});
-              }
-            }
-          }
-
-          const lojaPayload = {
-            valorBruto: bruto,
-            taxasPlataforma: taxas,
-            valorLiquido: liquidoTotal,
-            qtdVendas: qtdVendas,
-            loja: loja,
-            plataforma: 'Mercado Livre',
-            atualizadoEm: new Date(),
-            uid: usuarioLogado.uid,
-            resumoPorDia,
-            periodoVendas: periodoResumo
-          };
-          const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
-          await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
-          if (baseResp && respEmail) {
-            const encLojaResp = await encryptString(JSON.stringify(lojaPayload), respEmail);
-            await baseResp
-              .collection('faturamento')
-              .doc(dataReferencia)
-              .collection('lojas')
-              .doc(loja)
-              .set({ encrypted: encLojaResp, uid: usuarioLogado.uid });
-          }
-
-          const resumoPayload = {
-            valorBruto: bruto,
-            valorLiquido: liquidoTotal,
-            taxasPlataforma: taxas,
-            vendas: qtdVendas,
-            plataforma: 'Mercado Livre',
-            atualizadoEm: new Date(),
-            uid: usuarioLogado.uid,
-            resumoPorDia,
-            periodoVendas: periodoResumo
-          };
-          const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
-          await db
-            .collection('uid')
-            .doc(usuarioLogado.uid)
-            .collection('faturamento')
-            .doc(dataReferencia)
-            .set({ encrypted: encResumo, uid: usuarioLogado.uid }, { merge: true });
-          if (baseResp && respEmail) {
-            const encResumoResp = await encryptString(JSON.stringify(resumoPayload), respEmail);
-            await baseResp
-              .collection('faturamento')
-              .doc(dataReferencia)
-              .set({ encrypted: encResumoResp, uid: usuarioLogado.uid }, { merge: true });
-          }
-
-          if (progressBar && progressText) {
-            progressBar.style.width = '100%';
-            progressText.textContent = '100%';
-          }
-
-          await notificarResponsavelFinanceiro(dataReferencia, loja, bruto, liquidoTotal, qtdVendas);
-
-          const resultado = document.getElementById('resultadoVendasML');
-          if (resultado) {
-            const formatCurrency = (valor) =>
-              Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            const formatDateBr = (iso) => {
-              if (!iso || typeof iso !== 'string') return iso || '';
-              const partes = iso.split('-');
-              if (partes.length !== 3) return iso;
-              return `${partes[2]}/${partes[1]}/${partes[0]}`;
-            };
-            const periodoTexto =
-              periodoResumo.inicio === periodoResumo.fim
-                ? formatDateBr(periodoResumo.inicio)
-                : `${formatDateBr(periodoResumo.inicio)} até ${formatDateBr(periodoResumo.fim)}`;
-            const resumoDiasHtml = resumoPorDia.length
-              ? `
-                <div class="mt-4">
-                  <h4 class="font-semibold text-sm text-gray-700 mb-2">Faturamento por dia</h4>
-                  <div class="overflow-x-auto">
-                    <table class="min-w-full text-xs text-left text-gray-600">
-                      <thead class="bg-gray-100 text-gray-700">
-                        <tr>
-                          <th class="px-3 py-2 font-medium">Data</th>
-                          <th class="px-3 py-2 font-medium">Bruto</th>
-                          <th class="px-3 py-2 font-medium">Líquido</th>
-                          <th class="px-3 py-2 font-medium">Taxas</th>
-                          <th class="px-3 py-2 font-medium">Vendas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${resumoPorDia
-                          .map(
-                            (dia) => `
-                              <tr class="border-b last:border-none">
-                                <td class="px-3 py-2">${formatDateBr(dia.data)}</td>
-                                <td class="px-3 py-2">${formatCurrency(dia.valorBruto)}</td>
-                                <td class="px-3 py-2">${formatCurrency(dia.valorLiquido)}</td>
-                                <td class="px-3 py-2">${formatCurrency(dia.taxas)}</td>
-                                <td class="px-3 py-2">${dia.vendas}</td>
-                              </tr>
-                            `
-                          )
-                          .join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              `
-              : `<p class="mt-4 text-sm text-gray-500">Nenhum faturamento ativo encontrado na planilha.</p>`;
-
-            resultado.innerHTML = `
-              <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i> Faturamento Mercado Livre processado com sucesso!<br>
-                <strong>Loja:</strong> ${loja}<br>
-                <strong>Período identificado:</strong> ${periodoTexto}<br>
-                <strong>Bruto total:</strong> ${formatCurrency(bruto)}<br>
-                <strong>Líquido total:</strong> ${formatCurrency(liquidoTotal)}<br>
-                <strong>Vendas:</strong> ${qtdVendas}
-              </div>
-              ${resumoDiasHtml}
-            `;
-          }
-
-          mostrarSucesso('Faturamento Mercado Livre importado com sucesso!');
-          input.value = '';
         } catch (err) {
           console.error('Erro ao importar planilha Mercado Livre', err);
           mostrarErro('Erro ao importar planilha do Mercado Livre: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    };
+
+    window.importarVendasTiny = async function () {
+      const input = document.getElementById('inputVendasTiny');
+      const file = input?.files?.[0];
+      if (!file) return mostrarErro('Selecione um arquivo do Tiny para importar.');
+
+      const { value: form, isConfirmed } = await Swal.fire({
+        title: 'Pedidos Tiny',
+        html: `
+          <input type="date" id="swal-data-tiny" class="swal2-input" />
+          <input type="text" id="swal-loja-tiny" class="swal2-input" placeholder="Nome da Loja" />
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Continuar',
+        preConfirm: () => {
+          const data = document.getElementById('swal-data-tiny').value;
+          const lojaNome = document.getElementById('swal-loja-tiny').value.trim();
+          if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data) || lojaNome.length < 2) {
+            Swal.showValidationMessage('Informe uma data e uma loja válidas.');
+          }
+          return { data, loja: lojaNome };
+        }
+      });
+      if (!isConfirmed || !form) return;
+
+      const dataReferencia = form.data;
+      const loja = form.loja;
+
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          if (!rows.length) {
+            mostrarErro('Nenhum dado encontrado na planilha do Tiny.');
+            const progressContainer = document.getElementById('progressContainerTiny');
+            if (progressContainer) progressContainer.classList.add('hidden');
+            return;
+          }
+
+          const resultadoProcessamento = await processarPlanilhaVendas({
+            rows,
+            dataReferencia,
+            loja,
+            plataforma: 'Tiny',
+            resultadoId: 'resultadoVendasTiny',
+            progressIds: {
+              containerId: 'progressContainerTiny',
+              barId: 'progressBarVendasTiny',
+              textId: 'progressTextVendasTiny'
+            },
+            rowParser: (row, contexto) => extrairLinhaTiny(row, contexto)
+          });
+
+          if (resultadoProcessamento) {
+            input.value = '';
+          }
+        } catch (err) {
+          console.error('Erro ao importar planilha Tiny', err);
+          mostrarErro('Erro ao importar planilha do Tiny: ' + err.message);
         }
       };
       reader.readAsArrayBuffer(file);

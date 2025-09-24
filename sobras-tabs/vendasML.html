@@ -18,14 +18,40 @@
     </div>
 
     <div class="card">
+      <div class="card-header mb-4">
+        <h3 class="text-lg font-semibold">Importar Planilha Tiny</h3>
+      </div>
+      <label for="inputVendasTiny" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+        <i class="fas fa-file-upload text-3xl text-gray-400 mb-2"></i>
+        <p class="text-sm text-gray-500 text-center">Selecione a planilha de pedidos exportada do Tiny com as colunas necessárias</p>
+        <input id="inputVendasTiny" type="file" accept=".xlsx, .xls, .csv" class="hidden" />
+      </label>
+      <div class="flex flex-col gap-2 mt-4 sm:flex-row sm:items-center sm:justify-between">
+        <button onclick="importarVendasTiny()" class="btn-primary flex items-center gap-2 justify-center">
+          <i class="fas fa-upload"></i> Importar &amp; Processar
+        </button>
+        <span class="text-xs text-gray-500 sm:text-right">Certifique-se de utilizar a exportação com cabeçalhos padrão.</span>
+      </div>
+    </div>
+
+    <div class="card">
       <h3 class="text-lg font-semibold mb-4">Resultado do Processamento</h3>
-      <div id="resultadoVendasML" class="text-sm text-gray-700 space-y-2"></div>
+      <div class="space-y-6">
+        <div>
+          <h4 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Mercado Livre</h4>
+          <div id="resultadoVendasML" class="text-sm text-gray-700 space-y-2"></div>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Pedidos Tiny</h4>
+          <div id="resultadoVendasTiny" class="text-sm text-gray-700 space-y-2"></div>
+        </div>
+      </div>
     </div>
   </div>
 
   <div class="space-y-6">
     <div class="card">
-      <h3 class="text-lg font-semibold mb-4">Progresso</h3>
+      <h3 class="text-lg font-semibold mb-4">Progresso Mercado Livre</h3>
       <div id="progressContainerML" class="hidden mb-4">
         <div class="progress"><div id="progressBarVendasML" class="progress-bar"></div></div>
         <span id="progressTextVendasML" class="text-sm text-gray-600 mt-2 block text-center">0%</span>
@@ -35,6 +61,18 @@
         Data da venda, Estado, Unidades, Receita por produtos (BRL), Receita por acréscimo no preço (pago pelo comprador),
         Taxa de parcelamento equivalente ao acréscimo, Tarifa de venda e impostos (BRL), Receita por envio (BRL), Tarifas de envio (BRL),
         Cancelamentos e reembolsos (BRL), Total (BRL) e SKU.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="text-lg font-semibold mb-4">Progresso Tiny</h3>
+      <div id="progressContainerTiny" class="hidden mb-4">
+        <div class="progress"><div id="progressBarVendasTiny" class="progress-bar"></div></div>
+        <span id="progressTextVendasTiny" class="text-sm text-gray-600 mt-2 block text-center">0%</span>
+      </div>
+      <p class="text-sm text-gray-600">
+        A planilha Tiny deve conter, pelo menos, as colunas: Número da ordem de compra, Data, Data prevista,
+        Situação, Quantidade, Valor unitário e Código (SKU). O campo "Número da ordem de compra" será utilizado como identificador do pedido.
       </p>
     </div>
   </div>
