@@ -144,6 +144,17 @@
     </div>
   </div>
 
+  <div id="lojaModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white w-full max-w-md p-4 rounded shadow-lg relative">
+      <h2 class="text-lg font-semibold mb-2">Informe o nome da loja</h2>
+      <input type="text" id="lojaInput" class="form-control w-full mb-4" placeholder="Nome da loja" />
+      <div class="flex justify-end gap-2">
+        <button id="lojaCancel" class="btn btn-secondary">Cancelar</button>
+        <button id="lojaConfirm" class="btn btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
  <script type="module">
     import { firebaseConfig, getPassphrase } from './firebase-config.js';
     import { decryptString } from './crypto.js';
@@ -361,6 +372,69 @@
         confirmBtn.addEventListener('click', onConfirm);
         cancelBtn.addEventListener('click', onCancel);
         modal.addEventListener('click', onBackdrop);
+
+        modal.classList.remove('hidden');
+      });
+    }
+
+    function solicitarNomeLoja(valorInicial = '') {
+      return new Promise(resolve => {
+        const modal = document.getElementById('lojaModal');
+        const input = document.getElementById('lojaInput');
+        const confirmBtn = document.getElementById('lojaConfirm');
+        const cancelBtn = document.getElementById('lojaCancel');
+
+        if (!modal || !input || !confirmBtn || !cancelBtn) {
+          resolve((valorInicial || '').trim());
+          return;
+        }
+
+        input.value = valorInicial || '';
+        setTimeout(() => {
+          input.focus();
+          input.select();
+        }, 50);
+
+        function cleanup() {
+          modal.classList.add('hidden');
+          confirmBtn.removeEventListener('click', onConfirm);
+          cancelBtn.removeEventListener('click', onCancel);
+          modal.removeEventListener('click', onBackdrop);
+          input.removeEventListener('input', onInput);
+          input.classList.remove('border-red-500');
+        }
+
+        function close(value) {
+          cleanup();
+          resolve(value);
+        }
+
+        function onConfirm() {
+          const nome = input.value.trim();
+          if (!nome) {
+            input.classList.add('border-red-500');
+            input.focus();
+            return;
+          }
+          close(nome);
+        }
+
+        function onCancel() {
+          close(null);
+        }
+
+        function onBackdrop(e) {
+          if (e.target === modal) close(null);
+        }
+
+        function onInput() {
+          input.classList.remove('border-red-500');
+        }
+
+        confirmBtn.addEventListener('click', onConfirm);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+        input.addEventListener('input', onInput);
 
         modal.classList.remove('hidden');
       });
@@ -1138,6 +1212,20 @@
       return items;
     }
 
+    async function contarPaginasPdf(file) {
+      if (!file) return 0;
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const total = Number.isFinite(pdf.numPages) ? Number(pdf.numPages) : 0;
+        if (typeof pdf.destroy === 'function') pdf.destroy();
+        return total;
+      } catch (err) {
+        console.error('Erro ao contar páginas do PDF:', err);
+        return 0;
+      }
+    }
+
     async function extractDataFromPdf(file) {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -1145,6 +1233,7 @@
       const ctx = canvas.getContext('2d');
       let itens = [];
       let loja = '';
+      const totalPaginas = Number.isFinite(pdf.numPages) ? Number(pdf.numPages) : 0;
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
         const viewport = page.getViewport({ scale: 2 });
@@ -1155,7 +1244,8 @@
         if (!loja) loja = extractStoreFromText(text);
         itens.push(...extractSkuQuantitiesFromText(text));
       }
-      return { loja, itens };
+      if (typeof pdf.destroy === 'function') pdf.destroy();
+      return { loja, itens, totalPaginas };
     }
 
     async function savePrintedSkuQuantities(items, loja) {
@@ -1178,11 +1268,19 @@
       await batch.commit();
     }
 
-    async function processManualLabel(file) {
+    async function processManualLabel(file, options = {}) {
       try {
-        const { loja, itens } = await extractDataFromPdf(file);
+        let parsed = options?.parsedData;
+        if (!parsed) {
+          parsed = await extractDataFromPdf(file);
+        }
+        const itens = Array.isArray(parsed?.itens) ? parsed.itens : [];
+        const lojaInformada =
+          typeof options?.loja === 'string' && options.loja.trim()
+            ? options.loja.trim()
+            : (parsed?.loja || '');
         if (itens.length) {
-          await savePrintedSkuQuantities(itens, loja);
+          await savePrintedSkuQuantities(itens, lojaInformada);
         }
       } catch (e) {
         console.error('Erro ao processar OCR da etiqueta:', e);
@@ -1196,9 +1294,31 @@
         return;
       }
       try {
+        let parsedData = null;
+        try {
+          parsedData = await extractDataFromPdf(file);
+        } catch (ocrErr) {
+          console.error('Erro ao extrair dados do PDF:', ocrErr);
+        }
+
+        const lojaNome = await solicitarNomeLoja(parsedData?.loja || '');
+        if (lojaNome === null) {
+          manualPdfInput.value = '';
+          showToast('Envio cancelado');
+          return;
+        }
+
+        const lojaRegistrada = lojaNome.trim() || parsedData?.loja || '';
         const selecionado = await escolherGestorEmail(gestoresEmails);
+        let totalPaginas = 0;
+        if (Number.isFinite(parsedData?.totalPaginas)) {
+          totalPaginas = Number(parsedData.totalPaginas);
+        }
+        if (!totalPaginas) {
+          totalPaginas = await contarPaginasPdf(file);
+        }
         const foraHorarioAtual = foraDoHorario();
-        const docRef = await db.collection('pdfDocs').add({
+        const docPayload = {
           ownerUid: currentUser.uid,
           ownerEmail: currentUser.email,
           ownerName: currentUserName,
@@ -1207,7 +1327,16 @@
           name: file.name,
           status: 'nao_impresso',
           foraHorario: foraHorarioAtual
-        });
+        };
+
+        if (lojaRegistrada) {
+          docPayload.loja = lojaRegistrada;
+        }
+        if (Number.isFinite(totalPaginas) && totalPaginas > 0) {
+          docPayload.totalPaginas = totalPaginas;
+        }
+
+        const docRef = await db.collection('pdfDocs').add(docPayload);
         const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
         await fileRef.put(file);
         const url = await fileRef.getDownloadURL();
@@ -1228,9 +1357,10 @@
             foraHorario: foraHorarioAtual,
             origem: 'Expedição - Upload manual',
             pdfDocId: docRef.id,
+            totalPaginas: Number.isFinite(totalPaginas) && totalPaginas > 0 ? totalPaginas : undefined,
           });
         }
-        await processManualLabel(file);
+        await processManualLabel(file, { parsedData, loja: lojaRegistrada });
         manualPdfInput.value = '';
         showToast('Etiqueta salva');
         await carregarEtiquetas();
@@ -1339,6 +1469,9 @@
         ? createdDate.toLocaleString('pt-BR')
         : 'Data desconhecida';
       const quantidadeEtiquetas = getResumoQuantidade(data);
+      const totalPaginas = Number.isFinite(data.totalPaginas) ? Number(data.totalPaginas) : null;
+      const paginasTexto = totalPaginas && totalPaginas > 0 ? totalPaginas : 'N/D';
+      const lojaTexto = (data.loja || '').toString().trim() || 'Não informado';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1370,6 +1503,8 @@
         <div class="expedicao-pdf-body">
           <p class="expedicao-pdf-name" title="${name}">${name}</p>
           <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
+          <p class="expedicao-pdf-meta">Loja: ${lojaTexto}</p>
+          <p class="expedicao-pdf-meta">Páginas: ${paginasTexto}</p>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
@@ -1396,6 +1531,9 @@
       const createdAt = data.createdAt && data.createdAt.toDate
         ? data.createdAt.toDate().toLocaleString('pt-BR')
         : 'Data desconhecida';
+      const totalPaginas = Number.isFinite(data.totalPaginas) ? Number(data.totalPaginas) : null;
+      const paginasTexto = totalPaginas && totalPaginas > 0 ? totalPaginas : 'N/D';
+      const lojaTexto = (data.loja || '').toString().trim() || 'Não informado';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1403,6 +1541,8 @@
           <div class="expedicao-pdf-list-info">
             <p class="expedicao-pdf-name">${name}</p>
             <p class="expedicao-pdf-meta">Criado por: ${owner} em ${createdAt}</p>
+            <p class="expedicao-pdf-meta">Loja: ${lojaTexto}</p>
+            <p class="expedicao-pdf-meta">Páginas: ${paginasTexto}</p>
             ${foraHorario ? '<p class="expedicao-alert-text">Fora do horário</p>' : ''}
             <div class="expedicao-pdf-list-toolbar">
               <button class="expedicao-icon-btn" onclick="visualizar('${url}')" title="Visualizar"><i class="fas fa-eye"></i></button>
