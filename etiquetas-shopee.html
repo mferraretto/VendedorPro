@@ -16,8 +16,10 @@
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
     .shopee-labels {
-      --labels-bg: #0f172a;
-      --labels-card: #111827;
+      --labels-bg: radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.12), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.08), transparent 45%),
+        #020617;
+      --labels-card: rgba(15, 23, 42, 0.92);
       --labels-muted: #94a3b8;
       --labels-pad: 16px;
       --labels-radius: 18px;
@@ -26,11 +28,14 @@
       border-radius: 24px;
       border: 1px solid #1f2937;
       box-shadow: 0 25px 40px rgba(15, 23, 42, 0.35);
+      backdrop-filter: blur(14px);
       overflow: hidden;
     }
     .shopee-labels .labels-header {
-      padding: 28px 24px 12px;
-      text-align: center;
+      padding: 32px 32px 18px;
+      text-align: left;
+      display: grid;
+      gap: 12px;
     }
     .shopee-labels .labels-title {
       margin: 0 0 6px;
@@ -46,21 +51,93 @@
     }
     .shopee-labels .labels-wrap {
       display: grid;
-      gap: 18px;
-      padding: 0 24px 28px;
+      gap: 20px;
+      padding: 0 32px 32px;
+    }
+    .shopee-labels .labels-body {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+    }
+    .shopee-labels .labels-main {
+      display: grid;
+      gap: 20px;
     }
     .shopee-labels .labels-card {
       background: var(--labels-card);
-      border: 1px solid #1f2937;
+      border: 1px solid rgba(148, 163, 184, 0.1);
       border-radius: var(--labels-radius);
       padding: var(--labels-pad);
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+    .shopee-labels .labels-card.labels-panel {
+      padding: 24px;
+      display: grid;
+      gap: 20px;
     }
     .shopee-labels .labels-row {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
       align-items: center;
+    }
+    .shopee-labels .labels-card-header {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .shopee-labels .labels-card-header.align-center {
+      align-items: center;
+    }
+    .shopee-labels .labels-step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(14, 116, 144, 0.25));
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      font-weight: 700;
+      color: #38bdf8;
+      font-size: 1rem;
+    }
+    .shopee-labels .labels-step.is-success {
+      background: rgba(34, 197, 94, 0.18);
+      border-color: rgba(34, 197, 94, 0.45);
+      color: #4ade80;
+    }
+    .shopee-labels .labels-step.is-info {
+      background: rgba(59, 130, 246, 0.18);
+      border-color: rgba(59, 130, 246, 0.45);
+      color: #60a5fa;
+    }
+    .shopee-labels .labels-section-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0 0 6px;
+      color: #f8fafc;
+    }
+    .shopee-labels .labels-section-title.compact {
+      margin-bottom: 4px;
+    }
+    .shopee-labels .labels-section-sub {
+      margin: 0;
+      color: var(--labels-muted);
+      font-size: 0.875rem;
+    }
+    .shopee-labels .labels-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.12);
+      color: #60a5fa;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
     .shopee-labels .labels-upload {
       display: inline-flex;
@@ -79,6 +156,39 @@
     }
     .shopee-labels input[type="file"] {
       display: none;
+    }
+    .shopee-labels .labels-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-radius: 14px;
+      padding: 14px 16px;
+      background: rgba(30, 41, 59, 0.65);
+      border: 1px solid rgba(100, 116, 139, 0.18);
+    }
+    .shopee-labels .labels-meta-item {
+      display: flex;
+      flex-direction: column;
+      min-width: 120px;
+      gap: 2px;
+    }
+    .shopee-labels .labels-meta-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(148, 163, 184, 0.8);
+      font-weight: 600;
+    }
+    .shopee-labels .labels-meta-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .shopee-labels .labels-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.2), transparent);
+      border: none;
+      margin: 0;
     }
     .shopee-labels .labels-action {
       all: unset;
@@ -130,6 +240,17 @@
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 16px;
     }
+    .shopee-labels .labels-list {
+      margin: 0;
+      padding-left: 20px;
+      display: grid;
+      gap: 8px;
+      color: rgba(226, 232, 240, 0.9);
+      font-size: 0.9rem;
+    }
+    .shopee-labels .labels-body-note {
+      margin-top: 12px;
+    }
     .shopee-labels .labels-chk {
       display: inline-flex;
       gap: 8px;
@@ -146,6 +267,10 @@
       border: 1px solid rgba(148, 163, 184, 0.12);
       max-height: 240px;
       overflow-y: auto;
+    }
+    .shopee-labels .labels-aside {
+      display: grid;
+      gap: 20px;
     }
     .progress-bar-bg {
       background: linear-gradient(90deg, #cfd9df 0%, #e2ebf0 100%);
@@ -190,10 +315,16 @@
     }
     @media (max-width: 768px) {
       .shopee-labels .labels-header {
-        padding: 24px 16px 12px;
+        padding: 24px 18px 12px;
       }
       .shopee-labels .labels-wrap {
-        padding: 0 16px 24px;
+        padding: 0 18px 24px;
+      }
+      .shopee-labels .labels-body {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .shopee-labels .labels-card.labels-panel {
+        padding: 20px;
       }
     }
   </style>
@@ -224,39 +355,93 @@
 
           <div class="shopee-labels">
             <div class="labels-header">
+              <span class="labels-pill"><i class="fa-solid fa-bolt"></i> Fluxo automatizado</span>
               <h2 class="labels-title">✂️ Etiqueta em cima + colunas 3 e 5 do checklist (com zoom)</h2>
-              <p class="labels-sub">A4 ➜ divide no meio (10,5 cm), pega 15 cm do topo (etiqueta), do checklist descarta 2 cm e usa os 2 cm seguintes ➜ divide em 5 colunas (2.2, 1.9, 1.9, 1.9, 1.9 cm), pega colunas 3 e 5 e remonta abaixo com zoom.</p>
+              <p class="labels-sub">O PDF A4 é recortado automaticamente para aproveitar a etiqueta superior e as colunas 3 e 5 do checklist com zoom otimizado para leitura.</p>
             </div>
             <div class="labels-wrap">
-              <div class="labels-card">
-                <div class="labels-row">
-                  <label class="labels-upload">
-                    <input id="file" type="file" accept="application/pdf" />
-                    <span>📄 Escolher PDF A4…</span>
-                  </label>
-                  <button id="go" type="button" class="labels-action">
-                    <span>Processar</span>
-                  </button>
-                  <label class="labels-chk">
-                    <input id="debug" type="checkbox" />
-                    <span class="labels-mono">Gerar PDF DEBUG</span>
-                  </label>
-                  <span id="status" class="labels-mono"></span>
-                </div>
-                <div class="labels-hint" style="margin-top:8px">
-                  Colunas (cm): <b>[2.2, 1.9, 1.9, 1.9, 1.9]</b>. Zoom padrão: <b>120%</b> (ajustável no código: <code>zoomFactor</code>).
-                </div>
-              </div>
+              <div class="labels-body">
+                <div class="labels-main">
+                  <section class="labels-card labels-panel">
+                    <div class="labels-card-header">
+                      <span class="labels-step">1</span>
+                      <div>
+                        <h3 class="labels-section-title">Envio do PDF A4</h3>
+                        <p class="labels-section-sub">Selecione o arquivo original para iniciar o processamento.</p>
+                      </div>
+                    </div>
+                    <div class="labels-row">
+                      <label class="labels-upload">
+                        <input id="file" type="file" accept="application/pdf" />
+                        <span>📄 Escolher PDF A4…</span>
+                      </label>
+                      <button id="go" type="button" class="labels-action">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Processar</span>
+                      </button>
+                      <label class="labels-chk">
+                        <input id="debug" type="checkbox" />
+                        <span class="labels-mono">Gerar PDF DEBUG</span>
+                      </label>
+                      <span id="status" class="labels-mono"></span>
+                    </div>
+                    <hr class="labels-divider" />
+                    <div class="labels-meta">
+                      <div class="labels-meta-item">
+                        <span class="labels-meta-label">Corte principal</span>
+                        <span class="labels-meta-value">Etiqueta superior (15 cm)</span>
+                      </div>
+                      <div class="labels-meta-item">
+                        <span class="labels-meta-label">Checklist</span>
+                        <span class="labels-meta-value">Colunas 3 e 5 com zoom de 120%</span>
+                      </div>
+                      <div class="labels-meta-item">
+                        <span class="labels-meta-label">Formato</span>
+                        <span class="labels-meta-value">Saída em PDF + Firebase</span>
+                      </div>
+                    </div>
+                    <p class="labels-hint labels-body-note">Distribuição das colunas (cm): <strong>2,2 • 1,9 • 1,9 • 1,9 • 1,9</strong>. O zoom pode ser ajustado no código pela constante <code>zoomFactor</code>.</p>
+                  </section>
 
-              <div class="labels-grid">
-                <div class="labels-card">
-                  <div><strong>Saída</strong></div>
-                  <div id="out" class="labels-hint" style="margin-top:8px">Links para download aparecerão aqui.</div>
+                  <section class="labels-card labels-panel">
+                    <div class="labels-card-header">
+                      <span class="labels-step">2</span>
+                      <div>
+                        <h3 class="labels-section-title">Boas práticas antes de enviar</h3>
+                        <p class="labels-section-sub">Garanta que as informações estejam nítidas e atualizadas para evitar retrabalho.</p>
+                      </div>
+                    </div>
+                    <ul class="labels-list">
+                      <li>Confirme se o PDF está no padrão A4 sem redimensionamento de impressão.</li>
+                      <li>Verifique se o checklist original possui as cinco colunas esperadas.</li>
+                      <li>Preencha os e-mails acima para direcionar o envio automático ao gestor correto.</li>
+                      <li>Ative o modo <strong>DEBUG</strong> apenas quando precisar validar o recorte.</li>
+                    </ul>
+                  </section>
                 </div>
-                <div class="labels-card">
-                  <div><strong>Log</strong></div>
-                  <div class="labels-log">
-                    <pre id="log" class="labels-mono" style="white-space:pre-wrap;margin:0"></pre>
+
+                <div class="labels-aside">
+                  <div class="labels-card">
+                    <div class="labels-card-header align-center">
+                      <span class="labels-step is-success">✓</span>
+                      <div>
+                        <h3 class="labels-section-title compact">Saída</h3>
+                        <p class="labels-section-sub">Links de download ficam disponíveis logo após o processamento.</p>
+                      </div>
+                    </div>
+                    <div id="out" class="labels-hint labels-body-note">Links para download aparecerão aqui.</div>
+                  </div>
+                  <div class="labels-card">
+                    <div class="labels-card-header align-center">
+                      <span class="labels-step is-info">ℹ</span>
+                      <div>
+                        <h3 class="labels-section-title compact">Log de execução</h3>
+                        <p class="labels-section-sub">Acompanhe o detalhamento do recorte e possíveis alertas.</p>
+                      </div>
+                    </div>
+                    <div class="labels-log">
+                      <pre id="log" class="labels-mono" style="white-space:pre-wrap;margin:0"></pre>
+                    </div>
                   </div>
                 </div>
               </div>
