@@ -133,26 +133,6 @@
     </div>
   </div>
 
-  <div id="manualUploadModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md p-6 rounded shadow-lg relative">
-      <button id="manualUploadClose" class="absolute top-2 right-2 text-gray-600"><i class="fas fa-times"></i></button>
-      <h2 class="text-lg font-semibold mb-2">Nova etiqueta</h2>
-      <p class="text-sm text-gray-600 mb-2">Informe o nome da loja para esta etiqueta.</p>
-      <p id="manualUploadFileName" class="text-xs text-gray-500 mb-3 break-words"></p>
-      <input type="text" id="manualUploadStore" class="form-control mb-4" placeholder="Nome da loja" />
-      <div id="manualUploadProgressContainer" class="hidden">
-        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div id="manualUploadProgressBar" class="h-full bg-indigo-600" style="width: 0%"></div>
-        </div>
-        <div id="manualUploadProgressText" class="text-xs text-gray-500 text-right mt-1">0%</div>
-      </div>
-      <div class="flex justify-end gap-2 mt-4">
-        <button id="manualUploadCancel" class="btn btn-secondary">Cancelar</button>
-        <button id="manualUploadConfirm" class="btn btn-primary">Salvar</button>
-      </div>
-    </div>
-  </div>
-
   <div id="gestorModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white w-full max-w-md p-4 rounded shadow-lg">
       <h2 class="text-lg font-semibold mb-2">Enviar arquivo para qual gestor?</h2>
@@ -398,15 +378,6 @@
     const sobrasResponsavelSelect = document.getElementById('sobrasResponsavel');
     const manualPdfInput = document.getElementById('manualPdfInput');
     const uploadManualBtn = document.getElementById('uploadManualBtn');
-    const manualUploadModal = document.getElementById('manualUploadModal');
-    const manualUploadStoreInput = document.getElementById('manualUploadStore');
-    const manualUploadFileName = document.getElementById('manualUploadFileName');
-    const manualUploadProgressContainer = document.getElementById('manualUploadProgressContainer');
-    const manualUploadProgressBar = document.getElementById('manualUploadProgressBar');
-    const manualUploadProgressText = document.getElementById('manualUploadProgressText');
-    const manualUploadConfirmBtn = document.getElementById('manualUploadConfirm');
-    const manualUploadCancelBtn = document.getElementById('manualUploadCancel');
-    const manualUploadCloseBtn = document.getElementById('manualUploadClose');
     const checklistBtn = document.getElementById('checklistBtn');
     const checklistModal = document.getElementById('checklistModal');
     const closeChecklistModal = document.getElementById('closeChecklistModal');
@@ -415,71 +386,10 @@
     const checklistTotals = document.getElementById('checklistTotals');
     const checklistEnvioTotals = document.getElementById('checklistEnvioTotals');
     
-    let manualUploadPendingFile = null;
-
-    function setManualUploadProgress(value) {
-      const percent = Math.max(0, Math.min(100, Math.round(value || 0)));
-      if (manualUploadProgressBar) manualUploadProgressBar.style.width = `${percent}%`;
-      if (manualUploadProgressText) manualUploadProgressText.textContent = `${percent}%`;
-    }
-
-    function resetManualUploadModal() {
-      setManualUploadProgress(0);
-      if (manualUploadProgressContainer) manualUploadProgressContainer.classList.add('hidden');
-      if (manualUploadStoreInput) manualUploadStoreInput.value = '';
-      if (manualUploadFileName) manualUploadFileName.textContent = '';
-      if (manualUploadConfirmBtn) manualUploadConfirmBtn.disabled = false;
-      if (manualUploadCancelBtn) manualUploadCancelBtn.disabled = false;
-      manualUploadPendingFile = null;
-    }
-
-    function closeManualUploadModal() {
-      if (manualUploadModal) manualUploadModal.classList.add('hidden');
-      resetManualUploadModal();
-      if (manualPdfInput) manualPdfInput.value = '';
-    }
-
-    function openManualUploadModal(file) {
-      if (!manualUploadModal || !file) return;
-      manualUploadPendingFile = file;
-      if (manualUploadFileName) manualUploadFileName.textContent = file.name || '';
-      if (manualUploadStoreInput) manualUploadStoreInput.value = '';
-      setManualUploadProgress(0);
-      if (manualUploadProgressContainer) manualUploadProgressContainer.classList.add('hidden');
-      if (manualUploadConfirmBtn) manualUploadConfirmBtn.disabled = false;
-      if (manualUploadCancelBtn) manualUploadCancelBtn.disabled = false;
-      manualUploadModal.classList.remove('hidden');
-      setTimeout(() => {
-        if (manualUploadStoreInput) manualUploadStoreInput.focus();
-      }, 0);
-    }
-
-    async function startManualUpload() {
-      if (!manualUploadPendingFile) {
-        alert('Selecione um arquivo PDF.');
-        return;
-      }
-      const storeName = manualUploadStoreInput ? manualUploadStoreInput.value.trim() : '';
-      if (manualUploadProgressContainer) manualUploadProgressContainer.classList.remove('hidden');
-      if (manualUploadConfirmBtn) manualUploadConfirmBtn.disabled = true;
-      if (manualUploadCancelBtn) manualUploadCancelBtn.disabled = true;
-      try {
-        await uploadManualLabel(manualUploadPendingFile, storeName, {
-          onProgress: setManualUploadProgress
-        });
-        closeManualUploadModal();
-      } catch (e) {
-        console.error('Erro ao enviar etiqueta manual:', e);
-        alert(e && e.message ? e.message : 'Erro ao enviar etiqueta');
-        if (manualUploadConfirmBtn) manualUploadConfirmBtn.disabled = false;
-        if (manualUploadCancelBtn) manualUploadCancelBtn.disabled = false;
-      }
-    }
-
     if (uploadManualBtn) {
       uploadManualBtn.addEventListener('click', () => {
         if (manualPdfInput && manualPdfInput.files && manualPdfInput.files.length) {
-          openManualUploadModal(manualPdfInput.files[0]);
+          uploadManualLabel();
         } else if (manualPdfInput) {
           manualPdfInput.click();
         }
@@ -488,28 +398,9 @@
     if (manualPdfInput) {
       manualPdfInput.addEventListener('change', () => {
         if (manualPdfInput.files && manualPdfInput.files.length) {
-          openManualUploadModal(manualPdfInput.files[0]);
+          uploadManualLabel();
         }
       });
-    }
-    if (manualUploadCancelBtn) {
-      manualUploadCancelBtn.addEventListener('click', closeManualUploadModal);
-    }
-    if (manualUploadCloseBtn) {
-      manualUploadCloseBtn.addEventListener('click', () => {
-        if (manualUploadConfirmBtn && manualUploadConfirmBtn.disabled) return;
-        closeManualUploadModal();
-      });
-    }
-    if (manualUploadModal) {
-      manualUploadModal.addEventListener('click', e => {
-        if (e.target === manualUploadModal && manualUploadConfirmBtn && !manualUploadConfirmBtn.disabled) {
-          closeManualUploadModal();
-        }
-      });
-    }
-    if (manualUploadConfirmBtn) {
-      manualUploadConfirmBtn.addEventListener('click', startManualUpload);
     }
     const gestorUsersBtn = document.getElementById('gestorUsersBtn');
     if (gestorUsersBtn) {
@@ -999,15 +890,13 @@
         const createdAt = data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null;
         const name = (data.name || '').toLowerCase();
         const ownerEmail = (data.ownerEmail || '').toLowerCase();
-        const storeName = (data.storeName || '').toLowerCase();
         const docId = doc.id.toLowerCase();
         const dateStr = createdAt ? createdAt.toISOString().split('T')[0] : '';
         const searchMatch = !searchTerm ||
           name.includes(searchTerm) ||
           docId.includes(searchTerm) ||
           ownerEmail.includes(searchTerm) ||
-          dateStr.includes(searchTerm) ||
-          storeName.includes(searchTerm);
+          dateStr.includes(searchTerm);
         if (!searchMatch) continue;
         const startOk = !startDateFilter || (createdAt && createdAt >= new Date(startDateFilter));
         const endOk = !endDateFilter || (createdAt && createdAt <= new Date(endDateFilter + 'T23:59:59'));
@@ -1249,12 +1138,9 @@
       return items;
     }
 
-    async function extractDataFromPdf(file, arrayBuffer, pdfInstance) {
-      let pdf = pdfInstance;
-      if (!pdf) {
-        const buffer = arrayBuffer || (await file.arrayBuffer());
-        pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-      }
+    async function extractDataFromPdf(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       let itens = [];
@@ -1292,31 +1178,24 @@
       await batch.commit();
     }
 
-    async function processManualLabel(file, arrayBuffer, pdfInstance, manualStoreName = '') {
+    async function processManualLabel(file) {
       try {
-        const { loja, itens } = await extractDataFromPdf(file, arrayBuffer, pdfInstance);
+        const { loja, itens } = await extractDataFromPdf(file);
         if (itens.length) {
-          const lojaFinal = loja || manualStoreName || '';
-          await savePrintedSkuQuantities(itens, lojaFinal);
+          await savePrintedSkuQuantities(itens, loja);
         }
       } catch (e) {
         console.error('Erro ao processar OCR da etiqueta:', e);
       }
     }
 
-    async function uploadManualLabel(file, storeName, options = {}) {
-      if (!currentUser) {
-        throw new Error('Usuário não autenticado.');
+    async function uploadManualLabel() {
+      const file = manualPdfInput.files[0];
+      if (!currentUser || !file) {
+        alert('Selecione um arquivo PDF.');
+        return;
       }
-      if (!file) {
-        throw new Error('Arquivo PDF não selecionado.');
-      }
-      const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
       try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdfDocument = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pageCount = Number(pdfDocument.numPages) || 0;
-        if (onProgress) onProgress(0);
         const selecionado = await escolherGestorEmail(gestoresEmails);
         const foraHorarioAtual = foraDoHorario();
         const docRef = await db.collection('pdfDocs').add({
@@ -1327,30 +1206,12 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           name: file.name,
           status: 'nao_impresso',
-          foraHorario: foraHorarioAtual,
-          pageCount,
-          storeName: storeName || ''
+          foraHorario: foraHorarioAtual
         });
         const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
-        const uploadTask = fileRef.put(file);
-        const uploadSnapshot = await new Promise((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            snapshot => {
-              if (onProgress && snapshot.totalBytes > 0) {
-                const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-                onProgress(percent);
-              }
-            },
-            error => reject(error),
-            () => resolve(uploadTask.snapshot)
-          );
-        });
-        const url = await uploadSnapshot.ref.getDownloadURL();
-        const updateData = { url, storagePath: fileRef.fullPath };
-        if (pageCount) updateData.pageCount = pageCount;
-        if (storeName) updateData.storeName = storeName;
-        await docRef.update(updateData);
+        await fileRef.put(file);
+        const url = await fileRef.getDownloadURL();
+        await docRef.update({ url: url, storagePath: fileRef.fullPath });
         if (
           window.ExpedicaoNotifier &&
           typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
@@ -1369,14 +1230,13 @@
             pdfDocId: docRef.id,
           });
         }
-        await processManualLabel(file, arrayBuffer, pdfDocument, storeName);
-        if (manualPdfInput) manualPdfInput.value = '';
-        if (onProgress) onProgress(100);
+        await processManualLabel(file);
+        manualPdfInput.value = '';
         showToast('Etiqueta salva');
         await carregarEtiquetas();
       } catch (e) {
         console.error('Erro ao enviar etiqueta:', e);
-        throw e;
+        alert('Erro ao enviar etiqueta');
       }
     }
 
@@ -1479,9 +1339,6 @@
         ? createdDate.toLocaleString('pt-BR')
         : 'Data desconhecida';
       const quantidadeEtiquetas = getResumoQuantidade(data);
-      const storeName = data.storeName || '';
-      const pageCount = Number(data.pageCount) || 0;
-      const pageCountLabel = pageCount > 0 ? pageCount : '-';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1512,14 +1369,11 @@
         </div>
         <div class="expedicao-pdf-body">
           <p class="expedicao-pdf-name" title="${name}">${name}</p>
-          <p class="expedicao-pdf-store">Loja: ${storeName ? storeName : 'Não informado'}</p>
           <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
-          <p class="expedicao-pdf-pages">Páginas: ${pageCountLabel}</p>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
       div.dataset.fileName = name;
-      div.dataset.storeName = storeName;
       div.dataset.status = statusKey;
       return div;
     }
@@ -1542,9 +1396,6 @@
       const createdAt = data.createdAt && data.createdAt.toDate
         ? data.createdAt.toDate().toLocaleString('pt-BR')
         : 'Data desconhecida';
-      const storeName = data.storeName || '';
-      const pageCount = Number(data.pageCount) || 0;
-      const pageCountLabel = pageCount > 0 ? pageCount : '-';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1552,8 +1403,6 @@
           <div class="expedicao-pdf-list-info">
             <p class="expedicao-pdf-name">${name}</p>
             <p class="expedicao-pdf-meta">Criado por: ${owner} em ${createdAt}</p>
-            <p class="expedicao-pdf-meta">Loja: ${storeName ? storeName : 'Não informado'}</p>
-            <p class="expedicao-pdf-meta">Páginas: ${pageCountLabel}</p>
             ${foraHorario ? '<p class="expedicao-alert-text">Fora do horário</p>' : ''}
             <div class="expedicao-pdf-list-toolbar">
               <button class="expedicao-icon-btn" onclick="visualizar('${url}')" title="Visualizar"><i class="fas fa-eye"></i></button>
@@ -1578,7 +1427,6 @@
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
       div.dataset.fileName = name;
-      div.dataset.storeName = storeName;
       div.dataset.status = statusKey;
       return div;
     }
