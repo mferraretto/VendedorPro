@@ -92,6 +92,29 @@
     </div>
   </div>
 
+  <div id="storeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white w-full max-w-md p-6 rounded shadow-lg relative">
+      <h2 class="text-lg font-semibold mb-3">Informações da etiqueta</h2>
+      <label for="storeNameInput" class="block text-sm font-medium text-gray-700 mb-2">Nome da loja</label>
+      <input
+        type="text"
+        id="storeNameInput"
+        class="form-control w-full"
+        placeholder="Informe a loja"
+      />
+      <div id="storeModalProgress" class="mt-4 hidden">
+        <div class="w-full bg-gray-200 rounded-full h-2.5">
+          <div id="storeModalProgressBar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+        </div>
+        <p id="storeModalProgressText" class="mt-2 text-sm text-gray-600 text-center"></p>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button id="storeModalCancel" class="btn btn-secondary">Cancelar</button>
+        <button id="storeModalConfirm" class="btn btn-primary">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="sobrasModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white w-full max-w-md p-4 rounded shadow-lg relative">
       <button id="closeSobrasModal" class="absolute top-2 right-2 text-gray-600"><i class="fas fa-times"></i></button>
@@ -174,6 +197,7 @@
     const equipeUsuarios = new Map();
     let checklistRows = [];
     const collapsedOwners = new Set();
+    let pendingManualFile = null;
 
     const CARD_STATUS_CLASS_MAP = {
       nao_impresso: 'expedicao-pdf-card--pending',
@@ -292,6 +316,16 @@
       return docs;
     }
 
+    function escapeHtml(value) {
+      if (value == null) return '';
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function getResumoQuantidade(data) {
       if (!data) return 0;
       const totais = Array.isArray(data.totaisPorSku) ? data.totaisPorSku : [];
@@ -311,6 +345,21 @@
       if (Number.isFinite(data.totalPaginas)) return Number(data.totalPaginas);
       if (paginas.length) return paginas.length;
       return 0;
+    }
+
+    function getPdfPageCount(data) {
+      if (!data) return 0;
+      if (Number.isFinite(data.pageCount)) return Number(data.pageCount);
+      if (Number.isFinite(data.totalPaginas)) return Number(data.totalPaginas);
+      const paginas = Array.isArray(data.paginas) ? data.paginas : [];
+      if (!paginas.length) return 0;
+      let soma = 0;
+      paginas.forEach(pagina => {
+        const quantidade = Number(pagina?.quantidade);
+        if (Number.isFinite(quantidade)) soma += quantidade;
+      });
+      if (soma > 0) return soma;
+      return paginas.length;
     }
 
     function formatResumoRangeLabel(data, paginas, docId) {
@@ -378,6 +427,13 @@
     const sobrasResponsavelSelect = document.getElementById('sobrasResponsavel');
     const manualPdfInput = document.getElementById('manualPdfInput');
     const uploadManualBtn = document.getElementById('uploadManualBtn');
+    const storeModal = document.getElementById('storeModal');
+    const storeNameInput = document.getElementById('storeNameInput');
+    const storeModalConfirm = document.getElementById('storeModalConfirm');
+    const storeModalCancel = document.getElementById('storeModalCancel');
+    const storeModalProgress = document.getElementById('storeModalProgress');
+    const storeModalProgressBar = document.getElementById('storeModalProgressBar');
+    const storeModalProgressText = document.getElementById('storeModalProgressText');
     const checklistBtn = document.getElementById('checklistBtn');
     const checklistModal = document.getElementById('checklistModal');
     const closeChecklistModal = document.getElementById('closeChecklistModal');
@@ -385,11 +441,61 @@
     const exportChecklistBtn = document.getElementById('exportChecklistBtn');
     const checklistTotals = document.getElementById('checklistTotals');
     const checklistEnvioTotals = document.getElementById('checklistEnvioTotals');
-    
+
+    function resetStoreModalState() {
+      if (storeNameInput) storeNameInput.value = '';
+      if (storeModalProgress) storeModalProgress.classList.add('hidden');
+      if (storeModalProgressBar) storeModalProgressBar.style.width = '0%';
+      if (storeModalProgressText) storeModalProgressText.textContent = '';
+      if (storeModalConfirm) storeModalConfirm.disabled = false;
+      if (storeModalCancel) storeModalCancel.disabled = false;
+    }
+
+    function closeStoreModal(resetInput = true) {
+      if (resetInput && manualPdfInput) manualPdfInput.value = '';
+      pendingManualFile = null;
+      if (storeModal) storeModal.classList.add('hidden');
+      resetStoreModalState();
+    }
+
+    function openStoreModalWithFile(file) {
+      pendingManualFile = file;
+      resetStoreModalState();
+      if (storeModal) {
+        storeModal.classList.remove('hidden');
+        setTimeout(() => {
+          if (storeNameInput) storeNameInput.focus();
+        }, 50);
+      }
+    }
+
+    function setStoreModalLoading(isLoading) {
+      if (storeModalConfirm) storeModalConfirm.disabled = isLoading;
+      if (storeModalCancel) storeModalCancel.disabled = isLoading;
+    }
+
+    function showStoreModalProgress(text, percent) {
+      if (!storeModalProgress) return;
+      storeModalProgress.classList.remove('hidden');
+      if (typeof percent === 'number' && storeModalProgressBar) {
+        const clamped = Math.max(0, Math.min(100, percent));
+        storeModalProgressBar.style.width = `${clamped}%`;
+      }
+      if (storeModalProgressText && typeof text === 'string') {
+        storeModalProgressText.textContent = text;
+      }
+    }
+
+    function openManualUploadModal() {
+      if (manualPdfInput && manualPdfInput.files && manualPdfInput.files.length) {
+        openStoreModalWithFile(manualPdfInput.files[0]);
+      }
+    }
+
     if (uploadManualBtn) {
       uploadManualBtn.addEventListener('click', () => {
         if (manualPdfInput && manualPdfInput.files && manualPdfInput.files.length) {
-          uploadManualLabel();
+          openStoreModalWithFile(manualPdfInput.files[0]);
         } else if (manualPdfInput) {
           manualPdfInput.click();
         }
@@ -397,9 +503,7 @@
     }
     if (manualPdfInput) {
       manualPdfInput.addEventListener('change', () => {
-        if (manualPdfInput.files && manualPdfInput.files.length) {
-          uploadManualLabel();
-        }
+        openManualUploadModal();
       });
     }
     const gestorUsersBtn = document.getElementById('gestorUsersBtn');
@@ -417,6 +521,65 @@
     if (sobrasBtn && sobrasModal) {
       sobrasBtn.addEventListener('click', () => {
         sobrasModal.classList.remove('hidden');
+      });
+    }
+
+    async function handleStoreModalConfirm() {
+      if (!pendingManualFile) {
+        alert('Selecione um arquivo PDF.');
+        return;
+      }
+      const lojaNome = (storeNameInput?.value || '').trim();
+      if (!lojaNome) {
+        alert('Informe o nome da loja.');
+        return;
+      }
+      setStoreModalLoading(true);
+      let gestoresSelecionados = [];
+      try {
+        gestoresSelecionados = await escolherGestorEmail(gestoresEmails);
+      } catch (error) {
+        setStoreModalLoading(false);
+        return;
+      }
+      showStoreModalProgress('Contando páginas...', 5);
+      try {
+        await uploadManualLabel(pendingManualFile, lojaNome, {
+          gestoresSelecionados,
+          onProgress: ({ text, percent }) => showStoreModalProgress(text, percent)
+        });
+        closeStoreModal();
+      } catch (e) {
+        setStoreModalLoading(false);
+        showStoreModalProgress('Erro ao salvar arquivo. Tente novamente.', 0);
+      }
+    }
+
+    if (storeModalConfirm) {
+      storeModalConfirm.addEventListener('click', () => {
+        if (storeModalConfirm.disabled) return;
+        handleStoreModalConfirm();
+      });
+    }
+    if (storeModalCancel) {
+      storeModalCancel.addEventListener('click', () => {
+        if (storeModalCancel.disabled) return;
+        closeStoreModal();
+      });
+    }
+    if (storeModal) {
+      storeModal.addEventListener('click', e => {
+        if (e.target === storeModal && (!storeModalConfirm || !storeModalConfirm.disabled)) {
+          closeStoreModal();
+        }
+      });
+    }
+    if (storeNameInput) {
+      storeNameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && storeModalConfirm && !storeModalConfirm.disabled) {
+          e.preventDefault();
+          handleStoreModalConfirm();
+        }
       });
     }
     if (checklistBtn && checklistModal) {
@@ -1189,14 +1352,32 @@
       }
     }
 
-    async function uploadManualLabel() {
-      const file = manualPdfInput.files[0];
+    async function contarPaginasPdf(file) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const total = pdf?.numPages || 0;
+        if (pdf && typeof pdf.destroy === 'function') pdf.destroy();
+        return total;
+      } catch (error) {
+        console.error('Erro ao contar páginas do PDF:', error);
+        return 0;
+      }
+    }
+
+    async function uploadManualLabel(file, lojaNome, options = {}) {
       if (!currentUser || !file) {
         alert('Selecione um arquivo PDF.');
-        return;
+        throw new Error('Arquivo PDF não selecionado.');
       }
+      const { onProgress, gestoresSelecionados } = options;
       try {
-        const selecionado = await escolherGestorEmail(gestoresEmails);
+        if (typeof onProgress === 'function') onProgress({ text: 'Contando páginas...', percent: 5 });
+        const pageCount = await contarPaginasPdf(file);
+        if (typeof onProgress === 'function') onProgress({ text: 'Preparando envio...', percent: 15 });
+        const selecionado = Array.isArray(gestoresSelecionados)
+          ? gestoresSelecionados
+          : await escolherGestorEmail(gestoresEmails);
         const foraHorarioAtual = foraDoHorario();
         const docRef = await db.collection('pdfDocs').add({
           ownerUid: currentUser.uid,
@@ -1206,12 +1387,36 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           name: file.name,
           status: 'nao_impresso',
-          foraHorario: foraHorarioAtual
+          foraHorario: foraHorarioAtual,
+          loja: lojaNome || '',
+          totalPaginas: pageCount,
+          pageCount
         });
         const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
-        await fileRef.put(file);
+        if (typeof onProgress === 'function') onProgress({ text: 'Enviando arquivo...', percent: 25 });
+        await new Promise((resolve, reject) => {
+          const uploadTask = fileRef.put(file);
+          uploadTask.on(
+            'state_changed',
+            snapshot => {
+              if (!snapshot || !snapshot.totalBytes || typeof onProgress !== 'function') return;
+              const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+              const adjusted = Math.max(25, Math.min(95, percent));
+              onProgress({ text: `Enviando arquivo... ${percent}%`, percent: adjusted });
+            },
+            error => reject(error),
+            () => resolve()
+          );
+        });
         const url = await fileRef.getDownloadURL();
-        await docRef.update({ url: url, storagePath: fileRef.fullPath });
+        await docRef.update({
+          url: url,
+          storagePath: fileRef.fullPath,
+          loja: lojaNome || '',
+          totalPaginas: pageCount,
+          pageCount
+        });
+        if (typeof onProgress === 'function') onProgress({ text: 'Finalizando...', percent: 98 });
         if (
           window.ExpedicaoNotifier &&
           typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
@@ -1231,12 +1436,14 @@
           });
         }
         await processManualLabel(file);
-        manualPdfInput.value = '';
+        if (manualPdfInput) manualPdfInput.value = '';
+        if (typeof onProgress === 'function') onProgress({ text: 'Concluído!', percent: 100 });
         showToast('Etiqueta salva');
         await carregarEtiquetas();
       } catch (e) {
         console.error('Erro ao enviar etiqueta:', e);
         alert('Erro ao enviar etiqueta');
+        throw e;
       }
     }
 
@@ -1339,6 +1546,9 @@
         ? createdDate.toLocaleString('pt-BR')
         : 'Data desconhecida';
       const quantidadeEtiquetas = getResumoQuantidade(data);
+      const lojaDisplay = data.loja ? escapeHtml(data.loja) : 'Loja não informada';
+      const totalPaginas = getPdfPageCount(data);
+      const paginasLabel = totalPaginas > 0 ? totalPaginas : 'Não informado';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1370,6 +1580,8 @@
         <div class="expedicao-pdf-body">
           <p class="expedicao-pdf-name" title="${name}">${name}</p>
           <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
+          <p class="expedicao-pdf-quantity">Loja: ${lojaDisplay}</p>
+          <p class="expedicao-pdf-quantity">Páginas: ${paginasLabel}</p>
         </div>`;
       div.dataset.ownerUid = data.ownerUid || '';
       div.dataset.ownerEmail = data.ownerEmail || '';
@@ -1396,6 +1608,9 @@
       const createdAt = data.createdAt && data.createdAt.toDate
         ? data.createdAt.toDate().toLocaleString('pt-BR')
         : 'Data desconhecida';
+      const lojaDisplay = data.loja ? escapeHtml(data.loja) : 'Loja não informada';
+      const totalPaginas = getPdfPageCount(data);
+      const paginasLabel = totalPaginas > 0 ? totalPaginas : 'Não informado';
       const div = document.createElement('div');
       div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
       div.innerHTML = `
@@ -1403,6 +1618,7 @@
           <div class="expedicao-pdf-list-info">
             <p class="expedicao-pdf-name">${name}</p>
             <p class="expedicao-pdf-meta">Criado por: ${owner} em ${createdAt}</p>
+            <p class="expedicao-pdf-meta">Loja: ${lojaDisplay} &bull; Páginas: ${paginasLabel}</p>
             ${foraHorario ? '<p class="expedicao-alert-text">Fora do horário</p>' : ''}
             <div class="expedicao-pdf-list-toolbar">
               <button class="expedicao-icon-btn" onclick="visualizar('${url}')" title="Visualizar"><i class="fas fa-eye"></i></button>
