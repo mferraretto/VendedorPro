@@ -50,6 +50,34 @@
       flex-direction: column;
       gap: 26px;
     }
+    .labels-workflows {
+      display: grid;
+      gap: 24px;
+    }
+    .labels-workflow {
+      background: rgba(15, 23, 42, 0.22);
+      border-radius: 28px;
+      padding: 24px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .labels-workflow-header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .labels-workflow-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .labels-workflow-subtitle {
+      font-size: 0.9rem;
+      color: rgba(226, 232, 240, 0.85);
+    }
     .labels-drop {
       display: flex;
       flex-direction: column;
@@ -342,15 +370,46 @@
           <div class="shopee-labels">
             <div class="labels-banner">Etiquetas Shopee</div>
             <div class="labels-body">
-              <label class="labels-drop" for="file">
-                <input id="file" type="file" accept="application/pdf" />
-                <span class="labels-drop-icon"><i class="fa-solid fa-cloud-arrow-up"></i></span>
-                <span>Arrastar e soltar ou clicar para fazer upload</span>
-                <span class="labels-drop-note">PDF A4 com checklist Shopee</span>
-              </label>
-              <div class="labels-actions">
-                <button id="go" type="button" class="labels-start">Iniciar</button>
-                <span id="status" class="labels-status"></span>
+              <div class="labels-workflows">
+                <div class="labels-workflow">
+                  <div class="labels-workflow-header">
+                    <div class="labels-workflow-title">Checklist padrão</div>
+                    <p class="labels-workflow-subtitle">Corte tradicional 15/2/2 para etiquetas Shopee.</p>
+                  </div>
+                  <label class="labels-drop" for="file">
+                    <input id="file" type="file" accept="application/pdf" />
+                    <span class="labels-drop-icon"><i class="fa-solid fa-cloud-arrow-up"></i></span>
+                    <span>Arrastar e soltar ou clicar para fazer upload</span>
+                    <span class="labels-drop-note">PDF A4 com checklist Shopee</span>
+                  </label>
+                  <div class="labels-actions">
+                    <button id="go" type="button" class="labels-start">Iniciar</button>
+                    <span id="status" class="labels-status"></span>
+                  </div>
+                  <p class="labels-hint labels-hint-center">Colunas (cm): <strong>[2.2, 1.9, 1.9, 1.9, 1.9]</strong>. Zoom padrão: <strong>120%</strong> (ajustável em <code>zoomFactor</code>).</p>
+                </div>
+                <div class="labels-workflow">
+                  <div class="labels-workflow-header">
+                    <div class="labels-workflow-title">Retirada pelo comprador</div>
+                    <p class="labels-workflow-subtitle">Etiqueta 10×15,5 cm (topo) + checklist reduzido no rodapé.</p>
+                  </div>
+                  <label class="labels-drop" for="pickupFile">
+                    <input id="pickupFile" type="file" accept="application/pdf" />
+                    <span class="labels-drop-icon"><i class="fa-solid fa-cloud-arrow-up"></i></span>
+                    <span>Arraste ou clique para enviar o PDF específico de retirada</span>
+                    <span class="labels-drop-note">PDF A4 com checklist de retirada Shopee</span>
+                  </label>
+                  <div class="labels-actions">
+                    <button id="pickupGo" type="button" class="labels-start">Iniciar Retirada</button>
+                    <span id="pickupStatus" class="labels-status"></span>
+                  </div>
+                  <div class="labels-hint">
+                    Padrões aplicados automaticamente:<br />
+                    • Zoom da coluna: <strong>225%</strong> &nbsp;• Faixa: <strong>1,5 cm</strong> &nbsp;• Offset vertical: <strong>+0,2 cm</strong><br />
+                    • Pan X: <strong>50%</strong> &nbsp;• Pan Y: <strong>39%</strong> &nbsp;• Espaço entre colunas: <strong>0</strong><br />
+                    • Processamos pares: <strong>Etiqueta (1ª)</strong>, <strong>Checklist (2ª)</strong>. Última página ímpar (se houver) é ignorada.
+                  </div>
+                </div>
               </div>
               <div class="labels-options">
                 <div class="labels-field">
@@ -362,7 +421,6 @@
                   <span>Gerar PDF DEBUG</span>
                 </label>
               </div>
-              <p class="labels-hint labels-hint-center">Colunas (cm): <strong>[2.2, 1.9, 1.9, 1.9, 1.9]</strong>. Zoom padrão: <strong>120%</strong> (ajustável em <code>zoomFactor</code>).</p>
               <div class="labels-sections">
                 <div class="labels-card">
                   <h3 class="labels-card-title">Resultados</h3>
@@ -437,9 +495,12 @@
     const storage = firebase.storage();
 
     const fileInput = document.getElementById('file');
+    const pickupFileInput = document.getElementById('pickupFile');
     const processBtn = document.getElementById('go');
+    const pickupProcessBtn = document.getElementById('pickupGo');
     const debugCheckbox = document.getElementById('debug');
     const statusEl = document.getElementById('status');
+    const pickupStatusEl = document.getElementById('pickupStatus');
     const logEl = document.getElementById('log');
     const outEl = document.getElementById('out');
     const gestoresInput = document.getElementById('gestoresEmails');
@@ -460,9 +521,15 @@
       logEl.scrollTop = logEl.scrollHeight;
     };
 
-    const setStatus = (text) => {
-      statusEl.textContent = text || '';
+    const setStatus = (text, target = statusEl) => {
+      if (target) {
+        target.textContent = text || '';
+      }
     };
+
+    if (pickupFileInput) {
+      pickupFileInput.addEventListener('change', () => setStatus('', pickupStatusEl));
+    }
 
     let currentUser = null;
     let responsavelExpedicaoUid = null;
@@ -566,14 +633,18 @@
       });
     }
 
-    function toggleProcessingState(active) {
-      isProcessing = active;
-      processBtn.disabled = active || !currentUser;
+    function updateAuthUI() {
+      const disabled = isProcessing || !currentUser;
+      [processBtn, pickupProcessBtn].forEach((btn) => {
+        if (!btn) return;
+        btn.disabled = disabled;
+        btn.classList.toggle('opacity-60', btn.disabled);
+      });
     }
 
-    function updateAuthUI() {
-      processBtn.disabled = isProcessing || !currentUser;
-      processBtn.classList.toggle('opacity-60', processBtn.disabled);
+    function toggleProcessingState(active) {
+      isProcessing = active;
+      updateAuthUI();
     }
 
     function formatTime(seconds) {
@@ -732,6 +803,9 @@
             : null;
         const lojaMeta = typeof meta.loja === 'string' ? meta.loja.trim() : '';
         const dataCurtaMeta = typeof meta.dataProcessamento === 'string' ? meta.dataProcessamento.trim() : '';
+        const tipoProcessamentoMeta = typeof meta.tipoProcessamento === 'string' ? meta.tipoProcessamento.trim() : '';
+        const origemMeta = typeof meta.origem === 'string' ? meta.origem.trim() : '';
+
         const docPayload = {
           ownerUid: currentUser.uid,
           ownerEmail: currentUser.email,
@@ -745,6 +819,12 @@
         }
         if (dataCurtaMeta) {
           docPayload.dataProcessamento = dataCurtaMeta;
+        }
+        if (tipoProcessamentoMeta) {
+          docPayload.tipoProcessamento = tipoProcessamentoMeta;
+        }
+        if (origemMeta) {
+          docPayload.origem = origemMeta;
         }
         if (Number.isFinite(meta.totalPaginas)) {
           docPayload.totalPaginas = Number(meta.totalPaginas);
@@ -780,6 +860,12 @@
         if (dataCurtaMeta) {
           resumo.dataProcessamento = dataCurtaMeta;
         }
+        if (tipoProcessamentoMeta) {
+          resumo.tipoProcessamento = tipoProcessamentoMeta;
+        }
+        if (origemMeta) {
+          resumo.origem = origemMeta;
+        }
         if (Number.isFinite(meta.totalPaginas)) {
           resumo.totalPaginas = Number(meta.totalPaginas);
         }
@@ -806,6 +892,7 @@
           if (contadorFinalMeta !== null) additionalData.contadorFinal = contadorFinalMeta;
           if (lojaMeta) additionalData.loja = lojaMeta;
           if (dataCurtaMeta) additionalData.dataProcessamento = dataCurtaMeta;
+          if (tipoProcessamentoMeta) additionalData.tipoProcessamento = tipoProcessamentoMeta;
           const notifyPayload = {
             db,
             firebase,
@@ -815,7 +902,7 @@
             arquivoNome: fileName,
             totalPaginas: Number.isFinite(meta.totalPaginas) ? Number(meta.totalPaginas) : null,
             foraHorario: foraHorarioAtual,
-            origem: 'Etiquetas Shopee (Corte 15/2/2)',
+            origem: origemMeta || 'Etiquetas Shopee (Corte 15/2/2)',
             pdfDocId: docRef.id,
           };
           if (lojaMeta) {
@@ -823,6 +910,9 @@
           }
           if (dataCurtaMeta) {
             notifyPayload.dataProcessamento = dataCurtaMeta;
+          }
+          if (tipoProcessamentoMeta) {
+            notifyPayload.tipoProcessamento = tipoProcessamentoMeta;
           }
           if (Object.keys(additionalData).length) {
             notifyPayload.additionalData = additionalData;
@@ -867,8 +957,10 @@
       currentUser = user;
       if (!user) {
         setStatus('Faça login para processar as etiquetas.');
+        setStatus('Faça login para processar as etiquetas.', pickupStatusEl);
       } else {
         setStatus('');
+        setStatus('', pickupStatusEl);
         await carregarDadosUsuario(user);
       }
       updateAuthUI();
@@ -1167,6 +1259,333 @@
         toggleProcessingState(false);
       }
     });
+
+    if (pickupProcessBtn && pickupFileInput) {
+      pickupProcessBtn.addEventListener('click', async () => {
+        if (isProcessing) return;
+        if (!currentUser) {
+          alert('Faça login para processar e salvar PDFs.');
+          setStatus('Usuário não autenticado.', pickupStatusEl);
+          return;
+        }
+        const file = pickupFileInput.files?.[0];
+        if (!file) {
+          alert('Selecione um PDF de retirada.');
+          return;
+        }
+
+        const storeNameValue = (storeNameInput.value || '').replace(/\s+/g, ' ').trim();
+        if (!storeNameValue) {
+          alert('Informe o nome da loja das etiquetas.');
+          storeNameInput.focus();
+          return;
+        }
+
+        const shortDate = formatShortDate(new Date());
+        const storeFileSegment = sanitizeFileNameSegment(storeNameValue) || 'loja';
+
+        logEl.textContent = '';
+        outEl.innerHTML = 'Processando...';
+        setStatus('Lendo PDF…', pickupStatusEl);
+        toggleProcessingState(true);
+        openProcessingModal();
+        const startTime = Date.now();
+
+        try {
+          const wantDebug = debugCheckbox.checked;
+          const srcBytes = new Uint8Array(await file.arrayBuffer());
+          const srcDoc = await PDFLib.PDFDocument.load(srcBytes, { updateMetadata: false });
+          const outDoc = await PDFLib.PDFDocument.create();
+          const dbgDoc = wantDebug ? await PDFLib.PDFDocument.create() : null;
+          const totalPages = srcDoc.getPageCount();
+          const totalPairs = Math.floor(totalPages / 2);
+
+          if (totalPairs <= 0) {
+            throw new Error('É necessário ter páginas em pares (etiqueta + checklist).');
+          }
+
+          const expectedOutPages = totalPairs;
+          const labelFont = await outDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+          log(`Loja selecionada: ${storeNameValue}`);
+          log('Processamento: Retirada pelo comprador');
+          log(`Páginas originais: ${totalPages}`);
+          if (totalPages % 2 !== 0) {
+            log('Aviso: a última página sem par foi ignorada.');
+          }
+
+          updateProgress(0, totalPairs, startTime, progressFill, progressText, timerText);
+
+          let contadorInicial = null;
+          let proximoNumeroEtiqueta = 1;
+          let contadorInicializado = false;
+          if (expectedOutPages > 0) {
+            const inicial = await getNextShopeeLabelNumber(expectedOutPages);
+            const inicialSanitizado = Number.isFinite(inicial)
+              ? Math.max(1, Math.floor(inicial))
+              : 1;
+            contadorInicial = inicialSanitizado;
+            proximoNumeroEtiqueta = inicialSanitizado;
+            contadorInicializado = true;
+          }
+
+          const CM = 28.3464567;
+          const PAGE_W = 10 * CM;
+          const PAGE_H = 17 * CM;
+          const LABEL_H = 14.5 * CM;
+          const FOOTER_H = 2.5 * CM;
+          const CUT_TOP_5CM = 5 * CM;
+          const COL1 = 4.5 * CM;
+          const COLX = 3.9 * CM;
+          const USE_COLS = [3, 5];
+          const ZOOM = 0.8;
+          const BAND_H = 1.5 * CM;
+          const OFFSET = 0.2 * CM;
+          const PANX = 0.50;
+          const PANY = 0.39;
+          const GAP = 0;
+
+          async function drawEmbeddedFillWidth(dstPage, srcPage, cropBox, x, y, w, h) {
+            const embedded = cropBox
+              ? await outDoc.embedPage(srcPage, cropBox)
+              : await outDoc.embedPage(srcPage);
+            const ew = embedded.width;
+            const eh = embedded.height;
+            const scale = w / ew;
+            const drawW = w;
+            const drawH = eh * scale;
+            const drawX = x;
+            const drawY = y + (h - drawH) / 2;
+            dstPage.drawPage(embedded, {
+              x: drawX,
+              y: drawY,
+              width: drawW,
+              height: drawH,
+            });
+          }
+
+          function fitCropToAspect(crop, targetAspect, pageH) {
+            const w = crop.right - crop.left;
+            const h = crop.top - crop.bottom;
+            const currentAspect = w / h;
+            if (Math.abs(currentAspect - targetAspect) < 1e-3) return crop;
+
+            const cx = crop.left + w / 2;
+            const cy = crop.bottom + h / 2;
+
+            let newW = w;
+            let newH = h;
+            if (currentAspect > targetAspect) {
+              newW = h * targetAspect;
+            } else {
+              newH = w / targetAspect;
+            }
+
+            const left = cx - newW / 2;
+            const right = cx + newW / 2;
+            const bottom = Math.max(0, cy - newH / 2);
+            const top = Math.min(pageH, cy + newH / 2);
+            return { left, bottom, right, top };
+          }
+
+          function zoomCropBoth(crop, factor, pageW, pageH, panX01, panY01) {
+            const w = crop.right - crop.left;
+            const h = crop.top - crop.bottom;
+            const newW = Math.max(1, w / factor);
+            const newH = Math.max(1, h / factor);
+            const cx = crop.left + w * panX01;
+            const cy = crop.bottom + h * panY01;
+            let left = cx - newW / 2;
+            let right = cx + newW / 2;
+            let bottom = cy - newH / 2;
+            let top = cy + newH / 2;
+            left = Math.max(0, left);
+            right = Math.min(pageW, right);
+            bottom = Math.max(0, bottom);
+            top = Math.min(pageH, top);
+            return { left, bottom, right, top };
+          }
+
+          for (let i = 0, pairIndex = 0; i + 1 < totalPages; i += 2, pairIndex++) {
+            const labelSrc = srcDoc.getPage(i);
+            const checkSrc = srcDoc.getPage(i + 1);
+            const out = outDoc.addPage([PAGE_W, PAGE_H]);
+
+            await drawEmbeddedFillWidth(out, labelSrc, null, 0, PAGE_H - LABEL_H, PAGE_W, LABEL_H);
+
+            const srcW = checkSrc.getWidth();
+            const srcH = checkSrc.getHeight();
+
+            let bandTop = srcH - CUT_TOP_5CM - OFFSET;
+            let bandBottom = bandTop - BAND_H;
+            bandTop = Math.min(srcH, bandTop);
+            bandBottom = Math.max(0, bandBottom);
+
+            const colEdges = [
+              0,
+              COL1,
+              COL1 + COLX,
+              COL1 + 2 * COLX,
+              COL1 + 3 * COLX,
+              COL1 + 4 * COLX,
+            ];
+
+            const makeColCrop = (cIdx) => ({
+              left: colEdges[cIdx - 1],
+              right: colEdges[cIdx],
+              bottom: bandBottom,
+              top: bandTop,
+            });
+
+            const baseCrops = USE_COLS.map((idx) => makeColCrop(idx));
+            const zoomed = baseCrops.map((crop) => zoomCropBoth(crop, ZOOM, srcW, srcH, PANX, PANY));
+
+            const eachW = (PAGE_W - GAP) / USE_COLS.length;
+            const slotAspect = eachW / FOOTER_H;
+            const adjusted = zoomed.map((crop) => fitCropToAspect(crop, slotAspect, srcH));
+
+            for (let colIndex = 0; colIndex < adjusted.length; colIndex++) {
+              const crop = adjusted[colIndex];
+              const offsetX = eachW * colIndex + (colIndex > 0 ? GAP : 0);
+              await drawEmbeddedFillWidth(out, checkSrc, crop, offsetX, 0, eachW, FOOTER_H);
+            }
+
+            const numeroEtiquetaAtual = proximoNumeroEtiqueta;
+            proximoNumeroEtiqueta += 1;
+
+            const infoLines = [`Etiqueta Nº: ${numeroEtiquetaAtual}`];
+            if (storeNameValue) {
+              infoLines.push(`Loja: ${storeNameValue}`);
+            }
+            const infoMargin = 12;
+            const infoPaddingX = 8;
+            const infoPaddingY = 6;
+            let infoFontSize = 12;
+            const maxBoxWidth = Math.max(infoMargin * 2, PAGE_W - infoMargin * 2);
+            let widestLine = Math.max(
+              ...infoLines.map((line) => labelFont.widthOfTextAtSize(line, infoFontSize))
+            );
+            if (widestLine + infoPaddingX * 2 > maxBoxWidth) {
+              const scale = (maxBoxWidth - infoPaddingX * 2) / Math.max(widestLine, 1);
+              if (scale > 0) {
+                infoFontSize = Math.max(8, Math.floor(infoFontSize * scale));
+                widestLine = Math.max(
+                  ...infoLines.map((line) => labelFont.widthOfTextAtSize(line, infoFontSize))
+                );
+              }
+            }
+            const infoBoxWidth = Math.min(maxBoxWidth, widestLine + infoPaddingX * 2);
+            const lineHeight = infoFontSize + 4;
+            const infoBoxHeight = infoPaddingY * 2 + lineHeight * infoLines.length;
+            const infoBoxDefaultX = PAGE_W - infoBoxWidth - infoMargin;
+            const infoBoxX = infoBoxDefaultX >= infoMargin ? infoBoxDefaultX : infoMargin;
+            const infoBoxY = PAGE_H - LABEL_H + infoMargin;
+            out.drawRectangle({
+              x: infoBoxX,
+              y: infoBoxY,
+              width: infoBoxWidth,
+              height: infoBoxHeight,
+              color: PDFLib.rgb(1, 1, 1),
+              opacity: 0.9,
+              borderColor: PDFLib.rgb(0, 0, 0),
+              borderWidth: 0.5,
+            });
+            let textY = infoBoxY + infoBoxHeight - infoPaddingY - infoFontSize;
+            for (const line of infoLines) {
+              out.drawText(line, {
+                x: infoBoxX + infoPaddingX,
+                y: textY,
+                size: infoFontSize,
+                font: labelFont,
+                color: PDFLib.rgb(0, 0, 0),
+              });
+              textY -= lineHeight;
+            }
+
+            if (dbgDoc) {
+              const dbg = dbgDoc.addPage([srcW, srcH]);
+              const drawRect = (rect, color) => {
+                dbg.drawRectangle({
+                  x: rect.left,
+                  y: rect.bottom,
+                  width: rect.right - rect.left,
+                  height: rect.top - rect.bottom,
+                  borderWidth: 1,
+                  borderColor: PDFLib.rgb(...color),
+                });
+              };
+              drawRect({ left: 0, bottom: 0, right: srcW, top: srcH }, [0.25, 0.25, 0.25]);
+              drawRect({ left: 0, bottom: bandBottom, right: srcW, top: bandTop }, [0.95, 0.8, 0.1]);
+              baseCrops.forEach((crop) => drawRect(crop, [0.2, 0.6, 0.9]));
+              adjusted.forEach((crop) => drawRect(crop, [0.9, 0.2, 0.2]));
+            }
+
+            log(`OK ▶ Par ${pairIndex + 1} ▶ retirada com colunas ${USE_COLS.join(', ')}.`);
+            updateProgress(pairIndex + 1, totalPairs, startTime, progressFill, progressText, timerText);
+          }
+
+          if (outDoc.getPageCount() === 0) {
+            throw new Error('Nenhuma página válida foi gerada.');
+          }
+
+          setStatus('Salvando PDF…', pickupStatusEl);
+          const outBytes = await outDoc.save();
+          const outBlob = new Blob([outBytes], { type: 'application/pdf' });
+          const finalFileName = `${storeFileSegment}-retirada-${shortDate}.pdf`;
+          log(`Arquivo final: ${finalFileName}`);
+
+          const contadorFinal = contadorInicializado ? proximoNumeroEtiqueta - 1 : null;
+          const uploadInfo = await uploadPdfToFirebase(outBlob, finalFileName, {
+            totalPaginas: outDoc.getPageCount(),
+            totalPaginasOrigem: srcDoc.getPageCount(),
+            contadorInicial: contadorInicializado ? contadorInicial : null,
+            contadorFinal,
+            loja: storeNameValue,
+            dataProcessamento: shortDate,
+            tipoProcessamento: 'retirada_comprador',
+            origem: 'Etiquetas Shopee (Retirada Comprador)',
+          });
+
+          const outUrl = URL.createObjectURL(outBlob);
+          let html = `
+            <div class="labels-ok">✅ PDF final gerado e salvo no Firebase.</div>
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+              <a class="labels-link" href="${outUrl}" download="${finalFileName}">Baixar PDF final</a>
+              <a class="labels-link" href="${uploadInfo.url}" target="_blank" rel="noopener">Abrir no Firebase</a>
+            </div>
+          `;
+
+          if (dbgDoc) {
+            const dbgBytes = await dbgDoc.save();
+            const dbgBlob = new Blob([dbgBytes], { type: 'application/pdf' });
+            const dbgUrl = URL.createObjectURL(dbgBlob);
+            html += `<div class="labels-hint" style="margin-top:10px">DEBUG: <a class="labels-link" href="${dbgUrl}" download="debug_retirada.pdf">Baixar PDF com áreas de recorte</a></div>`;
+          }
+
+          outEl.innerHTML = html;
+          const storeInfo = document.createElement('div');
+          storeInfo.className = 'labels-hint';
+          storeInfo.style.marginTop = '6px';
+          storeInfo.textContent = `Loja: ${storeNameValue} • Data: ${shortDate}`;
+          outEl.appendChild(storeInfo);
+          if (contadorInicializado) {
+            log(`Numeração aplicada: ${contadorInicial} até ${contadorFinal}`);
+          }
+          setStatus('Concluído.', pickupStatusEl);
+          const finalTime = Math.round((Date.now() - startTime) / 1000);
+          completeProcessingModal(finalTime);
+        } catch (error) {
+          console.error(error);
+          setStatus('Erro.', pickupStatusEl);
+          outEl.innerHTML = '';
+          log(`ERRO: ${error?.message || error}`);
+          alert('Erro ao processar o PDF.');
+          failProcessingModal('Não foi possível concluir o processamento. Tente novamente.');
+        } finally {
+          toggleProcessingState(false);
+        }
+      });
+    }
   </script>
   <script src="shared.js"></script>
 </body>
