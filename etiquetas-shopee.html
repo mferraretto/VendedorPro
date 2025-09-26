@@ -1344,6 +1344,7 @@
           const PANX = 0.50;
           const PANY = 0.39;
           const GAP = 0;
+          const INFO_BOX_SHIFT = 4 * CM;
 
           async function drawEmbeddedFillWidth(dstPage, srcPage, cropBox, x, y, w, h) {
             const embedded = cropBox
@@ -1479,7 +1480,11 @@
             const infoBoxHeight = infoPaddingY * 2 + lineHeight * infoLines.length;
             const infoBoxDefaultX = PAGE_W - infoBoxWidth - infoMargin;
             const infoBoxX = infoBoxDefaultX >= infoMargin ? infoBoxDefaultX : infoMargin;
-            const infoBoxY = PAGE_H - LABEL_H + infoMargin;
+            const infoBoxBaseY = PAGE_H - LABEL_H + infoMargin;
+            const minInfoBoxY = infoMargin;
+            const maxInfoBoxY = Math.max(minInfoBoxY, PAGE_H - infoBoxHeight - infoMargin);
+            const desiredInfoBoxY = infoBoxBaseY - INFO_BOX_SHIFT;
+            const infoBoxY = Math.min(Math.max(desiredInfoBoxY, minInfoBoxY), maxInfoBoxY);
             out.drawRectangle({
               x: infoBoxX,
               y: infoBoxY,
