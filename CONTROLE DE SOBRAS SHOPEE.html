@@ -4140,10 +4140,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         }
 
         produtosVendidosResumo = Array.from(agregados.values()).map((item) => {
-          const vendidosPorSkuEntries = Array.from(
-            item.vendidosPorSku.entries(),
-          );
-          const vendidosPorSku = vendidosPorSkuEntries.sort(
+          const vendidosPorSku = Array.from(item.vendidosPorSku.entries()).sort(
             (a, b) => a[0].localeCompare(b[0], 'pt-BR'),
           );
           const grupoCompleto = Array.from(item.grupoOficial.values()).sort((
@@ -4164,24 +4161,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           const principaisVinculadosDetalhes = principaisVinculados.map(
             (sku) => ({
               sku,
-              quantidade: (() => {
-                const grupoPrincipalVinculado = grupoPorPrincipal.get(sku);
-                if (grupoPrincipalVinculado && grupoPrincipalVinculado.size) {
-                  const grupoNormalizado = new Set(
-                    Array.from(grupoPrincipalVinculado.values()).map(
-                      (skuGrupo) => normalizarSku(skuGrupo),
-                    ),
-                  );
-                  let acumulado = 0;
-                  vendidosPorSkuEntries.forEach(([skuVenda, quantidade]) => {
-                    if (grupoNormalizado.has(normalizarSku(skuVenda))) {
-                      acumulado += quantidade;
-                    }
-                  });
-                  if (acumulado) return acumulado;
-                }
-                return mapaQuantidadesPrincipais.get(sku) || 0;
-              })(),
+              quantidade: mapaQuantidadesPrincipais.get(sku) || 0,
             }),
           );
           const todosSkus = Array.from(
