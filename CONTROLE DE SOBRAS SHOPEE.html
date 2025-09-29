@@ -3906,6 +3906,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             .toUpperCase();
         const principalPorSku = new Map();
         const grupoPorPrincipal = new Map();
+        const principaisVinculadosPendentes = [];
         try {
           const associadosSnap = await db.collection('skuAssociado').get();
           associadosSnap.forEach((doc) => {
@@ -3924,10 +3925,59 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               principalPorSku.set(normalizarSku(associado), skuPrincipal);
               grupoAtual.add(associado);
             });
+
+            (dados.principaisVinculados || []).forEach((skuPrincipalVinc) => {
+              const principalVinculado = String(skuPrincipalVinc || '').trim();
+              if (!principalVinculado) return;
+              grupoAtual.add(principalVinculado);
+              principaisVinculadosPendentes.push({
+                origem: skuPrincipal,
+                vinculado: principalVinculado,
+              });
+            });
+
             grupoPorPrincipal.set(skuPrincipal, grupoAtual);
           });
         } catch (assErr) {
           console.error('Erro ao carregar SKUs associados', assErr);
+        }
+
+        if (principaisVinculadosPendentes.length) {
+          let houveAlteracao = true;
+          while (houveAlteracao) {
+            houveAlteracao = false;
+            for (const relacionamento of principaisVinculadosPendentes) {
+              const { origem, vinculado } = relacionamento;
+              const grupoOrigem = grupoPorPrincipal.get(origem);
+              if (!grupoOrigem) continue;
+
+              if (!grupoOrigem.has(vinculado)) {
+                grupoOrigem.add(vinculado);
+                houveAlteracao = true;
+              }
+
+              const normalizadoVinculado = normalizarSku(vinculado);
+              const principalAtual = principalPorSku.get(normalizadoVinculado);
+              if (principalAtual !== origem) {
+                principalPorSku.set(normalizadoVinculado, origem);
+                houveAlteracao = true;
+              }
+
+              const grupoVinculado = grupoPorPrincipal.get(vinculado);
+              if (grupoVinculado && grupoVinculado !== grupoOrigem) {
+                grupoVinculado.forEach((skuItem) => {
+                  const jaPossui = grupoOrigem.has(skuItem);
+                  grupoOrigem.add(skuItem);
+                  const normalizadoItem = normalizarSku(skuItem);
+                  if (principalPorSku.get(normalizadoItem) !== origem) {
+                    principalPorSku.set(normalizadoItem, origem);
+                  }
+                  if (!jaPossui) houveAlteracao = true;
+                });
+                grupoPorPrincipal.set(vinculado, grupoOrigem);
+              }
+            }
+          }
         }
 
         const agregados = new Map();
