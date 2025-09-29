@@ -22,7 +22,7 @@ const auth = getAuth(app);
 
 let editId = null;
 
-function parseLista(value) {
+function parseAssociados(value) {
   return value
     .split(',')
     .map((s) => s.trim())
@@ -38,7 +38,6 @@ async function carregarSkus() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="px-2 py-1">${data.skuPrincipal || docSnap.id}</td>
-      <td class="px-2 py-1">${(data.principaisLinkados || []).join(', ')}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
         <button class="text-blue-600" data-edit="${docSnap.id}">Editar</button>
@@ -52,16 +51,12 @@ async function carregarSkus() {
 async function salvarSku() {
   const principalEl = document.getElementById('skuPrincipal');
   const associadosEl = document.getElementById('skuAssociados');
-  const principaisLinkadosEl = document.getElementById(
-    'skusPrincipaisLinkados',
-  );
   const skuPrincipal = principalEl.value.trim();
   if (!skuPrincipal) {
     alert('Informe o SKU principal');
     return;
   }
-  const associados = parseLista(associadosEl.value);
-  const principaisLinkados = parseLista(principaisLinkadosEl.value);
+  const associados = parseAssociados(associadosEl.value);
   const id = editId && editId !== skuPrincipal ? editId : skuPrincipal;
   if (editId && editId !== skuPrincipal) {
     await deleteDoc(doc(db, 'skuAssociado', editId));
@@ -69,11 +64,9 @@ async function salvarSku() {
   await setDoc(doc(db, 'skuAssociado', skuPrincipal), {
     skuPrincipal,
     associados,
-    principaisLinkados,
   });
   principalEl.value = '';
   associadosEl.value = '';
-  principaisLinkadosEl.value = '';
   editId = null;
   await carregarSkus();
 }
@@ -83,9 +76,6 @@ function preencherFormulario(id, data) {
   document.getElementById('skuAssociados').value = (data.associados || []).join(
     ', ',
   );
-  document.getElementById('skusPrincipaisLinkados').value = (
-    data.principaisLinkados || []
-  ).join(', ');
   editId = id;
 }
 

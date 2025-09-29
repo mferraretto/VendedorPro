@@ -1,98 +1,56 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SKU Associado</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="css/styles.css?v=20240826" />
-  </head>
-  <body class="bg-gray-100 text-gray-800">
-    <div class="app-container">
-      <div id="sidebar-container"></div>
-      <div id="navbar-container"></div>
-      <main class="main-content p-4 space-y-4">
-        <div class="card">
-          <div class="card-header">
-            <h2 class="text-xl font-bold">Cadastrar SKU Associado</h2>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SKU Associado</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=20240826">
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="app-container">
+  <div id="sidebar-container"></div>
+  <div id="navbar-container"></div>
+  <main class="main-content p-4 space-y-4">
+    <div class="card">
+      <div class="card-header"><h2 class="text-xl font-bold">Cadastrar SKU Associado</h2></div>
+      <div class="card-body space-y-4">
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label for="skuPrincipal" class="block text-sm font-medium mb-1">SKU Principal</label>
+            <input id="skuPrincipal" class="w-full p-2 border rounded" placeholder="SKU principal" />
           </div>
-          <div class="card-body space-y-4">
-            <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <label for="skuPrincipal" class="block text-sm font-medium mb-1"
-                  >SKU Principal</label
-                >
-                <input
-                  id="skuPrincipal"
-                  class="w-full p-2 border rounded"
-                  placeholder="SKU principal"
-                />
-              </div>
-              <div>
-                <label
-                  for="skusPrincipaisLinkados"
-                  class="block text-sm font-medium mb-1"
-                  >SKUs Principais Linkados</label
-                >
-                <input
-                  id="skusPrincipaisLinkados"
-                  class="w-full p-2 border rounded"
-                  placeholder="Separados por vírgula"
-                />
-              </div>
-              <div>
-                <label
-                  for="skuAssociados"
-                  class="block text-sm font-medium mb-1"
-                  >SKUs Associados</label
-                >
-                <input
-                  id="skuAssociados"
-                  class="w-full p-2 border rounded"
-                  placeholder="Separados por vírgula"
-                />
-              </div>
-            </div>
-            <button id="salvarSku" class="btn-primary">Salvar</button>
+          <div>
+            <label for="skuAssociados" class="block text-sm font-medium mb-1">SKUs Associados</label>
+            <input id="skuAssociados" class="w-full p-2 border rounded" placeholder="Separados por vírgula" />
           </div>
         </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3 class="text-lg font-bold">SKUs Cadastrados</h3>
-          </div>
-          <div class="card-body overflow-x-auto">
-            <table class="min-w-full text-sm" id="skuTable">
-              <thead>
-                <tr class="text-left">
-                  <th class="px-2 py-1">SKU Principal</th>
-                  <th class="px-2 py-1">Principais Linkados</th>
-                  <th class="px-2 py-1">Associados</th>
-                  <th class="px-2 py-1">Ações</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </main>
-      <script type="module" src="firebase-config.js"></script>
-      <script type="module" src="sku-associado.js"></script>
-      <script>
-        window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
-      </script>
-      <script src="shared.js"></script>
+        <button id="salvarSku" class="btn-primary">Salvar</button>
+      </div>
     </div>
-  </body>
+
+    <div class="card">
+      <div class="card-header"><h3 class="text-lg font-bold">SKUs Cadastrados</h3></div>
+      <div class="card-body overflow-x-auto">
+        <table class="min-w-full text-sm" id="skuTable">
+          <thead>
+            <tr class="text-left">
+              <th class="px-2 py-1">SKU Principal</th>
+              <th class="px-2 py-1">Associados</th>
+              <th class="px-2 py-1">Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="firebase-config.js"></script>
+  <script type="module" src="sku-associado.js"></script>
+  <script>window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';</script>
+  <script src="shared.js"></script>
+  </div>
+</body>
 </html>
