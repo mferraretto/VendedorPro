@@ -4139,41 +4139,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           }
         }
 
-        const cacheGrupoNormalizado = new Map();
-        const obterGrupoNormalizado = (principal) => {
-          if (!principal) return null;
-          if (cacheGrupoNormalizado.has(principal)) {
-            return cacheGrupoNormalizado.get(principal);
-          }
-          const grupo = grupoPorPrincipal.get(principal);
-          if (!grupo) {
-            cacheGrupoNormalizado.set(principal, null);
-            return null;
-          }
-          const conjuntoNormalizado = new Set();
-          grupo.forEach((skuGrupo) => {
-            const normalizado = normalizarSku(skuGrupo);
-            if (normalizado) {
-              conjuntoNormalizado.add(normalizado);
-            }
-          });
-          cacheGrupoNormalizado.set(principal, conjuntoNormalizado);
-          return conjuntoNormalizado;
-        };
-
         produtosVendidosResumo = Array.from(agregados.values()).map((item) => {
           const vendidosPorSku = Array.from(item.vendidosPorSku.entries()).sort(
             (a, b) => a[0].localeCompare(b[0], 'pt-BR'),
           );
-          const vendidosPorSkuNormalizado = new Map();
-          vendidosPorSku.forEach(([sku, qtd]) => {
-            const chave = normalizarSku(sku);
-            if (!chave) return;
-            vendidosPorSkuNormalizado.set(
-              chave,
-              (vendidosPorSkuNormalizado.get(chave) || 0) + qtd,
-            );
-          });
           const grupoCompleto = Array.from(item.grupoOficial.values()).sort((
             a,
             b,
@@ -4190,22 +4159,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               ? item.principaisVinculadosQuantidades
               : new Map(item.principaisVinculadosQuantidades || []);
           const principaisVinculadosDetalhes = principaisVinculados.map(
-            (sku) => {
-              const grupoNormalizado = obterGrupoNormalizado(sku);
-              let quantidadeTotal = 0;
-              if (grupoNormalizado && grupoNormalizado.size) {
-                grupoNormalizado.forEach((skuNormalizado) => {
-                  quantidadeTotal +=
-                    vendidosPorSkuNormalizado.get(skuNormalizado) || 0;
-                });
-              } else {
-                quantidadeTotal = mapaQuantidadesPrincipais.get(sku) || 0;
-              }
-              return {
-                sku,
-                quantidade: quantidadeTotal,
-              };
-            },
+            (sku) => ({
+              sku,
+              quantidade: mapaQuantidadesPrincipais.get(sku) || 0,
+            }),
           );
           const todosSkus = Array.from(
             new Set([
