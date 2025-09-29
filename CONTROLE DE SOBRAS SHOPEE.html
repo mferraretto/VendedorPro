@@ -3733,7 +3733,23 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         .map((item) => {
           const totalFormatado = item.total.toLocaleString('pt-BR');
           const valorLiquidoFormatado = formatCurrency(item.valorLiquido);
-          const vendidosChips = item.vendidosPorSku
+          const principaisVinculadosLista = Array.from(
+            item.principaisVinculados || [],
+          ).filter(
+            (sku) => sku && sku.toLowerCase() !== item.sku.toLowerCase(),
+          );
+          const vendidosPorSkuEntries = item.vendidosPorSku;
+          const vendidosEntries = principaisVinculadosLista.length
+            ? principaisVinculadosLista.map((sku) => [
+                sku,
+                (vendidosPorSkuEntries.find(
+                  ([skuVend]) =>
+                    skuVend.toLowerCase() === sku.toLowerCase(),
+                ) || [null, 0])[1],
+              ])
+            : vendidosPorSkuEntries;
+          const vendidosChips = vendidosEntries
+            .filter(([sku]) => sku)
             .map(
               ([sku, qtd]) =>
                 `<span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"><span>${escapeHtml(
@@ -3744,33 +3760,27 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             )
             .join('');
           const vendidosHtml = vendidosChips
-            ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
+            ? `<div class="mt-2 flex flex-col gap-1">${
+                principaisVinculadosLista.length
+                  ? '<span class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Principais vinculados</span>'
+                  : ''
+              }<div class="flex flex-wrap gap-2">${vendidosChips}</div></div>`
             : '';
-          const principaisVinculadosExtras = (item.principaisVinculados || [])
-            .filter(
-              (sku) => sku && sku.toLowerCase() !== item.sku.toLowerCase(),
-            )
-            .map((sku) => escapeHtml(sku));
-          const extrasLista =
-            principaisVinculadosExtras.length
-              ? principaisVinculadosExtras
-              : item.grupoCompleto
-                  .filter(
-                    (skuExtra) =>
-                      !item.vendidosPorSku.some(
-                        ([skuVend]) =>
-                          skuVend.toLowerCase() === skuExtra.toLowerCase(),
-                      ),
+          const extrasHtml = principaisVinculadosLista.length
+            ? ''
+            : (() => {
+                const extrasLista = item.grupoCompleto
+                  .filter((skuExtra) =>
+                    !vendidosPorSkuEntries.some(
+                      ([skuVend]) =>
+                        skuVend.toLowerCase() === skuExtra.toLowerCase(),
+                    ),
                   )
                   .map((skuExtra) => escapeHtml(skuExtra));
-          const extrasRotulo = principaisVinculadosExtras.length
-            ? 'Principais vinculados'
-            : 'Associados';
-          const extrasHtml = extrasLista.length
-            ? `<div class="mt-1 text-xs text-gray-400">${extrasRotulo}: ${extrasLista.join(
-                ', ',
-              )}</div>`
-            : '';
+                return extrasLista.length
+                  ? `<div class="mt-1 text-xs text-gray-400">Associados: ${extrasLista.join(', ')}</div>`
+                  : '';
+              })();
           const usuariosTexto = item.usuarios
             .map(([nome, qtd]) =>
               `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`,
