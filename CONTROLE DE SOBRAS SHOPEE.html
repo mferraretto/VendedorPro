@@ -3746,17 +3746,28 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           const vendidosHtml = vendidosChips
             ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
             : '';
-          const extras = item.grupoCompleto
+          const principaisVinculadosExtras = (item.principaisVinculados || [])
             .filter(
-              (skuExtra) =>
-                !item.vendidosPorSku.some(
-                  ([skuVend]) =>
-                    skuVend.toLowerCase() === skuExtra.toLowerCase(),
-                ),
+              (sku) => sku && sku.toLowerCase() !== item.sku.toLowerCase(),
             )
-            .map((skuExtra) => escapeHtml(skuExtra));
-          const extrasHtml = extras.length
-            ? `<div class="mt-1 text-xs text-gray-400">Associados: ${extras.join(
+            .map((sku) => escapeHtml(sku));
+          const extrasLista =
+            principaisVinculadosExtras.length
+              ? principaisVinculadosExtras
+              : item.grupoCompleto
+                  .filter(
+                    (skuExtra) =>
+                      !item.vendidosPorSku.some(
+                        ([skuVend]) =>
+                          skuVend.toLowerCase() === skuExtra.toLowerCase(),
+                      ),
+                  )
+                  .map((skuExtra) => escapeHtml(skuExtra));
+          const extrasRotulo = principaisVinculadosExtras.length
+            ? 'Principais vinculados'
+            : 'Associados';
+          const extrasHtml = extrasLista.length
+            ? `<div class="mt-1 text-xs text-gray-400">${extrasRotulo}: ${extrasLista.join(
                 ', ',
               )}</div>`
             : '';
@@ -3907,6 +3918,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         const principalPorSku = new Map();
         const grupoPorPrincipal = new Map();
         const principaisVinculadosPendentes = [];
+        const principaisVinculadosPorPrincipal = new Map();
         try {
           const associadosSnap = await db.collection('skuAssociado').get();
           associadosSnap.forEach((doc) => {
@@ -3918,6 +3930,8 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             const principalNormalizado = normalizarSku(skuPrincipal);
             principalPorSku.set(principalNormalizado, skuPrincipal);
             const grupoAtual = grupoPorPrincipal.get(skuPrincipal) || new Set();
+            const vinculadosAtuais =
+              principaisVinculadosPorPrincipal.get(skuPrincipal) || new Set();
             grupoAtual.add(skuPrincipal);
             (dados.associados || []).forEach((skuAssoc) => {
               const associado = String(skuAssoc || '').trim();
@@ -3930,6 +3944,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               const principalVinculado = String(skuPrincipalVinc || '').trim();
               if (!principalVinculado) return;
               grupoAtual.add(principalVinculado);
+              vinculadosAtuais.add(principalVinculado);
               principaisVinculadosPendentes.push({
                 origem: skuPrincipal,
                 vinculado: principalVinculado,
@@ -3937,6 +3952,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             });
 
             grupoPorPrincipal.set(skuPrincipal, grupoAtual);
+            principaisVinculadosPorPrincipal.set(
+              skuPrincipal,
+              vinculadosAtuais,
+            );
           });
         } catch (assErr) {
           console.error('Erro ao carregar SKUs associados', assErr);
@@ -3950,6 +3969,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               const { origem, vinculado } = relacionamento;
               const grupoOrigem = grupoPorPrincipal.get(origem);
               if (!grupoOrigem) continue;
+
+              const setPrincipaisOrigem =
+                principaisVinculadosPorPrincipal.get(origem) || new Set();
+              if (!principaisVinculadosPorPrincipal.has(origem)) {
+                principaisVinculadosPorPrincipal.set(origem, setPrincipaisOrigem);
+              }
 
               if (!grupoOrigem.has(vinculado)) {
                 grupoOrigem.add(vinculado);
@@ -3975,7 +4000,29 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                   if (!jaPossui) houveAlteracao = true;
                 });
                 grupoPorPrincipal.set(vinculado, grupoOrigem);
+              } else if (!grupoVinculado) {
+                grupoPorPrincipal.set(vinculado, grupoOrigem);
               }
+
+              const setPrincipaisVinculado =
+                principaisVinculadosPorPrincipal.get(vinculado);
+              if (setPrincipaisVinculado && setPrincipaisVinculado !== setPrincipaisOrigem) {
+                const tamanhoAntes = setPrincipaisOrigem.size;
+                setPrincipaisVinculado.forEach((sku) =>
+                  setPrincipaisOrigem.add(sku),
+                );
+                if (setPrincipaisOrigem.size !== tamanhoAntes) {
+                  houveAlteracao = true;
+                }
+              }
+
+              if (!setPrincipaisOrigem.has(vinculado)) {
+                setPrincipaisOrigem.add(vinculado);
+                houveAlteracao = true;
+              }
+
+              principaisVinculadosPorPrincipal.set(origem, setPrincipaisOrigem);
+              principaisVinculadosPorPrincipal.set(vinculado, setPrincipaisOrigem);
             }
           }
         }
@@ -4023,6 +4070,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                     grupoOficial:
                       grupoPorPrincipal.get(principal) ||
                       new Set([principal]),
+                    principaisVinculados:
+                      principaisVinculadosPorPrincipal.get(principal) ||
+                      new Set(),
                   });
                 }
 
@@ -4053,6 +4103,13 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             a,
             b,
           ) => a.localeCompare(b, 'pt-BR'));
+          const principaisVinculadosFonte =
+            item.principaisVinculados instanceof Set
+              ? item.principaisVinculados
+              : new Set(item.principaisVinculados || []);
+          const principaisVinculados = Array.from(
+            principaisVinculadosFonte.values(),
+          ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
           const todosSkus = Array.from(
             new Set([
               ...grupoCompleto,
@@ -4069,6 +4126,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             vendidosPorSku,
             grupoCompleto,
             todosSkus,
+            principaisVinculados,
           };
         });
 
