@@ -3733,24 +3733,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         .map((item) => {
           const totalFormatado = item.total.toLocaleString('pt-BR');
           const valorLiquidoFormatado = formatCurrency(item.valorLiquido);
-          const vendidosChips = item.vendidosPorSku
-            .map(
-              ([sku, qtd]) =>
-                `<span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"><span>${escapeHtml(
-                  sku,
-                )}</span><span class="font-semibold text-gray-600">${qtd.toLocaleString(
-                  'pt-BR',
-                )}</span></span>`,
-            )
-            .join('');
-          const vendidosHtml = vendidosChips
-            ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
-            : '';
           const principaisDetalhes = Array.isArray(
             item.principaisVinculadosDetalhes,
           )
             ? item.principaisVinculadosDetalhes
             : [];
+          let vendidosHtml = '';
           let extrasHtml = '';
           if (principaisDetalhes.length) {
             const linhasPrincipais = principaisDetalhes
@@ -3770,6 +3758,19 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               </div>
             `.trim();
           } else {
+            const vendidosChips = item.vendidosPorSku
+              .map(
+                ([sku, qtd]) =>
+                  `<span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"><span>${escapeHtml(
+                    sku,
+                  )}</span><span class="font-semibold text-gray-600">${qtd.toLocaleString(
+                    'pt-BR',
+                  )}</span></span>`,
+              )
+              .join('');
+            vendidosHtml = vendidosChips
+              ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
+              : '';
             const extrasLista = item.grupoCompleto
               .filter(
                 (skuExtra) =>
@@ -4111,14 +4112,28 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 if (principaisDoRegistro.size) {
                   const skuNormalizado = normalizarSku(skuOriginal);
                   let principalEncontrado = null;
-                  principaisDoRegistro.forEach((principalVinculado) => {
-                    if (principalEncontrado) return;
+                  for (const principalVinculado of principaisDoRegistro) {
+                    if (!principalVinculado) continue;
                     if (
                       normalizarSku(principalVinculado) === skuNormalizado
                     ) {
                       principalEncontrado = principalVinculado;
+                      break;
                     }
-                  });
+                    const grupoPrincipalVinculado =
+                      grupoPorPrincipal.get(principalVinculado);
+                    if (grupoPrincipalVinculado) {
+                      for (const skuRelacionado of grupoPrincipalVinculado) {
+                        if (
+                          normalizarSku(skuRelacionado) === skuNormalizado
+                        ) {
+                          principalEncontrado = principalVinculado;
+                          break;
+                        }
+                      }
+                    }
+                    if (principalEncontrado) break;
+                  }
                   if (principalEncontrado) {
                     const mapaQuantidades =
                       registro.principaisVinculadosQuantidades instanceof Map
