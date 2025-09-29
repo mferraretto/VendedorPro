@@ -609,7 +609,7 @@ async function imprimirFechamento() {
     head: [['Data', 'Loja', 'Saque']],
     body: saquesBody,
     foot: saquesFoot,
-    margin: { left: margin, right: margin },
+    margin: { top: 32, left: margin, right: margin },
     styles: {
       font: 'Roboto',
       fontSize: 12,
@@ -665,7 +665,7 @@ async function imprimirFechamento() {
     head: [['Data', '%', 'Valor', 'Status']],
     body: comissoesBody,
     foot: comissoesFoot,
-    margin: { left: margin, right: margin },
+    margin: { top: 32, left: margin, right: margin },
     styles: {
       font: 'Roboto',
       fontSize: 12,
