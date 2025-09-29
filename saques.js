@@ -344,72 +344,33 @@ function exportarSelecionadosPDF() {
     .filter(Boolean);
 
   const totalSaque = itens.reduce((s, x) => s + (Number(x.valor) || 0), 0);
-  const taxaFinal = taxaFinalPorTotal(totalSaque);
   const body = [];
-  const resumo = {};
 
   itens.forEach((s) => {
     const valor = Number(s.valor || 0);
-    const comissaoPrev = valor * taxaFinal;
     const status = s.percentualPago > 0 ? 'PAGO' : 'A PAGAR';
 
     body.push([
       formatarDataBR(s.data),
       s.origem || '',
       valor.toFixed(2),
-      `${(taxaFinal * 100).toFixed(0)}%`,
-      comissaoPrev.toFixed(2),
       status,
     ]);
-
-    if (!resumo[s.origem || '-']) {
-      resumo[s.origem || '-'] = { total: 0, pagos: true };
-    }
-    resumo[s.origem || '-'].total += valor;
-    resumo[s.origem || '-'].pagos =
-      resumo[s.origem || '-'].pagos && s.percentualPago > 0;
   });
 
   doc.autoTable({
-    head: [['Data', 'Loja', 'Saque', '%', 'Comissão', 'Status']],
+    head: [['Data', 'Loja', 'Saque', 'Status']],
     body,
     startY: 25,
   });
 
-  const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 25;
-
-  // Resumo por loja
-  const resumoBody = Object.keys(resumo).map((loja) => {
-    const r = resumo[loja];
-    return [
-      loja,
-      r.total.toFixed(2),
-      `${(taxaFinal * 100).toFixed(0)}%`,
-      (r.total * taxaFinal).toFixed(2),
-      r.pagos ? 'PAGO' : 'A PAGAR',
-    ];
-  });
-
-  doc.autoTable({
-    head: [['Loja', 'Total', '%', 'Comissão Total', 'Status']],
-    body: resumoBody,
-    startY: finalY,
-  });
-
-  const finalY2 = doc.lastAutoTable ? doc.lastAutoTable.finalY : finalY;
-  const totalComissaoPdf = totalSaque * taxaFinal;
+  const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 25;
 
   doc.setFontSize(12);
-  doc.text(`Total de Saques: R$ ${totalSaque.toFixed(2)}`, 14, finalY2 + 10);
   doc.text(
-    `Total de Comissão (${(taxaFinal * 100).toFixed(0)}%): R$ ${totalComissaoPdf.toFixed(2)}`,
+    `Total de Saques Selecionados: R$ ${totalSaque.toFixed(2)}`,
     14,
-    finalY2 + 20,
-  );
-  doc.text(
-    `Percentual Médio: ${(taxaFinal * 100).toFixed(2)}%`,
-    14,
-    finalY2 + 30,
+    finalY + 10,
   );
 
   // Evite acentos no nome de arquivo para compatibilidade
