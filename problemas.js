@@ -7,6 +7,7 @@ import {
   collection,
   doc,
   getDocs,
+  deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getAuth,
@@ -23,6 +24,8 @@ let uidAtual = null;
 let pecasCache = [];
 let pecasFiltradas = [];
 let pecasColRef = null;
+let reembolsosCache = [];
+let reembolsosColRef = null;
 
 onAuthStateChanged(auth, (user) => {
   if (!user) {
@@ -96,11 +99,8 @@ async function salvarPeca(ev) {
     peca: form.peca.value.trim(),
     valorGasto: 0,
     status: 'NÃO FEITO',
+    informacoes: form.informacoes?.value.trim() || '',
   };
-  if (!registro.data || !registro.numero || !registro.peca) {
-    alert('Preencha os campos obrigatórios.');
-    return;
-  }
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'pecasfaltando');
   const colRef = collection(baseDoc, 'itens');
   const ref = doc(colRef);
@@ -146,65 +146,86 @@ function renderPecas() {
     const tr = document.createElement('tr');
     tr.className =
       'border-t border-slate-100 hover:bg-slate-50 odd:bg-white even:bg-slate-50';
-    tr.innerHTML = `
-      <td class="p-2">${formatarData(d.data)}</td>
-      <td class="p-2"><input type="text" class="nome-input w-full rounded-xl border-slate-300 p-1 focus:border-violet-500 focus:ring-violet-500" data-id="${d.id}" value="${d.nomeCliente || ''}"></td>
-      <td class="p-2">${d.apelido || ''}</td>
-      <td class="p-2">${d.numero || ''}</td>
-      <td class="p-2">${d.loja || ''}</td>
-      <td class="p-2">${d.peca || ''}</td>
-      <td class="p-2">${d.nf || ''}</td>
-      <td class="p-2 text-right">
-        <div class="flex items-center justify-end">
-          <span class="mr-1">R$</span>
-          <input type="number" step="0.01" class="valor-input w-24 rounded-xl border-slate-300 p-1 text-right focus:border-violet-500 focus:ring-violet-500" data-id="${d.id}" value="${(Number(d.valorGasto) || 0).toFixed(2)}">
-        </div>
-      </td>
-      <td class="p-2">
-        <select class="status-select text-xs font-medium rounded-full px-2 py-1 border" data-id="${d.id}">
-          <option value="NÃO FEITO" ${d.status === 'NÃO FEITO' ? 'selected' : ''}>Não feito</option>
-          <option value="EM ANDAMENTO" ${d.status === 'EM ANDAMENTO' ? 'selected' : ''}>Em andamento</option>
-          <option value="RESOLVIDO" ${d.status === 'RESOLVIDO' ? 'selected' : ''}>Resolvido</option>
-        </select>
-      </td>`;
-    const select = tr.querySelector('.status-select');
-    aplicarCorStatus(select, d.status);
-    select.addEventListener('change', async (ev) => {
-      const newStatus = ev.target.value;
-      const { id, ...rest } = d;
-      await setDocWithCopy(
-        doc(pecasColRef, id),
-        { ...rest, status: newStatus },
-        uidAtual,
-      );
-      d.status = newStatus;
-      aplicarCorStatus(select, newStatus);
-    });
 
-    const nomeInput = tr.querySelector('.nome-input');
-    nomeInput.addEventListener('change', async (ev) => {
-      const newNome = ev.target.value.trim();
-      const { id, ...rest } = d;
-      await setDocWithCopy(
-        doc(pecasColRef, id),
-        { ...rest, nomeCliente: newNome },
-        uidAtual,
-      );
-      d.nomeCliente = newNome;
-    });
+    const baseInputClass =
+      'w-full rounded-xl border-slate-300 p-1 focus:border-violet-500 focus:ring-violet-500';
 
-    const valorInput = tr.querySelector('.valor-input');
-    valorInput.addEventListener('change', async (ev) => {
-      const newValor = parseFloat(ev.target.value) || 0;
-      const { id, ...rest } = d;
-      await setDocWithCopy(
-        doc(pecasColRef, id),
-        { ...rest, valorGasto: newValor },
-        uidAtual,
-      );
-      d.valorGasto = newValor;
-      ev.target.value = newValor.toFixed(2);
-    });
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'date',
+        valor: d.data || '',
+        onChange: (valor) => atualizarPeca(d, { data: valor }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.nomeCliente || '',
+        onChange: (valor) => atualizarPeca(d, { nomeCliente: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.apelido || '',
+        onChange: (valor) => atualizarPeca(d, { apelido: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.numero || '',
+        onChange: (valor) => atualizarPeca(d, { numero: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.loja || '',
+        onChange: (valor) => atualizarPeca(d, { loja: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.peca || '',
+        onChange: (valor) => atualizarPeca(d, { peca: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.nf || '',
+        onChange: (valor) => atualizarPeca(d, { nf: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaTextarea({
+        valor: d.informacoes || '',
+        onChange: (valor) => atualizarPeca(d, { informacoes: valor.trim() }),
+      }),
+    );
+
+    tr.appendChild(criarCelulaValor(d));
+
+    tr.appendChild(criarCelulaStatus(d));
+
+    tr.appendChild(criarCelulaAcoes(d, 'peca'));
+
     tbody.appendChild(tr);
   });
 }
@@ -219,6 +240,7 @@ function exportarCsv() {
     'Loja',
     'Peça Faltante',
     'NF',
+    'Informações',
     'Valor Gasto',
     'Status',
   ];
@@ -230,6 +252,7 @@ function exportarCsv() {
     d.loja || '',
     d.peca || '',
     d.nf || '',
+    d.informacoes || '',
     (Number(d.valorGasto) || 0).toFixed(2).replace('.', ','),
     d.status || '',
   ]);
@@ -254,11 +277,8 @@ async function salvarReembolso(ev) {
     loja: form.loja.value.trim(),
     problema: form.problema.value.trim(),
     valor: parseFloat(form.valor.value) || 0,
+    informacoes: form.informacoes?.value.trim() || '',
   };
-  if (!registro.data || !registro.numero || !registro.problema) {
-    alert('Preencha os campos obrigatórios.');
-    return;
-  }
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'reembolsos');
   const colRef = collection(baseDoc, 'itens');
   const ref = doc(colRef);
@@ -272,26 +292,115 @@ async function salvarReembolso(ev) {
 async function carregarReembolsos() {
   const tbody = document.getElementById('reembolsosTableBody');
   if (!tbody || !uidAtual) return;
-  tbody.innerHTML = '';
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'reembolsos');
-  const colRef = collection(baseDoc, 'itens');
-  const snap = await getDocs(colRef);
-  const dados = snap.docs
+  reembolsosColRef = collection(baseDoc, 'itens');
+  const snap = await getDocs(reembolsosColRef);
+  reembolsosCache = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
-  dados.forEach((d) => {
+  renderReembolsos();
+}
+
+function renderReembolsos() {
+  const tbody = document.getElementById('reembolsosTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const baseInputClass =
+    'w-full rounded-xl border-slate-300 p-1 focus:border-violet-500 focus:ring-violet-500';
+  reembolsosCache.forEach((d) => {
     const tr = document.createElement('tr');
     tr.className =
       'border-t border-slate-100 hover:bg-slate-50 odd:bg-white even:bg-slate-50';
-    tr.innerHTML = `
-      <td class="p-2">${formatarData(d.data)}</td>
-      <td class="p-2">${d.numero || ''}</td>
-      <td class="p-2">${d.apelido || ''}</td>
-      <td class="p-2">${d.nf || ''}</td>
-      <td class="p-2">${d.loja || ''}</td>
-      <td class="p-2">${d.problema || ''}</td>
-      <td class="p-2 text-right">R$ ${(Number(d.valor) || 0).toFixed(2)}</td>
-    `;
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'date',
+        valor: d.data || '',
+        onChange: (valor) => atualizarReembolso(d, { data: valor }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.numero || '',
+        onChange: (valor) => atualizarReembolso(d, { numero: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.apelido || '',
+        onChange: (valor) => atualizarReembolso(d, { apelido: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.nf || '',
+        onChange: (valor) => atualizarReembolso(d, { nf: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.loja || '',
+        onChange: (valor) => atualizarReembolso(d, { loja: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.problema || '',
+        onChange: (valor) => atualizarReembolso(d, { problema: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaTextarea({
+        valor: d.informacoes || '',
+        onChange: (valor) =>
+          atualizarReembolso(d, { informacoes: valor.trim() }),
+      }),
+    );
+
+    const valorTd = document.createElement('td');
+    valorTd.className = 'p-2';
+    const valorWrapper = document.createElement('div');
+    valorWrapper.className = 'flex items-center justify-end gap-1';
+    const valorPrefix = document.createElement('span');
+    valorPrefix.textContent = 'R$';
+    valorPrefix.className = 'text-slate-500';
+    const valorInput = document.createElement('input');
+    valorInput.type = 'number';
+    valorInput.step = '0.01';
+    valorInput.value = formatarNumero(d.valor);
+    valorInput.className =
+      'w-28 rounded-xl border-slate-300 p-1 text-right focus:border-violet-500 focus:ring-violet-500';
+    valorInput.addEventListener('change', async (ev) => {
+      const novoValor = Number.parseFloat(ev.target.value);
+      const valorConvertido = Number.isFinite(novoValor) ? novoValor : 0;
+      await atualizarReembolso(d, { valor: valorConvertido });
+      ev.target.value = formatarNumero(valorConvertido);
+    });
+    valorWrapper.appendChild(valorPrefix);
+    valorWrapper.appendChild(valorInput);
+    valorTd.appendChild(valorWrapper);
+    tr.appendChild(valorTd);
+
+    const acaoTd = criarCelulaAcoes(d, 'reembolso');
+    tr.appendChild(acaoTd);
+
     tbody.appendChild(tr);
   });
 }
@@ -336,6 +445,169 @@ function formatarData(str) {
   if (!str) return '';
   const [ano, mes, dia] = str.split('-');
   return `${dia}/${mes}/${ano}`;
+}
+
+function formatarNumero(valor) {
+  return (Number(valor) || 0).toFixed(2);
+}
+
+function criarCelulaInput({ tipo, valor, onChange, classe }) {
+  const td = document.createElement('td');
+  td.className = 'p-2';
+  const input = document.createElement('input');
+  input.type = tipo;
+  input.value = valor;
+  if (classe) {
+    input.className = classe;
+  }
+  input.addEventListener('change', async (ev) => {
+    await onChange(ev.target.value);
+  });
+  td.appendChild(input);
+  return td;
+}
+
+function criarCelulaTextarea({ valor, onChange }) {
+  const td = document.createElement('td');
+  td.className = 'p-2';
+  const textarea = document.createElement('textarea');
+  textarea.value = valor;
+  textarea.rows = 2;
+  textarea.className =
+    'w-full rounded-xl border-slate-300 p-1 focus:border-violet-500 focus:ring-violet-500 resize-y min-h-[36px]';
+  textarea.addEventListener('change', async (ev) => {
+    await onChange(ev.target.value);
+  });
+  td.appendChild(textarea);
+  return td;
+}
+
+function criarCelulaValor(dado) {
+  const td = document.createElement('td');
+  td.className = 'p-2';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'flex items-center justify-end gap-1';
+  const span = document.createElement('span');
+  span.textContent = 'R$';
+  span.className = 'text-slate-500';
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.step = '0.01';
+  input.value = formatarNumero(dado.valorGasto);
+  input.className =
+    'w-28 rounded-xl border-slate-300 p-1 text-right focus:border-violet-500 focus:ring-violet-500';
+  input.addEventListener('change', async (ev) => {
+    const novoValor = Number.parseFloat(ev.target.value);
+    const valorConvertido = Number.isFinite(novoValor) ? novoValor : 0;
+    await atualizarPeca(dado, { valorGasto: valorConvertido });
+    ev.target.value = formatarNumero(valorConvertido);
+  });
+  wrapper.appendChild(span);
+  wrapper.appendChild(input);
+  td.appendChild(wrapper);
+  return td;
+}
+
+function criarCelulaStatus(dado) {
+  const td = document.createElement('td');
+  td.className = 'p-2';
+  const select = document.createElement('select');
+  select.className =
+    'status-select text-xs font-medium rounded-full px-2 py-1 border focus:border-violet-500 focus:ring-violet-500';
+  const opcoes = [
+    { valor: 'NÃO FEITO', texto: 'Não feito' },
+    { valor: 'EM ANDAMENTO', texto: 'Em andamento' },
+    { valor: 'RESOLVIDO', texto: 'Resolvido' },
+  ];
+  opcoes.forEach(({ valor, texto }) => {
+    const option = document.createElement('option');
+    option.value = valor;
+    option.textContent = texto;
+    if (dado.status === valor) option.selected = true;
+    select.appendChild(option);
+  });
+  aplicarCorStatus(select, dado.status);
+  select.addEventListener('change', async (ev) => {
+    const novoStatus = ev.target.value;
+    await atualizarPeca(dado, { status: novoStatus });
+    aplicarCorStatus(select, novoStatus);
+  });
+  td.appendChild(select);
+  return td;
+}
+
+function criarCelulaAcoes(dado, tipo) {
+  const td = document.createElement('td');
+  td.className = 'p-2 text-right';
+  const botao = document.createElement('button');
+  botao.type = 'button';
+  botao.textContent = 'Excluir';
+  botao.className =
+    'rounded-xl border border-red-200 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50';
+  botao.addEventListener('click', async () => {
+    const confirma = window.confirm('Deseja excluir este registro?');
+    if (!confirma) return;
+    if (tipo === 'peca') {
+      await excluirPeca(dado.id);
+    } else {
+      await excluirReembolso(dado.id);
+    }
+  });
+  td.appendChild(botao);
+  return td;
+}
+
+async function atualizarPeca(dado, atualizacoes) {
+  if (!pecasColRef) return;
+  const ref = doc(pecasColRef, dado.id);
+  const atualizado = { ...dado, ...atualizacoes };
+  const { id, ...payload } = atualizado;
+  await setDocWithCopy(ref, payload, uidAtual);
+  Object.assign(dado, atualizacoes);
+  const original = pecasCache.find((item) => item.id === dado.id);
+  if (original) Object.assign(original, atualizacoes);
+}
+
+async function atualizarReembolso(dado, atualizacoes) {
+  if (!reembolsosColRef) return;
+  const ref = doc(reembolsosColRef, dado.id);
+  const atualizado = { ...dado, ...atualizacoes };
+  const { id, ...payload } = atualizado;
+  await setDocWithCopy(ref, payload, uidAtual);
+  Object.assign(dado, atualizacoes);
+  const original = reembolsosCache.find((item) => item.id === dado.id);
+  if (original) Object.assign(original, atualizacoes);
+}
+
+async function excluirPeca(id) {
+  if (!pecasColRef) return;
+  const ref = doc(pecasColRef, id);
+  await deleteDocWithCopy(ref);
+  pecasCache = pecasCache.filter((item) => item.id !== id);
+  renderPecas();
+}
+
+async function excluirReembolso(id) {
+  if (!reembolsosColRef) return;
+  const ref = doc(reembolsosColRef, id);
+  await deleteDocWithCopy(ref);
+  reembolsosCache = reembolsosCache.filter((item) => item.id !== id);
+  renderReembolsos();
+}
+
+async function deleteDocWithCopy(ref) {
+  await deleteDoc(ref);
+  const responsavelUid =
+    typeof window !== 'undefined' && window.responsavelFinanceiro?.uid;
+  if (responsavelUid && responsavelUid !== uidAtual) {
+    const segmentos = ref.path.split('/');
+    const relativo = segmentos.slice(2).join('/');
+    const copiaRef = doc(
+      ref.firestore,
+      `uid/${responsavelUid}/uid/${uidAtual}/${relativo}`,
+    );
+    await deleteDoc(copiaRef);
+  }
 }
 
 // Tabs
