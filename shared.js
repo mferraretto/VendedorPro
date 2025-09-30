@@ -625,22 +625,20 @@ document.addEventListener('sidebarLoaded', async () => {
   const db = getFirestore(app);
 
   const ADMIN_GESTOR_MENU_IDS = [
-    'menu-gestao',
-    'menu-financeiro',
     'menu-atualizacoes',
     'menu-painel-atualizacoes-gerais',
     'menu-painel-atualizacoes-mentorados',
-    'menu-comunicacao',
-    'menu-saques',
+    'menu-financeiro',
     'menu-produtos-precos',
     'menu-pedidos-reais',
-    'menu-acompanhamento-gestor',
+    'menu-gestao',
+    'menu-produtos-vendidos',
     'menu-acompanhamento-problemas',
     'menu-mentoria',
-    'menu-perfil-mentorado',
-    'menu-equipes',
     'menu-produtos',
-    'menu-produtos-vendidos',
+    'menu-configuracoes',
+    'menu-perfil-mentorado',
+    'menu-acompanhamento-gestor',
     'menu-sku-associado',
     'menu-desempenho',
   ];
@@ -697,23 +695,21 @@ document.addEventListener('sidebarLoaded', async () => {
     };
 
     const atualizacoes = getLi('menu-atualizacoes');
+    const painelAtualizacoes = getLi('menu-painel-atualizacoes-gerais');
+    const painelMentorados = getLi('menu-painel-atualizacoes-mentorados');
     const financeiro = getLi('menu-financeiro');
-    const saques = getLi('menu-saques');
     const produtosPrecos = getLi('menu-produtos-precos');
     const pedidosReais = getLi('menu-pedidos-reais');
     const gestao = getLi('menu-gestao');
-    const acompGestor = getLi('menu-acompanhamento-gestor');
+    const produtosVendidos = getLi('menu-produtos-vendidos');
     const acompProblemas = getLi('menu-acompanhamento-problemas');
     const mentoria = getLi('menu-mentoria');
+    const gestaoProdutos = getLi('menu-produtos');
+    const configuracoes = getLi('menu-configuracoes');
     const perfilMentorado = getLi('menu-perfil-mentorado');
-    const produtos = getLi('menu-produtos');
-    const produtosVendidos = getLi('menu-produtos-vendidos');
+    const mentoradosVendedores = getLi('menu-acompanhamento-gestor');
     const skuAssociado = getLi('menu-sku-associado');
-    const comunicacao = getLi('menu-comunicacao');
-    const equipes = getLi('menu-equipes');
     const desempenho = getLi('menu-desempenho');
-    const painelAtualizacoes = getLi('menu-painel-atualizacoes-gerais');
-    const painelMentorados = getLi('menu-painel-atualizacoes-mentorados');
 
     function createGroup(mainLi, submenuId, items) {
       if (!mainLi) return null;
@@ -737,7 +733,9 @@ document.addEventListener('sidebarLoaded', async () => {
         'submenu space-y-1 overflow-hidden transition-all duration-300';
       ul.style.maxHeight = '0';
       items.forEach((item) => {
-        if (item) ul.appendChild(item);
+        if (!item) return;
+        item.style.display = '';
+        ul.appendChild(item);
       });
 
       mainLi.innerHTML = '';
@@ -746,23 +744,21 @@ document.addEventListener('sidebarLoaded', async () => {
       return mainLi;
     }
 
-    const financeiroGroup = createGroup(financeiro, 'menuFinanceiro', [
-      saques,
+    const financeiroGroup = createGroup(financeiro, 'menuFinanceiroGestor', [
       produtosPrecos,
       pedidosReais,
     ]);
-    const gestaoGroup = createGroup(gestao, 'menuGestao', [
-      acompGestor,
+    const gestaoGroup = createGroup(gestao, 'menuGestaoGestor', [
+      produtosVendidos,
       acompProblemas,
       mentoria,
-      perfilMentorado,
-      produtos,
-      produtosVendidos,
-      skuAssociado,
+      gestaoProdutos,
     ]);
-    const comunicacaoGroup = createGroup(comunicacao, 'menuComunicacao', [
-      equipes,
-    ]);
+    const configuracoesGroup = createGroup(
+      configuracoes,
+      'menuConfiguracoesGestor',
+      [perfilMentorado, mentoradosVendedores, skuAssociado, desempenho],
+    );
 
     menu.innerHTML = '';
     [
@@ -771,8 +767,7 @@ document.addEventListener('sidebarLoaded', async () => {
       painelMentorados,
       financeiroGroup,
       gestaoGroup,
-      comunicacaoGroup,
-      desempenho,
+      configuracoesGroup,
     ].forEach((li) => {
       if (li) {
         li.style.display = '';
