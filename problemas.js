@@ -39,7 +39,10 @@ onAuthStateChanged(auth, (user) => {
     .getElementById('reembolsosForm')
     ?.addEventListener('submit', salvarReembolso);
   document
-    .getElementById('filtroData')
+    .getElementById('filtroDataInicio')
+    ?.addEventListener('change', renderPecas);
+  document
+    .getElementById('filtroDataFim')
     ?.addEventListener('change', renderPecas);
   document
     .getElementById('filtroStatus')
@@ -65,10 +68,12 @@ onAuthStateChanged(auth, (user) => {
   });
   document.getElementById('limparFiltros')?.addEventListener('click', (ev) => {
     ev.preventDefault();
-    const fd = document.getElementById('filtroData');
     const fs = document.getElementById('filtroStatus');
     const search = document.getElementById('searchPecas');
-    if (fd) fd.value = '';
+    const fdInicio = document.getElementById('filtroDataInicio');
+    const fdFim = document.getElementById('filtroDataFim');
+    if (fdInicio) fdInicio.value = '';
+    if (fdFim) fdFim.value = '';
     if (fs) fs.value = '';
     if (search) search.value = '';
     renderPecas();
@@ -121,12 +126,16 @@ function renderPecas() {
   const tbody = document.getElementById('pecasTableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  const filtroData = document.getElementById('filtroData')?.value;
+  const filtroDataInicio = document.getElementById('filtroDataInicio')?.value;
+  const filtroDataFim = document.getElementById('filtroDataFim')?.value;
   const filtroStatus = document.getElementById('filtroStatus')?.value;
   const busca =
     document.getElementById('searchPecas')?.value.toLowerCase() || '';
   pecasFiltradas = pecasCache.filter((d) => {
-    const dataOk = filtroData ? d.data === filtroData : true;
+    const data = d.data || '';
+    const dataInicioOk = filtroDataInicio ? data >= filtroDataInicio : true;
+    const dataFimOk = filtroDataFim ? data <= filtroDataFim : true;
+    const dataOk = dataInicioOk && dataFimOk;
     const statusOk = filtroStatus ? d.status === filtroStatus : true;
     const searchOk = busca
       ? Object.values(d).some((v) => String(v).toLowerCase().includes(busca))
