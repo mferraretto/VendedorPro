@@ -34,11 +34,11 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="flex flex-col">
               <label for="dataR" class="block text-sm font-medium text-slate-600">Data</label>
-              <input type="date" id="dataR" name="data" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500" required>
+              <input type="date" id="dataR" name="data" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
             </div>
             <div class="flex flex-col">
               <label for="numeroR" class="block text-sm font-medium text-slate-600">Número</label>
-              <input type="text" id="numeroR" name="numero" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500" required>
+              <input type="text" id="numeroR" name="numero" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
             </div>
             <div class="flex flex-col">
               <label for="apelidoR" class="block text-sm font-medium text-slate-600">Apelido</label>
@@ -54,14 +54,18 @@
             </div>
             <div class="flex flex-col">
               <label for="problemaR" class="block text-sm font-medium text-slate-600">Problema</label>
-              <input type="text" id="problemaR" name="problema" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500" required>
+              <input type="text" id="problemaR" name="problema" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
             </div>
             <div class="flex flex-col">
               <label for="valorR" class="block text-sm font-medium text-slate-600">Valor</label>
               <div class="relative mt-1">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">R$</span>
-                <input type="number" step="0.01" id="valorR" name="valor" class="w-full rounded-xl border-slate-300 pl-8 text-right focus:border-violet-500 focus:ring-violet-500" required>
+                <input type="number" step="0.01" id="valorR" name="valor" class="w-full rounded-xl border-slate-300 pl-8 text-right focus:border-violet-500 focus:ring-violet-500">
               </div>
+            </div>
+            <div class="flex flex-col md:col-span-2">
+              <label for="informacoesR" class="block text-sm font-medium text-slate-600">Informações</label>
+              <textarea id="informacoesR" name="informacoes" rows="2" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"></textarea>
             </div>
           </div>
           <div class="flex justify-end gap-2">
@@ -80,7 +84,9 @@
                 <th class="p-2">NF</th>
                 <th class="p-2">Loja</th>
                 <th class="p-2">Problema</th>
+                <th class="p-2">Informações</th>
                 <th class="p-2 text-right">Valor</th>
+                <th class="p-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody id="reembolsosTableBody" class="divide-y divide-slate-100"></tbody>
@@ -98,11 +104,11 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="flex flex-col">
               <label for="data" class="block text-sm font-medium text-slate-600">Data</label>
-              <input type="date" id="data" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500" required>
+              <input type="date" id="data" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
             </div>
             <div class="flex flex-col">
               <label for="numero" class="block text-sm font-medium text-slate-600">Número</label>
-              <input type="text" id="numero" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500" required>
+              <input type="text" id="numero" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
             </div>
             <div class="flex flex-col">
               <label for="apelido" class="block text-sm font-medium text-slate-600">Apelido</label>
@@ -118,7 +124,11 @@
             </div>
             <div class="flex flex-col">
               <label for="peca" class="block text-sm font-medium text-slate-600">Peça Faltante</label>
-              <input type="text" id="peca" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500" required>
+              <input type="text" id="peca" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
+            </div>
+            <div class="flex flex-col md:col-span-2">
+              <label for="informacoes" class="block text-sm font-medium text-slate-600">Informações</label>
+              <textarea id="informacoes" name="informacoes" rows="2" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"></textarea>
             </div>
           </div>
           <div class="flex justify-end gap-2">
@@ -172,8 +182,10 @@
               <th class="p-2">Loja</th>
               <th class="p-2">Peça Faltante</th>
               <th class="p-2">NF</th>
+              <th class="p-2">Informações</th>
               <th class="p-2 text-right">Valor Gasto</th>
               <th class="p-2">Status</th>
+              <th class="p-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody id="pecasTableBody" class="divide-y divide-slate-100"></tbody>
