@@ -128,11 +128,7 @@
         </form>
         <div class="card space-y-4 lg:col-span-1 lg:sticky lg:top-4">
           <h2 class="text-lg font-semibold text-slate-700">Filtros</h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="flex flex-col">
-              <label for="filtroData" class="block text-sm font-medium text-slate-600">Data</label>
-              <input type="date" id="filtroData" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
+          <div class="space-y-4">
             <div class="flex flex-col">
               <label for="filtroStatus" class="block text-sm font-medium text-slate-600">Status</label>
               <select id="filtroStatus" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
@@ -142,6 +138,20 @@
                 <option value="RESOLVIDO">Resolvido</option>
               </select>
             </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="flex flex-col">
+                <label for="filtroDataInicio" class="block text-sm font-medium text-slate-600">Data inicial</label>
+                <input type="date" id="filtroDataInicio" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
+              </div>
+              <div class="flex flex-col">
+                <label for="filtroDataFim" class="block text-sm font-medium text-slate-600">Data final</label>
+                <input type="date" id="filtroDataFim" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
+              </div>
+            </div>
+            <div class="flex flex-col">
+              <label for="searchPecas" class="block text-sm font-medium text-slate-600">Buscar</label>
+              <input type="text" id="searchPecas" placeholder="Buscar por nome ou número do pedido" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
+            </div>
           </div>
           <div class="flex justify-end">
             <button id="limparFiltros" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 w-full sm:w-auto">Limpar</button>
@@ -149,8 +159,7 @@
         </div>
       </div>
       <div class="card overflow-x-auto space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <input type="text" id="searchPecas" placeholder="Pesquisar..." class="w-full sm:w-64 rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
           <button id="exportCsv" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 w-full sm:w-auto">Exportar CSV</button>
         </div>
         <table class="min-w-full text-sm data-table">
