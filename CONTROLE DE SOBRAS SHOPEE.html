@@ -4765,7 +4765,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         filename: `produtos_vendidos_${new Date().toISOString().slice(0, 10)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
-          scale: Math.min(2, window.devicePixelRatio || 2),
+          scale: Math.max(2, window.devicePixelRatio || 1),
           useCORS: true,
           scrollY: 0,
         },
