@@ -5751,22 +5751,121 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
       })();
 
-      const linhas = [
-        ['Resumo de Vendas - Top 15 SKUs'],
-        ['Mês selecionado', referenciaMes],
-        ['Total de Peças Vendidas', totalPecasVendidas],
-        [],
-        ['SKU', 'Quantidade Vendida', 'Valor Líquido (R$)'],
-      ];
+      const formatarMesExtenso = (valor) => {
+        if (!valor || typeof valor !== 'string') return valor || '';
+        const [ano, mes] = valor.split('-');
+        if (!ano || !mes) return valor;
+        const data = new Date(Number(ano), Number(mes) - 1);
+        const formatado = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        return formatado.charAt(0).toUpperCase() + formatado.slice(1);
+      };
 
-      topSkus.forEach(({ sku, quantidade, valorLiquido }) => {
-        linhas.push([sku, quantidade, Math.round((valorLiquido + Number.EPSILON) * 100) / 100]);
+      const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(linhas);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Top 15 SKUs');
-      XLSX.writeFile(wb, `top_skus_${referenciaMes}.xlsx`);
+      const nomeUsuario = (() => {
+        try {
+          const auth = firebase?.auth?.();
+          const user = auth?.currentUser;
+          return (
+            user?.displayName?.trim() ||
+            usuarioLogado?.nome ||
+            usuarioLogado?.email ||
+            user?.email ||
+            'Usuário'
+          );
+        } catch (e) {
+          console.warn('Não foi possível obter o nome do usuário para o PDF.', e);
+          return usuarioLogado?.email || 'Usuário';
+        }
+      })();
+
+      const totalLiquidoTop = topSkus.reduce((acc, item) => acc + (item.valorLiquido || 0), 0);
+      const dataGeracao = new Date().toLocaleDateString('pt-BR');
+      const mesFormatado = formatarMesExtenso(referenciaMes);
+
+      const pdfContainer = document.createElement('div');
+      pdfContainer.style.position = 'fixed';
+      pdfContainer.style.top = '-9999px';
+      pdfContainer.style.left = '-9999px';
+      pdfContainer.style.width = '800px';
+      pdfContainer.style.padding = '32px';
+      pdfContainer.style.backgroundColor = '#ffffff';
+      pdfContainer.style.fontFamily = 'Inter, Arial, sans-serif';
+      pdfContainer.style.color = '#111827';
+
+      const linhasTabela = topSkus
+        .map((item, index) => `
+          <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+            <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: center; font-weight: 600;">${index + 1}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;">${item.sku}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right; font-variant-numeric: tabular-nums;">${Number(item.quantidade || 0).toLocaleString('pt-BR')}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right; font-variant-numeric: tabular-nums;">${formatarMoeda(item.valorLiquido)}</td>
+          </tr>
+        `)
+        .join('');
+
+      pdfContainer.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+          <div>
+            <p style="margin: 0; font-size: 14px; color: #6b7280;">${nomeUsuario}</p>
+            <h1 style="margin: 4px 0 0; font-size: 24px; font-weight: 700;">Peças Vendidas Mês</h1>
+            <p style="margin: 8px 0 0; font-size: 14px; color: #4b5563;">${mesFormatado}</p>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #6b7280;">
+            <p style="margin: 0;">Gerado em ${dataGeracao}</p>
+            <p style="margin: 4px 0 0;">Total de peças vendidas: <strong style="color: #111827;">${totalPecasVendidas.toLocaleString('pt-BR')}</strong></p>
+            <p style="margin: 4px 0 0;">Valor líquido no TOP 15: <strong style="color: #111827;">${formatarMoeda(totalLiquidoTop)}</strong></p>
+          </div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="background-color: #1f2937; color: #ffffff;">
+              <th style="padding: 12px; border: 1px solid #1f2937; text-align: center; width: 60px;">Posição</th>
+              <th style="padding: 12px; border: 1px solid #1f2937; text-align: left;">SKU</th>
+              <th style="padding: 12px; border: 1px solid #1f2937; text-align: right;">Quantidade</th>
+              <th style="padding: 12px; border: 1px solid #1f2937; text-align: right;">Valor Líquido</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhasTabela}
+          </tbody>
+          <tfoot>
+            <tr style="background-color: #f3f4f6; font-weight: 600;">
+              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: center;">—</td>
+              <td style="padding: 12px; border: 1px solid #e5e7eb;">Totais</td>
+              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right; font-variant-numeric: tabular-nums;">${topSkus.reduce((acc, item) => acc + (item.quantidade || 0), 0).toLocaleString('pt-BR')}</td>
+              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right; font-variant-numeric: tabular-nums;">${formatarMoeda(totalLiquidoTop)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <p style="margin-top: 16px; font-size: 11px; color: #6b7280;">Relatório gerado automaticamente pelo VendedorPro.</p>
+      `;
+
+      document.body.appendChild(pdfContainer);
+
+      const opt = {
+        margin: [15, 15, 15, 15],
+        filename: `pecas_vendidas_${referenciaMes}.pdf`,
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      };
+
+      html2pdf()
+        .set(opt)
+        .from(pdfContainer)
+        .save()
+        .then(() => {
+          document.body.removeChild(pdfContainer);
+        })
+        .catch((erro) => {
+          console.error('Erro ao gerar PDF de Top SKUs:', erro);
+          document.body.removeChild(pdfContainer);
+          Swal.fire('Erro', 'Não foi possível gerar o PDF. Tente novamente.', 'error');
+        });
     }
 
     function exportarAcompanhamentoPDF() {
