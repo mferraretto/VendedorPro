@@ -5921,6 +5921,7 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       const clone = element.cloneNode(true);
       clone.style.marginTop = '16px';
       clone.style.width = '100%';
+      clone.style.maxWidth = '100%';
 
       const resumoClone = clone.querySelector('#resumoAcompanhamento');
       if (resumoClone) {
@@ -5958,8 +5959,8 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       wrapper.style.fontFamily = "'Inter', 'Segoe UI', sans-serif";
       wrapper.style.padding = '16px 24px';
       wrapper.style.backgroundColor = '#ffffff';
-      wrapper.style.width = '210mm';
-      wrapper.style.maxWidth = '210mm';
+      wrapper.style.width = '186mm';
+      wrapper.style.maxWidth = '186mm';
       wrapper.style.boxSizing = 'border-box';
 
       const header = document.createElement('div');
@@ -5987,6 +5988,8 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         #tabelaAcompanhamento tbody tr:nth-child(even) { background: #f9fafb; }
         #tabelaAcompanhamento tbody tr.abaixo-meta { background: #fef2f2; color: #991b1b; }
         #tabelaAcompanhamento tbody tr.abaixo-meta td { border-color: #fecaca; }
+        table { table-layout: fixed; width: 100%; }
+        th, td { word-wrap: break-word; word-break: break-word; }
         .section-title { font-size: 14px; font-weight: 600; color: #374151; margin-top: 24px; margin-bottom: 8px; }
         @media print {
           .resumo-card, table, tr, td, th { break-inside: avoid; }
