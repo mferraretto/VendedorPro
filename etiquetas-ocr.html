@@ -745,25 +745,6 @@ firebase.auth().onAuthStateChanged(async u => {
         }
       } catch (err) {
         console.error('Erro ao enviar PDF para Firebase:', err);
-        const errorInfo =
-          typeof window.describeFirebaseStorageUploadError === 'function'
-            ? window.describeFirebaseStorageUploadError(err)
-            : null;
-        if (errorInfo && errorInfo.type === 'cors') {
-          const message =
-            errorInfo.userMessage +
-            ' Solicite ao administrador do Firebase que autorize a origem deste site nas configurações de CORS do bucket.';
-          const technicalDetails = errorInfo.technicalMessage
-            ? '\n\nDetalhes técnicos: ' + errorInfo.technicalMessage
-            : '';
-          showMessage(message);
-          alert(message + technicalDetails);
-          const friendlyError = new Error(message);
-          friendlyError.cause = err;
-          friendlyError.isCorsError = true;
-          friendlyError.details = errorInfo;
-          throw friendlyError;
-        }
         showMessage('Erro ao enviar PDF. Tente novamente mais tarde.');
         throw err;
       }
