@@ -1,8 +1,0 @@
-[
-  {
-    "origin": ["https://www.provendedor.com.br"],
-    "method": ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
-    "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Authorization", "x-goog-meta-owner"]
-  }
-]
