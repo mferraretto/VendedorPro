@@ -5167,18 +5167,45 @@ let uids = [];
               const saquesSnap = await resumoRef.collection('saques').get();
               if (!saquesSnap.empty) {
                 encontrouSaquesMensais = true;
+                let comissaoPagaNoMes = 0;
                 for (const saqueDoc of saquesSnap.docs) {
                   const dadosMensais = saqueDoc.data() || {};
                   const valorSaque = Number(dadosMensais.valor) || 0;
                   totalSaques += valorSaque;
                   const percentualPago = Number(dadosMensais.percentualPago);
+                  let comissaoCalculada = 0;
                   if (Number.isFinite(percentualPago) && percentualPago > 0) {
-                    totalComissao += valorSaque * percentualPago;
+                    comissaoCalculada = valorSaque * percentualPago;
                   } else {
                     const comissaoPaga = Number(dadosMensais.comissaoPaga);
-                    if (Number.isFinite(comissaoPaga)) totalComissao += comissaoPaga;
+                    if (Number.isFinite(comissaoPaga)) {
+                      comissaoCalculada = comissaoPaga;
+                    }
+                  }
+                  comissaoPagaNoMes += comissaoCalculada;
+                }
+
+                let comissaoTotalMes = comissaoPagaNoMes;
+                if (resumoSnap.exists) {
+                  const dadosResumo = resumoSnap.data() || {};
+                  const comissaoPrevistaResumo = Number(dadosResumo.comissaoPrevista);
+                  const ajusteFinalResumo = Number(dadosResumo.ajusteFinal);
+                  const comissaoJaPagaResumo = Number(dadosResumo.comissaoJaPaga);
+
+                  if (Number.isFinite(comissaoPrevistaResumo)) {
+                    comissaoTotalMes = comissaoPrevistaResumo;
+                  } else {
+                    let somaResumo = Number.isFinite(comissaoJaPagaResumo)
+                      ? comissaoJaPagaResumo
+                      : comissaoPagaNoMes;
+                    if (Number.isFinite(ajusteFinalResumo)) {
+                      somaResumo += ajusteFinalResumo;
+                    }
+                    comissaoTotalMes = somaResumo;
                   }
                 }
+
+                totalComissao += comissaoTotalMes;
                 usouResumo = true;
               }
             } catch (e) {
@@ -5191,11 +5218,20 @@ let uids = [];
                 totalSaques += totalSacadoResumo;
                 encontrouSaquesMensais = true;
               }
-              const comissaoResumo = dadosResumo.comissaoJaPaga ?? dadosResumo.comissaoPrevista;
-              const comissaoNumero = Number(comissaoResumo);
-              if (Number.isFinite(comissaoNumero)) {
-                totalComissao += comissaoNumero;
+              const comissaoPrevistaResumo = Number(dadosResumo.comissaoPrevista);
+              const comissaoJaPagaResumo = Number(dadosResumo.comissaoJaPaga);
+              const ajusteFinalResumo = Number(dadosResumo.ajusteFinal);
+              if (Number.isFinite(comissaoPrevistaResumo)) {
+                totalComissao += comissaoPrevistaResumo;
                 encontrouSaquesMensais = true;
+              } else {
+                let somaComissao = 0;
+                if (Number.isFinite(comissaoJaPagaResumo)) somaComissao += comissaoJaPagaResumo;
+                if (Number.isFinite(ajusteFinalResumo)) somaComissao += ajusteFinalResumo;
+                if (somaComissao) {
+                  totalComissao += somaComissao;
+                  encontrouSaquesMensais = true;
+                }
               }
             }
           } catch (e) {
