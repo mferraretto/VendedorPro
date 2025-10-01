@@ -4754,202 +4754,22 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     }
 
     function baixarPrevisaoPdf() {
+      const area = document.getElementById('previsaoResumoPdf');
+      if (!area) {
+        mostrarErro('Conteúdo de previsão indisponível para exportação.');
+        return;
+      }
       if (typeof html2pdf === 'undefined') {
         mostrarErro('Biblioteca de exportação para PDF indisponível.');
         return;
       }
 
-      const dadosSkus = Object.entries(previsaoDados.skus || {});
-      if (!dadosSkus.length) {
-        mostrarErro('Nenhuma previsão disponível para exportação.');
-        return;
-      }
-
       const selectSku = document.getElementById('filtroSkuPrevisao');
       const skuSelecionado = selectSku?.value || 'todos';
-
-      const obterResumo = () => {
-        const normalizarNumero = (valor) => Number(valor || 0);
-        const diario = {};
-        let totalBase = 0;
-
-        if (skuSelecionado === 'todos') {
-          for (const info of dadosSkus.map(([, detalhes]) => detalhes)) {
-            totalBase += normalizarNumero(info.total);
-            for (const [data, valor] of Object.entries(info.diario || {})) {
-              diario[data] = (diario[data] || 0) + normalizarNumero(valor);
-            }
-          }
-        } else if (previsaoDados.skus[skuSelecionado]) {
-          const info = previsaoDados.skus[skuSelecionado];
-          totalBase = normalizarNumero(info.total);
-          for (const [data, valor] of Object.entries(info.diario || {})) {
-            diario[data] = normalizarNumero(valor);
-          }
-        } else {
-          return null;
-        }
-
-        return {
-          totalBase,
-          diario,
-          pess: totalBase * 0.85,
-          otm: totalBase * 1.15,
-        };
-      };
-
-      const resumo = obterResumo();
-      if (!resumo) {
-        mostrarErro('Dados de previsão indisponíveis para o SKU selecionado.');
-        return;
-      }
-
-      const formatarNumero = (valor, casas = 2) =>
-        Number(valor || 0).toLocaleString('pt-BR', {
-          minimumFractionDigits: casas,
-          maximumFractionDigits: casas,
-        });
-
-      const linhasTabela = (() => {
-        const labels = Object.keys(resumo.diario).sort();
-        if (!labels.length) {
-          return '<tr><td style="padding:6px;border:1px solid #e5e7eb;" colspan="2">Nenhum dado diário disponível.</td></tr>';
-        }
-        return labels
-          .map(
-            (data) => `
-              <tr>
-                <td style="padding:6px;border:1px solid #e5e7eb;">${data}</td>
-                <td style="padding:6px;border:1px solid #e5e7eb;text-align:right;">${formatarNumero(resumo.diario[data], 0)}</td>
-              </tr>`,
-          )
-          .join('');
-      })();
-
-      const gerarTopSkus = () => {
-        if (!dadosSkus.length) {
-          return '<p style="color:#6b7280;">Nenhuma previsão disponível.</p>';
-        }
-
-        const cenarios = [
-          { titulo: 'Pessimista', fator: 0.85 },
-          { titulo: 'Base', fator: 1 },
-          { titulo: 'Otimista', fator: 1.15 },
-        ];
-
-        const formatarMoeda = (valor) =>
-          Number(valor || 0).toLocaleString('pt-BR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
-
-        return `
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
-            ${cenarios
-              .map((cenario) => {
-                const lista = dadosSkus
-                  .map(([sku, info]) => {
-                    const quantidade = Number(info.total || 0) * cenario.fator;
-                    const preco = Number(produtos[sku] || 0);
-                    const sobraUnit = Number(metas[sku]?.valor || 0);
-                    return {
-                      sku,
-                      quantidade,
-                      bruto: quantidade * preco,
-                      sobra: quantidade * sobraUnit,
-                    };
-                  })
-                  .sort((a, b) => b.quantidade - a.quantidade)
-                  .slice(0, 10);
-
-                if (!lista.length) {
-                  return '<p style="color:#6b7280;">Nenhuma previsão disponível.</p>';
-                }
-
-                const linhas = lista
-                  .map(
-                    (item) => `
-                      <tr>
-                        <td style="padding:6px;border:1px solid #e5e7eb;">${escapeHtml(item.sku)}</td>
-                        <td style="padding:6px;border:1px solid #e5e7eb;text-align:right;">${formatarNumero(item.quantidade, 0)}</td>
-                        <td style="padding:6px;border:1px solid #e5e7eb;text-align:right;">R$ ${formatarMoeda(item.bruto)}</td>
-                        <td style="padding:6px;border:1px solid #e5e7eb;text-align:right;">R$ ${formatarMoeda(item.sobra)}</td>
-                      </tr>`,
-                  )
-                  .join('');
-
-                return `
-                  <div style="border:1px solid #d1d5db;border-radius:12px;padding:12px;background:#ffffff;">
-                    <h4 style="margin:0 0 12px;font-size:14px;text-align:center;">Top 10 SKUs projeção ${escapeHtml(
-                      cenario.titulo,
-                    )}</h4>
-                    <table style="width:100%;border-collapse:collapse;font-size:12px;">
-                      <thead>
-                        <tr style="background:#f3f4f6;color:#1f2937;">
-                          <th style="padding:6px;border:1px solid #e5e7eb;text-align:left;">SKU</th>
-                          <th style="padding:6px;border:1px solid #e5e7eb;text-align:right;">Quantidade</th>
-                          <th style="padding:6px;border:1px solid #e5e7eb;text-align:right;">Bruto Esperado</th>
-                          <th style="padding:6px;border:1px solid #e5e7eb;text-align:right;">Sobra Esperada</th>
-                        </tr>
-                      </thead>
-                      <tbody>${linhas}</tbody>
-                    </table>
-                  </div>`;
-              })
-              .join('')}
-          </div>`;
-      };
-
       const identificadorSku = skuSelecionado === 'todos'
         ? 'todos'
         : skuSelecionado.replace(/[^a-zA-Z0-9_-]+/g, '_');
       const dataArquivo = new Date().toISOString().slice(0, 10);
-
-      const wrapper = document.createElement('div');
-      wrapper.style.fontFamily = "'Inter', Arial, sans-serif";
-      wrapper.style.color = '#111827';
-      wrapper.style.width = '100%';
-      wrapper.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
-          <div>
-            <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Previsão de Vendas</h2>
-            <p style="margin:0;font-size:12px;color:#4b5563;">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#4b5563;">SKU: ${escapeHtml(
-              skuSelecionado === 'todos' ? 'Todos' : skuSelecionado,
-            )}</p>
-          </div>
-        </div>
-        <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
-          <div style="flex:1 1 160px;background:#fee2e2;color:#991b1b;padding:12px;border-radius:12px;text-align:center;">
-            <div style="font-weight:600;font-size:14px;">Pessimista</div>
-            <div style="font-size:22px;font-weight:700;">${formatarNumero(resumo.pess, 0)}</div>
-          </div>
-          <div style="flex:1 1 160px;background:#dbeafe;color:#1d4ed8;padding:12px;border-radius:12px;text-align:center;">
-            <div style="font-weight:600;font-size:14px;">Base</div>
-            <div style="font-size:22px;font-weight:700;">${formatarNumero(resumo.totalBase, 0)}</div>
-          </div>
-          <div style="flex:1 1 160px;background:#dcfce7;color:#047857;padding:12px;border-radius:12px;text-align:center;">
-            <div style="font-weight:600;font-size:14px;">Otimista</div>
-            <div style="font-size:22px;font-weight:700;">${formatarNumero(resumo.otm, 0)}</div>
-          </div>
-        </div>
-        <div style="margin-bottom:20px;">
-          <h3 style="margin:0 0 12px;font-size:16px;font-weight:600;">Previsão diária</h3>
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead>
-              <tr style="background:#f3f4f6;color:#1f2937;">
-                <th style="padding:6px;border:1px solid #e5e7eb;text-align:left;">Data</th>
-                <th style="padding:6px;border:1px solid #e5e7eb;text-align:right;">Quantidade</th>
-              </tr>
-            </thead>
-            <tbody>${linhasTabela}</tbody>
-          </table>
-        </div>
-        <div>
-          <h3 style="margin:0 0 12px;font-size:16px;font-weight:600;">Top 10 SKUs por cenário</h3>
-          ${gerarTopSkus()}
-        </div>
-      `;
 
       const opt = {
         margin: 0.5,
@@ -4957,19 +4777,68 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
+
+      const exportWrapper = document.createElement('div');
+      exportWrapper.style.position = 'fixed';
+      exportWrapper.style.left = '-9999px';
+      exportWrapper.style.top = '0';
+      exportWrapper.style.backgroundColor = '#ffffff';
+      exportWrapper.style.padding = '24px';
+      exportWrapper.style.boxSizing = 'border-box';
+      exportWrapper.style.fontFamily = "'Inter', Arial, sans-serif";
+      exportWrapper.style.color = '#111827';
+      const larguraReferencia = Math.max(area.offsetWidth || area.scrollWidth || 1100, 1100);
+      exportWrapper.style.width = `${larguraReferencia}px`;
+
+      const header = document.createElement('div');
+      header.style.marginBottom = '16px';
+      header.innerHTML = `
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Previsão de Vendas</h2>
+        <p style="margin:0;font-size:12px;color:#4b5563;">
+          Gerado em ${new Date().toLocaleString('pt-BR')} | SKU: ${skuSelecionado === 'todos' ? 'Todos' : skuSelecionado}
+        </p>
+      `;
+
+      const clone = area.cloneNode(true);
+      clone.style.backgroundColor = '#ffffff';
+      clone.style.padding = '0';
+      clone.style.width = '100%';
+      clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+      clone.querySelectorAll('table').forEach(table => {
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+      });
+      clone.querySelectorAll('th, td').forEach(cell => {
+        cell.style.border = '1px solid #d1d5db';
+        cell.style.padding = '8px';
+        cell.style.fontSize = '12px';
+        cell.style.verticalAlign = 'top';
+      });
+      clone.querySelectorAll('h4').forEach(titulo => {
+        titulo.style.marginTop = '0';
+        titulo.style.marginBottom = '12px';
+        titulo.style.fontSize = '14px';
+      });
+
+      exportWrapper.appendChild(header);
+      exportWrapper.appendChild(clone);
+      document.body.appendChild(exportWrapper);
 
       html2pdf()
         .set(opt)
-        .from(wrapper)
+        .from(exportWrapper)
         .save()
         .then(() => {
           mostrarSucesso('Arquivo PDF gerado com sucesso.');
         })
-        .catch((err) => {
+        .catch(err => {
           console.error('Erro ao gerar PDF da previsão', err);
           mostrarErro('Não foi possível gerar o PDF da previsão.');
+        })
+        .finally(() => {
+          exportWrapper.remove();
         });
     }
 
