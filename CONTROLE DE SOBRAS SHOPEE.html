@@ -257,6 +257,44 @@ const makeLegacySkuDocId = (sku) =>
     .trim()
     .replace(/[.#$\/\[\]]/g, '_');
 
+let cacheNomeUsuario = null;
+
+function formatarMesReferencia(anoMes) {
+  if (!anoMes) return '';
+  const [ano, mes] = String(anoMes).split('-');
+  if (!ano || !mes) return anoMes;
+  const anoNumero = Number(ano);
+  const mesNumero = Number(mes) - 1;
+  if (!Number.isInteger(anoNumero) || !Number.isInteger(mesNumero) || mesNumero < 0) {
+    return anoMes;
+  }
+  const data = new Date(anoNumero, mesNumero, 1);
+  if (Number.isNaN(data.getTime())) return anoMes;
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'long',
+    year: 'numeric'
+  }).format(data);
+}
+
+async function obterNomeUsuarioAtual() {
+  if (cacheNomeUsuario) return cacheNomeUsuario;
+  const fallback = (usuarioLogado?.email || usuarioLogado?.uid || 'Usuário').trim();
+  if (!usuarioLogado?.uid || !db) {
+    cacheNomeUsuario = fallback;
+    return cacheNomeUsuario;
+  }
+  try {
+    const usuarioDoc = await db.collection('usuarios').doc(usuarioLogado.uid).get();
+    const dados = usuarioDoc.exists ? usuarioDoc.data() || {} : {};
+    const nome = String(dados.nome || '').trim();
+    cacheNomeUsuario = nome || fallback;
+  } catch (error) {
+    console.error('Erro ao obter nome do usuário para o relatório:', error);
+    cacheNomeUsuario = fallback;
+  }
+  return cacheNomeUsuario;
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -5460,7 +5498,7 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       XLSX.writeFile(wb, 'acompanhamento.xlsx');
     }
 
-    function exportarResumoTopSkus() {
+    async function exportarResumoTopSkus() {
       if (!dadosAcompanhamento.length) {
         Swal.fire('Sem dados', 'Carregue o acompanhamento para exportar o resumo.', 'info');
         return;
@@ -5493,22 +5531,77 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
       })();
 
-      const linhas = [
-        ['Resumo de Vendas - Top 15 SKUs'],
-        ['Mês selecionado', referenciaMes],
-        ['Total de Peças Vendidas', totalPecasVendidas],
-        [],
-        ['SKU', 'Quantidade Vendida', 'Valor Líquido (R$)'],
-      ];
-
-      topSkus.forEach(({ sku, quantidade, valorLiquido }) => {
-        linhas.push([sku, quantidade, Math.round((valorLiquido + Number.EPSILON) * 100) / 100]);
+      const nomeUsuario = await obterNomeUsuarioAtual();
+      const mesFormatado = formatarMesReferencia(referenciaMes) || referenciaMes;
+      const numeroFormatter = new Intl.NumberFormat('pt-BR');
+      const moedaFormatter = new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        maximumFractionDigits: 2,
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(linhas);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Top 15 SKUs');
-      XLSX.writeFile(wb, `top_skus_${referenciaMes}.xlsx`);
+      const pdfElement = document.createElement('div');
+      pdfElement.style.fontFamily = "'Inter', Arial, sans-serif";
+      pdfElement.style.padding = '24px';
+      pdfElement.style.width = '100%';
+      pdfElement.style.maxWidth = '720px';
+
+      pdfElement.innerHTML = `
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="font-size: 14px; font-weight: 600; color: #1f2937; letter-spacing: 0.3px;">
+            ${escapeHtml(nomeUsuario)}
+          </div>
+          <div style="font-size: 22px; font-weight: 700; margin-top: 6px; color: #111827;">
+            PEÇAS VENDIDAS MÊS
+          </div>
+          <div style="font-size: 14px; color: #4b5563; margin-top: 6px; text-transform: capitalize;">
+            ${escapeHtml(mesFormatado)}
+          </div>
+        </div>
+        <div style="font-size: 13px; color: #1f2937; margin-bottom: 18px;">
+          Total de peças vendidas no período: <strong>${numeroFormatter.format(totalPecasVendidas)}</strong>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr>
+              <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #1f2937; font-weight: 600; background-color: #f3f4f6;">#</th>
+              <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #1f2937; font-weight: 600; background-color: #f3f4f6;">SKU</th>
+              <th style="padding: 10px 12px; text-align: right; border-bottom: 2px solid #e5e7eb; color: #1f2937; font-weight: 600; background-color: #f3f4f6;">Peças vendidas</th>
+              <th style="padding: 10px 12px; text-align: right; border-bottom: 2px solid #e5e7eb; color: #1f2937; font-weight: 600; background-color: #f3f4f6;">Valor líquido</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${topSkus
+              .map(
+                ({ sku, quantidade, valorLiquido }, index) => `
+                  <tr>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${index + 1}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #1f2937;">${escapeHtml(sku)}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #1f2937;">${numeroFormatter.format(quantidade)}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #065f46; font-weight: 600;">${moedaFormatter.format(valorLiquido)}</td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+        <div style="font-size: 11px; color: #6b7280; margin-top: 16px; text-align: right;">
+          Relatório gerado em ${escapeHtml(new Intl.DateTimeFormat('pt-BR', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          }).format(new Date()))}
+        </div>
+      `;
+
+      const opt = {
+        margin: [15, 12, 20, 12],
+        filename: `top-15-skus_${referenciaMes}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      };
+
+      await html2pdf().set(opt).from(pdfElement).save();
     }
 
     function exportarAcompanhamentoPDF() {
