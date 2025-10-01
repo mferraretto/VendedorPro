@@ -4642,7 +4642,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             return { sku, quantidade, bruto, sobra };
           })
           .sort((a, b) => b.quantidade - a.quantidade)
-          .slice(0, 5);
+          .slice(0, 10);
 
         if (!lista.length) {
           return '<p class="text-gray-500">Nenhuma previsão disponível.</p>';
@@ -4658,7 +4658,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
 
         return `
           <div class="overflow-x-auto">
-            <h4 class="font-bold mb-2 text-center">Top 5 SKUs projeção ${c.titulo}</h4>
+            <h4 class="font-bold mb-2 text-center">Top 10 SKUs projeção ${c.titulo}</h4>
             <table class="min-w-full text-sm text-left">
               <thead>
                 <tr>

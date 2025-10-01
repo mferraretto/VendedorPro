@@ -792,7 +792,7 @@ function renderPrevisaoTopSkus(container, previsao, precos, metas) {
       return { sku, quantidade, bruto };
     })
     .sort((a, b) => b.quantidade - a.quantidade)
-    .slice(0, 5);
+    .slice(0, 10);
 
   const cenarios = [
     { titulo: 'Pessimista', fator: 0.85 },
@@ -817,7 +817,7 @@ function renderPrevisaoTopSkus(container, previsao, precos, metas) {
 
       return `
         <div class="overflow-x-auto">
-          <h4 class="font-bold mb-2 text-center">Top 5 SKUs projeção ${c.titulo}</h4>
+          <h4 class="font-bold mb-2 text-center">Top 10 SKUs projeção ${c.titulo}</h4>
           <table class="min-w-full text-sm text-left">
             <thead>
               <tr>
