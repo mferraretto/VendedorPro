@@ -4395,143 +4395,399 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       mostrarSucesso('Arquivo Excel gerado com sucesso.');
     }
 
- function exportarProdutosVendidosPDF() {
-  if (!produtosVendidosResumo?.length) {
-    mostrarErro('Nenhum dado disponível para exportar.');
-    return;
-  }
-  if (typeof html2pdf === 'undefined') {
-    mostrarErro('Biblioteca de exportação para PDF indisponível.');
-    return;
-  }
+    function exportarProdutosVendidosPDF() {
+      if (!produtosVendidosResumo?.length) {
+        mostrarErro('Nenhum dado disponível para exportar.');
+        return;
+      }
+      if (typeof html2pdf === 'undefined') {
+        mostrarErro('Biblioteca de exportação para PDF indisponível.');
+        return;
+      }
 
-  const ordenados = [...produtosVendidosResumo].sort((a, b) => b.total - a.total);
+      const filtroSkuValor = (
+        document.getElementById('filtroSkuProdutosVendidos')?.value || ''
+      )
+        .trim();
+      const filtroSku = filtroSkuValor.toLowerCase();
 
-  const linhas = ordenados.map((item) => {
-    const vendidos = item.vendidosPorSku
-      ?.map(([sku, qtd]) => `${escapeHtml(sku)} (${qtd.toLocaleString('pt-BR')})`)
-      ?.join('<br>') || '-';
+      const dadosFiltrados = produtosVendidosResumo.filter((item) => {
+        if (!filtroSku) return true;
+        return item.todosSkus.some((sku) =>
+          sku.toLowerCase().includes(filtroSku),
+        );
+      });
 
-    const associados = item.grupoCompleto?.map((sku) => escapeHtml(sku))?.join(', ') || '-';
+      if (!dadosFiltrados.length) {
+        mostrarErro('Nenhum SKU encontrado para exportar com os filtros atuais.');
+        return;
+      }
 
-    const usuarios = item.usuarios
-      ?.map(([nome, qtd]) => `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`)
-      ?.join('<br>') || '-';
+      const formatCurrency = (valor) =>
+        Number(valor || 0).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        });
 
-    const valorLiquido = Number(item.valorLiquido || 0).toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
+      const ordenados = [...dadosFiltrados].sort((a, b) => b.total - a.total);
 
-    return `
-      <tr class="pdf-row avoid-break">
-        <td class="col-sku avoid-break">
-          <strong>${escapeHtml(item.sku)}</strong>
-          <div style="margin-top:2px;font-size:10px;color:#555;">Grupo: ${associados}</div>
-        </td>
-        <td class="col-detalhes avoid-break">${vendidos}</td>
-        <td class="col-quantidade avoid-break">${item.total.toLocaleString('pt-BR')}</td>
-        <td class="col-valor avoid-break">${valorLiquido}</td>
-        <td class="col-usuarios avoid-break">${usuarios}</td>
-      </tr>`;
-  }).join('');
+      const totalUnidades = ordenados.reduce((acc, item) => acc + item.total, 0);
+      const totalLiquido = ordenados.reduce(
+        (acc, item) => acc + Number(item.valorLiquido || 0),
+        0,
+      );
 
-  const wrapper = document.createElement('div');
-  const dataGeracao = new Date().toLocaleString('pt-BR');
+      const linhas = ordenados
+        .map((item) => {
+          const principaisDetalhes = Array.isArray(
+            item.principaisVinculadosDetalhes,
+          )
+            ? item.principaisVinculadosDetalhes
+            : [];
+          let detalhesHtml = '';
+          let extrasHtml = '';
 
-  wrapper.innerHTML = `
-    <div id="pdf-root" style="font-family:'Inter',Arial,sans-serif; width:190mm; /* 210 - 2*10mm */">
-      <style>
-        @page { size: A4 portrait; margin: 10mm; }
-        /* Cabeçalho repete por página no render da html2pdf/jsPDF */
-        .pdf-table thead { display: table-header-group; }
-        .pdf-table tfoot { display: table-footer-group; }
+          if (principaisDetalhes.length) {
+            const linhasPrincipais = principaisDetalhes
+              .map(({ sku, quantidade }) => {
+                const quantidadeFormatada = Number(quantidade || 0).toLocaleString(
+                  'pt-BR',
+                );
+                return `
+                  <div class="principal-item">
+                    <span class="principal-sku">${escapeHtml(sku)}</span>
+                    <span class="principal-quantidade">${quantidadeFormatada}</span>
+                  </div>
+                `.trim();
+              })
+              .join('');
+            detalhesHtml = `
+              <div class="principais-container">
+                <div class="principais-title">Principais vinculados</div>
+                <div class="principais-list">${linhasPrincipais}</div>
+              </div>
+            `.trim();
+          } else {
+            const vendidosChips = item.vendidosPorSku
+              .map(([sku, qtd]) => {
+                const quantidadeFormatada = Number(qtd || 0).toLocaleString('pt-BR');
+                return `
+                  <span class="chip">
+                    <span>${escapeHtml(sku)}</span>
+                    <span class="chip-qty">${quantidadeFormatada}</span>
+                  </span>
+                `.trim();
+              })
+              .join('');
+            detalhesHtml = vendidosChips
+              ? `<div class="chips-container">${vendidosChips}</div>`
+              : '';
+            const extrasLista = item.grupoCompleto
+              .filter(
+                (skuExtra) =>
+                  !item.vendidosPorSku.some(
+                    ([skuVend]) =>
+                      skuVend.toLowerCase() === skuExtra.toLowerCase(),
+                  ),
+              )
+              .map((skuExtra) => escapeHtml(skuExtra));
+            extrasHtml = extrasLista.length
+              ? `<div class="extras">Associados: ${extrasLista.join(', ')}</div>`
+              : '';
+          }
 
-        .pdf-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 11px;
-          table-layout: fixed;
-          page-break-inside: auto;
-        }
-        .pdf-table th, .pdf-table td {
-          padding: 6px;
-          border: 1px solid #ddd;
-          vertical-align: top;
-          word-wrap: break-word;
-          word-break: break-word;
-          overflow-wrap: anywhere;
-          white-space: normal;
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-        .pdf-row {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-        .avoid-break {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-        .pdf-table thead th {
-          background: #f3f4f6;
-          color: #1f2937;
-        }
-        .pdf-table tbody td strong {
-          display: block;
-          margin-bottom: 4px;
-        }
-        /* Larguras proporcionais para caber no A4 */
-        .pdf-table .col-sku { width: 20%; }
-        .pdf-table .col-detalhes { width: 28%; }
-        .pdf-table .col-quantidade { width: 14%; text-align: right; }
-        .pdf-table .col-valor { width: 16%; text-align: right; }
-        .pdf-table .col-usuarios { width: 22%; }
-        /* Melhor contraste de impressão */
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      </style>
+          const usuariosHtml = item.usuarios.length
+            ? item.usuarios
+                .map(
+                  ([nome, qtd]) =>
+                    `<span>${escapeHtml(nome)} (${Number(qtd || 0).toLocaleString(
+                      'pt-BR',
+                    )})</span>`,
+                )
+                .join('')
+            : '<span class="placeholder">-</span>';
 
-      <h2 style="margin:0 0 6px;">Produtos Vendidos</h2>
-      <p style="margin:0 0 12px;font-size:11px;color:#555;">Relatório gerado em ${dataGeracao}</p>
+          const totalFormatado = item.total.toLocaleString('pt-BR');
+          const valorLiquidoFormatado = formatCurrency(item.valorLiquido);
 
-      <table class="pdf-table avoid-break">
-        <thead>
-          <tr class="pdf-row">
-            <th class="col-sku" style="text-align:left;">SKU Principal</th>
-            <th class="col-detalhes" style="text-align:left;">Detalhe dos SKUs Vendidos</th>
-            <th class="col-quantidade">Quantidade Vendida</th>
-            <th class="col-valor">Valor Líquido</th>
-            <th class="col-usuarios" style="text-align:left;">Usuários Responsáveis</th>
-          </tr>
-        </thead>
-        <tbody>${linhas}</tbody>
-      </table>
-    </div>`;
+          return `
+            <tr class="pdf-row">
+              <td class="col-sku">
+                <div class="sku-title">${escapeHtml(item.sku)}</div>
+                ${detalhesHtml}
+                ${extrasHtml}
+              </td>
+              <td class="col-quantidade">${totalFormatado}</td>
+              <td class="col-valor">${valorLiquidoFormatado}</td>
+              <td class="col-usuarios"><div class="usuarios">${usuariosHtml}</div></td>
+            </tr>
+          `.trim();
+        })
+        .join('');
 
-  const opt = {
-    margin: 10,                               // em mm (porque o jsPDF.unit será 'mm')
-    filename: `produtos_vendidos_${new Date().toISOString().slice(0,10)}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: {
-      scale: Math.min(2, window.devicePixelRatio || 2), // boa definição sem ficar pesado
-      useCORS: true,
-      scrollY: 0
-    },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    // Respeita as classes CSS e evita cortes agressivos
-    pagebreak: {
-      mode: ['css', 'legacy'],
-      avoid: ['.avoid-break', '.pdf-row', 'tr', 'td', 'th']
-    },
-  };
+      const formatarDataFiltro = (valor) => {
+        if (!valor) return '';
+        const partes = valor.split('-');
+        if (partes.length !== 3) return '';
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      };
 
-  html2pdf().set(opt).from(wrapper).save().then(() => {
-    mostrarSucesso('Arquivo PDF gerado com sucesso.');
-  }).catch((e) => {
-    console.error(e);
-    mostrarErro('Falha ao gerar o PDF.');
-  });
-}
+      const filtrosAtivos = [];
+      const filtroInicio = document.getElementById('filtroProdutosVendidosInicio')?.value;
+      const filtroFim = document.getElementById('filtroProdutosVendidosFim')?.value;
+
+      if (filtroInicio) {
+        filtrosAtivos.push(`Data inicial: ${formatarDataFiltro(filtroInicio)}`);
+      }
+      if (filtroFim) {
+        filtrosAtivos.push(`Data final: ${formatarDataFiltro(filtroFim)}`);
+      }
+      if (filtroSkuValor) {
+        filtrosAtivos.push(`SKU: ${filtroSkuValor}`);
+      }
+
+      const statusTexto = document
+        .getElementById('produtosVendidosStatus')
+        ?.textContent?.trim();
+      const dataGeracao = new Date().toLocaleString('pt-BR');
+
+      const wrapper = document.createElement('div');
+      const filtrosHtml = filtrosAtivos.length
+        ? `<div class="pdf-filters">${filtrosAtivos
+            .map((texto) => `<span class="pdf-filter-chip">${escapeHtml(texto)}</span>`)
+            .join('')}</div>`
+        : '';
+      const statusHtml = statusTexto
+        ? `<p class="pdf-status">${escapeHtml(statusTexto)}</p>`
+        : '';
+
+      wrapper.innerHTML = `
+        <div id="pdf-root">
+          <style>
+            @page { size: A4 portrait; margin: 12mm; }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            #pdf-root {
+              font-family: 'Inter', Arial, sans-serif;
+              color: #1f2937;
+            }
+            .pdf-card {
+              width: 100%;
+              background: #ffffff;
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+              padding: 20px;
+              box-sizing: border-box;
+            }
+            .pdf-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              gap: 16px;
+              margin-bottom: 16px;
+            }
+            .pdf-title {
+              font-size: 20px;
+              font-weight: 700;
+              margin: 0;
+              color: #1f2937;
+            }
+            .pdf-subtitle {
+              font-size: 12px;
+              color: #6b7280;
+              margin: 6px 0 0;
+            }
+            .pdf-generated-at {
+              font-size: 10px;
+              color: #9ca3af;
+              margin: 6px 0 0;
+            }
+            .pdf-summary {
+              font-size: 12px;
+              color: #4b5563;
+              text-align: right;
+              line-height: 1.5;
+            }
+            .pdf-summary span {
+              font-weight: 600;
+              color: #111827;
+            }
+            .pdf-filters {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+              margin-bottom: 12px;
+            }
+            .pdf-filter-chip {
+              background: #eef2ff;
+              color: #4338ca;
+              border-radius: 9999px;
+              padding: 4px 12px;
+              font-size: 11px;
+              font-weight: 600;
+            }
+            .pdf-status {
+              font-size: 11px;
+              color: #6b7280;
+              margin: 0 0 12px;
+            }
+            .pdf-table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 11px;
+              color: #1f2937;
+            }
+            .pdf-table thead th {
+              background: #f9fafb;
+              color: #6b7280;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              font-size: 10px;
+              padding: 8px 10px;
+              border-bottom: 1px solid #e5e7eb;
+              text-align: left;
+            }
+            .pdf-table tbody td {
+              border-bottom: 1px solid #f3f4f6;
+              padding: 10px;
+              vertical-align: top;
+            }
+            .col-sku { width: 38%; }
+            .col-quantidade { width: 16%; text-align: center; }
+            .col-valor { width: 20%; text-align: right; }
+            .col-usuarios { width: 26%; }
+            .sku-title {
+              font-weight: 600;
+              font-size: 12px;
+              color: #1f2937;
+            }
+            .chips-container {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 6px;
+              margin-top: 6px;
+            }
+            .chip {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              background: #eef2ff;
+              color: #4338ca;
+              border-radius: 9999px;
+              padding: 3px 10px;
+              font-weight: 600;
+              font-size: 11px;
+            }
+            .chip-qty {
+              color: #374151;
+              font-weight: 600;
+            }
+            .principais-container {
+              margin-top: 8px;
+              font-size: 11px;
+              color: #6b7280;
+            }
+            .principais-title {
+              font-weight: 600;
+              color: #4b5563;
+              margin-bottom: 4px;
+            }
+            .principais-list {
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+            }
+            .principal-item {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              background: #eef2ff;
+              color: #4338ca;
+              border-radius: 10px;
+              padding: 4px 10px;
+            }
+            .principal-quantidade {
+              font-weight: 600;
+              color: #374151;
+            }
+            .extras {
+              margin-top: 6px;
+              font-size: 10px;
+              color: #9ca3af;
+            }
+            .usuarios {
+              font-size: 11px;
+              color: #4b5563;
+              line-height: 1.5;
+            }
+            .usuarios span {
+              display: block;
+            }
+            .usuarios .placeholder {
+              color: #d1d5db;
+              font-style: italic;
+            }
+            .pdf-row {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+          </style>
+          <div class="pdf-card">
+            <div class="pdf-header">
+              <div>
+                <h2 class="pdf-title">Produtos Vendidos</h2>
+                <p class="pdf-subtitle">Resumo consolidado das vendas por SKU dos usuários vinculados a este responsável financeiro.</p>
+                <p class="pdf-generated-at">Relatório gerado em ${dataGeracao}</p>
+              </div>
+              <div class="pdf-summary">
+                <div>Total vendido: <span>${totalUnidades.toLocaleString('pt-BR')}</span> unidades</div>
+                <div>Valor líquido: <span>${formatCurrency(totalLiquido)}</span></div>
+              </div>
+            </div>
+            ${filtrosHtml}
+            ${statusHtml}
+            <table class="pdf-table">
+              <thead>
+                <tr class="pdf-row">
+                  <th class="col-sku">SKU</th>
+                  <th class="col-quantidade">Quantidade vendida</th>
+                  <th class="col-valor">Valor líquido</th>
+                  <th class="col-usuarios">Usuários responsáveis</th>
+                </tr>
+              </thead>
+              <tbody>${linhas}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      const opt = {
+        margin: 12,
+        filename: `produtos_vendidos_${new Date().toISOString().slice(0, 10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: Math.min(2, window.devicePixelRatio || 2),
+          useCORS: true,
+          scrollY: 0,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: ['.pdf-row', 'tr', 'td', 'th'],
+        },
+      };
+
+      html2pdf()
+        .set(opt)
+        .from(wrapper)
+        .save()
+        .then(() => {
+          mostrarSucesso('Arquivo PDF gerado com sucesso.');
+        })
+        .catch((e) => {
+          console.error(e);
+          mostrarErro('Falha ao gerar o PDF.');
+        });
+    }
 
 
     async function carregarControleVendas() {
