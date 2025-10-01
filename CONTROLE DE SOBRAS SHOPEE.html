@@ -4552,6 +4552,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const dataGeracao = new Date().toLocaleString('pt-BR');
 
       const wrapper = document.createElement('div');
+      wrapper.style.position = 'fixed';
+      wrapper.style.top = '0';
+      wrapper.style.left = '-9999px';
+      wrapper.style.width = '210mm';
+      wrapper.style.maxWidth = '210mm';
+      wrapper.style.background = '#ffffff';
       const filtrosHtml = filtrosAtivos.length
         ? `<div class="pdf-filters">${filtrosAtivos
             .map((texto) => `<span class="pdf-filter-chip">${escapeHtml(texto)}</span>`)
@@ -4760,6 +4766,8 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         </div>
       `;
 
+      document.body.appendChild(wrapper);
+
       const opt = {
         margin: 12,
         filename: `produtos_vendidos_${new Date().toISOString().slice(0, 10)}.pdf`,
@@ -4776,7 +4784,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         },
       };
 
-      html2pdf()
+      return html2pdf()
         .set(opt)
         .from(wrapper)
         .save()
@@ -4786,6 +4794,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         .catch((e) => {
           console.error(e);
           mostrarErro('Falha ao gerar o PDF.');
+        })
+        .finally(() => {
+          if (wrapper?.parentNode) {
+            wrapper.parentNode.removeChild(wrapper);
+          }
         });
     }
 
@@ -5321,7 +5334,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
   // Diagnóstico rápido (se der 0, provavelmente ficaria branco)
   // console.log('wrapper px:', exportWrapper.offsetWidth, exportWrapper.offsetHeight);
 
-  html2pdf()
+  return html2pdf()
     .set(opt)
     .from(exportWrapper)
     .save()
