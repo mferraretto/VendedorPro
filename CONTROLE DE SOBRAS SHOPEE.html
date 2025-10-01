@@ -5920,11 +5920,47 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
 
       const clone = element.cloneNode(true);
       clone.style.marginTop = '16px';
+      clone.style.width = '100%';
+
+      const resumoClone = clone.querySelector('#resumoAcompanhamento');
+      if (resumoClone) {
+        resumoClone.style.display = 'grid';
+        resumoClone.style.gridTemplateColumns = 'repeat(auto-fit, minmax(140px, 1fr))';
+        resumoClone.style.gap = '12px';
+      }
+
+      clone.querySelectorAll('.resumo-card').forEach(card => {
+        card.style.background = '#f9fafb';
+        card.style.border = '1px solid #e5e7eb';
+        card.style.borderRadius = '8px';
+        card.style.padding = '12px';
+        card.style.pageBreakInside = 'avoid';
+      });
+
+      clone.querySelectorAll('table').forEach(table => {
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        table.style.marginTop = '16px';
+      });
+
+      clone.querySelectorAll('th, td').forEach(cell => {
+        cell.style.border = '1px solid #e5e7eb';
+        cell.style.padding = '8px';
+        cell.style.fontSize = '12px';
+        cell.style.pageBreakInside = 'avoid';
+      });
+
+      clone.querySelectorAll('tr').forEach(row => {
+        row.style.pageBreakInside = 'avoid';
+      });
 
       const wrapper = document.createElement('div');
       wrapper.style.fontFamily = "'Inter', 'Segoe UI', sans-serif";
       wrapper.style.padding = '16px 24px';
       wrapper.style.backgroundColor = '#ffffff';
+      wrapper.style.width = '210mm';
+      wrapper.style.maxWidth = '210mm';
+      wrapper.style.boxSizing = 'border-box';
 
       const header = document.createElement('div');
       header.style.display = 'flex';
@@ -5941,6 +5977,23 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         </div>
       `;
 
+      const styleBlock = document.createElement('style');
+      styleBlock.textContent = `
+        * { box-sizing: border-box; }
+        .resumo-card h4 { font-size: 12px; margin-bottom: 4px; color: #111827; }
+        .resumo-card p { font-size: 14px; font-weight: 600; color: #111827; margin: 0; }
+        .resumo-card small { display: block; margin-top: 4px; font-size: 11px; color: #4b5563; }
+        #tabelaAcompanhamento thead th { background: #f3f4f6; font-weight: 600; color: #1f2937; }
+        #tabelaAcompanhamento tbody tr:nth-child(even) { background: #f9fafb; }
+        #tabelaAcompanhamento tbody tr.abaixo-meta { background: #fef2f2; color: #991b1b; }
+        #tabelaAcompanhamento tbody tr.abaixo-meta td { border-color: #fecaca; }
+        .section-title { font-size: 14px; font-weight: 600; color: #374151; margin-top: 24px; margin-bottom: 8px; }
+        @media print {
+          .resumo-card, table, tr, td, th { break-inside: avoid; }
+        }
+      `;
+
+      wrapper.appendChild(styleBlock);
       wrapper.appendChild(header);
       wrapper.appendChild(clone);
 
@@ -5955,11 +6008,11 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       document.body.appendChild(tempContainer);
 
       const opt = {
-        margin: 1,
+        margin: [10, 12, 16, 12],
         filename: 'acompanhamento.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
+        html2canvas: { scale: 2, useCORS: true, windowWidth: wrapper.scrollWidth },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
       try {
@@ -5970,7 +6023,7 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
     }
 
     function printAcompanhamento() {
- const element = document.getElementById('areaImpressao');
+      const element = document.getElementById('areaImpressao');
       if (!element) return;
       const printWindow = window.open('', '', 'width=900,height=650');
       printWindow.document.write(`
