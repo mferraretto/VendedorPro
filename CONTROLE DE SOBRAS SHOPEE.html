@@ -4883,7 +4883,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${tabelas}</div>`;
     }
 
-    async function baixarPrevisaoPdf() {
+    function baixarPrevisaoPdf() {
       const area = document.getElementById('previsaoResumoPdf');
       if (!area) {
         mostrarErro('Conteúdo de previsão indisponível para exportação.');
@@ -4910,20 +4910,17 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'fixed';
-      wrapper.style.left = '0';
-      wrapper.style.top = '0';
-      wrapper.style.opacity = '0';
-      wrapper.style.pointerEvents = 'none';
-      wrapper.style.backgroundColor = '#ffffff';
-      wrapper.style.padding = '24px';
-      wrapper.style.boxSizing = 'border-box';
-      wrapper.style.fontFamily = "'Inter', Arial, sans-serif";
-      wrapper.style.color = '#111827';
-      wrapper.style.zIndex = '-1';
+      const exportWrapper = document.createElement('div');
+      exportWrapper.style.position = 'fixed';
+      exportWrapper.style.left = '-9999px';
+      exportWrapper.style.top = '0';
+      exportWrapper.style.backgroundColor = '#ffffff';
+      exportWrapper.style.padding = '24px';
+      exportWrapper.style.boxSizing = 'border-box';
+      exportWrapper.style.fontFamily = "'Inter', Arial, sans-serif";
+      exportWrapper.style.color = '#111827';
       const larguraReferencia = Math.max(area.offsetWidth || area.scrollWidth || 1100, 1100);
-      wrapper.style.width = `${larguraReferencia}px`;
+      exportWrapper.style.width = `${larguraReferencia}px`;
 
       const header = document.createElement('div');
       header.style.marginBottom = '16px';
@@ -4933,53 +4930,35 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           Gerado em ${new Date().toLocaleString('pt-BR')} | SKU: ${skuSelecionado === 'todos' ? 'Todos' : skuSelecionado}
         </p>
       `;
-      wrapper.appendChild(header);
 
-      const resumoClone = area.cloneNode(true);
-      resumoClone.removeAttribute('id');
-      resumoClone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
-      resumoClone.style.marginBottom = '16px';
-      wrapper.appendChild(resumoClone);
+      const resumo = calcularResumoPrevisaoPorSku(skuSelecionado);
+      const cenarios = calcularCenariosTopSkus();
 
-      const tabela = document.getElementById('tabelaPrevisao');
-      if (tabela && tabela.innerHTML.trim()) {
-        const tabelaSection = document.createElement('div');
-        tabelaSection.innerHTML = tabela.innerHTML;
-        tabelaSection.style.marginTop = '16px';
-        wrapper.appendChild(tabelaSection);
-      }
+      const conteudo = document.createElement('div');
+      conteudo.innerHTML = `
+        ${gerarCardsPrevisaoPdfHtml(resumo)}
+        ${gerarTabelaPrevisaoPdfHtml(resumo.diario)}
+        ${gerarTopSkusPdfHtml(cenarios)}
+      `;
 
-      const graficoCanvas = document.getElementById('graficoPrevisao');
-      if (graficoCanvas && typeof graficoCanvas.toDataURL === 'function') {
-        const graficoSection = document.createElement('div');
-        graficoSection.style.marginTop = '16px';
-        graficoSection.innerHTML = '<h4 style="margin:0 0 8px;font-size:14px;font-weight:600;text-align:center;">Distribuição gráfica</h4>';
-        const graficoImg = document.createElement('img');
-        try {
-          graficoImg.src = graficoCanvas.toDataURL('image/png', 1.0);
-          graficoImg.style.maxWidth = '100%';
-          graficoImg.style.display = 'block';
-          graficoImg.style.margin = '0 auto';
-          graficoSection.appendChild(graficoImg);
-          wrapper.appendChild(graficoSection);
-        } catch (err) {
-          console.warn('Não foi possível capturar o gráfico da previsão para o PDF.', err);
-        }
-      }
+      exportWrapper.appendChild(header);
+      exportWrapper.appendChild(conteudo);
+      document.body.appendChild(exportWrapper);
 
-      document.body.appendChild(wrapper);
-
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-
-      try {
-        await html2pdf().set(opt).from(wrapper).save();
-        mostrarSucesso('Arquivo PDF gerado com sucesso.');
-      } catch (err) {
-        console.error('Erro ao gerar PDF da previsão', err);
-        mostrarErro('Não foi possível gerar o PDF da previsão.');
-      } finally {
-        wrapper.remove();
-      }
+      html2pdf()
+        .set(opt)
+        .from(exportWrapper)
+        .save()
+        .then(() => {
+          mostrarSucesso('Arquivo PDF gerado com sucesso.');
+        })
+        .catch(err => {
+          console.error('Erro ao gerar PDF da previsão', err);
+          mostrarErro('Não foi possível gerar o PDF da previsão.');
+        })
+        .finally(() => {
+          exportWrapper.remove();
+        });
     }
 
     function gerarDatas(qtd, endDate = new Date()) {
