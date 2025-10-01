@@ -102,13 +102,12 @@
         class="form-control w-full"
         placeholder="Informe a loja"
       />
-      <label for="storeCommentInput" class="block text-sm font-medium text-gray-700 mt-4 mb-2">Comentário</label>
-      <textarea
-        id="storeCommentInput"
-        class="form-control w-full"
-        placeholder="Adicione um comentário (opcional)"
-        rows="3"
-      ></textarea>
+      <label for="storeSituationSelect" class="block text-sm font-medium text-gray-700 mt-4 mb-2">Situação</label>
+      <select id="storeSituationSelect" class="form-control w-full">
+        <option value="nao_impresso">Não impresso</option>
+        <option value="impresso">Impresso</option>
+        <option value="concluido">Concluído</option>
+      </select>
       <div id="storeResponsavelField" class="mt-4 hidden">
         <label for="storeResponsavelSelect" class="block text-sm font-medium text-gray-700 mb-2">Responsável</label>
         <select id="storeResponsavelSelect" class="form-control w-full"></select>
@@ -441,7 +440,7 @@
     const storeModal = document.getElementById('storeModal');
     const storeModalContent = document.getElementById('storeModalContent');
     const storeNameInput = document.getElementById('storeNameInput');
-    const storeCommentInput = document.getElementById('storeCommentInput');
+    const storeSituationSelect = document.getElementById('storeSituationSelect');
     const storeResponsavelField = document.getElementById('storeResponsavelField');
     const storeResponsavelSelect = document.getElementById('storeResponsavelSelect');
     const storeModalConfirm = document.getElementById('storeModalConfirm');
@@ -459,7 +458,7 @@
 
     function resetStoreModalState() {
       if (storeNameInput) storeNameInput.value = '';
-      if (storeCommentInput) storeCommentInput.value = '';
+      if (storeSituationSelect) storeSituationSelect.value = 'nao_impresso';
       if (storeResponsavelSelect) storeResponsavelSelect.innerHTML = '';
       if (storeResponsavelField) storeResponsavelField.classList.add('hidden');
       if (storeModalProgress) storeModalProgress.classList.add('hidden');
@@ -607,7 +606,7 @@
         alert('Informe o nome da loja.');
         return;
       }
-      const comentario = (storeCommentInput?.value || '').trim();
+      const situacaoSelecionada = (storeSituationSelect?.value || 'nao_impresso').trim() || 'nao_impresso';
       const emailsDisponiveis = Array.isArray(gestoresEmails)
         ? gestoresEmails.filter(email => typeof email === 'string' && email.trim().length > 0)
         : [];
@@ -627,7 +626,7 @@
       try {
         await uploadManualLabel(pendingManualFile, lojaNome, {
           gestoresSelecionados,
-          comentario,
+          situacao: situacaoSelecionada,
           onProgress: ({ text, percent }) => showStoreModalProgress(text, percent)
         });
         showStoreModalSuccess('Etiqueta salva com sucesso!');
@@ -1454,9 +1453,11 @@
         alert('Selecione um arquivo PDF.');
         throw new Error('Arquivo PDF não selecionado.');
       }
-      const { onProgress, gestoresSelecionados, comentario } = options;
-      const comentarioTexto = typeof comentario === 'string' ? comentario.trim() : '';
-      const statusValido = 'nao_impresso';
+      const { onProgress, gestoresSelecionados, situacao } = options;
+      const statusInput = typeof situacao === 'string' ? situacao.trim().toLowerCase() : '';
+      const statusValido = ['nao_impresso', 'impresso', 'concluido'].includes(statusInput)
+        ? statusInput
+        : 'nao_impresso';
       try {
         if (typeof onProgress === 'function') onProgress({ text: 'Contando páginas...', percent: 5 });
         const pageCount = await contarPaginasPdf(file);
@@ -1475,7 +1476,6 @@
           status: statusValido,
           foraHorario: foraHorarioAtual,
           loja: lojaNome || '',
-          comentario: comentarioTexto,
           totalPaginas: pageCount,
           pageCount
         });
@@ -1500,7 +1500,6 @@
           url: url,
           storagePath: fileRef.fullPath,
           loja: lojaNome || '',
-          comentario: comentarioTexto,
           totalPaginas: pageCount,
           pageCount
         });
