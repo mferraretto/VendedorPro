@@ -4612,6 +4612,196 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       }
     }
 
+    const CENARIOS_PREVISAO = [
+      { titulo: 'Pessimista', fator: 0.85 },
+      { titulo: 'Base', fator: 1 },
+      { titulo: 'Otimista', fator: 1.15 }
+    ];
+
+    function calcularResumoPrevisaoPorSku(sku = 'todos') {
+      const resultado = {
+        totalBase: 0,
+        pess: 0,
+        otm: 0,
+        diario: []
+      };
+
+      const dadosSkus = previsaoDados?.skus || {};
+      const chaves = Object.keys(dadosSkus);
+      if (!chaves.length) return resultado;
+
+      const diarioAcumulado = {};
+
+      if (sku === 'todos') {
+        for (const info of Object.values(dadosSkus)) {
+          const total = Number(info?.total || 0);
+          resultado.totalBase += total;
+          const diario = info?.diario || {};
+          for (const [data, valor] of Object.entries(diario)) {
+            const numero = Number(valor || 0);
+            diarioAcumulado[data] = (diarioAcumulado[data] || 0) + numero;
+          }
+        }
+      } else if (dadosSkus[sku]) {
+        const info = dadosSkus[sku];
+        resultado.totalBase = Number(info?.total || 0);
+        const diario = info?.diario || {};
+        for (const [data, valor] of Object.entries(diario)) {
+          diarioAcumulado[data] = Number(valor || 0);
+        }
+      }
+
+      const labels = Object.keys(diarioAcumulado).sort();
+      resultado.diario = labels.map(data => ({ data, quantidade: Number(diarioAcumulado[data] || 0) }));
+      resultado.pess = resultado.totalBase * 0.85;
+      resultado.otm = resultado.totalBase * 1.15;
+      return resultado;
+    }
+
+    function calcularCenariosTopSkus() {
+      const dadosSkus = Object.entries(previsaoDados?.skus || {});
+      if (!dadosSkus.length) return [];
+
+      return CENARIOS_PREVISAO.map(config => {
+        const itens = dadosSkus
+          .map(([sku, info]) => {
+            const quantidadeBase = Number(info?.total || 0);
+            const quantidade = quantidadeBase * config.fator;
+            const preco = Number(produtos[sku] || 0);
+            const sobraUnit = Number(metas[sku]?.valor || 0);
+            const bruto = quantidade * preco;
+            const sobra = quantidade * sobraUnit;
+            return { sku, quantidade, bruto, sobra };
+          })
+          .sort((a, b) => b.quantidade - a.quantidade)
+          .slice(0, 10);
+
+        return { ...config, itens };
+      }).filter(c => c.itens.length);
+    }
+
+    function gerarTopSkusTabelaHtml(cenario) {
+      const linhas = cenario.itens
+        .map(item => `
+            <tr>
+              <td class="px-2 py-1 border">${item.sku}</td>
+              <td class="px-2 py-1 border">${Number(item.quantidade || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</td>
+              <td class="px-2 py-1 border">R$ ${Number(item.bruto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+              <td class="px-2 py-1 border">R$ ${Number(item.sobra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+            </tr>`)
+        .join('');
+
+      return `
+          <div class="overflow-x-auto">
+            <h4 class="font-bold mb-2 text-center">Top 10 SKUs projeção ${cenario.titulo}</h4>
+            <table class="min-w-full text-sm text-left">
+              <thead>
+                <tr>
+                  <th class="px-2 py-1 border">SKU</th>
+                  <th class="px-2 py-1 border">Quantidade</th>
+                  <th class="px-2 py-1 border">Bruto Esperado<br>(Valor de venda)</th>
+                  <th class="px-2 py-1 border">Sobra Esperada<br>(Sobra esperada x quantidade)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linhas}
+              </tbody>
+            </table>
+          </div>`;
+    }
+
+    function gerarCardsPrevisaoPdfHtml(resumo) {
+      const formatNumero = valor => Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+      const cards = [
+        { titulo: 'Pessimista', valor: formatNumero(resumo.pess), bg: '#fee2e2', color: '#991b1b' },
+        { titulo: 'Base', valor: formatNumero(resumo.totalBase), bg: '#dbeafe', color: '#1d4ed8' },
+        { titulo: 'Otimista', valor: formatNumero(resumo.otm), bg: '#dcfce7', color: '#166534' }
+      ];
+
+      const cardsHtml = cards
+        .map(card => `
+        <div style="background:${card.bg};color:${card.color};padding:16px;border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,0.1);text-align:center;">
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${card.titulo}</div>
+          <div style="font-size:24px;font-weight:700;">${card.valor}</div>
+        </div>`)
+        .join('');
+
+      return `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:16px;">${cardsHtml}</div>`;
+    }
+
+    function gerarTabelaPrevisaoPdfHtml(diario) {
+      if (!diario.length) {
+        return '<p style="color:#6b7280;font-size:12px;margin:0 0 16px;">Nenhum histórico diário disponível para esta previsão.</p>';
+      }
+
+      const linhas = diario
+        .map(item => `
+          <tr>
+            <td style="border:1px solid #d1d5db;padding:8px;font-size:12px;">${item.data}</td>
+            <td style="border:1px solid #d1d5db;padding:8px;font-size:12px;text-align:right;">${Number(item.quantidade || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</td>
+          </tr>`)
+        .join('');
+
+      return `
+        <div style="margin-bottom:16px;">
+          <h4 style="font-size:14px;font-weight:600;margin:0 0 8px;">Distribuição diária (Base)</h4>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr>
+                <th style="border:1px solid #d1d5db;padding:8px;text-align:left;font-size:12px;background:#f3f4f6;">Data</th>
+                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;font-size:12px;background:#f3f4f6;">Quantidade</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhas}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function gerarTopSkusPdfHtml(cenarios) {
+      if (!cenarios.length) {
+        return '<p style="color:#6b7280;font-size:12px;margin:0;">Nenhuma previsão disponível.</p>';
+      }
+
+      const celulaStyle = 'border:1px solid #d1d5db;padding:8px;font-size:12px;text-align:left;';
+      const celulaNumerica = 'border:1px solid #d1d5db;padding:8px;font-size:12px;text-align:right;';
+
+      const htmlCenarios = cenarios
+        .map(cenario => {
+          const linhas = cenario.itens
+            .map(item => `
+              <tr>
+                <td style="${celulaStyle}">${item.sku}</td>
+                <td style="${celulaNumerica}">${Number(item.quantidade || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</td>
+                <td style="${celulaNumerica}">R$ ${Number(item.bruto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style="${celulaNumerica}">R$ ${Number(item.sobra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+              </tr>`)
+            .join('');
+
+          return `
+            <div style="page-break-inside:avoid;">
+              <h4 style="font-size:14px;font-weight:600;text-align:center;margin:0 0 8px;">Top 10 SKUs projeção ${cenario.titulo}</h4>
+              <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+                <thead>
+                  <tr>
+                    <th style="${celulaStyle};background:#f3f4f6;">SKU</th>
+                    <th style="${celulaNumerica};background:#f3f4f6;">Quantidade</th>
+                    <th style="${celulaNumerica};background:#f3f4f6;">Bruto Esperado<br>(Valor de venda)</th>
+                    <th style="${celulaNumerica};background:#f3f4f6;">Sobra Esperada<br>(Sobra esperada x quantidade)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${linhas}
+                </tbody>
+              </table>
+            </div>`;
+        })
+        .join('');
+
+      return `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">${htmlCenarios}</div>`;
+    }
+
     async function carregarPrevisao() {
       await tabsLoaded;
       const selectSku = document.getElementById('filtroSkuPrevisao');
@@ -4645,36 +4835,21 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const ctx = document.getElementById('graficoPrevisao')?.getContext('2d');
       if (!cards || !tabela || !ctx) return;
 
-      let diario = {};
-      let totalBase = 0;
-      if (sku === 'todos') {
-        for (const info of Object.values(previsaoDados.skus || {})) {
-          totalBase += info.total || 0;
-          for (const [data, val] of Object.entries(info.diario || {})) {
-            diario[data] = (diario[data] || 0) + val;
-          }
-        }
-      } else if (previsaoDados.skus && previsaoDados.skus[sku]) {
-        const info = previsaoDados.skus[sku];
-        totalBase = info.total || 0;
-        diario = info.diario || {};
-      }
-
-      const pess = totalBase * 0.85;
-      const otm = totalBase * 1.15;
+      const resumo = calcularResumoPrevisaoPorSku(sku);
+      const formatNumero = valor => Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
       cards.innerHTML = `
         <div class="bg-red-100 text-red-800 p-4 rounded shadow text-center">
-          <div class="font-bold">Pessimista</div><div>${pess.toFixed(0)}</div>
+          <div class="font-bold">Pessimista</div><div>${formatNumero(resumo.pess)}</div>
         </div>
         <div class="bg-blue-100 text-blue-800 p-4 rounded shadow text-center">
-          <div class="font-bold">Base</div><div>${totalBase.toFixed(0)}</div>
+          <div class="font-bold">Base</div><div>${formatNumero(resumo.totalBase)}</div>
         </div>
         <div class="bg-green-100 text-green-800 p-4 rounded shadow text-center">
-          <div class="font-bold">Otimista</div><div>${otm.toFixed(0)}</div>
+          <div class="font-bold">Otimista</div><div>${formatNumero(resumo.otm)}</div>
         </div>`;
 
-      const labels = Object.keys(diario).sort();
-      const dados = labels.map(d => diario[d]);
+      const labels = resumo.diario.map(item => item.data);
+      const dados = resumo.diario.map(item => Number(item.quantidade || 0));
       if (graficoPrevisao) graficoPrevisao.destroy();
       graficoPrevisao = new Chart(ctx, {
         type: 'line',
@@ -4682,74 +4857,29 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         options: { responsive: true, maintainAspectRatio: false }
       });
 
-      tabela.innerHTML = `
+      if (!labels.length) {
+        tabela.innerHTML = '<p class="text-gray-500">Nenhuma previsão disponível.</p>';
+      } else {
+        tabela.innerHTML = `
         <table class="min-w-full text-sm text-left">
           <thead><tr><th class="px-2 py-1 border">Data</th><th class="px-2 py-1 border">Qtde</th></tr></thead>
           <tbody>
-            ${labels.map(d => `<tr><td class="px-2 py-1 border">${d}</td><td class="px-2 py-1 border">${diario[d].toFixed(0)}</td></tr>`).join('')}
+            ${labels.map((data, idx) => `<tr><td class="px-2 py-1 border">${data}</td><td class="px-2 py-1 border">${dados[idx].toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</td></tr>`).join('')}
           </tbody>
         </table>`;
+      }
     }
 
     function renderizarTopSkus() {
       const container = document.getElementById('topSkusPrevisao');
       if (!container) return;
-      const dadosSkus = Object.entries(previsaoDados.skus || {});
-      if (!dadosSkus.length) {
+      const cenarios = calcularCenariosTopSkus();
+      if (!cenarios.length) {
         container.innerHTML = '<p class="text-gray-500">Nenhuma previsão disponível.</p>';
         return;
       }
 
-      const cenarios = [
-        { titulo: 'Pessimista', fator: 0.85 },
-        { titulo: 'Base', fator: 1 },
-        { titulo: 'Otimista', fator: 1.15 }
-      ];
-
-      const tabelas = cenarios.map(c => {
-        const lista = dadosSkus
-          .map(([sku, info]) => {
-            const quantidade = (info.total || 0) * c.fator;
-            const preco = produtos[sku] || 0;
-            const sobraUnit = metas[sku]?.valor || 0;
-            const bruto = quantidade * preco;
-            const sobra = quantidade * sobraUnit;
-            return { sku, quantidade, bruto, sobra };
-          })
-          .sort((a, b) => b.quantidade - a.quantidade)
-          .slice(0, 10);
-
-        if (!lista.length) {
-          return '<p class="text-gray-500">Nenhuma previsão disponível.</p>';
-        }
-
-        const linhas = lista.map(item => `
-            <tr>
-              <td class="px-2 py-1 border">${item.sku}</td>
-              <td class="px-2 py-1 border">${item.quantidade.toFixed(0)}</td>
-              <td class="px-2 py-1 border">R$ ${item.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-              <td class="px-2 py-1 border">R$ ${item.sobra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-            </tr>`).join('');
-
-        return `
-          <div class="overflow-x-auto">
-            <h4 class="font-bold mb-2 text-center">Top 10 SKUs projeção ${c.titulo}</h4>
-            <table class="min-w-full text-sm text-left">
-              <thead>
-                <tr>
-                  <th class="px-2 py-1 border">SKU</th>
-                  <th class="px-2 py-1 border">Quantidade</th>
-                  <th class="px-2 py-1 border">Bruto Esperado<br>(Valor de venda)</th>
-                  <th class="px-2 py-1 border">Sobra Esperada<br>(Sobra esperada x quantidade)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${linhas}
-              </tbody>
-            </table>
-          </div>`;
-      }).join('');
-
+      const tabelas = cenarios.map(gerarTopSkusTabelaHtml).join('');
       container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${tabelas}</div>`;
     }
 
@@ -4801,29 +4931,18 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         </p>
       `;
 
-      const clone = area.cloneNode(true);
-      clone.style.backgroundColor = '#ffffff';
-      clone.style.padding = '0';
-      clone.style.width = '100%';
-      clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-      clone.querySelectorAll('table').forEach(table => {
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-      });
-      clone.querySelectorAll('th, td').forEach(cell => {
-        cell.style.border = '1px solid #d1d5db';
-        cell.style.padding = '8px';
-        cell.style.fontSize = '12px';
-        cell.style.verticalAlign = 'top';
-      });
-      clone.querySelectorAll('h4').forEach(titulo => {
-        titulo.style.marginTop = '0';
-        titulo.style.marginBottom = '12px';
-        titulo.style.fontSize = '14px';
-      });
+      const resumo = calcularResumoPrevisaoPorSku(skuSelecionado);
+      const cenarios = calcularCenariosTopSkus();
+
+      const conteudo = document.createElement('div');
+      conteudo.innerHTML = `
+        ${gerarCardsPrevisaoPdfHtml(resumo)}
+        ${gerarTabelaPrevisaoPdfHtml(resumo.diario)}
+        ${gerarTopSkusPdfHtml(cenarios)}
+      `;
 
       exportWrapper.appendChild(header);
-      exportWrapper.appendChild(clone);
+      exportWrapper.appendChild(conteudo);
       document.body.appendChild(exportWrapper);
 
       html2pdf()
