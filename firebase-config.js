@@ -3,10 +3,6 @@ import {
   getApps,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
 import {
-  initializeAppCheck,
-  ReCaptchaV3Provider,
-} from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app-check.js';
-import {
   getFirestore,
   enableIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
@@ -24,8 +20,6 @@ export const firebaseConfig = {
   databaseURL: 'https://matheus-35023.firebaseio.com',
 };
 
-export const APP_CHECK_SITE_KEY = '6Lf-MdsrAAAAAFxy7VBRagVA41djogpm2DC0f0xk';
-
 // Initialize Firebase app once and enable offline persistence
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -34,66 +28,6 @@ enableIndexedDbPersistence(db).catch((err) => {
   console.warn('Firestore persistence not enabled:', err.code);
 });
 const auth = getAuth(app);
-
-let appCheckInstance = null;
-
-export function ensureAppCheck(currentApp = app) {
-  const browserScope =
-    typeof window !== 'undefined'
-      ? window
-      : typeof self !== 'undefined'
-        ? self
-        : null;
-  if (appCheckInstance || !browserScope) {
-    return appCheckInstance;
-  }
-  if (!currentApp) {
-    return null;
-  }
-  appCheckInstance = initializeAppCheck(currentApp, {
-    provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
-    isTokenAutoRefreshEnabled: true,
-  });
-  return appCheckInstance;
-}
-
-const appCheck = typeof window !== 'undefined' ? ensureAppCheck(app) : null;
-
-function setupCompatAppCheck() {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const compat = window.firebase;
-  if (!compat?.initializeApp) {
-    if (!window.__appCheckCompatRetryScheduled) {
-      window.__appCheckCompatRetryScheduled = true;
-      setTimeout(() => {
-        window.__appCheckCompatRetryScheduled = false;
-        setupCompatAppCheck();
-      }, 0);
-    }
-    return;
-  }
-
-  if (!compat.__appCheckWrapped) {
-    const originalInitializeApp = compat.initializeApp.bind(compat);
-    compat.initializeApp = (...args) => {
-      const compatApp = originalInitializeApp(...args);
-      ensureAppCheck(compatApp);
-      return compatApp;
-    };
-    compat.__appCheckWrapped = true;
-  }
-
-  if (compat.apps?.length) {
-    try {
-      ensureAppCheck(compat.app());
-    } catch (error) {
-      console.warn('Failed to activate App Check for compat app:', error);
-    }
-  }
-}
 
 // Utility functions for storing the passphrase securely
 export function setPassphrase(pass) {
@@ -120,9 +54,6 @@ if (typeof window !== 'undefined') {
   window.firebaseApp = app;
   window.db = db;
   window.auth = auth;
-  window.appCheck = appCheck;
-  window.ensureAppCheck = ensureAppCheck;
-  setupCompatAppCheck();
   window.setPassphrase = setPassphrase;
   window.getPassphrase = getPassphrase;
   window.clearPassphrase = clearPassphrase;
@@ -135,13 +66,10 @@ if (typeof module !== 'undefined') {
     app,
     db,
     auth,
-    appCheck,
-    ensureAppCheck,
-    APP_CHECK_SITE_KEY,
     setPassphrase,
     getPassphrase,
     clearPassphrase,
   };
 }
 
-export { app, db, auth, appCheck };
+export { app, db, auth };

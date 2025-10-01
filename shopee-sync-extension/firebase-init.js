@@ -1,15 +1,10 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-import {
-  initializeAppCheck,
-  ReCaptchaV3Provider,
-} from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app-check.js';
+import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
 import {
   getFirestore,
   collection,
   doc,
   setDoc
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
-import { APP_CHECK_SITE_KEY, ensureAppCheck } from '../firebase-config.js';
 
 // Configuração Firebase
 const firebaseConfig = {
@@ -23,10 +18,6 @@ const firebaseConfig = {
 
 // Inicializa Firebase
 const app = initializeApp(firebaseConfig);
-ensureAppCheck(app) ?? initializeAppCheck(app, {
-  provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
-  isTokenAutoRefreshEnabled: true,
-});
 const db = getFirestore(app);
 
 // 🔁 Exporte tudo que o background precisa:
