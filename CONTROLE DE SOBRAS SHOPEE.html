@@ -5493,22 +5493,129 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
       })();
 
-      const linhas = [
-        ['Resumo de Vendas - Top 15 SKUs'],
-        ['Mês selecionado', referenciaMes],
-        ['Total de Peças Vendidas', totalPecasVendidas],
-        [],
-        ['SKU', 'Quantidade Vendida', 'Valor Líquido (R$)'],
+      const referenciaMesFormatada = (() => {
+        if (!referenciaMes) return 'Não informado';
+        const [ano, mes] = referenciaMes.split('-');
+        if (!ano || !mes) return referenciaMes;
+        const data = new Date(Number(ano), Number(mes) - 1);
+        const texto = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        return texto.charAt(0).toUpperCase() + texto.slice(1);
+      })();
+
+      const usuarioAtual = (() => {
+        try {
+          return typeof firebase !== 'undefined' && typeof firebase.auth === 'function'
+            ? firebase.auth().currentUser
+            : null;
+        } catch (error) {
+          return null;
+        }
+      })();
+      const nomeUsuario = usuarioAtual?.displayName || usuarioAtual?.email || 'Usuário';
+
+      const { jsPDF } = window.jspdf || {};
+      if (!jsPDF) {
+        Swal.fire('Erro', 'Biblioteca de PDF não carregada. Atualize a página e tente novamente.', 'error');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margemHorizontal = 20;
+      const larguraTabela = pageWidth - margemHorizontal * 2;
+      const colunas = [
+        { titulo: 'SKU', largura: larguraTabela * 0.5 },
+        { titulo: 'Quantidade Vendida', largura: larguraTabela * 0.2 },
+        { titulo: 'Valor Líquido (R$)', largura: larguraTabela * 0.3 },
       ];
 
-      topSkus.forEach(({ sku, quantidade, valorLiquido }) => {
-        linhas.push([sku, quantidade, Math.round((valorLiquido + Number.EPSILON) * 100) / 100]);
+      const formatarQuantidade = (valor) => Number(valor || 0).toLocaleString('pt-BR');
+      const formatarMoeda = (valor) =>
+        Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      let posY = 20;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(nomeUsuario, pageWidth / 2, posY, { align: 'center' });
+      posY += 8;
+
+      doc.setFontSize(18);
+      doc.text('Peças Vendidas Mês', pageWidth / 2, posY, { align: 'center' });
+      posY += 7;
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Mês selecionado: ${referenciaMesFormatada}`, pageWidth / 2, posY, {
+        align: 'center',
+      });
+      posY += 10;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text(`Total de peças vendidas: ${formatarQuantidade(totalPecasVendidas)}`, margemHorizontal, posY);
+      posY += 10;
+
+      const alturaLinha = 8;
+
+      const desenharCabecalhoTabela = (y) => {
+        doc.setDrawColor(37, 99, 235);
+        doc.setFillColor(37, 99, 235);
+        doc.setTextColor(255, 255, 255);
+        doc.rect(margemHorizontal, y, larguraTabela, alturaLinha, 'FD');
+        let deslocamentoX = margemHorizontal;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        colunas.forEach(({ titulo, largura }) => {
+          doc.text(titulo, deslocamentoX + largura / 2, y + 5.5, { align: 'center' });
+          deslocamentoX += largura;
+        });
+        return y + alturaLinha;
+      };
+
+      const desenharLinha = (y, dadosLinha, indice) => {
+        doc.setDrawColor(229, 231, 235);
+        doc.setFillColor(indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 248, 255);
+        doc.rect(margemHorizontal, y, larguraTabela, alturaLinha, 'FD');
+        doc.setTextColor(55, 65, 81);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10.5);
+        let deslocamentoX = margemHorizontal + 2;
+        dadosLinha.forEach((texto, colunaIndice) => {
+          const alinhamento = colunaIndice === 0 ? 'left' : 'right';
+          const posicaoTextoX =
+            alinhamento === 'left' ? deslocamentoX : deslocamentoX + colunas[colunaIndice].largura - 2;
+          doc.text(String(texto), posicaoTextoX, y + 5.5, { align: alinhamento });
+          deslocamentoX += colunas[colunaIndice].largura;
+        });
+        return y + alturaLinha;
+      };
+
+      posY = desenharCabecalhoTabela(posY);
+
+      topSkus.forEach(({ sku, quantidade, valorLiquido }, indice) => {
+        if (posY + alturaLinha > pageHeight - 20) {
+          doc.addPage();
+          posY = 20;
+          posY = desenharCabecalhoTabela(posY);
+        }
+
+        posY = desenharLinha(posY, [sku, formatarQuantidade(quantidade), formatarMoeda(valorLiquido)], indice);
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(linhas);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Top 15 SKUs');
-      XLSX.writeFile(wb, `top_skus_${referenciaMes}.xlsx`);
+      posY += 10;
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(10);
+      doc.setTextColor(107, 114, 128);
+      doc.text(
+        `Relatório gerado em ${new Date().toLocaleString('pt-BR')}.`,
+        margemHorizontal,
+        Math.min(posY, pageHeight - 10),
+      );
+
+      const nomeArquivo = referenciaMes ? `top_skus_${referenciaMes}.pdf` : 'top_skus.pdf';
+      doc.save(nomeArquivo);
     }
 
     function exportarAcompanhamentoPDF() {
