@@ -4711,22 +4711,30 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     }
 
     function gerarCardsPrevisaoPdfHtml(resumo) {
-      const formatNumero = valor => Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+      const formatNumero = valor => Number(valor || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      });
       const cards = [
-        { titulo: 'Pessimista', valor: formatNumero(resumo.pess), bg: '#fee2e2', color: '#991b1b' },
-        { titulo: 'Base', valor: formatNumero(resumo.totalBase), bg: '#dbeafe', color: '#1d4ed8' },
+        { titulo: 'Pessimista', valor: formatNumero(resumo.pess), bg: '#fee2e2', color: '#7f1d1d' },
+        { titulo: 'Base', valor: formatNumero(resumo.totalBase), bg: '#dbeafe', color: '#1e3a8a' },
         { titulo: 'Otimista', valor: formatNumero(resumo.otm), bg: '#dcfce7', color: '#166534' }
       ];
 
       const cardsHtml = cards
         .map(card => `
-        <div style="background:${card.bg};color:${card.color};padding:16px;border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,0.1);text-align:center;">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${card.titulo}</div>
-          <div style="font-size:24px;font-weight:700;">${card.valor}</div>
-        </div>`)
+          <div style="background:${card.bg};color:${card.color};padding:16px 20px;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,0.08);text-align:center;display:flex;flex-direction:column;gap:8px;">
+            <span style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.5px;">${card.titulo}</span>
+            <strong style="font-size:26px;line-height:1;">${card.valor}</strong>
+          </div>`)
         .join('');
 
-      return `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:16px;">${cardsHtml}</div>`;
+      return `
+        <section style="margin-bottom:24px;">
+          <h3 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#111827;">Resumo das projeções</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;">${cardsHtml}</div>
+        </section>
+      `;
     }
 
     function gerarTabelaPrevisaoPdfHtml(diario) {
@@ -4764,42 +4772,49 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         return '<p style="color:#6b7280;font-size:12px;margin:0;">Nenhuma previsão disponível.</p>';
       }
 
-      const celulaStyle = 'border:1px solid #d1d5db;padding:8px;font-size:12px;text-align:left;';
-      const celulaNumerica = 'border:1px solid #d1d5db;padding:8px;font-size:12px;text-align:right;';
+      const celulaBase = 'border:1px solid #d1d5db;padding:8px;font-size:12px;';
+      const cabecalhoCelula = `${celulaBase}font-weight:600;background:#f9fafb;color:#111827;`;
+      const celulaTexto = `${celulaBase}text-align:left;`;
+      const celulaNumero = `${celulaBase}text-align:right;`;
 
       const htmlCenarios = cenarios
         .map(cenario => {
           const linhas = cenario.itens
             .map(item => `
-              <tr>
-                <td style="${celulaStyle}">${item.sku}</td>
-                <td style="${celulaNumerica}">${Number(item.quantidade || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</td>
-                <td style="${celulaNumerica}">R$ ${Number(item.bruto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style="${celulaNumerica}">R$ ${Number(item.sobra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-              </tr>`)
+                <tr>
+                  <td style="${celulaTexto}">${item.sku}</td>
+                  <td style="${celulaNumero}">${Number(item.quantidade || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</td>
+                  <td style="${celulaNumero}">R$ ${Number(item.bruto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td style="${celulaNumero}">R$ ${Number(item.sobra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>`)
             .join('');
 
           return `
-            <div style="page-break-inside:avoid;">
-              <h4 style="font-size:14px;font-weight:600;text-align:center;margin:0 0 8px;">Top 10 SKUs projeção ${cenario.titulo}</h4>
-              <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+            <section style="page-break-inside:avoid;margin-bottom:24px;">
+              <h4 style="font-size:15px;font-weight:600;margin:0 0 12px;color:#111827;">Top 10 SKUs projeção ${cenario.titulo}</h4>
+              <table style="width:100%;border-collapse:collapse;font-size:12px;">
                 <thead>
                   <tr>
-                    <th style="${celulaStyle};background:#f3f4f6;">SKU</th>
-                    <th style="${celulaNumerica};background:#f3f4f6;">Quantidade</th>
-                    <th style="${celulaNumerica};background:#f3f4f6;">Bruto Esperado<br>(Valor de venda)</th>
-                    <th style="${celulaNumerica};background:#f3f4f6;">Sobra Esperada<br>(Sobra esperada x quantidade)</th>
+                    <th style="${cabecalhoCelula}text-align:left;">SKU</th>
+                    <th style="${cabecalhoCelula}text-align:right;">Quantidade</th>
+                    <th style="${cabecalhoCelula}text-align:right;">Bruto Esperado<br><span style="font-weight:400;color:#374151;">(Valor de venda)</span></th>
+                    <th style="${cabecalhoCelula}text-align:right;">Sobra Esperada<br><span style="font-weight:400;color:#374151;">(Sobra esperada × quantidade)</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   ${linhas}
                 </tbody>
               </table>
-            </div>`;
+            </section>`;
         })
         .join('');
 
-      return `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">${htmlCenarios}</div>`;
+      return `
+        <section>
+          <h3 style="margin:0 0 16px;font-size:16px;font-weight:600;color:#111827;">Top 10 SKUs por cenário</h3>
+          ${htmlCenarios}
+        </section>
+      `;
     }
 
     async function carregarPrevisao() {
@@ -4902,11 +4917,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const dataArquivo = new Date().toISOString().slice(0, 10);
 
       const opt = {
-        margin: 0.5,
+        margin: { top: 1.2, right: 1.5, bottom: 1.2, left: 1.5 },
         filename: `previsao_${identificadorSku}_${dataArquivo}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
@@ -4919,8 +4934,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       exportWrapper.style.boxSizing = 'border-box';
       exportWrapper.style.fontFamily = "'Inter', Arial, sans-serif";
       exportWrapper.style.color = '#111827';
-      const larguraReferencia = Math.max(area.offsetWidth || area.scrollWidth || 1100, 1100);
-      exportWrapper.style.width = `${larguraReferencia}px`;
+      exportWrapper.style.width = '19cm';
 
       const header = document.createElement('div');
       header.style.marginBottom = '16px';
@@ -4937,7 +4951,6 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const conteudo = document.createElement('div');
       conteudo.innerHTML = `
         ${gerarCardsPrevisaoPdfHtml(resumo)}
-        ${gerarTabelaPrevisaoPdfHtml(resumo.diario)}
         ${gerarTopSkusPdfHtml(cenarios)}
       `;
 
