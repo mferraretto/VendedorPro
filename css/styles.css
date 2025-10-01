@@ -650,6 +650,38 @@ button:hover {
   align-items: center;
   gap: 12px;
 }
+
+.alert-container {
+  position: sticky;
+  top: calc(var(--navbar-height) + 1rem);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alert .alert-content {
+  flex: 1;
+}
+
+.alert-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.alert-close:hover,
+.alert-close:focus-visible {
+  background-color: rgba(17, 24, 39, 0.08);
+  outline: none;
+}
 .card-metric-novo {
   background: var(--secondary);
   border-radius: 1rem;
