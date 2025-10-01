@@ -5893,150 +5893,169 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       await html2pdf().set(opt).from(pdfElement).save();
     }
 
-    async function exportarAcompanhamentoPDF() {
-      const element = document.getElementById('areaImpressao');
-      if (!element) return;
+async function exportarAcompanhamentoPDF() {
+  const element = document.getElementById('areaImpressao');
+  if (!element) return;
 
-      const nomeUsuario = escapeHtml(await obterNomeUsuarioAtual());
-      const filtroMes = document.getElementById('filtroMesAcompanhamento')?.value || '';
+  const nomeUsuario = escapeHtml(await obterNomeUsuarioAtual());
+  const filtroMes = document.getElementById('filtroMesAcompanhamento')?.value || '';
 
-      let mesReferencia = filtroMes;
-      if (!mesReferencia && Array.isArray(dadosAcompanhamento) && dadosAcompanhamento.length) {
-        const primeiroRegistro = dadosAcompanhamento.find(item => item && item.data);
-        if (primeiroRegistro?.data) {
-          const [ano, mes] = String(primeiroRegistro.data).split('-');
-          if (ano && mes) mesReferencia = `${ano}-${mes}`;
-        }
-      }
-
-      let mesFormatado = '';
-      if (mesReferencia) {
-        const texto = formatarMesReferencia(mesReferencia);
-        if (texto) {
-          mesFormatado = texto.charAt(0).toUpperCase() + texto.slice(1);
-        }
-      }
-      const mesLabel = escapeHtml(mesFormatado || 'Período completo');
-
-      const clone = element.cloneNode(true);
-      clone.style.marginTop = '16px';
-      clone.style.width = '100%';
-      clone.style.maxWidth = '100%';
-
-      clone.querySelectorAll('.table-container').forEach(container => {
-        container.style.overflow = 'visible';
-        container.style.width = '100%';
-        container.style.maxWidth = '100%';
-      });
-
-      const resumoClone = clone.querySelector('#resumoAcompanhamento');
-      if (resumoClone) {
-        resumoClone.style.display = 'grid';
-        resumoClone.style.gridTemplateColumns = 'repeat(auto-fit, minmax(140px, 1fr))';
-        resumoClone.style.gap = '12px';
-      }
-
-      clone.querySelectorAll('.resumo-card').forEach(card => {
-        card.style.background = '#f9fafb';
-        card.style.border = '1px solid #e5e7eb';
-        card.style.borderRadius = '8px';
-        card.style.padding = '12px';
-        card.style.pageBreakInside = 'avoid';
-      });
-
-      clone.querySelectorAll('table').forEach(table => {
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        table.style.marginTop = '16px';
-      });
-
-      clone.querySelectorAll('th, td').forEach(cell => {
-        cell.style.border = '1px solid #e5e7eb';
-        cell.style.padding = '8px';
-        cell.style.fontSize = '12px';
-        cell.style.pageBreakInside = 'avoid';
-      });
-
-      clone.querySelectorAll('tr').forEach(row => {
-        row.style.pageBreakInside = 'avoid';
-      });
-
-      const wrapper = document.createElement('div');
-      wrapper.style.fontFamily = "'Inter', 'Segoe UI', sans-serif";
-      wrapper.style.padding = '16px 24px';
-      wrapper.style.backgroundColor = '#ffffff';
-      wrapper.style.width = '186mm';
-      wrapper.style.maxWidth = '186mm';
-      wrapper.style.boxSizing = 'border-box';
-
-      const header = document.createElement('div');
-      header.style.display = 'flex';
-      header.style.justifyContent = 'space-between';
-      header.style.alignItems = 'flex-start';
-      header.style.marginBottom = '16px';
-      header.style.paddingBottom = '12px';
-      header.style.borderBottom = '1px solid #e5e7eb';
-      header.innerHTML = `
-        <div style="font-size:18px;font-weight:700;color:#111827;">Relatório de Acompanhamento Mensal</div>
-        <div style="text-align:right;font-size:12px;color:#374151;line-height:1.4;">
-          <div style="font-weight:600;">${nomeUsuario}</div>
-          <div>${mesLabel}</div>
-        </div>
-      `;
-
-      const styleBlock = document.createElement('style');
-      styleBlock.textContent = `
-        * { box-sizing: border-box; }
-        .resumo-card h4 { font-size: 12px; margin-bottom: 4px; color: #111827; }
-        .resumo-card p { font-size: 14px; font-weight: 600; color: #111827; margin: 0; }
-        .resumo-card small { display: block; margin-top: 4px; font-size: 11px; color: #4b5563; }
-        #tabelaAcompanhamento thead th { background: #f3f4f6; font-weight: 600; color: #1f2937; }
-        #tabelaAcompanhamento tbody tr:nth-child(even) { background: #f9fafb; }
-        #tabelaAcompanhamento tbody tr.abaixo-meta { background: #fef2f2; color: #991b1b; }
-        #tabelaAcompanhamento tbody tr.abaixo-meta td { border-color: #fecaca; }
-        table { table-layout: fixed; width: 100%; }
-        th, td { word-wrap: break-word; word-break: break-word; }
-        .section-title { font-size: 14px; font-weight: 600; color: #374151; margin-top: 24px; margin-bottom: 8px; }
-        @media print {
-          .resumo-card, table, tr, td, th { break-inside: avoid; }
-        }
-      `;
-
-      wrapper.appendChild(styleBlock);
-      wrapper.appendChild(header);
-      wrapper.appendChild(clone);
-
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'fixed';
-      tempContainer.style.left = '-2000px';
-      tempContainer.style.top = '0';
-      tempContainer.style.width = '0';
-      tempContainer.style.height = '0';
-      tempContainer.style.overflow = 'hidden';
-      tempContainer.appendChild(wrapper);
-      document.body.appendChild(tempContainer);
-
-      const opt = {
-        margin: [10, 12, 16, 12],
-        filename: 'acompanhamento.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          windowWidth: wrapper.scrollWidth,
-          windowHeight: wrapper.scrollHeight,
-          scrollX: 0,
-          scrollY: -window.scrollY
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      try {
-        await html2pdf().set(opt).from(wrapper).save();
-      } finally {
-        document.body.removeChild(tempContainer);
-      }
+  let mesReferencia = filtroMes;
+  if (!mesReferencia && Array.isArray(dadosAcompanhamento) && dadosAcompanhamento.length) {
+    const primeiroRegistro = dadosAcompanhamento.find(item => item && item.data);
+    if (primeiroRegistro?.data) {
+      const [ano, mes] = String(primeiroRegistro.data).split('-');
+      if (ano && mes) mesReferencia = `${ano}-${mes}`;
     }
+  }
+
+  let mesFormatado = '';
+  if (mesReferencia) {
+    const texto = formatarMesReferencia(mesReferencia);
+    if (texto) mesFormatado = texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+  const mesLabel = escapeHtml(mesFormatado || 'Período completo');
+
+  // === Clona o conteúdo a imprimir ===
+  const clone = element.cloneNode(true);
+  clone.style.marginTop = '16px';
+  clone.style.width = '100%';
+  clone.style.maxWidth = '100%';
+
+  clone.querySelectorAll('.table-container').forEach(container => {
+    container.style.overflow = 'visible';
+    container.style.width = '100%';
+    container.style.maxWidth = '100%';
+  });
+
+  const resumoClone = clone.querySelector('#resumoAcompanhamento');
+  if (resumoClone) {
+    resumoClone.style.display = 'grid';
+    resumoClone.style.gridTemplateColumns = 'repeat(auto-fit, minmax(140px, 1fr))';
+    resumoClone.style.gap = '12px';
+  }
+
+  clone.querySelectorAll('.resumo-card').forEach(card => {
+    card.style.background = '#f9fafb';
+    card.style.border = '1px solid #e5e7eb';
+    card.style.borderRadius = '8px';
+    card.style.padding = '12px';
+    // manter "avoid" aqui é ok pois são blocos pequenos
+    card.style.pageBreakInside = 'avoid';
+  });
+
+  clone.querySelectorAll('table').forEach(table => {
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    table.style.marginTop = '16px';
+  });
+
+  clone.querySelectorAll('th, td').forEach(cell => {
+    cell.style.border = '1px solid #e5e7eb';
+    cell.style.padding = '8px';
+    cell.style.fontSize = '12px';
+    // REMOVIDO: pageBreakInside: avoid (pode causar corte de página)
+  });
+
+  clone.querySelectorAll('tr').forEach(row => {
+    // REMOVIDO: pageBreakInside: avoid (deixa quebrar quando necessário)
+  });
+
+  // === Wrapper formatado para A4 útil (210mm - 12mm - 12mm = 186mm) ===
+  const wrapper = document.createElement('div');
+  wrapper.style.fontFamily = "'Inter', 'Segoe UI', sans-serif";
+  wrapper.style.padding = '16px 24px';
+  wrapper.style.backgroundColor = '#ffffff';
+  wrapper.style.width = '186mm';
+  wrapper.style.maxWidth = '186mm';
+  wrapper.style.boxSizing = 'border-box';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'flex-start';
+  header.style.marginBottom = '16px';
+  header.style.paddingBottom = '12px';
+  header.style.borderBottom = '1px solid #e5e7eb';
+  header.innerHTML = `
+    <div style="font-size:18px;font-weight:700;color:#111827;">Relatório de Acompanhamento Mensal</div>
+    <div style="text-align:right;font-size:12px;color:#374151;line-height:1.4;">
+      <div style="font-weight:600;">${nomeUsuario}</div>
+      <div>${mesLabel}</div>
+    </div>
+  `;
+
+  const styleBlock = document.createElement('style');
+  styleBlock.textContent = `
+    * { box-sizing: border-box; }
+    .resumo-card h4 { font-size: 12px; margin-bottom: 4px; color: #111827; }
+    .resumo-card p { font-size: 14px; font-weight: 600; color: #111827; margin: 0; }
+    .resumo-card small { display: block; margin-top: 4px; font-size: 11px; color: #4b5563; }
+    #tabelaAcompanhamento thead th { background: #f3f4f6; font-weight: 600; color: #1f2937; }
+    #tabelaAcompanhamento tbody tr:nth-child(even) { background: #f9fafb; }
+    #tabelaAcompanhamento tbody tr.abaixo-meta { background: #fef2f2; color: #991b1b; }
+    #tabelaAcompanhamento tbody tr.abaixo-meta td { border-color: #fecaca; }
+    table { table-layout: fixed; width: 100%; }
+    th, td { word-wrap: break-word; word-break: break-word; }
+
+    /* Permitir que a tabela quebre entre linhas/células quando necessário */
+    tr, td, th {
+      break-inside: auto !important;
+      page-break-inside: auto !important;
+    }
+
+    .section-title { font-size: 14px; font-weight: 600; color: #374151; margin-top: 24px; margin-bottom: 8px; }
+
+    /* Classe opcional para forçar quebra manual */
+    .page-break {
+      break-before: page;
+      page-break-before: always;
+    }
+
+    @media print {
+      .resumo-card { break-inside: avoid; page-break-inside: avoid; }
+    }
+  `;
+
+  wrapper.appendChild(styleBlock);
+  wrapper.appendChild(header);
+  wrapper.appendChild(clone);
+
+  // === Contêiner fora da tela, mas com dimensão real (nada de 0x0/overflow hidden) ===
+  const tempContainer = document.createElement('div');
+  tempContainer.style.position = 'absolute';
+  tempContainer.style.left = '-9999px'; // offscreen sem clipping
+  tempContainer.style.top = '0';
+  tempContainer.style.width = 'auto';
+  tempContainer.style.height = 'auto';
+  tempContainer.style.overflow = 'visible';
+  tempContainer.appendChild(wrapper);
+  document.body.appendChild(tempContainer);
+
+  // === Opções html2pdf/html2canvas seguras ===
+  const opt = {
+    margin: [10, 12, 16, 12],
+    filename: 'acompanhamento.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      // deixe o motor calcular o tamanho da área de render
+      // windowWidth: wrapper.scrollWidth,
+      // windowHeight: wrapper.scrollHeight,
+      scrollX: 0,
+      scrollY: 0
+    },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'] } // respeita as regras CSS de quebra
+  };
+
+  try {
+    await html2pdf().set(opt).from(wrapper).save();
+  } finally {
+    document.body.removeChild(tempContainer);
+  }
+}
 
     function printAcompanhamento() {
       const element = document.getElementById('areaImpressao');
