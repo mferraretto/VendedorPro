@@ -10,14 +10,9 @@
         <option value="todos">Todos</option>
       </select>
     </div>
-    <div class="flex items-center gap-2 ml-auto">
-      <button id="btnExportarPrevisaoPdf" onclick="exportarPrevisaoPDF()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded disabled:opacity-60 disabled:cursor-not-allowed">
-        <i class="fas fa-file-pdf"></i> Baixar PDF
-      </button>
-      <button id="btnGerarPrevisao" onclick="gerarPrevisao()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
-        <i class="fas fa-sync-alt"></i> Gerar previsão
-      </button>
-    </div>
+    <button id="btnGerarPrevisao" onclick="gerarPrevisao()" class="ml-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
+      <i class="fas fa-sync-alt"></i> Gerar previsão
+    </button>
   </div>
   <div id="cardsPrevisao" class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4"></div>
   <div id="topSkusPrevisao" class="p-4"></div>
