@@ -6433,6 +6433,72 @@ async function exportarAcompanhamentoPDF() {
   }
 }
 
+const aguardarEntreDownloads = (tempo = 900) =>
+  new Promise((resolve) => setTimeout(resolve, tempo));
+
+async function baixarFechamentoMensal() {
+  const botao = document.getElementById('btnFechamentoMensal');
+  let htmlOriginal = '';
+
+  if (botao) {
+    htmlOriginal = botao.innerHTML;
+    botao.disabled = true;
+    botao.classList.add('opacity-80', 'pointer-events-none');
+    botao.innerHTML =
+      '<span class="flex items-center gap-2"><i class="fas fa-spinner fa-spin"></i> Gerando PDFs...</span>';
+  }
+
+  const etapas = [
+    { nome: 'Fechamento de Saques', chave: 'imprimirFechamento' },
+    { nome: 'Produtos Vendidos', chave: 'exportarProdutosVendidosPDF' },
+    { nome: 'Top 15 SKUs', chave: 'exportarResumoTopSkus' },
+    { nome: 'Previsão', chave: 'baixarPrevisaoPdf' },
+    { nome: 'Acompanhamento', chave: 'exportarAcompanhamentoPDF' },
+  ];
+
+  const erros = [];
+
+  for (const etapa of etapas) {
+    const fn = window[etapa.chave];
+    if (typeof fn !== 'function') {
+      erros.push(`${etapa.nome} indisponível`);
+      continue;
+    }
+
+    try {
+      const retorno = fn();
+      if (retorno instanceof Promise) {
+        await retorno;
+      }
+      await aguardarEntreDownloads();
+    } catch (error) {
+      console.error(`Erro ao gerar PDF de ${etapa.nome}`, error);
+      erros.push(`${etapa.nome} falhou`);
+    }
+  }
+
+  if (botao) {
+    botao.disabled = false;
+    botao.classList.remove('opacity-80', 'pointer-events-none');
+    botao.innerHTML = htmlOriginal;
+  }
+
+  if (erros.length) {
+    if (typeof mostrarErro === 'function') {
+      mostrarErro(`Não foi possível gerar todos os PDFs: ${erros.join(' | ')}`);
+    } else {
+      alert(`Não foi possível gerar todos os PDFs: ${erros.join(' | ')}`);
+    }
+    return;
+  }
+
+  if (typeof mostrarSucesso === 'function') {
+    mostrarSucesso('Fechamento do mês gerado! Verifique os downloads em seu navegador.');
+  } else {
+    alert('Fechamento do mês gerado! Verifique os downloads em seu navegador.');
+  }
+}
+
     function printAcompanhamento() {
       const element = document.getElementById('areaImpressao');
       if (!element) return;
@@ -6766,6 +6832,7 @@ window.exportarProdutosVendidosPDF = exportarProdutosVendidosPDF;
 window.exportarAcompanhamentoExcel = exportarAcompanhamentoExcel;
 window.exportarResumoTopSkus = exportarResumoTopSkus;
 window.exportarAcompanhamentoPDF = exportarAcompanhamentoPDF;
+window.baixarFechamentoMensal = baixarFechamentoMensal;
 window.printAcompanhamento = printAcompanhamento;
   window.salvarMetasAcompanhamento = salvarMetasAcompanhamento;
 window.atualizarResponsavelFinanceiro = atualizarResponsavelFinanceiro;
