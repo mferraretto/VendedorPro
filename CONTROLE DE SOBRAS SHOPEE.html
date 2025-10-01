@@ -4680,6 +4680,95 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${tabelas}</div>`;
     }
 
+    function baixarPrevisaoPdf() {
+      const area = document.getElementById('previsaoResumoPdf');
+      if (!area) {
+        mostrarErro('Conteúdo de previsão indisponível para exportação.');
+        return;
+      }
+      if (typeof html2pdf === 'undefined') {
+        mostrarErro('Biblioteca de exportação para PDF indisponível.');
+        return;
+      }
+
+      const selectSku = document.getElementById('filtroSkuPrevisao');
+      const skuSelecionado = selectSku?.value || 'todos';
+      const identificadorSku = skuSelecionado === 'todos'
+        ? 'todos'
+        : skuSelecionado.replace(/[^a-zA-Z0-9_-]+/g, '_');
+      const dataArquivo = new Date().toISOString().slice(0, 10);
+
+      const opt = {
+        margin: 0.5,
+        filename: `previsao_${identificadorSku}_${dataArquivo}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      const exportWrapper = document.createElement('div');
+      exportWrapper.style.position = 'fixed';
+      exportWrapper.style.left = '-9999px';
+      exportWrapper.style.top = '0';
+      exportWrapper.style.backgroundColor = '#ffffff';
+      exportWrapper.style.padding = '24px';
+      exportWrapper.style.boxSizing = 'border-box';
+      exportWrapper.style.fontFamily = "'Inter', Arial, sans-serif";
+      exportWrapper.style.color = '#111827';
+      const larguraReferencia = Math.max(area.offsetWidth || area.scrollWidth || 1100, 1100);
+      exportWrapper.style.width = `${larguraReferencia}px`;
+
+      const header = document.createElement('div');
+      header.style.marginBottom = '16px';
+      header.innerHTML = `
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Previsão de Vendas</h2>
+        <p style="margin:0;font-size:12px;color:#4b5563;">
+          Gerado em ${new Date().toLocaleString('pt-BR')} | SKU: ${skuSelecionado === 'todos' ? 'Todos' : skuSelecionado}
+        </p>
+      `;
+
+      const clone = area.cloneNode(true);
+      clone.style.backgroundColor = '#ffffff';
+      clone.style.padding = '0';
+      clone.style.width = '100%';
+      clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+      clone.querySelectorAll('table').forEach(table => {
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+      });
+      clone.querySelectorAll('th, td').forEach(cell => {
+        cell.style.border = '1px solid #d1d5db';
+        cell.style.padding = '8px';
+        cell.style.fontSize = '12px';
+        cell.style.verticalAlign = 'top';
+      });
+      clone.querySelectorAll('h4').forEach(titulo => {
+        titulo.style.marginTop = '0';
+        titulo.style.marginBottom = '12px';
+        titulo.style.fontSize = '14px';
+      });
+
+      exportWrapper.appendChild(header);
+      exportWrapper.appendChild(clone);
+      document.body.appendChild(exportWrapper);
+
+      html2pdf()
+        .set(opt)
+        .from(exportWrapper)
+        .save()
+        .then(() => {
+          mostrarSucesso('Arquivo PDF gerado com sucesso.');
+        })
+        .catch(err => {
+          console.error('Erro ao gerar PDF da previsão', err);
+          mostrarErro('Não foi possível gerar o PDF da previsão.');
+        })
+        .finally(() => {
+          exportWrapper.remove();
+        });
+    }
+
     function gerarDatas(qtd, endDate = new Date()) {
       const datas = [];
       for (let i = qtd; i > 0; i--) {
@@ -5984,6 +6073,7 @@ window.carregarSobras = carregarSobras;
 window.carregarPrevisao = carregarPrevisao;
 window.gerarPrevisao = gerarPrevisao;
 window.renderizarPrevisao = renderizarPrevisao;
+window.baixarPrevisaoPdf = baixarPrevisaoPdf;
 window.carregarAcompanhamento = carregarAcompanhamento;
 window.carregarAcompanhamentoGestor = carregarAcompanhamentoGestor;
 window.verificarGestorFinanceiro = verificarGestorFinanceiro;
