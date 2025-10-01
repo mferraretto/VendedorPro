@@ -4883,7 +4883,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${tabelas}</div>`;
     }
 
-    async function baixarPrevisaoPdf() {
+    function baixarPrevisaoPdf() {
       const area = document.getElementById('previsaoResumoPdf');
       if (!area) {
         mostrarErro('Conteúdo de previsão indisponível para exportação.');
@@ -4945,16 +4945,20 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       exportWrapper.appendChild(conteudo);
       document.body.appendChild(exportWrapper);
 
-      try {
-        await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-        await html2pdf().set(opt).from(exportWrapper).save();
-        mostrarSucesso('Arquivo PDF gerado com sucesso.');
-      } catch (err) {
-        console.error('Erro ao gerar PDF da previsão', err);
-        mostrarErro('Não foi possível gerar o PDF da previsão.');
-      } finally {
-        exportWrapper.remove();
-      }
+      html2pdf()
+        .set(opt)
+        .from(exportWrapper)
+        .save()
+        .then(() => {
+          mostrarSucesso('Arquivo PDF gerado com sucesso.');
+        })
+        .catch(err => {
+          console.error('Erro ao gerar PDF da previsão', err);
+          mostrarErro('Não foi possível gerar o PDF da previsão.');
+        })
+        .finally(() => {
+          exportWrapper.remove();
+        });
     }
 
     function gerarDatas(qtd, endDate = new Date()) {
