@@ -7,6 +7,10 @@ import {
   enableIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+} from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app-check.js';
 
 // Firebase configuration
 // Fill these values via environment variables or a protected configuration not checked into version control.
@@ -22,6 +26,11 @@ export const firebaseConfig = {
 
 // Initialize Firebase app once and enable offline persistence
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider('6Lf-MdsrAAAAAFxy7VBRagVA41djogpm2DC0f0xk'),
+  isTokenAutoRefreshEnabled: true,
+});
+
 const db = getFirestore(app);
 // Best-effort enable persistence; ignore if not supported or already enabled
 enableIndexedDbPersistence(db).catch((err) => {
