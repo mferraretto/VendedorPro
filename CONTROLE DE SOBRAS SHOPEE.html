@@ -5375,6 +5375,57 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       XLSX.writeFile(wb, 'acompanhamento.xlsx');
     }
 
+    function exportarResumoTopSkus() {
+      if (!dadosAcompanhamento.length) {
+        Swal.fire('Sem dados', 'Carregue o acompanhamento para exportar o resumo.', 'info');
+        return;
+      }
+
+      const totalPecasVendidas = dadosAcompanhamento.reduce(
+        (acc, item) => acc + (Number(item.vendas) || 0),
+        0,
+      );
+
+      const topSkus = Object.entries(resumoSku || {})
+        .map(([sku, info]) => ({
+          sku,
+          quantidade: Number(info?.vendas) || 0,
+          valorLiquido: Number(info?.liquido) || 0,
+        }))
+        .filter(({ quantidade, valorLiquido }) => quantidade > 0 || valorLiquido > 0)
+        .sort((a, b) => b.quantidade - a.quantidade)
+        .slice(0, 15);
+
+      if (!topSkus.length) {
+        Swal.fire('Sem dados', 'Não há vendas por SKU para o período selecionado.', 'info');
+        return;
+      }
+
+      const filtroMes = document.getElementById('filtroMesAcompanhamento')?.value;
+      const referenciaMes = (() => {
+        if (filtroMes) return filtroMes;
+        const hoje = new Date();
+        return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+      })();
+
+      const linhas = [
+        ['Resumo de Vendas - Top 15 SKUs'],
+        ['Mês selecionado', referenciaMes],
+        ['Total de Peças Vendidas', totalPecasVendidas],
+        [],
+        ['SKU', 'Quantidade Vendida', 'Valor Líquido (R$)'],
+      ];
+
+      topSkus.forEach(({ sku, quantidade, valorLiquido }) => {
+        linhas.push([sku, quantidade, Math.round((valorLiquido + Number.EPSILON) * 100) / 100]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(linhas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Top 15 SKUs');
+      XLSX.writeFile(wb, `top_skus_${referenciaMes}.xlsx`);
+    }
+
     function exportarAcompanhamentoPDF() {
       const element = document.getElementById('areaImpressao');
       if (!element) return;
@@ -5712,6 +5763,7 @@ window.verificarGestorFinanceiro = verificarGestorFinanceiro;
 window.exportarProdutosVendidosExcel = exportarProdutosVendidosExcel;
 window.exportarProdutosVendidosPDF = exportarProdutosVendidosPDF;
 window.exportarAcompanhamentoExcel = exportarAcompanhamentoExcel;
+window.exportarResumoTopSkus = exportarResumoTopSkus;
 window.exportarAcompanhamentoPDF = exportarAcompanhamentoPDF;
 window.printAcompanhamento = printAcompanhamento;
   window.salvarMetasAcompanhamento = salvarMetasAcompanhamento;
