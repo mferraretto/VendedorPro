@@ -5317,7 +5317,11 @@ let uids = [];
             } catch (e) {
               console.error('Erro ao carregar saques mensais detalhados', e);
             }
-            if (resumoSnap.exists()) {
+            const resumoExiste =
+              typeof resumoSnap.exists === 'function'
+                ? resumoSnap.exists()
+                : resumoSnap.exists;
+            if (resumoExiste) {
               let utilizouResumo = false;
               const dadosResumo = resumoSnap.data() || {};
               const totalSacadoResumo = Number(dadosResumo.totalSacado);
