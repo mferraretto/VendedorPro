@@ -1365,64 +1365,6 @@
       }
     }
 
-    function getStorageErrorStatus(error) {
-      if (!error) return null;
-      if (error.code && typeof error.code === 'number') return error.code;
-      const possibleSources = [error.serverResponse, error.serverResponse_, error.message];
-      for (const source of possibleSources) {
-        if (typeof source !== 'string' || !source) continue;
-        try {
-          const parsed = JSON.parse(source);
-          const code = parsed?.error?.code || parsed?.code;
-          if (code) return Number(code);
-        } catch (_) {
-          const match = source.match(/\b(\d{3})\b/);
-          if (match) return Number(match[1]);
-        }
-      }
-      return null;
-    }
-
-    async function uploadFileToStorage(fileRef, file, onProgress) {
-      const metadata = { contentType: file?.type || 'application/pdf' };
-      const performUpload = () =>
-        new Promise((resolve, reject) => {
-          const uploadTask = fileRef.put(file, metadata);
-          uploadTask.on(
-            'state_changed',
-            snapshot => {
-              if (!snapshot || !snapshot.totalBytes || typeof onProgress !== 'function') return;
-              const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-              const adjusted = Math.max(25, Math.min(95, percent));
-              onProgress({ text: `Enviando arquivo... ${percent}%`, percent: adjusted });
-            },
-            error => reject(error),
-            () => resolve()
-          );
-        });
-
-      try {
-        await performUpload();
-      } catch (error) {
-        const status = getStorageErrorStatus(error);
-        if (status === 412) {
-          console.warn('Conflito ao enviar arquivo para o Storage (status 412). Tentando reenviar após remover o arquivo existente.');
-          try {
-            await fileRef.delete();
-          } catch (deleteErr) {
-            if (deleteErr?.code !== 'storage/object-not-found') {
-              console.error('Erro ao remover arquivo existente do Storage antes do reenvio:', deleteErr);
-              throw error;
-            }
-          }
-          if (typeof onProgress === 'function') onProgress({ text: 'Reenviando arquivo...', percent: 25 });
-          await performUpload();
-        } else {
-          throw error;
-        }
-      }
-    }
-
     async function uploadManualLabel(file, lojaNome, options = {}) {
       if (!currentUser || !file) {
         alert('Selecione um arquivo PDF.');
@@ -1452,7 +1394,20 @@
         });
         const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
         if (typeof onProgress === 'function') onProgress({ text: 'Enviando arquivo...', percent: 25 });
-        await uploadFileToStorage(fileRef, file, onProgress);
+        await new Promise((resolve, reject) => {
+          const uploadTask = fileRef.put(file);
+          uploadTask.on(
+            'state_changed',
+            snapshot => {
+              if (!snapshot || !snapshot.totalBytes || typeof onProgress !== 'function') return;
+              const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+              const adjusted = Math.max(25, Math.min(95, percent));
+              onProgress({ text: `Enviando arquivo... ${percent}%`, percent: adjusted });
+            },
+            error => reject(error),
+            () => resolve()
+          );
+        });
         const url = await fileRef.getDownloadURL();
         await docRef.update({
           url: url,
