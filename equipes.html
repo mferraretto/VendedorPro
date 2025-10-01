@@ -919,7 +919,8 @@
         import { getAuth, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where, updateDoc, doc, deleteDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
-        import { firebaseConfig as defaultFirebaseConfig } from './firebase-config.js';
+        import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app-check.js";
+        import { firebaseConfig as defaultFirebaseConfig, APP_CHECK_SITE_KEY, ensureAppCheck } from './firebase-config.js';
 
         // Variáveis globais fornecidas pelo ambiente
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'equipes';
@@ -1124,6 +1125,10 @@
 
             try {
                 app = initializeApp(firebaseConfig);
+                ensureAppCheck(app) ?? initializeAppCheck(app, {
+                    provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
+                    isTokenAutoRefreshEnabled: true,
+                });
                 db = getFirestore(app);
                 auth = getAuth(app);
                 storage = getStorage(app);
