@@ -6,22 +6,6 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-const APP_CHECK_SITE_KEY = '6Lf-MdsrAAAAAFxy7VBRagVA41djogpm2DC0f0xk';
-
-(async () => {
-  if (window.__appCheckInstance) return;
-  const { initializeAppCheck, ReCaptchaV3Provider } = await import(
-    'https://www.gstatic.com/firebasejs/10.13.1/firebase-app-check.js'
-  );
-  const app = firebase.app();
-  window.__appCheckInstance =
-    (typeof window.ensureAppCheck === 'function' && window.ensureAppCheck(app)) ||
-    initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
-      isTokenAutoRefreshEnabled: true,
-    });
-})();
-
 const auth = firebase.auth();
 const db = firebase.firestore();
 

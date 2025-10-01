@@ -1,10 +1,5 @@
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-import {
-  initializeAppCheck,
-  ReCaptchaV3Provider,
-} from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app-check.js';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
-import { APP_CHECK_SITE_KEY, ensureAppCheck } from '../firebase-config.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyC78l9b2DTNj64y_0fbRKofNupO6NHDmeo",
@@ -16,10 +11,6 @@ const firebaseConfig = {
 };
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-ensureAppCheck(app) ?? initializeAppCheck(app, {
-  provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
-  isTokenAutoRefreshEnabled: true,
-});
 const auth = getAuth(app);
 
 const loginSection = document.getElementById('loginSection');
