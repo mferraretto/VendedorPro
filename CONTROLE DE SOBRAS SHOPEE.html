@@ -4741,8 +4741,13 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       return resultado;
     }
 
-    function calcularCenariosTopSkus() {
-      const dadosSkus = Object.entries(previsaoDados?.skus || {});
+    function calcularCenariosTopSkus(skuFiltro = 'todos') {
+      const todosSkus = Object.entries(previsaoDados?.skus || {});
+      if (!todosSkus.length) return [];
+
+      const dadosSkus = skuFiltro === 'todos'
+        ? todosSkus
+        : todosSkus.filter(([sku]) => sku === skuFiltro);
       if (!dadosSkus.length) return [];
 
       return CENARIOS_PREVISAO.map(config => {
@@ -4813,11 +4818,15 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     }
 
     function gerarTabelaPrevisaoPdfHtml(diario) {
-      if (!diario.length) {
+      const linhasDiario = Array.isArray(diario)
+        ? diario
+        : Object.entries(diario || {}).map(([data, quantidade]) => ({ data, quantidade }));
+
+      if (!linhasDiario.length) {
         return '<p style="color:#6b7280;font-size:12px;margin:0 0 16px;">Nenhum histórico diário disponível para esta previsão.</p>';
       }
 
-      const linhas = diario
+      const linhas = linhasDiario
         .map(item => `
           <tr>
             <td style="border:1px solid #d1d5db;padding:8px;font-size:12px;">${item.data}</td>
@@ -4883,6 +4892,31 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         .join('');
 
       return `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">${htmlCenarios}</div>`;
+    }
+
+    function formatarPeriodoPrevisao(diario) {
+      const itens = Array.isArray(diario)
+        ? diario
+        : Object.entries(diario || {}).map(([data, quantidade]) => ({ data, quantidade }));
+      if (!itens.length) return 'Sem período disponível';
+
+      const ordenados = [...itens].sort((a, b) => String(a.data).localeCompare(String(b.data)));
+      const primeiro = ordenados[0]?.data;
+      const ultimo = ordenados[ordenados.length - 1]?.data;
+
+      const formatar = valor => {
+        if (!valor) return null;
+        const [ano, mes, dia] = String(valor).split('-');
+        if (!ano || !mes || !dia) return valor;
+        const data = new Date(Number(ano), Number(mes) - 1, Number(dia));
+        if (Number.isNaN(data.getTime())) return valor;
+        return data.toLocaleDateString('pt-BR');
+      };
+
+      const inicio = formatar(primeiro);
+      const fim = formatar(ultimo);
+      if (inicio && fim && inicio !== fim) return `${inicio} - ${fim}`;
+      return inicio || fim || 'Sem período disponível';
     }
 
     async function carregarPrevisao() {
@@ -4967,11 +5001,6 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     }
 
     function baixarPrevisaoPdf() {
-      const area = document.getElementById('previsaoResumoPdf');
-      if (!area) {
-        mostrarErro('Conteúdo de previsão indisponível para exportação.');
-        return;
-      }
       if (typeof html2pdf === 'undefined') {
         mostrarErro('Biblioteca de exportação para PDF indisponível.');
         return;
@@ -4979,10 +5008,53 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
 
       const selectSku = document.getElementById('filtroSkuPrevisao');
       const skuSelecionado = selectSku?.value || 'todos';
+      const dadosSkus = previsaoDados?.skus || {};
+      const possuiDados = Object.keys(dadosSkus).length > 0;
+
+      if (!possuiDados) {
+        mostrarErro('Nenhuma previsão disponível para exportação.');
+        return;
+      }
+      if (skuSelecionado !== 'todos' && !dadosSkus[skuSelecionado]) {
+        mostrarErro('Os dados da previsão selecionada não foram encontrados.');
+        return;
+      }
+
       const identificadorSku = skuSelecionado === 'todos'
         ? 'todos'
         : skuSelecionado.replace(/[^a-zA-Z0-9_-]+/g, '_');
       const dataArquivo = new Date().toISOString().slice(0, 10);
+      const resumo = calcularResumoPrevisaoPorSku(skuSelecionado);
+      const cenarios = calcularCenariosTopSkus(skuSelecionado);
+      const periodo = formatarPeriodoPrevisao(resumo.diario);
+
+      const wrapper = document.createElement('div');
+      wrapper.style.fontFamily = "'Inter', Arial, sans-serif";
+      wrapper.style.color = '#111827';
+      wrapper.style.padding = '24px';
+      wrapper.style.maxWidth = '1100px';
+      wrapper.style.boxSizing = 'border-box';
+      wrapper.style.backgroundColor = '#ffffff';
+
+      const cardsHtml = gerarCardsPrevisaoPdfHtml(resumo);
+      const tabelaDiariaHtml = gerarTabelaPrevisaoPdfHtml(resumo.diario);
+      const topSkusHtml = gerarTopSkusPdfHtml(cenarios);
+
+      wrapper.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px;">
+          <div>
+            <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Previsão de Vendas</h2>
+            <p style="margin:0;font-size:12px;color:#4b5563;">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+          </div>
+          <div style="text-align:right;font-size:12px;color:#4b5563;">
+            <div>SKU: ${skuSelecionado === 'todos' ? 'Todos' : skuSelecionado}</div>
+            <div>Período: ${periodo}</div>
+          </div>
+        </div>
+        ${cardsHtml}
+        ${tabelaDiariaHtml}
+        ${topSkusHtml}
+      `;
 
       const opt = {
         margin: 0.5,
@@ -4993,44 +5065,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
-      const exportWrapper = document.createElement('div');
-      exportWrapper.style.position = 'fixed';
-      exportWrapper.style.left = '-9999px';
-      exportWrapper.style.top = '0';
-      exportWrapper.style.backgroundColor = '#ffffff';
-      exportWrapper.style.padding = '24px';
-      exportWrapper.style.boxSizing = 'border-box';
-      exportWrapper.style.fontFamily = "'Inter', Arial, sans-serif";
-      exportWrapper.style.color = '#111827';
-      const larguraReferencia = Math.max(area.offsetWidth || area.scrollWidth || 1100, 1100);
-      exportWrapper.style.width = `${larguraReferencia}px`;
-
-      const header = document.createElement('div');
-      header.style.marginBottom = '16px';
-      header.innerHTML = `
-        <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Previsão de Vendas</h2>
-        <p style="margin:0;font-size:12px;color:#4b5563;">
-          Gerado em ${new Date().toLocaleString('pt-BR')} | SKU: ${skuSelecionado === 'todos' ? 'Todos' : skuSelecionado}
-        </p>
-      `;
-
-      const resumo = calcularResumoPrevisaoPorSku(skuSelecionado);
-      const cenarios = calcularCenariosTopSkus();
-
-      const conteudo = document.createElement('div');
-      conteudo.innerHTML = `
-        ${gerarCardsPrevisaoPdfHtml(resumo)}
-        ${gerarTabelaPrevisaoPdfHtml(resumo.diario)}
-        ${gerarTopSkusPdfHtml(cenarios)}
-      `;
-
-      exportWrapper.appendChild(header);
-      exportWrapper.appendChild(conteudo);
-      document.body.appendChild(exportWrapper);
-
       html2pdf()
         .set(opt)
-        .from(exportWrapper)
+        .from(wrapper)
         .save()
         .then(() => {
           mostrarSucesso('Arquivo PDF gerado com sucesso.');
@@ -5038,9 +5075,6 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         .catch(err => {
           console.error('Erro ao gerar PDF da previsão', err);
           mostrarErro('Não foi possível gerar o PDF da previsão.');
-        })
-        .finally(() => {
-          exportWrapper.remove();
         });
     }
 
