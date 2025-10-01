@@ -4680,6 +4680,131 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${tabelas}</div>`;
     }
 
+    function baixarPrevisaoPdf() {
+      if (typeof html2pdf === 'undefined') {
+        mostrarErro('Biblioteca de exportação para PDF indisponível.');
+        return;
+      }
+
+      const area = document.getElementById('previsaoExportarArea');
+      if (!area) {
+        mostrarErro('Seção de previsão não encontrada para exportação.');
+        return;
+      }
+
+      if (!area.querySelector('table')) {
+        mostrarErro('Nenhuma previsão disponível para exportar.');
+        return;
+      }
+
+      const botao = document.getElementById('btnExportarPrevisaoPdf');
+      let textoOriginal;
+      if (botao) {
+        textoOriginal = botao.innerHTML;
+        botao.disabled = true;
+        botao.classList.add('opacity-70', 'cursor-not-allowed');
+        botao.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span> Gerando...</span>';
+      }
+
+      const tempContainer = document.createElement('div');
+      tempContainer.style.padding = '24px';
+      tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.fontFamily = "'Inter', Arial, sans-serif";
+      tempContainer.style.color = '#111827';
+      tempContainer.style.maxWidth = '900px';
+      tempContainer.style.margin = '0 auto';
+
+      const titulo = document.createElement('div');
+      const dataGeracao = new Date().toLocaleString('pt-BR');
+      titulo.innerHTML = `
+        <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">Resumo de Previsão de Vendas</h2>
+        <p style="margin: 0 0 16px 0; font-size: 12px; color: #6b7280;">Gerado em ${dataGeracao}</p>
+      `;
+      tempContainer.appendChild(titulo);
+
+      const clone = area.cloneNode(true);
+      clone.style.backgroundColor = '#ffffff';
+      clone.style.padding = '0';
+      clone.style.margin = '0';
+      clone.style.width = '100%';
+
+      const cardsClone = clone.querySelector('#cardsPrevisao');
+      if (cardsClone) {
+        cardsClone.style.display = 'grid';
+        const colunas = Math.min(3, Math.max(1, cardsClone.children.length));
+        cardsClone.style.gridTemplateColumns = `repeat(${colunas}, minmax(0, 1fr))`;
+        cardsClone.style.gap = '16px';
+      }
+
+      clone.querySelectorAll('.bg-red-100, .bg-blue-100, .bg-green-100').forEach((el) => {
+        el.style.borderRadius = '12px';
+        el.style.padding = '16px';
+        el.style.textAlign = 'center';
+        el.style.boxShadow = '0 1px 2px rgba(15, 23, 42, 0.12)';
+      });
+
+      const topSkusClone = clone.querySelector('#topSkusPrevisao');
+      if (topSkusClone) {
+        const grid = topSkusClone.querySelector('.grid');
+        if (grid) {
+          grid.style.display = 'grid';
+          grid.style.gridTemplateColumns = 'repeat(3, minmax(0, 1fr))';
+          grid.style.gap = '16px';
+        }
+        topSkusClone.querySelectorAll('table').forEach((table) => {
+          table.style.width = '100%';
+          table.style.borderCollapse = 'collapse';
+        });
+        topSkusClone.querySelectorAll('th, td').forEach((celula) => {
+          celula.style.border = '1px solid #d1d5db';
+          celula.style.padding = '8px';
+          celula.style.fontSize = '12px';
+        });
+        topSkusClone.querySelectorAll('h4').forEach((tituloTabela) => {
+          tituloTabela.style.fontSize = '14px';
+          tituloTabela.style.marginBottom = '8px';
+        });
+      }
+
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
+      const opcoes = {
+        margin: 0.5,
+        filename: `previsao_vendas_${new Date().toISOString().slice(0, 10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      };
+
+      const restaurarEstado = () => {
+        if (tempContainer.parentNode) {
+          tempContainer.parentNode.removeChild(tempContainer);
+        }
+        if (botao) {
+          botao.disabled = false;
+          botao.classList.remove('opacity-70', 'cursor-not-allowed');
+          if (textoOriginal) {
+            botao.innerHTML = textoOriginal;
+          }
+        }
+      };
+
+      html2pdf()
+        .set(opcoes)
+        .from(tempContainer)
+        .save()
+        .then(() => {
+          mostrarSucesso('Arquivo PDF gerado com sucesso.');
+        })
+        .catch((erro) => {
+          console.error('Erro ao exportar previsão para PDF:', erro);
+          mostrarErro('Não foi possível gerar o PDF da previsão.');
+        })
+        .finally(restaurarEstado);
+    }
+
     function gerarDatas(qtd, endDate = new Date()) {
       const datas = [];
       for (let i = qtd; i > 0; i--) {
@@ -5894,6 +6019,7 @@ window.exportarAcompanhamentoExcel = exportarAcompanhamentoExcel;
 window.exportarResumoTopSkus = exportarResumoTopSkus;
 window.exportarAcompanhamentoPDF = exportarAcompanhamentoPDF;
 window.printAcompanhamento = printAcompanhamento;
+window.baixarPrevisaoPdf = baixarPrevisaoPdf;
   window.salvarMetasAcompanhamento = salvarMetasAcompanhamento;
 window.atualizarResponsavelFinanceiro = atualizarResponsavelFinanceiro;
 window.exportarVendasMes = exportarVendasMes;

@@ -10,12 +10,29 @@
         <option value="todos">Todos</option>
       </select>
     </div>
-    <button id="btnGerarPrevisao" onclick="gerarPrevisao()" class="ml-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
-      <i class="fas fa-sync-alt"></i> Gerar previsão
-    </button>
+    <div class="flex flex-col sm:flex-row gap-2 sm:ml-auto w-full sm:w-auto">
+      <button
+        id="btnGerarPrevisao"
+        onclick="gerarPrevisao()"
+        class="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center justify-center gap-2"
+      >
+        <i class="fas fa-sync-alt"></i>
+        <span>Gerar previsão</span>
+      </button>
+      <button
+        id="btnExportarPrevisaoPdf"
+        onclick="baixarPrevisaoPdf()"
+        class="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded flex items-center justify-center gap-2"
+      >
+        <i class="fas fa-file-pdf"></i>
+        <span>Exportar PDF</span>
+      </button>
+    </div>
   </div>
-  <div id="cardsPrevisao" class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4"></div>
-  <div id="topSkusPrevisao" class="p-4"></div>
+  <div id="previsaoExportarArea" class="space-y-4 p-4">
+    <div id="cardsPrevisao" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+    <div id="topSkusPrevisao"></div>
+  </div>
   <div class="p-4">
     <canvas id="graficoPrevisao"></canvas>
   </div>
