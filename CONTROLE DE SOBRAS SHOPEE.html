@@ -5920,12 +5920,6 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
 
       const clone = element.cloneNode(true);
       clone.style.marginTop = '16px';
-      clone.style.pageBreakInside = 'avoid';
-
-      clone.querySelectorAll('table, thead, tbody, tr, .resumo-grid, .resumo-card').forEach(el => {
-        el.style.breakInside = 'avoid';
-        el.style.pageBreakInside = 'avoid';
-      });
 
       const wrapper = document.createElement('div');
       wrapper.style.fontFamily = "'Inter', 'Segoe UI', sans-serif";
@@ -5947,18 +5941,7 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         </div>
       `;
 
-      const inlineStyles = document.createElement('style');
-      inlineStyles.textContent = `
-        * { box-sizing: border-box; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px 12px; }
-        .resumo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-        .resumo-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; background: #f9fafb; }
-        .resumo-card, tr { break-inside: avoid; page-break-inside: avoid; }
-      `;
-
       wrapper.appendChild(header);
-      wrapper.appendChild(inlineStyles);
       wrapper.appendChild(clone);
 
       const tempContainer = document.createElement('div');
@@ -5976,8 +5959,7 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         filename: 'acompanhamento.pdf',
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
-        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy', 'avoid-all'] }
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
       };
 
       try {
