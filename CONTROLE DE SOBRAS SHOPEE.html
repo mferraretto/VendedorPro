@@ -4395,125 +4395,144 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       mostrarSucesso('Arquivo Excel gerado com sucesso.');
     }
 
-    function exportarProdutosVendidosPDF() {
-      if (!produtosVendidosResumo.length) {
-        mostrarErro('Nenhum dado disponível para exportar.');
-        return;
-      }
-      if (typeof html2pdf === 'undefined') {
-        mostrarErro('Biblioteca de exportação para PDF indisponível.');
-        return;
-      }
+ function exportarProdutosVendidosPDF() {
+  if (!produtosVendidosResumo?.length) {
+    mostrarErro('Nenhum dado disponível para exportar.');
+    return;
+  }
+  if (typeof html2pdf === 'undefined') {
+    mostrarErro('Biblioteca de exportação para PDF indisponível.');
+    return;
+  }
 
-      const ordenados = [...produtosVendidosResumo].sort(
-        (a, b) => b.total - a.total,
-      );
-      const linhas = ordenados
-        .map((item) => {
-          const vendidos = item.vendidosPorSku
-            .map(
-              ([sku, qtd]) =>
-                `${escapeHtml(sku)} (${qtd.toLocaleString('pt-BR')})`,
-            )
-            .join('<br>');
-          const associados = item.grupoCompleto
-            .map((sku) => escapeHtml(sku))
-            .join(', ');
-          const usuarios = item.usuarios
-            .map(
-              ([nome, qtd]) =>
-                `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`,
-            )
-            .join('<br>');
-          const valorLiquido = Number(item.valorLiquido || 0).toLocaleString(
-            'pt-BR',
-            { style: 'currency', currency: 'BRL' },
-          );
-          return `
-            <tr class="pdf-row">
-              <td class="col-sku">
-                <strong>${escapeHtml(item.sku)}</strong>
-                <div style="margin-top:2px;font-size:10px;color:#555;">
-                  Grupo: ${associados || '-'}
-                </div>
-              </td>
-              <td class="col-detalhes">${vendidos || '-'}</td>
-              <td class="col-quantidade">${item.total.toLocaleString(
-                'pt-BR',
-              )}</td>
-              <td class="col-valor">${valorLiquido}</td>
-              <td class="col-usuarios">${usuarios || '-'}</td>
-            </tr>`;
-        })
-        .join('');
+  const ordenados = [...produtosVendidosResumo].sort((a, b) => b.total - a.total);
 
-      const wrapper = document.createElement('div');
-      const dataGeracao = new Date().toLocaleString('pt-BR');
-      wrapper.innerHTML = `
-        <div style="font-family: 'Inter', Arial, sans-serif;">
-          <h2 style="margin-bottom:8px;">Produtos Vendidos</h2>
-          <p style="margin-top:0;margin-bottom:16px;font-size:11px;color:#555;">
-            Relatório gerado em ${dataGeracao}
-          </p>
-          <style>
-            .pdf-table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 11px;
-              table-layout: fixed;
-            }
-            .pdf-table th,
-            .pdf-table td {
-              page-break-inside: avoid;
-              break-inside: avoid;
-              padding: 6px;
-              border: 1px solid #ddd;
-              vertical-align: top;
-              word-wrap: break-word;
-              word-break: break-word;
-            }
-            .pdf-table thead th {
-              background: #f3f4f6;
-              color: #1f2937;
-            }
-            .pdf-table tbody td strong {
-              display: block;
-              margin-bottom: 4px;
-            }
-            .pdf-table .col-sku { width: 18%; }
-            .pdf-table .col-detalhes { width: 28%; }
-            .pdf-table .col-quantidade { width: 14%; text-align: right; }
-            .pdf-table .col-valor { width: 16%; text-align: right; }
-            .pdf-table .col-usuarios { width: 24%; }
-          </style>
-          <table class="pdf-table">
-            <thead>
-              <tr class="pdf-row">
-                <th class="col-sku" style="text-align:left;">SKU Principal</th>
-                <th class="col-detalhes" style="text-align:left;">Detalhe dos SKUs Vendidos</th>
-                <th class="col-quantidade">Quantidade Vendida</th>
-                <th class="col-valor">Valor Líquido</th>
-                <th class="col-usuarios" style="text-align:left;">Usuários Responsáveis</th>
-              </tr>
-            </thead>
-            <tbody>${linhas}</tbody>
-          </table>
-        </div>`;
+  const linhas = ordenados.map((item) => {
+    const vendidos = item.vendidosPorSku
+      ?.map(([sku, qtd]) => `${escapeHtml(sku)} (${qtd.toLocaleString('pt-BR')})`)
+      ?.join('<br>') || '-';
 
-      const opt = {
-        margin: 0.5,
-        filename: `produtos_vendidos_${new Date()
-          .toISOString()
-          .slice(0, 10)}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      };
+    const associados = item.grupoCompleto?.map((sku) => escapeHtml(sku))?.join(', ') || '-';
 
-      html2pdf().set(opt).from(wrapper).save();
-      mostrarSucesso('Arquivo PDF gerado com sucesso.');
-    }
+    const usuarios = item.usuarios
+      ?.map(([nome, qtd]) => `${escapeHtml(nome)} (${qtd.toLocaleString('pt-BR')})`)
+      ?.join('<br>') || '-';
+
+    const valorLiquido = Number(item.valorLiquido || 0).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    });
+
+    return `
+      <tr class="pdf-row avoid-break">
+        <td class="col-sku avoid-break">
+          <strong>${escapeHtml(item.sku)}</strong>
+          <div style="margin-top:2px;font-size:10px;color:#555;">Grupo: ${associados}</div>
+        </td>
+        <td class="col-detalhes avoid-break">${vendidos}</td>
+        <td class="col-quantidade avoid-break">${item.total.toLocaleString('pt-BR')}</td>
+        <td class="col-valor avoid-break">${valorLiquido}</td>
+        <td class="col-usuarios avoid-break">${usuarios}</td>
+      </tr>`;
+  }).join('');
+
+  const wrapper = document.createElement('div');
+  const dataGeracao = new Date().toLocaleString('pt-BR');
+
+  wrapper.innerHTML = `
+    <div id="pdf-root" style="font-family:'Inter',Arial,sans-serif; width:190mm; /* 210 - 2*10mm */">
+      <style>
+        @page { size: A4 portrait; margin: 10mm; }
+        /* Cabeçalho repete por página no render da html2pdf/jsPDF */
+        .pdf-table thead { display: table-header-group; }
+        .pdf-table tfoot { display: table-footer-group; }
+
+        .pdf-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 11px;
+          table-layout: fixed;
+          page-break-inside: auto;
+        }
+        .pdf-table th, .pdf-table td {
+          padding: 6px;
+          border: 1px solid #ddd;
+          vertical-align: top;
+          word-wrap: break-word;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .pdf-row {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .avoid-break {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .pdf-table thead th {
+          background: #f3f4f6;
+          color: #1f2937;
+        }
+        .pdf-table tbody td strong {
+          display: block;
+          margin-bottom: 4px;
+        }
+        /* Larguras proporcionais para caber no A4 */
+        .pdf-table .col-sku { width: 20%; }
+        .pdf-table .col-detalhes { width: 28%; }
+        .pdf-table .col-quantidade { width: 14%; text-align: right; }
+        .pdf-table .col-valor { width: 16%; text-align: right; }
+        .pdf-table .col-usuarios { width: 22%; }
+        /* Melhor contraste de impressão */
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      </style>
+
+      <h2 style="margin:0 0 6px;">Produtos Vendidos</h2>
+      <p style="margin:0 0 12px;font-size:11px;color:#555;">Relatório gerado em ${dataGeracao}</p>
+
+      <table class="pdf-table avoid-break">
+        <thead>
+          <tr class="pdf-row">
+            <th class="col-sku" style="text-align:left;">SKU Principal</th>
+            <th class="col-detalhes" style="text-align:left;">Detalhe dos SKUs Vendidos</th>
+            <th class="col-quantidade">Quantidade Vendida</th>
+            <th class="col-valor">Valor Líquido</th>
+            <th class="col-usuarios" style="text-align:left;">Usuários Responsáveis</th>
+          </tr>
+        </thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>`;
+
+  const opt = {
+    margin: 10,                               // em mm (porque o jsPDF.unit será 'mm')
+    filename: `produtos_vendidos_${new Date().toISOString().slice(0,10)}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: Math.min(2, window.devicePixelRatio || 2), // boa definição sem ficar pesado
+      useCORS: true,
+      scrollY: 0
+    },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    // Respeita as classes CSS e evita cortes agressivos
+    pagebreak: {
+      mode: ['css', 'legacy'],
+      avoid: ['.avoid-break', '.pdf-row', 'tr', 'td', 'th']
+    },
+  };
+
+  html2pdf().set(opt).from(wrapper).save().then(() => {
+    mostrarSucesso('Arquivo PDF gerado com sucesso.');
+  }).catch((e) => {
+    console.error(e);
+    mostrarErro('Falha ao gerar o PDF.');
+  });
+}
+
 
     async function carregarControleVendas() {
       const container = document.getElementById("listaControleVendas");
