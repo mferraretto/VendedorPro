@@ -151,6 +151,8 @@
       let produtosVendidosCarregado = false;
       let totalSaquesAcompanhamento = 0;
       let totalComissaoAcompanhamento = 0;
+      let totalComissaoPagaAcompanhamento = 0;
+      let totalComissaoAPagarAcompanhamento = 0;
       let usuarioLogado = { uid: null, perfil: '' };
       window.usuarioLogado = usuarioLogado;
 let pedidosProcessados = [];
@@ -5095,7 +5097,9 @@ let uids = [];
       sobraPorSku = {};
       resumoSku = {};
       let totalBruto = 0, totalLiquido = 0, totalVendas = 0, totalSobra = 0;
-      let totalSaques = 0, totalComissao = 0;
+      let totalSaques = 0,
+        totalComissaoPrevista = 0,
+        totalComissaoPaga = 0;
       const ownerUidsFiltro = new Set();
 
       for (const doc of snap.docs) {
@@ -5162,7 +5166,9 @@ let uids = [];
           try {
             const resumoRef = db.collection('usuarios').doc(uidFiltro).collection('comissoes').doc(mesSelecionado);
             const resumoSnap = await resumoRef.get();
-            let usouResumo = false;
+            let totalSaquesDetalhados = 0;
+            let totalComissaoDetalhada = 0;
+            let possuiDetalhes = false;
             try {
               const saquesSnap = await resumoRef.collection('saques').get();
               if (!saquesSnap.empty) {
@@ -5170,33 +5176,62 @@ let uids = [];
                 for (const saqueDoc of saquesSnap.docs) {
                   const dadosMensais = saqueDoc.data() || {};
                   const valorSaque = Number(dadosMensais.valor) || 0;
-                  totalSaques += valorSaque;
+                  totalSaquesDetalhados += valorSaque;
+                  const comissaoPagaDoc = Number(dadosMensais.comissaoPaga);
                   const percentualPago = Number(dadosMensais.percentualPago);
-                  if (Number.isFinite(percentualPago) && percentualPago > 0) {
-                    totalComissao += valorSaque * percentualPago;
-                  } else {
-                    const comissaoPaga = Number(dadosMensais.comissaoPaga);
-                    if (Number.isFinite(comissaoPaga)) totalComissao += comissaoPaga;
+                  if (Number.isFinite(comissaoPagaDoc)) {
+                    totalComissaoDetalhada += comissaoPagaDoc;
+                  } else if (Number.isFinite(percentualPago) && percentualPago > 0) {
+                    totalComissaoDetalhada += valorSaque * percentualPago;
                   }
                 }
-                usouResumo = true;
+                possuiDetalhes = true;
               }
             } catch (e) {
               console.error('Erro ao carregar saques mensais detalhados', e);
             }
-            if (!usouResumo && resumoSnap.exists) {
+            if (resumoSnap.exists()) {
+              let utilizouResumo = false;
               const dadosResumo = resumoSnap.data() || {};
               const totalSacadoResumo = Number(dadosResumo.totalSacado);
+              const comissaoPrevistaResumo = Number(dadosResumo.comissaoPrevista);
+              const comissaoJaPagaResumo = Number(
+                dadosResumo.comissaoJaPaga ?? dadosResumo.comissaoRecebida,
+              );
+              const ajusteFinalResumo = Number(dadosResumo.ajusteFinal);
+              let comissaoPagaResumo = Number.isFinite(comissaoJaPagaResumo)
+                ? comissaoJaPagaResumo
+                : NaN;
+              if (
+                !Number.isFinite(comissaoPagaResumo) &&
+                Number.isFinite(comissaoPrevistaResumo) &&
+                Number.isFinite(ajusteFinalResumo)
+              ) {
+                comissaoPagaResumo = comissaoPrevistaResumo - ajusteFinalResumo;
+              }
               if (Number.isFinite(totalSacadoResumo)) {
                 totalSaques += totalSacadoResumo;
-                encontrouSaquesMensais = true;
+                utilizouResumo = true;
               }
-              const comissaoResumo = dadosResumo.comissaoJaPaga ?? dadosResumo.comissaoPrevista;
-              const comissaoNumero = Number(comissaoResumo);
-              if (Number.isFinite(comissaoNumero)) {
-                totalComissao += comissaoNumero;
-                encontrouSaquesMensais = true;
+              if (Number.isFinite(comissaoPrevistaResumo)) {
+                totalComissaoPrevista += comissaoPrevistaResumo;
+                utilizouResumo = true;
               }
+              if (Number.isFinite(comissaoPagaResumo)) {
+                totalComissaoPaga += comissaoPagaResumo;
+                utilizouResumo = true;
+              }
+              if (utilizouResumo) {
+                encontrouSaquesMensais = true;
+              } else if (possuiDetalhes) {
+                totalSaques += totalSaquesDetalhados;
+                totalComissaoPrevista += totalComissaoDetalhada;
+                totalComissaoPaga += totalComissaoDetalhada;
+              }
+            } else if (possuiDetalhes) {
+              totalSaques += totalSaquesDetalhados;
+              totalComissaoPrevista += totalComissaoDetalhada;
+              totalComissaoPaga += totalComissaoDetalhada;
             }
           } catch (e) {
             console.error('Erro ao carregar resumo de saques mensais', e);
@@ -5229,7 +5264,8 @@ let uids = [];
             const mesDoc = extrairMesReferencia(docS.id, dadosSaque);
             if (mesSelecionado && mesDoc && mesDoc !== mesSelecionado) continue;
             if (mesSelecionado && !mesDoc) continue;
-            totalSaques += Number(dadosSaque.valorTotal || dadosSaque.valor || 0) || 0;
+            const valorSaqueTotal = Number(dadosSaque.valorTotal || dadosSaque.valor || 0) || 0;
+            totalSaques += valorSaqueTotal;
             try {
               const subRefSaque = db.collection(`uid/${ownerUidSaques}/saques/${docS.id}/lojas`);
               const subSnapSaque = await subRefSaque.get();
@@ -5246,7 +5282,11 @@ let uids = [];
                 }
                 const valorLoja = parseFloat(dadosLoja.valor) || 0;
                 const comissaoPct = parseFloat(dadosLoja.comissao) || 0;
-                if (comissaoPct) totalComissao += (valorLoja * comissaoPct / 100);
+                if (comissaoPct) {
+                  const valorComissao = (valorLoja * comissaoPct) / 100;
+                  totalComissaoPrevista += valorComissao;
+                  totalComissaoPaga += valorComissao;
+                }
               }
             } catch (e) {
               console.error('Erro ao carregar comissão dos saques', e);
@@ -5256,8 +5296,11 @@ let uids = [];
           console.error('Erro ao carregar saques', e);
         }
       }
+      const totalComissaoAPagar = Math.max(0, totalComissaoPrevista - totalComissaoPaga);
       totalSaquesAcompanhamento = totalSaques;
-      totalComissaoAcompanhamento = totalComissao;
+      totalComissaoAcompanhamento = totalComissaoPrevista;
+      totalComissaoPagaAcompanhamento = totalComissaoPaga;
+      totalComissaoAPagarAcompanhamento = totalComissaoAPagar;
 
       tbody.innerHTML = '';
       dados.sort((a,b) => a.data.localeCompare(b.data));
@@ -5296,7 +5339,7 @@ resumoEl.innerHTML = `
         <div class="resumo-card"><h4>Total Líquido</h4><p>R$ ${totais.liquido.toLocaleString('pt-BR')}</p>${resumoLiquidoMeta}</div>
         <div class="resumo-card"><h4>Total Vendido</h4><p>${totais.vendas}</p><button class="btn btn-secondary btn-sm" style="margin-top:0.5rem" onclick="mostrarDetalhesVendas()">Ver mais</button></div>
         <div class="resumo-card"><h4>Total Saques</h4><p>R$ ${totalSaques.toLocaleString('pt-BR')}</p></div>
-        <div class="resumo-card"><h4>Comissão do Mês</h4><p>R$ ${totalComissao.toLocaleString('pt-BR')}</p></div>
+        <div class="resumo-card"><h4>Comissão do Mês</h4><p>R$ ${totalComissaoPrevista.toLocaleString('pt-BR')}</p><small>Pago: R$ ${totalComissaoPaga.toLocaleString('pt-BR')} | A pagar: R$ ${totalComissaoAPagar.toLocaleString('pt-BR')}</small></div>
         <div class="resumo-card"><h4>Ticket Médio</h4><p>R$ ${ticket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>`;
     }
 
