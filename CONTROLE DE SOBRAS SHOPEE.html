@@ -4776,7 +4776,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         },
       };
 
-      return html2pdf()
+      html2pdf()
         .set(opt)
         .from(wrapper)
         .save()
@@ -4786,7 +4786,6 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         .catch((e) => {
           console.error(e);
           mostrarErro('Falha ao gerar o PDF.');
-          throw e;
         });
     }
 
@@ -5322,7 +5321,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
   // Diagnóstico rápido (se der 0, provavelmente ficaria branco)
   // console.log('wrapper px:', exportWrapper.offsetWidth, exportWrapper.offsetHeight);
 
-  return html2pdf()
+  html2pdf()
     .set(opt)
     .from(exportWrapper)
     .save()
@@ -5332,7 +5331,6 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     .catch(err => {
       console.error('Erro ao gerar PDF da previsão', err);
       mostrarErro('Não foi possível gerar o PDF da previsão.');
-      throw err;
     })
     .finally(() => {
       exportWrapper.remove();
