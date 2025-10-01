@@ -4616,6 +4616,17 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             ${labels.map(d => `<tr><td class="px-2 py-1 border">${d}</td><td class="px-2 py-1 border">${diario[d].toFixed(0)}</td></tr>`).join('')}
           </tbody>
         </table>`;
+
+      const btnExportar = document.getElementById('btnExportarPrevisaoPdf');
+      if (btnExportar) {
+        const temDados = labels.length > 0 && Object.keys(previsaoDados.skus || {}).length > 0;
+        btnExportar.disabled = !temDados;
+        btnExportar.classList.toggle('opacity-60', !temDados);
+        btnExportar.classList.toggle('cursor-not-allowed', !temDados);
+        btnExportar.title = temDados
+          ? 'Baixar PDF com os dados atuais'
+          : 'Gere a previsão antes de exportar';
+      }
     }
 
     function renderizarTopSkus() {
@@ -4678,6 +4689,210 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       }).join('');
 
       container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${tabelas}</div>`;
+    }
+
+    async function exportarPrevisaoPDF() {
+      if (typeof html2pdf === 'undefined') {
+        mostrarErro('Biblioteca de exportação para PDF indisponível.');
+        return;
+      }
+
+      if (!previsaoDados || !Object.keys(previsaoDados.skus || {}).length) {
+        mostrarErro('Gere a previsão antes de exportar.');
+        return;
+      }
+
+      const btn = document.getElementById('btnExportarPrevisaoPdf');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-file-pdf"></i> Gerando PDF...';
+      }
+
+      const liberarBotao = () => {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-file-pdf"></i> Baixar PDF';
+          btn.classList.remove('opacity-60', 'cursor-not-allowed');
+          btn.title = 'Baixar PDF com os dados atuais';
+        }
+      };
+
+      try {
+        const parseNumero = (valor) => {
+          if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+          if (typeof valor === 'string') {
+            const normalizado = valor.replace(/\./g, '').replace(',', '.');
+            const parsed = Number(normalizado);
+            return Number.isFinite(parsed) ? parsed : 0;
+          }
+          if (valor && typeof valor === 'object') {
+            const candidatos = [valor.preco, valor.valor, valor.custo, valor.price];
+            for (const candidato of candidatos) {
+              if (candidato == null || candidato === valor) continue;
+              const parsed = parseNumero(candidato);
+              if (Number.isFinite(parsed) && parsed !== 0) return parsed;
+            }
+          }
+          const parsed = Number(valor || 0);
+          return Number.isFinite(parsed) ? parsed : 0;
+        };
+
+        const formatInteger = (value) => Math.round(Number(value || 0)).toLocaleString('pt-BR');
+        const formatCurrency = (value) => `R$ ${parseNumero(value).toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+
+        const selectSku = document.getElementById('filtroSkuPrevisao');
+        const skuSelecionado = selectSku?.value || 'todos';
+        const dadosSkus = Object.entries(previsaoDados.skus || {});
+
+        let totalBase = 0;
+        if (skuSelecionado === 'todos') {
+          totalBase = dadosSkus.reduce((acc, [, info]) => acc + Number(info.total || 0), 0);
+        } else if (previsaoDados.skus[skuSelecionado]) {
+          totalBase = Number(previsaoDados.skus[skuSelecionado].total || 0);
+        } else {
+          mostrarErro('Nenhum dado disponível para o SKU selecionado.');
+          liberarBotao();
+          return;
+        }
+
+        if (!dadosSkus.length || !Number.isFinite(totalBase)) {
+          mostrarErro('Nenhum dado disponível para exportação.');
+          liberarBotao();
+          return;
+        }
+
+        const pess = totalBase * 0.85;
+        const otm = totalBase * 1.15;
+
+        const cards = [
+          { titulo: 'Pessimista', valor: pess, detalhe: '85% do cenário base', classe: 'pessimista' },
+          { titulo: 'Base', valor: totalBase, detalhe: skuSelecionado === 'todos' ? 'Todos os SKUs' : `SKU ${escapeHtml(skuSelecionado)}`, classe: 'base' },
+          { titulo: 'Otimista', valor: otm, detalhe: '115% do cenário base', classe: 'otimista' },
+        ];
+
+        const cenarios = [
+          { titulo: 'Pessimista', fator: 0.85 },
+          { titulo: 'Base', fator: 1 },
+          { titulo: 'Otimista', fator: 1.15 },
+        ];
+
+        const tabelasHtml = cenarios
+          .map((cenario) => {
+            const lista = dadosSkus
+              .map(([sku, info]) => {
+                const quantidade = Number(info.total || 0) * cenario.fator;
+                const preco = parseNumero(produtos[sku]);
+                const sobraUnit = parseNumero(metas[sku]?.valor);
+                const bruto = quantidade * preco;
+                const sobra = quantidade * sobraUnit;
+                return { sku, quantidade, bruto, sobra };
+              })
+              .filter((item) => Number.isFinite(item.quantidade) && item.quantidade > 0)
+              .sort((a, b) => b.quantidade - a.quantidade)
+              .slice(0, 10);
+
+            if (!lista.length) {
+              return `
+                <div class="pdf-top-card">
+                  <h4>Top 10 SKUs projeção ${cenario.titulo}</h4>
+                  <p style="margin:0; color:#6b7280; font-size:12px;">Nenhuma previsão disponível.</p>
+                </div>`;
+            }
+
+            const linhas = lista
+              .map((item) => `
+                <tr>
+                  <td>${escapeHtml(item.sku)}</td>
+                  <td class="alinhado">${formatInteger(item.quantidade)}</td>
+                  <td class="alinhado">${formatCurrency(item.bruto)}</td>
+                  <td class="alinhado">${formatCurrency(item.sobra)}</td>
+                </tr>`)
+              .join('');
+
+            return `
+              <div class="pdf-top-card">
+                <h4>Top 10 SKUs projeção ${cenario.titulo}</h4>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Quantidade</th>
+                      <th>Bruto Esperado<br>(Valor de venda)</th>
+                      <th>Sobra Esperada<br>(Sobra esperada x quantidade)</th>
+                    </tr>
+                  </thead>
+                  <tbody>${linhas}</tbody>
+                </table>
+              </div>`;
+          })
+          .join('');
+
+        const wrapper = document.createElement('div');
+        const dataGeracao = new Date().toLocaleString('pt-BR');
+        wrapper.innerHTML = `
+          <style>
+            .pdf-previsao { font-family: 'Inter', Arial, sans-serif; color: #1f2937; }
+            .pdf-header h2 { margin: 0 0 4px 0; font-size: 20px; }
+            .pdf-header p { margin: 0 0 16px 0; font-size: 12px; color: #4b5563; }
+            .pdf-cards { display: flex; gap: 12px; margin-bottom: 18px; }
+            .pdf-card { flex: 1; border-radius: 12px; padding: 14px 16px; text-align: center; box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+            .pdf-card h3 { margin: 0 0 6px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; }
+            .pdf-card strong { display: block; font-size: 24px; margin-bottom: 6px; }
+            .pdf-card span { font-size: 12px; color: rgba(15,23,42,0.7); }
+            .pdf-card.pessimista { background: #fee2e2; color: #9f1239; }
+            .pdf-card.base { background: #dbeafe; color: #1d4ed8; }
+            .pdf-card.otimista { background: #dcfce7; color: #166534; }
+            .pdf-top-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+            .pdf-top-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; background: #ffffff; }
+            .pdf-top-card h4 { margin: 0 0 12px 0; font-size: 14px; text-align: center; color: #111827; }
+            .pdf-top-card table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            .pdf-top-card th, .pdf-top-card td { border: 1px solid #e5e7eb; padding: 6px; text-align: left; }
+            .pdf-top-card th { background: #f3f4f6; color: #1f2937; font-weight: 600; }
+            .pdf-top-card td.alinhado { text-align: right; }
+            .pdf-top-card tbody tr:nth-child(even) { background: #f9fafb; }
+            .pdf-top-card table th, .pdf-top-card table td { page-break-inside: avoid; }
+            .pdf-top-grid, .pdf-top-card { page-break-inside: avoid; }
+          </style>
+          <div class="pdf-previsao">
+            <div class="pdf-header">
+              <h2>Previsão de Vendas</h2>
+              <p>Relatório gerado em ${escapeHtml(dataGeracao)}</p>
+            </div>
+            <div class="pdf-cards">
+              ${cards
+                .map((card) => `
+                  <div class="pdf-card ${card.classe}">
+                    <h3>${card.titulo}</h3>
+                    <strong>${formatInteger(card.valor)}</strong>
+                    <span>${card.detalhe}</span>
+                  </div>`)
+                .join('')}
+            </div>
+            <div class="pdf-top-grid">
+              ${tabelasHtml}
+            </div>
+          </div>`;
+
+        const opt = {
+          margin: 0.5,
+          filename: `previsao_${new Date().toISOString().slice(0, 10)}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        };
+
+        await html2pdf().set(opt).from(wrapper).save();
+        mostrarSucesso('Arquivo PDF gerado com sucesso.');
+      } catch (error) {
+        console.error('Erro ao exportar previsão em PDF', error);
+        mostrarErro('Não foi possível gerar o PDF da previsão.');
+      } finally {
+        liberarBotao();
+      }
     }
 
     function gerarDatas(qtd, endDate = new Date()) {
@@ -5992,6 +6207,7 @@ window.carregarSobras = carregarSobras;
 window.carregarPrevisao = carregarPrevisao;
 window.gerarPrevisao = gerarPrevisao;
 window.renderizarPrevisao = renderizarPrevisao;
+window.exportarPrevisaoPDF = exportarPrevisaoPDF;
 window.carregarAcompanhamento = carregarAcompanhamento;
 window.carregarAcompanhamentoGestor = carregarAcompanhamentoGestor;
 window.verificarGestorFinanceiro = verificarGestorFinanceiro;
