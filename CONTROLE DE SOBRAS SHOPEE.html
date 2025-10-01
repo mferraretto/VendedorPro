@@ -5923,6 +5923,12 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       clone.style.width = '100%';
       clone.style.maxWidth = '100%';
 
+      clone.querySelectorAll('.table-container').forEach(container => {
+        container.style.overflow = 'visible';
+        container.style.width = '100%';
+        container.style.maxWidth = '100%';
+      });
+
       const resumoClone = clone.querySelector('#resumoAcompanhamento');
       if (resumoClone) {
         resumoClone.style.display = 'grid';
@@ -6014,7 +6020,14 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
         margin: [10, 12, 16, 12],
         filename: 'acompanhamento.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, windowWidth: wrapper.scrollWidth },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          windowWidth: wrapper.scrollWidth,
+          windowHeight: wrapper.scrollHeight,
+          scrollX: 0,
+          scrollY: -window.scrollY
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
