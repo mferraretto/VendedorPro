@@ -3808,26 +3808,16 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         .map((item) => {
           const totalFormatado = item.total.toLocaleString('pt-BR');
           const valorLiquidoFormatado = formatCurrency(item.valorLiquido);
-          const vendidosChips = item.vendidosPorSku
-            .map(
-              ([sku, qtd]) =>
-                `<span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"><span>${escapeHtml(
-                  sku,
-                )}</span><span class="font-semibold text-gray-600">${qtd.toLocaleString(
-                  'pt-BR',
-                )}</span></span>`,
-            )
-            .join('');
-          const vendidosHtml = vendidosChips
-            ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
-            : '';
           const principaisDetalhes = Array.isArray(
             item.principaisVinculadosDetalhes,
           )
             ? item.principaisVinculadosDetalhes
             : [];
+          const possuiPrincipais = principaisDetalhes.length > 0;
+          let vendidosHtml = '';
           let extrasHtml = '';
-          if (principaisDetalhes.length) {
+
+          if (possuiPrincipais) {
             const linhasPrincipais = principaisDetalhes
               .map(({ sku, quantidade }) => {
                 const quantidadeFormatada = Number(quantidade || 0).toLocaleString(
@@ -3838,13 +3828,26 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 )}</span><span class="font-semibold text-gray-600">${quantidadeFormatada}</span></div>`;
               })
               .join('');
-            extrasHtml = `
+            vendidosHtml = `
               <div class="mt-2 text-xs text-gray-500">
                 <div class="font-medium text-gray-600">Principais vinculados</div>
                 <div class="mt-1 space-y-1">${linhasPrincipais}</div>
               </div>
             `.trim();
           } else {
+            const vendidosChips = item.vendidosPorSku
+              .map(
+                ([sku, qtd]) =>
+                  `<span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"><span>${escapeHtml(
+                    sku,
+                  )}</span><span class="font-semibold text-gray-600">${qtd.toLocaleString(
+                    'pt-BR',
+                  )}</span></span>`,
+              )
+              .join('');
+            vendidosHtml = vendidosChips
+              ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
+              : '';
             const extrasLista = item.grupoCompleto
               .filter(
                 (skuExtra) =>
@@ -4005,7 +4008,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             .trim()
             .toUpperCase();
         const principalPorSku = new Map();
+        const principalOriginalPorSku = new Map();
         const grupoPorPrincipal = new Map();
+        const grupoNormalizadoPorPrincipal = new Map();
         const principaisVinculadosPendentes = [];
         const principaisVinculadosPorPrincipal = new Map();
         try {
@@ -4022,11 +4027,16 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             const vinculadosAtuais =
               principaisVinculadosPorPrincipal.get(skuPrincipal) || new Set();
             grupoAtual.add(skuPrincipal);
+            principalOriginalPorSku.set(principalNormalizado, skuPrincipal);
             (dados.associados || []).forEach((skuAssoc) => {
               const associado = String(skuAssoc || '').trim();
               if (!associado) return;
               principalPorSku.set(normalizarSku(associado), skuPrincipal);
               grupoAtual.add(associado);
+              principalOriginalPorSku.set(
+                normalizarSku(associado),
+                skuPrincipal,
+              );
             });
 
             (dados.principaisVinculados || []).forEach((skuPrincipalVinc) => {
@@ -4034,6 +4044,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               if (!principalVinculado) return;
               grupoAtual.add(principalVinculado);
               vinculadosAtuais.add(principalVinculado);
+              principalOriginalPorSku.set(
+                normalizarSku(principalVinculado),
+                principalVinculado,
+              );
               principaisVinculadosPendentes.push({
                 origem: skuPrincipal,
                 vinculado: principalVinculado,
@@ -4116,6 +4130,18 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           }
         }
 
+        grupoPorPrincipal.forEach((grupoSet, principalChave) => {
+          const setNormalizado = new Set();
+          grupoSet.forEach((skuItem) => {
+            setNormalizado.add(normalizarSku(skuItem));
+          });
+          grupoNormalizadoPorPrincipal.set(principalChave, setNormalizado);
+          grupoNormalizadoPorPrincipal.set(
+            normalizarSku(principalChave),
+            setNormalizado,
+          );
+        });
+
         const agregados = new Map();
         for (const [uid, info] of usuariosMap.entries()) {
           try {
@@ -4185,25 +4211,62 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                     : new Set(registro.principaisVinculados || []);
                 if (principaisDoRegistro.size) {
                   const skuNormalizado = normalizarSku(skuOriginal);
-                  let principalEncontrado = null;
-                  principaisDoRegistro.forEach((principalVinculado) => {
-                    if (principalEncontrado) return;
-                    if (
-                      normalizarSku(principalVinculado) === skuNormalizado
-                    ) {
-                      principalEncontrado = principalVinculado;
-                    }
-                  });
-                  if (principalEncontrado) {
-                    const mapaQuantidades =
-                      registro.principaisVinculadosQuantidades instanceof Map
-                        ? registro.principaisVinculadosQuantidades
-                        : new Map(
-                            registro.principaisVinculadosQuantidades || [],
-                          );
+                  const mapaQuantidades =
+                    registro.principaisVinculadosQuantidades instanceof Map
+                      ? registro.principaisVinculadosQuantidades
+                      : new Map(
+                          registro.principaisVinculadosQuantidades || [],
+                        );
+                  let principalDestino = null;
+                  const principalOriginal = principalOriginalPorSku.get(
+                    skuNormalizado,
+                  );
+                  const principalRegistroNormalizado = normalizarSku(principal);
+                  const principalOriginalNormalizado = principalOriginal
+                    ? normalizarSku(principalOriginal)
+                    : null;
+                  if (
+                    principalOriginalNormalizado &&
+                    principalOriginalNormalizado !== principalRegistroNormalizado
+                  ) {
+                    principaisDoRegistro.forEach((principalVinculado) => {
+                      if (principalDestino) return;
+                      if (
+                        normalizarSku(principalVinculado) ===
+                        principalOriginalNormalizado
+                      ) {
+                        principalDestino = principalVinculado;
+                      }
+                    });
+                  }
+                  if (
+                    !principalDestino &&
+                    (!principalOriginalNormalizado ||
+                      principalOriginalNormalizado !== principalRegistroNormalizado)
+                  ) {
+                    principaisDoRegistro.forEach((principalVinculado) => {
+                      if (principalDestino) return;
+                      const grupoNormalizado =
+                        grupoNormalizadoPorPrincipal.get(principalVinculado) ||
+                        grupoNormalizadoPorPrincipal.get(
+                          normalizarSku(principalVinculado),
+                        );
+                      const principalNormalizado = normalizarSku(
+                        principalVinculado,
+                      );
+                      if (
+                        (grupoNormalizado &&
+                          grupoNormalizado.has(skuNormalizado)) ||
+                        principalNormalizado === skuNormalizado
+                      ) {
+                        principalDestino = principalVinculado;
+                      }
+                    });
+                  }
+                  if (principalDestino) {
                     const acumulado =
-                      mapaQuantidades.get(principalEncontrado) || 0;
-                    mapaQuantidades.set(principalEncontrado, acumulado + total);
+                      mapaQuantidades.get(principalDestino) || 0;
+                    mapaQuantidades.set(principalDestino, acumulado + total);
                     registro.principaisVinculadosQuantidades = mapaQuantidades;
                   }
                 }
@@ -4233,12 +4296,13 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             item.principaisVinculadosQuantidades instanceof Map
               ? item.principaisVinculadosQuantidades
               : new Map(item.principaisVinculadosQuantidades || []);
-          const principaisVinculadosDetalhes = principaisVinculados.map(
-            (sku) => ({
+          const principaisVinculadosDetalhes = principaisVinculados.map((sku) => {
+            const quantidade = mapaQuantidadesPrincipais.get(sku) || 0;
+            return {
               sku,
-              quantidade: mapaQuantidadesPrincipais.get(sku) || 0,
-            }),
-          );
+              quantidade,
+            };
+          });
           const todosSkus = Array.from(
             new Set([
               ...grupoCompleto,
