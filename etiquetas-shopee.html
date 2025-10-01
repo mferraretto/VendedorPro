@@ -939,6 +939,27 @@
         return { url, storagePath: fileRef.fullPath, docId: docRef.id };
       } catch (error) {
         console.error('Erro ao enviar PDF para o Firebase:', error);
+        const errorInfo =
+          typeof window.describeFirebaseStorageUploadError === 'function'
+            ? window.describeFirebaseStorageUploadError(error)
+            : null;
+        if (errorInfo && errorInfo.type === 'cors') {
+          const message =
+            errorInfo.userMessage +
+            ' Entre em contato com o responsável pelo bucket para configurar as regras de CORS.';
+          const technicalDetails = errorInfo.technicalMessage
+            ? '\n\nDetalhes técnicos: ' + errorInfo.technicalMessage
+            : '';
+          setStatus(message);
+          setStatus(message, pickupStatusEl);
+          log(message);
+          alert(message + technicalDetails);
+          const friendlyError = new Error(message);
+          friendlyError.cause = error;
+          friendlyError.isCorsError = true;
+          friendlyError.details = errorInfo;
+          throw friendlyError;
+        }
         throw error;
       }
     }
