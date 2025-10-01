@@ -5774,11 +5774,80 @@ function mostrarDetalhesSobra(data = sobraPorSku) {
       await html2pdf().set(opt).from(pdfElement).save();
     }
 
-    function exportarAcompanhamentoPDF() {
+    async function exportarAcompanhamentoPDF() {
       const element = document.getElementById('areaImpressao');
       if (!element) return;
-      const opt = { margin: 1, filename: 'acompanhamento.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' } };
-      html2pdf().set(opt).from(element).save();
+
+      const nomeUsuario = escapeHtml(await obterNomeUsuarioAtual());
+      const filtroMes = document.getElementById('filtroMesAcompanhamento')?.value || '';
+
+      let mesReferencia = filtroMes;
+      if (!mesReferencia && Array.isArray(dadosAcompanhamento) && dadosAcompanhamento.length) {
+        const primeiroRegistro = dadosAcompanhamento.find(item => item && item.data);
+        if (primeiroRegistro?.data) {
+          const [ano, mes] = String(primeiroRegistro.data).split('-');
+          if (ano && mes) mesReferencia = `${ano}-${mes}`;
+        }
+      }
+
+      let mesFormatado = '';
+      if (mesReferencia) {
+        const texto = formatarMesReferencia(mesReferencia);
+        if (texto) {
+          mesFormatado = texto.charAt(0).toUpperCase() + texto.slice(1);
+        }
+      }
+      const mesLabel = escapeHtml(mesFormatado || 'Período completo');
+
+      const clone = element.cloneNode(true);
+      clone.style.marginTop = '16px';
+
+      const wrapper = document.createElement('div');
+      wrapper.style.fontFamily = "'Inter', 'Segoe UI', sans-serif";
+      wrapper.style.padding = '16px 24px';
+      wrapper.style.backgroundColor = '#ffffff';
+
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'flex-start';
+      header.style.marginBottom = '16px';
+      header.style.paddingBottom = '12px';
+      header.style.borderBottom = '1px solid #e5e7eb';
+      header.innerHTML = `
+        <div style="font-size:18px;font-weight:700;color:#111827;">Relatório de Acompanhamento Mensal</div>
+        <div style="text-align:right;font-size:12px;color:#374151;line-height:1.4;">
+          <div style="font-weight:600;">${nomeUsuario}</div>
+          <div>${mesLabel}</div>
+        </div>
+      `;
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(clone);
+
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'fixed';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0';
+      tempContainer.style.width = '0';
+      tempContainer.style.height = '0';
+      tempContainer.style.overflow = 'hidden';
+      tempContainer.appendChild(wrapper);
+      document.body.appendChild(tempContainer);
+
+      const opt = {
+        margin: 1,
+        filename: 'acompanhamento.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
+      };
+
+      try {
+        await html2pdf().set(opt).from(wrapper).save();
+      } finally {
+        document.body.removeChild(tempContainer);
+      }
     }
 
     function printAcompanhamento() {
