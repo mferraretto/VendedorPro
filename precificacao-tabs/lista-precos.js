@@ -10,6 +10,34 @@ let produtos = [];
 let viewMode = 'cards';
 let selecionados = new Set();
 
+function getJsPDFConstructor() {
+  return window.jspdf?.jsPDF || window.jsPDF || null;
+}
+
+function sanitizeNumberValue(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    let normalized = value.replace(/[^0-9.,-]+/g, '');
+    if (normalized.includes(',') && normalized.includes('.')) {
+      normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else if (normalized.includes(',')) {
+      normalized = normalized.replace(',', '.');
+    }
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function formatNumberPtBr(value) {
+  const num = sanitizeNumberValue(value);
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+}
+
 async function carregarProdutos() {
   const user = firebase.auth().currentUser;
   const uid = user?.uid;
@@ -430,8 +458,21 @@ function exportarPlanilhaPrecificacao() {
 }
 
 function exportarPDFLista() {
-  if (!produtos.length) return;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  if (!produtos.length) {
+    alert('Nenhum produto encontrado para exportação.');
+    return;
+  }
+  const JsPDF = getJsPDFConstructor();
+  if (!JsPDF) {
+    console.error('jsPDF não está disponível na janela global.');
+    alert('Não foi possível gerar o PDF porque a biblioteca jsPDF não foi carregada.');
+    return;
+  }
+  const doc = new JsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
   const headers = [
     'Produto',
     'SKU',
@@ -446,12 +487,17 @@ function exportarPDFLista() {
     p.produto,
     p.sku || '',
     p.plataforma,
-    parseFloat(p.custo || 0).toFixed(2),
-    parseFloat(p.precoMinimo).toFixed(2),
-    parseFloat(p.precoIdeal).toFixed(2),
-    parseFloat(p.precoMedio).toFixed(2),
-    parseFloat(p.precoPromo).toFixed(2),
+    formatNumberPtBr(p.custo),
+    formatNumberPtBr(p.precoMinimo),
+    formatNumberPtBr(p.precoIdeal),
+    formatNumberPtBr(p.precoMedio),
+    formatNumberPtBr(p.precoPromo),
   ]);
+  if (typeof doc.autoTable !== 'function') {
+    console.error('Plugin jsPDF-AutoTable indisponível.');
+    alert('Não foi possível gerar o PDF porque o plugin jsPDF-AutoTable não foi carregado.');
+    return;
+  }
   doc.autoTable({ head: [headers], body, startY: 20, styles: { fontSize: 8 } });
   doc.save('lista_precos.pdf');
 }
