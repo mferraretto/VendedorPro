@@ -5134,8 +5134,6 @@ let uids = [];
             if (anoS !== anoFiltro || mesS !== mesFiltro) continue;
           }
           let dadosSaque = docS.data();
-          let saqueRegistrado = 0;
-          let possuiValorDireto = false;
           if (dadosSaque.encrypted) {
             try {
               const txt = await decryptString(dadosSaque.encrypted, getPassphrase() || `chave-${dadosSaque.uid || usuarioLogado.uid}`);
@@ -5145,18 +5143,11 @@ let uids = [];
               continue;
             }
           }
-          if (dadosSaque.valorTotal != null) {
-            saqueRegistrado = parseFloat(dadosSaque.valorTotal) || 0;
-            possuiValorDireto = true;
-          } else if (dadosSaque.valor != null) {
-            saqueRegistrado = parseFloat(dadosSaque.valor) || 0;
-            possuiValorDireto = true;
-          }
+          totalSaques += dadosSaque.valorTotal || dadosSaque.valor || 0;
           const ownerUidSaques = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase()) ? docS.ref.parent.parent.id : usuarioLogado.uid;
           try {
             const subRefSaque = db.collection(`uid/${ownerUidSaques}/saques/${docS.id}/lojas`);
             const subSnapSaque = await subRefSaque.get();
-            let totalLojasDoc = 0;
             for (const lojaDoc of subSnapSaque.docs) {
               let dadosLoja = lojaDoc.data();
               if (dadosLoja.encrypted) {
@@ -5169,17 +5160,12 @@ let uids = [];
                 }
               }
               const valorLoja = parseFloat(dadosLoja.valor) || 0;
-              totalLojasDoc += valorLoja;
               const comissaoPct = parseFloat(dadosLoja.comissao) || 0;
               if (comissaoPct) totalComissao += (valorLoja * comissaoPct / 100);
-            }
-            if (!possuiValorDireto) {
-              saqueRegistrado = totalLojasDoc;
             }
           } catch (e) {
             console.error('Erro ao carregar comissão dos saques', e);
           }
-          totalSaques += saqueRegistrado;
         }
       } catch (e) {
         console.error('Erro ao carregar saques', e);
@@ -5223,6 +5209,7 @@ resumoEl.innerHTML = `
    <div class="resumo-card"><h4>Total Bruto</h4><p>R$ ${totais.bruto.toLocaleString('pt-BR')}</p>${resumoBrutoMeta}</div>
         <div class="resumo-card"><h4>Total Líquido</h4><p>R$ ${totais.liquido.toLocaleString('pt-BR')}</p>${resumoLiquidoMeta}</div>
         <div class="resumo-card"><h4>Total Vendido</h4><p>${totais.vendas}</p><button class="btn btn-secondary btn-sm" style="margin-top:0.5rem" onclick="mostrarDetalhesVendas()">Ver mais</button></div>
+        <div class="resumo-card"><h4>Total Sobra Esperada</h4><p>R$ ${totais.sobra.toLocaleString('pt-BR')}</p><button class="btn btn-secondary btn-sm" style="margin-top:0.5rem" onclick="mostrarDetalhesSobra()">Ver mais</button></div>
         <div class="resumo-card"><h4>Total Saques</h4><p>R$ ${totalSaques.toLocaleString('pt-BR')}</p></div>
         <div class="resumo-card"><h4>Comissão do Mês</h4><p>R$ ${totalComissao.toLocaleString('pt-BR')}</p></div>
         <div class="resumo-card"><h4>Ticket Médio</h4><p>R$ ${ticket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>`;
