@@ -5334,12 +5334,11 @@ const dias = dadosAcompanhamento.length;
       const resumoLiquidoMeta = metaLiquidoDiario ? `<small>${diffLiquido >= 0 ? 'Acima' : 'Abaixo'} da meta (${percLiquido.toFixed(2)}%, R$ ${Math.abs(diffLiquido).toLocaleString('pt-BR')})</small>` : '';
       
       resumoEl.classList.add('resumo-grid');
-resumoEl.innerHTML = `
-   <div class="resumo-card"><h4>Total Bruto</h4><p>R$ ${totais.bruto.toLocaleString('pt-BR')}</p>${resumoBrutoMeta}</div>
+      resumoEl.innerHTML = `
+        <div class="resumo-card"><h4>Total Bruto</h4><p>R$ ${totais.bruto.toLocaleString('pt-BR')}</p>${resumoBrutoMeta}</div>
         <div class="resumo-card"><h4>Total Líquido</h4><p>R$ ${totais.liquido.toLocaleString('pt-BR')}</p>${resumoLiquidoMeta}</div>
         <div class="resumo-card"><h4>Total Vendido</h4><p>${totais.vendas}</p><button class="btn btn-secondary btn-sm" style="margin-top:0.5rem" onclick="mostrarDetalhesVendas()">Ver mais</button></div>
         <div class="resumo-card"><h4>Total Saques</h4><p>R$ ${totalSaques.toLocaleString('pt-BR')}</p></div>
-        <div class="resumo-card"><h4>Comissão do Mês</h4><p>R$ ${totalComissaoPrevista.toLocaleString('pt-BR')}</p><small>Pago: R$ ${totalComissaoPaga.toLocaleString('pt-BR')} | A pagar: R$ ${totalComissaoAPagar.toLocaleString('pt-BR')}</small></div>
         <div class="resumo-card"><h4>Ticket Médio</h4><p>R$ ${ticket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>`;
     }
 
