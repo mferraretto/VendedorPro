@@ -40,6 +40,46 @@
       });
   }
 
+  function extractFirebaseStorageErrorText(error) {
+    if (!error) return '';
+    if (typeof error === 'string') return error;
+    var pieces = [];
+    if (typeof error.message === 'string') {
+      pieces.push(error.message);
+    }
+    if (typeof error.code === 'string') {
+      pieces.push(error.code);
+    }
+    if (error.serverResponse) {
+      pieces.push(String(error.serverResponse));
+    }
+    if (error.customData && error.customData.serverResponse) {
+      pieces.push(String(error.customData.serverResponse));
+    }
+    if (error.cause) {
+      pieces.push(extractFirebaseStorageErrorText(error.cause));
+    }
+    return pieces.join(' ').trim();
+  }
+
+  window.describeFirebaseStorageUploadError = function (error) {
+    var combined = extractFirebaseStorageErrorText(error);
+    if (!combined) {
+      return null;
+    }
+
+    if (/CORS|Access-Control-Allow-Origin|preflight/i.test(combined)) {
+      return {
+        type: 'cors',
+        userMessage:
+          'Não foi possível enviar o PDF porque o Firebase Storage bloqueou a requisição (CORS). A origem do site precisa estar autorizada no bucket do Storage.',
+        technicalMessage: combined,
+      };
+    }
+
+    return null;
+  };
+
   function loadTailwind() {
     return new Promise(function (resolve, reject) {
       if (
