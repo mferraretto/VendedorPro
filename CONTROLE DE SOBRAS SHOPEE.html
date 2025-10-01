@@ -4720,43 +4720,17 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
 
       const cardsHtml = cards
         .map(card => `
-        <div style="background:${card.bg};color:${card.color};padding:16px;border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,0.1);text-align:center;">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${card.titulo}</div>
-          <div style="font-size:24px;font-weight:700;">${card.valor}</div>
-        </div>`)
-        .join('');
-
-      return `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:16px;">${cardsHtml}</div>`;
-    }
-
-    function gerarTabelaPrevisaoPdfHtml(diario) {
-      if (!diario.length) {
-        return '<p style="color:#6b7280;font-size:12px;margin:0 0 16px;">Nenhum histórico diário disponível para esta previsão.</p>';
-      }
-
-      const linhas = diario
-        .map(item => `
-          <tr>
-            <td style="border:1px solid #d1d5db;padding:8px;font-size:12px;">${item.data}</td>
-            <td style="border:1px solid #d1d5db;padding:8px;font-size:12px;text-align:right;">${Number(item.quantidade || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</td>
-          </tr>`)
+          <div style="background:${card.bg};color:${card.color};padding:16px;border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,0.1);text-align:center;">
+            <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${card.titulo}</div>
+            <div style="font-size:26px;font-weight:700;">${card.valor}</div>
+          </div>`)
         .join('');
 
       return `
-        <div style="margin-bottom:16px;">
-          <h4 style="font-size:14px;font-weight:600;margin:0 0 8px;">Distribuição diária (Base)</h4>
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead>
-              <tr>
-                <th style="border:1px solid #d1d5db;padding:8px;text-align:left;font-size:12px;background:#f3f4f6;">Data</th>
-                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;font-size:12px;background:#f3f4f6;">Quantidade</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${linhas}
-            </tbody>
-          </table>
-        </div>`;
+        <section style="margin-bottom:24px;">
+          <h3 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#111827;">Resumo por cenário</h3>
+          <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">${cardsHtml}</div>
+        </section>`;
     }
 
     function gerarTopSkusPdfHtml(cenarios) {
@@ -4780,15 +4754,15 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             .join('');
 
           return `
-            <div style="page-break-inside:avoid;">
-              <h4 style="font-size:14px;font-weight:600;text-align:center;margin:0 0 8px;">Top 10 SKUs projeção ${cenario.titulo}</h4>
-              <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(15,23,42,0.05);page-break-inside:avoid;">
+              <h4 style="font-size:14px;font-weight:600;text-transform:uppercase;text-align:center;margin:0 0 12px;">Top 10 SKUs projeção ${cenario.titulo}</h4>
+              <table style="width:100%;border-collapse:collapse;font-size:12px;">
                 <thead>
                   <tr>
-                    <th style="${celulaStyle};background:#f3f4f6;">SKU</th>
-                    <th style="${celulaNumerica};background:#f3f4f6;">Quantidade</th>
-                    <th style="${celulaNumerica};background:#f3f4f6;">Bruto Esperado<br>(Valor de venda)</th>
-                    <th style="${celulaNumerica};background:#f3f4f6;">Sobra Esperada<br>(Sobra esperada x quantidade)</th>
+                    <th style="${celulaStyle}background:#f3f4f6;">SKU</th>
+                    <th style="${celulaNumerica}background:#f3f4f6;">Quantidade</th>
+                    <th style="${celulaNumerica}background:#f3f4f6;">Bruto esperado</th>
+                    <th style="${celulaNumerica}background:#f3f4f6;">Sobra esperada</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -4799,7 +4773,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         })
         .join('');
 
-      return `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">${htmlCenarios}</div>`;
+      return `
+        <section>
+          <h3 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#111827;">Top 10 SKUs por cenário</h3>
+          <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">${htmlCenarios}</div>
+        </section>`;
     }
 
     async function carregarPrevisao() {
@@ -4906,7 +4884,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         filename: `previsao_${identificadorSku}_${dataArquivo}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape' },
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
@@ -4919,7 +4897,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       exportWrapper.style.boxSizing = 'border-box';
       exportWrapper.style.fontFamily = "'Inter', Arial, sans-serif";
       exportWrapper.style.color = '#111827';
-      const larguraReferencia = Math.max(area.offsetWidth || area.scrollWidth || 1100, 1100);
+      const larguraReferencia = Math.max(area.offsetWidth || area.scrollWidth || 794, 794);
       exportWrapper.style.width = `${larguraReferencia}px`;
 
       const header = document.createElement('div');
@@ -4937,7 +4915,6 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const conteudo = document.createElement('div');
       conteudo.innerHTML = `
         ${gerarCardsPrevisaoPdfHtml(resumo)}
-        ${gerarTabelaPrevisaoPdfHtml(resumo.diario)}
         ${gerarTopSkusPdfHtml(cenarios)}
       `;
 
