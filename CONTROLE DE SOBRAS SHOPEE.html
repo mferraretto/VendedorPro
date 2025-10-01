@@ -42,8 +42,26 @@
         <i class="fas fa-check-circle"></i>
         <h1>Vendedor Pro - Vendas e Faturamento</h1>
       </div>
-      
-      
+
+      <div class="alert-container">
+        <div id="alertSuccess" class="alert alert-success" role="status" style="display: none;">
+          <i class="fas fa-check-circle"></i>
+          <div class="alert-content"></div>
+          <button type="button" class="alert-close" aria-label="Fechar alerta de sucesso">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div id="alertError" class="alert alert-error" role="alert" style="display: none;">
+          <i class="fas fa-triangle-exclamation"></i>
+          <div class="alert-content"></div>
+          <button type="button" class="alert-close" aria-label="Fechar alerta de erro">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+
       <div id="firebase-error" class="card" style="display: none;">
         <div class="card-header">
           <i class="fas fa-exclamation-triangle"></i>
@@ -1060,9 +1078,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     
     function mostrarSucesso(mensagem) {
       const alerta = document.getElementById('alertSuccess');
+      if (!alerta) {
+        console.warn('Alerta de sucesso não encontrado na página.');
+        return;
+      }
       alerta.querySelector('.alert-content').textContent = mensagem;
       alerta.style.display = 'flex';
-      
+
       setTimeout(() => {
         alerta.style.display = 'none';
       }, 5000);
@@ -1070,13 +1092,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
     function mostrarErro(mensagem) {
       const alerta = document.getElementById('alertError');
+      if (!alerta) {
+        console.warn('Alerta de erro não encontrado na página.');
+        return;
+      }
       alerta.querySelector('.alert-content').textContent = mensagem;
       alerta.style.display = 'flex';
-      
+
       setTimeout(() => {
         alerta.style.display = 'none';
       }, 5000);
     }
+
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('.alert-close')) {
+        const alerta = event.target.closest('.alert');
+        if (alerta) {
+          alerta.style.display = 'none';
+        }
+      }
+    });
 
     function toggleLoading(botao, texto) {
       const btnText = botao.querySelector('span') || botao;
