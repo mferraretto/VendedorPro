@@ -190,6 +190,8 @@ if (window.pdfjsLib?.GlobalWorkerOptions) {
 
 let vtsEtiquetasRegistros = [];
 let vtsCarregado = false;
+let vtsUltimoDiagnostico = [];
+let vtsUltimoArquivo = '';
 
 function normalizeDate(value) {
   if (!value) return '';
@@ -1349,6 +1351,59 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       feedback.className = `${classesBase} ${tons[tipo] || tons.info}`;
     }
 
+    function atualizarDiagnosticoVts(diagnostico = [], arquivoNome = '') {
+      const container = document.getElementById('vtsDebugContainer');
+      const resumo = document.getElementById('vtsDebugResumo');
+      const pre = document.getElementById('vtsDebugPre');
+      const botao = document.getElementById('vtsToggleDebug');
+
+      if (!container || !resumo || !pre) return;
+
+      vtsUltimoDiagnostico = Array.isArray(diagnostico) ? diagnostico : [];
+      vtsUltimoArquivo = arquivoNome || '';
+
+      if (!vtsUltimoDiagnostico.length) {
+        resumo.textContent = 'Nenhum diagnóstico disponível no momento. Importe um PDF para visualizar os dados lidos.';
+        pre.textContent = 'Nenhum dado processado ainda.';
+        pre.scrollTop = 0;
+        if (botao) {
+          botao.textContent = container.classList.contains('hidden')
+            ? 'Mostrar diagnóstico'
+            : 'Ocultar diagnóstico';
+        }
+        return;
+      }
+
+      const partes = vtsUltimoDiagnostico.map((entrada) => {
+        const linhasTexto = (entrada.linhas || [])
+          .map((linha, indice) => `  [${indice + 1}] ${linha}`)
+          .join('\n');
+        const interpretado = entrada.interpretado
+          ? JSON.stringify(entrada.interpretado, null, 2)
+          : 'Nenhum dado interpretado para esta página.';
+        return [
+          `Página ${entrada.pagina}`,
+          'Texto lido:',
+          linhasTexto || '  (nenhuma linha identificada)',
+          'Interpretação:',
+          interpretado,
+        ].join('\n');
+      });
+
+      resumo.textContent = arquivoNome
+        ? `Diagnóstico gerado a partir do arquivo "${arquivoNome}".`
+        : 'Diagnóstico gerado a partir do último arquivo processado.';
+
+      pre.textContent = partes.join('\n\n----------------------------------------\n\n');
+      pre.scrollTop = 0;
+
+      if (botao) {
+        botao.textContent = container.classList.contains('hidden')
+          ? 'Mostrar diagnóstico'
+          : 'Ocultar diagnóstico';
+      }
+    }
+
     function formatarDataVts(valorISO, valorOriginal) {
       if (valorISO) {
         const [ano, mes, dia] = valorISO.split('-');
@@ -1727,6 +1782,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const arrayBuffer = await arquivo.arrayBuffer();
       const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const resultados = [];
+      const diagnostico = [];
 
       for (let pagina = 1; pagina <= pdf.numPages; pagina += 1) {
         const paginaPdf = await pdf.getPage(pagina);
@@ -1756,12 +1812,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
 
         const interpretado = interpretarEtiquetaVts(linhas, pagina);
+        diagnostico.push({
+          pagina,
+          linhas: linhas.slice(),
+          interpretado: interpretado ? { ...interpretado } : null,
+        });
         if (interpretado) {
           resultados.push(interpretado);
         }
       }
 
-      return resultados;
+      return { registros: resultados, diagnostico };
     }
 
     async function processarPdfVts() {
@@ -1785,7 +1846,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
         setVtsFeedback('Processando etiquetas, aguarde...', 'info');
 
-        const etiquetas = await extrairEtiquetasDePdf(arquivo);
+        const { registros: etiquetas, diagnostico } = await extrairEtiquetasDePdf(arquivo);
+        atualizarDiagnosticoVts(diagnostico, arquivo.name);
+
         if (!etiquetas.length) {
           setVtsFeedback('Nenhuma etiqueta reconhecida no PDF. Verifique o modelo e tente novamente.', 'warning');
           return;
@@ -1798,6 +1861,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       } catch (erro) {
         console.error('Erro ao processar PDF de etiquetas VTS:', erro);
         setVtsFeedback('Não foi possível processar o arquivo. Confirme se o PDF está legível e tente novamente.', 'error');
+        atualizarDiagnosticoVts([]);
       } finally {
         botao.disabled = false;
         if (indicador) {
@@ -1813,6 +1877,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       const botao = document.getElementById('vtsProcessarBtn');
       const input = document.getElementById('vtsPdfInput');
+      const toggle = document.getElementById('vtsToggleDebug');
+      const debugContainer = document.getElementById('vtsDebugContainer');
 
       if (!botao || !input) return;
 
@@ -1825,10 +1891,27 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             setVtsFeedback('', 'info');
           }
         });
+        if (toggle && debugContainer && !toggle.dataset.bound) {
+          toggle.addEventListener('click', () => {
+            const estaOculto = debugContainer.classList.contains('hidden');
+            if (estaOculto) {
+              debugContainer.classList.remove('hidden');
+              toggle.textContent = 'Ocultar diagnóstico';
+              if (!vtsUltimoDiagnostico.length) {
+                atualizarDiagnosticoVts(vtsUltimoDiagnostico, vtsUltimoArquivo);
+              }
+            } else {
+              debugContainer.classList.add('hidden');
+              toggle.textContent = 'Mostrar diagnóstico';
+            }
+          });
+          toggle.dataset.bound = 'true';
+        }
         container.dataset.initialized = 'true';
       }
 
       await carregarEtiquetasVts();
+      atualizarDiagnosticoVts(vtsUltimoDiagnostico, vtsUltimoArquivo);
     }
 
 
