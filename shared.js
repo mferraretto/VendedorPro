@@ -1,4 +1,16 @@
 (function () {
+  if (typeof window !== 'undefined') {
+    var host = window.location.hostname;
+    if (host === 'www.provendedor.com.br') {
+      var target =
+        'https://provendedor.com.br' +
+        window.location.pathname +
+        window.location.search +
+        window.location.hash;
+      window.location.replace(target);
+      return;
+    }
+  }
   // Determine base path of current script for loading partials
   var currentScript =
     document.currentScript ||
