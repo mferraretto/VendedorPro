@@ -1596,17 +1596,6 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
         }
 
-        if (!dados.rastreio) {
-          const numerico = linha.match(/\b\d{8,}\b/);
-          if (numerico) {
-            const candidato = numerico[0];
-            const contextoInvalido = /pedido|pack\s*id|sku|quantidade|nota fiscal/i.test(linha);
-            if (!contextoInvalido && candidato !== dados.pedido) {
-              dados.rastreio = candidato;
-            }
-          }
-        }
-
         if (!dados.sku) {
           if (/sku[:\s-]/i.test(linha)) {
             const valorSku = linha.replace(/.*sku[:\s-]*/i, '').trim();
@@ -1653,16 +1642,6 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           .map((texto) => normalizarLinhaVts(texto))
           .find((valor) => /^\d{10,}$/.test(valor));
         if (sequencia) dados.pedido = sequencia;
-      }
-
-      if (!dados.loja) {
-        const possivelLoja = linhas
-          .map((texto) => normalizarLinhaVts(texto))
-          .find((valor) => /#[0-9]{5,}/.test(valor) && !/pedido|pack\s*id/i.test(valor));
-        if (possivelLoja) {
-          const somenteNome = possivelLoja.replace(/#[0-9]{5,}.*/, '').trim();
-          dados.loja = somenteNome || possivelLoja;
-        }
       }
 
       const possuiInformacoes = [
