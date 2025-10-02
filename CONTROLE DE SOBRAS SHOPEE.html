@@ -1553,6 +1553,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return '';
     }
 
+    function limparValorSkuVts(texto) {
+      if (!texto) return '';
+
+      return normalizarLinhaVts(texto)
+        .replace(/^SKU[:\s-]*/i, '')
+        .replace(/\b(quantidade|qtd)\b.*$/i, '')
+        .replace(/\bloja\b.*$/i, '')
+        .replace(/\betiqueta\b.*$/i, '')
+        .trim();
+    }
+
     function interpretarEtiquetaVts(linhas, pagina) {
       const dados = {
         pagina,
@@ -1569,7 +1580,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (!linha) return;
 
         if (!dados.pedido) {
-          const pedidoMatch = linha.match(/pedido[:\s-]*([A-Z0-9][A-Z0-9\s-]+)/i);
+          const pedidoMatch = linha.match(/pedido\s*(?:n[úu]mero|n[úu]m|n[ºo°\.]|nº|n°|#)?\s*(?:do)?\s*[:\-]*\s*([A-Z0-9-]+)/i);
+
           if (pedidoMatch) {
             const pedidoValor = sanitizarCodigoVts(pedidoMatch[1]);
             if (pedidoValor) {
@@ -1617,11 +1629,20 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
         if (!dados.sku) {
           if (/sku[:\s-]/i.test(linha)) {
-            const valorSku = linha.replace(/.*sku[:\s-]*/i, '').trim();
+            const valorSku = limparValorSkuVts(linha.replace(/.*sku[:\s-]*/i, ''));
             if (valorSku) dados.sku = valorSku;
           } else if (/^sku$/i.test(linha)) {
             const prox = obterProximaLinhaVts(linhas, indice);
-            if (prox) dados.sku = prox;
+            const valorSku = limparValorSkuVts(prox);
+            if (valorSku) dados.sku = valorSku;
+          }
+        }
+
+        if (!dados.sku) {
+          const skuInline = linha.match(/\bSKU\b[:\s-]*(.+)/i);
+          if (skuInline) {
+            const valorSku = limparValorSkuVts(skuInline[1]);
+            if (valorSku) dados.sku = valorSku;
           }
         }
 
@@ -1652,7 +1673,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!dados.sku) {
         const indiceQuantidade = linhas.findIndex((texto) => /quantidade/i.test(texto));
         if (indiceQuantidade > 0) {
-          dados.sku = normalizarLinhaVts(linhas[indiceQuantidade - 1]);
+          const possivelSku = limparValorSkuVts(linhas[indiceQuantidade - 1]);
+          if (possivelSku) dados.sku = possivelSku;
         }
       }
 
