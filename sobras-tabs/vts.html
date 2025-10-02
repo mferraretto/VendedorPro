@@ -9,28 +9,82 @@
       </p>
     </div>
   </div>
-  <div class="card-body space-y-4">
-    <div class="grid gap-4 md:grid-cols-[2fr,1fr] items-end">
-      <div class="space-y-2">
-        <label for="vtsPdfInput" class="block text-sm font-medium text-slate-700">Arquivo PDF de etiquetas</label>
+  <div class="card-body space-y-6">
+    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+        <div class="flex items-center justify-between gap-2">
+          <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Mercado Livre</h4>
+          <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">PDF</span>
+        </div>
+        <label for="vtsPdfInput" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Mercado Livre</label>
         <input
           type="file"
           id="vtsPdfInput"
           accept="application/pdf"
           class="form-control"
         />
-        <p class="text-xs text-slate-500">
-          O sistema aceita múltiplos modelos de etiquetas Shopee. Certifique-se de que o PDF esteja legível.
+        <p class="text-[11px] leading-relaxed text-slate-500">
+          Utilize o PDF gerado pelo Mercado Livre. O leitor identifica SKU, pedido, rastreio, data e loja automaticamente.
         </p>
+        <button
+          id="vtsProcessarBtn"
+          class="btn btn-primary w-full justify-center"
+          type="button"
+        >
+          <i class="fas fa-file-import mr-2"></i>
+          Processar etiquetas Mercado Livre
+        </button>
       </div>
-      <button
-        id="vtsProcessarBtn"
-        class="btn btn-primary justify-center"
-        type="button"
-      >
-        <i class="fas fa-file-import mr-2"></i>
-        Processar etiquetas
-      </button>
+
+      <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+        <div class="flex items-center justify-between gap-2">
+          <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Shopee</h4>
+          <span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">PDF</span>
+        </div>
+        <label for="vtsPdfInputShopee" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Shopee</label>
+        <input
+          type="file"
+          id="vtsPdfInputShopee"
+          accept="application/pdf"
+          class="form-control"
+        />
+        <p class="text-[11px] leading-relaxed text-slate-500">
+          Faça o upload do PDF exportado na Shopee. O sistema extrai SKU, pedido, rastreio, data e loja do documento.
+        </p>
+        <button
+          id="vtsProcessarBtnShopee"
+          class="btn btn-primary w-full justify-center"
+          type="button"
+        >
+          <i class="fas fa-file-import mr-2"></i>
+          Processar etiquetas Shopee
+        </button>
+      </div>
+
+      <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+        <div class="flex items-center justify-between gap-2">
+          <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Magalu</h4>
+          <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">PDF</span>
+        </div>
+        <label for="vtsPdfInputMagalu" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Magalu</label>
+        <input
+          type="file"
+          id="vtsPdfInputMagalu"
+          accept="application/pdf"
+          class="form-control"
+        />
+        <p class="text-[11px] leading-relaxed text-slate-500">
+          Envie o PDF de etiquetas emitido pela Magalu. Vamos localizar SKU, pedido, rastreio, data e loja.
+        </p>
+        <button
+          id="vtsProcessarBtnMagalu"
+          class="btn btn-primary w-full justify-center"
+          type="button"
+        >
+          <i class="fas fa-file-import mr-2"></i>
+          Processar etiquetas Magalu
+        </button>
+      </div>
     </div>
     <div
       id="vtsLoading"
