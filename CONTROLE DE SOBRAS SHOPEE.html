@@ -1598,6 +1598,18 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         .trim();
     }
 
+    function sanitizarCodigoComEspacos(texto) {
+      return (texto || '')
+        .toString()
+        .replace(/[^A-Za-z0-9\s-]/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+
+    function escaparRegex(texto) {
+      return (texto || '').replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    }
+
     function obterProximaLinhaVts(linhas, indiceAtual) {
       for (let indice = indiceAtual + 1; indice < linhas.length; indice += 1) {
         const valor = normalizarLinhaVts(linhas[indice]);
@@ -1654,7 +1666,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (!dados.pedido) {
           const packMatch = linha.match(/pack\s*id[:\s-]*([A-Z0-9][A-Z0-9\s-]+)/i);
           if (packMatch) {
-            const packValor = sanitizarCodigoVts(packMatch[1]);
+            const packValor = sanitizarCodigoComEspacos(packMatch[1]);
             if (packValor) dados.pedido = packValor;
           }
         }
@@ -1670,6 +1682,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           const alternativo = linha.match(/\b[A-Z]{2}\d{8,}\b/);
           if (alternativo) {
             dados.rastreio = alternativo[0];
+          }
+        }
+
+        if (!dados.rastreio) {
+          const numericoEspacado = linha.match(/\b\d{5,}\s+\d{5,}\b/);
+          if (numericoEspacado) {
+            const valorRastreio = numericoEspacado[0].replace(/\s{2,}/g, ' ').trim();
+            if (valorRastreio) {
+              dados.rastreio = valorRastreio;
+            }
           }
         }
 
@@ -1740,9 +1762,29 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           if (!/#\d{5,}/.test(valor)) continue;
           if (/pedido|pack|sku|quantidade|cep|cnpj|cpf/i.test(valor)) continue;
 
-          const semIdentificador = valor.replace(/\s*#\d+.*/, '').trim();
-          if (semIdentificador) {
-            dados.loja = semIdentificador;
+          let candidato = valor;
+          if (dados.sku) {
+            const skuNormalizado = dados.sku.replace(/\s+/g, ' ').trim();
+            if (skuNormalizado) {
+              try {
+                const regexSku = new RegExp(escaparRegex(skuNormalizado), 'i');
+                candidato = candidato.replace(regexSku, '').trim();
+              } catch (erroRegex) {
+                console.warn('Não foi possível gerar regex para SKU na extração da loja:', erroRegex);
+              }
+            }
+          }
+
+          let comIdentificador = '';
+          const matches = candidato.match(/([A-Za-zÀ-ÿ0-9&'.,-]+\s*)+#\d+/g);
+          if (matches && matches.length) {
+            comIdentificador = matches[matches.length - 1].trim();
+          }
+
+          if (comIdentificador) {
+            dados.loja = comIdentificador;
+          } else if (candidato) {
+            dados.loja = candidato.trim();
           } else {
             const anterior = normalizarLinhaVts(linhas[i - 1] || '');
             if (anterior) dados.loja = anterior;
