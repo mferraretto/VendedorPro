@@ -1539,10 +1539,56 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       for (let indice = indiceAtual + 1; indice < linhas.length; indice += 1) {
         const valor = normalizarLinhaVts(linhas[indice]);
         if (!valor) continue;
-        if (/^(SKU|Pedido|Pack ID|Remetente|Loja|Quantidade)$/i.test(valor)) continue;
+        if (/^(SKU|Pedido|Pack ID|Remetente|Loja|Quantidade|Destinatario|Destinatário|Previsao|Previsão|Etiqueta|Coleta)$/i.test(valor)) continue;
         return valor;
       }
       return '';
+    }
+
+    function coletarTextoPosteriorVts(linhas, indiceAtual, maxLinhas = 3) {
+      const coletados = [];
+      const paradaRegex = /^(SKU|Pedido|Pack ID|Remetente|Loja|Quantidade|Destinatario|Destinatário|Previsao|Previsão|Etiqueta|Coleta|Telefone|Telefone do Destinatario|Telefone do Destinatário)$/i;
+
+      for (let indice = indiceAtual + 1; indice < linhas.length; indice += 1) {
+        if (coletados.length >= maxLinhas) break;
+
+        const valor = normalizarLinhaVts(linhas[indice]);
+        if (!valor) continue;
+        if (paradaRegex.test(valor)) break;
+
+        coletados.push(valor);
+      }
+
+      return coletados.join(' ').trim();
+    }
+
+    function limparInformacaoLojaVts(texto) {
+      if (!texto) return '';
+
+      let resultado = texto;
+      const padroesCorte = [
+        /\b(rua|r\.|av\.?|avenida|trav\.?|travessa|estr\.?|estrada|rod\.?|rodovia|bairro|cep|cidade|estado)\b/i,
+        /\bcep[:\s-]*\d{5}-?\d{3}\b/i,
+        /\b\d{5}-?\d{3}\b/,
+      ];
+
+      padroesCorte.forEach((regex) => {
+        const match = resultado.match(regex);
+        if (match) {
+          resultado = resultado.slice(0, match.index).trim();
+        }
+      });
+
+      return resultado.replace(/[\s,;-]+$/g, '').trim();
+    }
+
+    function sanitizarSkuVts(texto) {
+      if (!texto) return '';
+
+      let resultado = texto.replace(/\bquantidade[:\s-]*\d+\b/gi, '').trim();
+      resultado = resultado.replace(/\bquantidade\b.*$/i, '').trim();
+
+      return resultado;
     }
 
     function interpretarEtiquetaVts(linhas, pagina) {
@@ -1610,25 +1656,47 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (!dados.sku) {
           if (/sku[:\s-]/i.test(linha)) {
             const valorSku = linha.replace(/.*sku[:\s-]*/i, '').trim();
-            if (valorSku) dados.sku = valorSku;
+            let skuTratado = sanitizarSkuVts(valorSku);
+            if (!skuTratado) {
+              const complemento = coletarTextoPosteriorVts(linhas, indice);
+              skuTratado = sanitizarSkuVts(complemento);
+            }
+            if (skuTratado) dados.sku = skuTratado;
           } else if (/^sku$/i.test(linha)) {
             const prox = obterProximaLinhaVts(linhas, indice);
-            if (prox) dados.sku = prox;
+            let skuTratado = sanitizarSkuVts(prox);
+            if (!skuTratado) {
+              const complemento = coletarTextoPosteriorVts(linhas, indice);
+              skuTratado = sanitizarSkuVts(complemento);
+            }
+            if (skuTratado) dados.sku = skuTratado;
           }
         }
 
         if (!dados.loja && /remetente/i.test(linha)) {
-          const nome = linha.replace(/remetente[:\s-]*/i, '').trim();
+          let nome = linha.replace(/remetente[:\s-]*/i, '').trim();
+          if (nome) {
+            const complemento = coletarTextoPosteriorVts(linhas, indice);
+            if (complemento) nome = `${nome} ${complemento}`.trim();
+          } else {
+            nome = coletarTextoPosteriorVts(linhas, indice);
+          }
+
+          if (!nome) {
+            const prox = obterProximaLinhaVts(linhas, indice);
+            if (prox) nome = prox;
+          }
+
+          nome = limparInformacaoLojaVts(nome);
           if (nome) {
             dados.loja = nome;
-          } else {
-            const prox = obterProximaLinhaVts(linhas, indice);
-            if (prox) dados.loja = prox;
           }
         }
 
         if (!dados.loja && /loja/i.test(linha) && !/lojamento/i.test(linha)) {
-          const nomeLoja = linha.replace(/loja[:\s-]*/i, '').trim();
+          const nomeLoja = limparInformacaoLojaVts(
+            linha.replace(/loja[:\s-]*/i, '').trim(),
+          );
           if (nomeLoja) dados.loja = nomeLoja;
         }
 
@@ -1644,7 +1712,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!dados.sku) {
         const indiceQuantidade = linhas.findIndex((texto) => /quantidade/i.test(texto));
         if (indiceQuantidade > 0) {
-          dados.sku = normalizarLinhaVts(linhas[indiceQuantidade - 1]);
+          const possivelSku = normalizarLinhaVts(linhas[indiceQuantidade - 1]);
+          const tratado = sanitizarSkuVts(possivelSku);
+          if (tratado) dados.sku = tratado;
         }
       }
 
@@ -1661,7 +1731,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           .find((valor) => /#[0-9]{5,}/.test(valor) && !/pedido|pack\s*id/i.test(valor));
         if (possivelLoja) {
           const somenteNome = possivelLoja.replace(/#[0-9]{5,}.*/, '').trim();
-          dados.loja = somenteNome || possivelLoja;
+          const tratado = limparInformacaoLojaVts(somenteNome || possivelLoja);
+          if (tratado) dados.loja = tratado;
+        }
+      }
+
+      if (!dados.loja) {
+        const indiceRemetente = linhas.findIndex((texto) => /remetente/i.test(texto));
+        if (indiceRemetente >= 0) {
+          const combinado = coletarTextoPosteriorVts(linhas, indiceRemetente, 4);
+          const tratado = limparInformacaoLojaVts(combinado);
+          if (tratado) dados.loja = tratado;
         }
       }
 
