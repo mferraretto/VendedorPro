@@ -192,6 +192,25 @@ let vtsEtiquetasRegistros = [];
 let vtsCarregado = false;
 let vtsUltimoDiagnostico = [];
 let vtsUltimoArquivo = '';
+let vtsUltimoModelo = '';
+
+const VTS_MODELOS_CONFIG = Object.freeze({
+  mercadoLivre: {
+    inputId: 'vtsPdfInput',
+    buttonId: 'vtsProcessarBtn',
+    nome: 'Mercado Livre',
+  },
+  shopee: {
+    inputId: 'vtsPdfInputShopee',
+    buttonId: 'vtsProcessarBtnShopee',
+    nome: 'Shopee',
+  },
+  magalu: {
+    inputId: 'vtsPdfInputMagalu',
+    buttonId: 'vtsProcessarBtnMagalu',
+    nome: 'Magalu',
+  },
+});
 
 function normalizeDate(value) {
   if (!value) return '';
@@ -1327,7 +1346,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     // =============================================
     // FUNÇÕES DA ABA VTS
     // =============================================
-    function setVtsFeedback(mensagem = '', tipo = 'info') {
+    function obterNomeModeloVts(modelo) {
+      if (!modelo) return '';
+      const config = VTS_MODELOS_CONFIG[modelo];
+      return config?.nome || modelo;
+    }
+
+    function setVtsFeedback(mensagem = '', tipo = 'info', modelo = '') {
       const feedback = document.getElementById('vtsFeedback');
       if (!feedback) return;
 
@@ -1346,12 +1371,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         return;
       }
 
+      const prefixo = modelo ? `[${obterNomeModeloVts(modelo)}] ` : '';
+
       feedback.style.display = '';
-      feedback.textContent = mensagem;
+      feedback.textContent = `${prefixo}${mensagem}`;
       feedback.className = `${classesBase} ${tons[tipo] || tons.info}`;
     }
 
-    function atualizarDiagnosticoVts(diagnostico = [], arquivoNome = '') {
+    function atualizarDiagnosticoVts(diagnostico = [], arquivoNome = '', modelo = '') {
       const container = document.getElementById('vtsDebugContainer');
       const resumo = document.getElementById('vtsDebugResumo');
       const pre = document.getElementById('vtsDebugPre');
@@ -1361,6 +1388,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       vtsUltimoDiagnostico = Array.isArray(diagnostico) ? diagnostico : [];
       vtsUltimoArquivo = arquivoNome || '';
+      vtsUltimoModelo = modelo || '';
 
       if (!vtsUltimoDiagnostico.length) {
         resumo.textContent = 'Nenhum diagnóstico disponível no momento. Importe um PDF para visualizar os dados lidos.';
@@ -1381,18 +1409,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const interpretado = entrada.interpretado
           ? JSON.stringify(entrada.interpretado, null, 2)
           : 'Nenhum dado interpretado para esta página.';
+        const modeloDiagnostico = obterNomeModeloVts(entrada.modelo || modelo);
         return [
+          modeloDiagnostico ? `Modelo: ${modeloDiagnostico}` : null,
           `Página ${entrada.pagina}`,
           'Texto lido:',
           linhasTexto || '  (nenhuma linha identificada)',
           'Interpretação:',
           interpretado,
-        ].join('\n');
+        ]
+          .filter(Boolean)
+          .join('\n');
       });
 
-      resumo.textContent = arquivoNome
-        ? `Diagnóstico gerado a partir do arquivo "${arquivoNome}".`
-        : 'Diagnóstico gerado a partir do último arquivo processado.';
+      const modeloNome = obterNomeModeloVts(modelo);
+      const origemTexto = arquivoNome
+        ? `arquivo "${arquivoNome}"`
+        : 'último arquivo processado';
+      const modeloTexto = modeloNome ? `Modelo: ${modeloNome}. ` : '';
+
+      resumo.textContent = `${modeloTexto}Diagnóstico gerado a partir do ${origemTexto}.`;
 
       pre.textContent = partes.join('\n\n----------------------------------------\n\n');
       pre.scrollTop = 0;
@@ -1461,6 +1497,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             importadoEm: data.importadoEm?.toDate?.() || null,
             origemArquivo: data.origemArquivo || '',
             paginaArquivo: data.paginaArquivo || null,
+            modeloEtiqueta: data.modeloEtiqueta || data.modelo || data.plataforma || '',
           };
         });
 
@@ -1498,6 +1535,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       registros.forEach((item) => {
         const linha = document.createElement('tr');
         linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+        if (item.modeloEtiqueta) {
+          linha.dataset.modeloEtiqueta = item.modeloEtiqueta;
+          linha.title = `Modelo da etiqueta: ${obterNomeModeloVts(item.modeloEtiqueta)}`;
+        }
 
         const campos = [
           item.sku || '-',
@@ -1566,12 +1607,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
     }
 
-    function construirIdEtiquetaVts(etiqueta, indice) {
+    function construirIdEtiquetaVts(etiqueta, indice, modelo = '') {
       const uidSanitizado = (usuarioLogado?.uid || 'anon')
         .toString()
         .replace(/[^a-zA-Z0-9-]/g, '')
         .toLowerCase();
-      const partesBase = [etiqueta.pedido, etiqueta.rastreio, etiqueta.sku]
+      const partesBase = [etiqueta.pedido, etiqueta.rastreio, etiqueta.sku, modelo]
         .filter(Boolean)
         .map((parte) =>
           parte
@@ -1592,12 +1633,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return docId.slice(0, 180);
     }
 
-    async function salvarEtiquetasVts(etiquetas, arquivo) {
+    async function salvarEtiquetasVts(etiquetas, arquivo, modelo = '') {
       if (!db || !usuarioLogado?.uid || !Array.isArray(etiquetas)) return;
 
       for (let indice = 0; indice < etiquetas.length; indice += 1) {
         const etiqueta = etiquetas[indice];
-        const docId = construirIdEtiquetaVts(etiqueta, indice);
+        const docId = construirIdEtiquetaVts(etiqueta, indice, modelo || etiqueta.modelo);
         const docRef = db.collection('vtsEtiquetas').doc(docId);
 
         let existente;
@@ -1617,6 +1658,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           dataEtiquetaTexto: etiqueta.dataTexto || '',
           origemArquivo: arquivo?.name || '',
           paginaArquivo: etiqueta.pagina || indice + 1,
+          modeloEtiqueta: etiqueta.modelo || modelo || '',
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         };
 
@@ -1962,7 +2004,19 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         .trim();
     }
 
-    function interpretarEtiquetaVts(linhas, pagina) {
+    function possuiInformacoesEtiquetaVts(dados) {
+      if (!dados) return false;
+      return [
+        dados.sku,
+        dados.pedido,
+        dados.rastreio,
+        dados.loja,
+        dados.dataTexto,
+        dados.dataNormalizada,
+      ].some(Boolean);
+    }
+
+    function interpretarEtiquetaMercadoLivre(linhas, pagina) {
       const dados = {
         pagina,
         sku: '',
@@ -2176,11 +2230,216 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return dados;
     }
 
-    async function extrairEtiquetasDePdf(arquivo) {
+    function interpretarEtiquetaGenerica(linhas, pagina, opcoes = {}) {
+      const dados = {
+        pagina,
+        sku: '',
+        pedido: '',
+        rastreio: '',
+        loja: '',
+        dataTexto: '',
+        dataNormalizada: '',
+      };
+
+      const pedidoPadroes = opcoes.pedidoPadroes || [
+        /pedido\s*(?:n[úu]mero|n[úu]m|n[ºo°\.]|nº|n°|no|#)?\s*(?:do)?\s*[:\-]*\s*([A-Z0-9-]+)/i,
+        /order\s*(?:number|no|#)?\s*[:\-]*\s*([A-Z0-9-]+)/i,
+        /id\s*(?:pedido|order)\s*[:\-]*\s*([A-Z0-9-]+)/i,
+      ];
+
+      const skuPadroes = opcoes.skuPadroes || [
+        /sku\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+        /c[oó]digo\s*(?:do\s*produto|produto)?\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+        /refer[eê]ncia\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+      ];
+
+      const lojaPadroes = opcoes.lojaPadroes || [
+        /loja\s*(?:de origem|origem)?\s*[:\-]*\s*(.+)/i,
+        /vendedor\s*[:\-]*\s*(.+)/i,
+        /seller\s*[:\-]*\s*(.+)/i,
+        /remetente\s*[:\-]*\s*(.+)/i,
+      ];
+
+      linhas.forEach((linhaOriginal, indice) => {
+        const linha = normalizarLinhaVts(linhaOriginal);
+        if (!linha) return;
+
+        if (!dados.pedido) {
+          for (const regex of pedidoPadroes) {
+            const match = linha.match(regex);
+            if (match && match[1]) {
+              const valor = sanitizarCodigoVts(match[1]);
+              if (valor) {
+                dados.pedido = valor;
+                break;
+              }
+            }
+          }
+
+          if (!dados.pedido && /pedido/i.test(linha)) {
+            const prox = obterProximaLinhaVts(linhas, indice);
+            const valor = sanitizarCodigoVts(prox);
+            if (valor) dados.pedido = valor;
+          }
+        }
+
+        if (!dados.rastreio) {
+          const rastreioExtraido = extrairRastreioVts(linha, dados.pedido);
+          if (rastreioExtraido) dados.rastreio = rastreioExtraido;
+        }
+
+        if (!dados.sku) {
+          for (const regex of skuPadroes) {
+            const match = linha.match(regex);
+            if (match && match[1]) {
+              const valorSku = limparValorSkuVts(match[1]);
+              if (ehSkuValidoVts(valorSku)) {
+                dados.sku = valorSku;
+                break;
+              }
+            }
+          }
+
+          if (!dados.sku && /sku/i.test(linha)) {
+            const prox = obterProximaLinhaVts(linhas, indice);
+            const valorSku = limparValorSkuVts(prox);
+            if (ehSkuValidoVts(valorSku)) dados.sku = valorSku;
+          }
+        }
+
+        if (!dados.loja) {
+          for (const regex of lojaPadroes) {
+            const match = linha.match(regex);
+            if (match && match[1]) {
+              const loja = limparNomeLojaVts(match[1]);
+              if (ehLojaValidaVts(loja)) {
+                dados.loja = loja;
+                break;
+              }
+            }
+          }
+
+          if (!dados.loja && /#\d{5,}/.test(linha)) {
+            const lojaHash = extrairLojaDeTextoVts(linha);
+            const lojaLimpa = limparNomeLojaVts(lojaHash);
+            if (ehLojaValidaVts(lojaLimpa)) dados.loja = lojaLimpa;
+          }
+        }
+
+        if (!dados.dataTexto) {
+          const dataMatch = linha.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+          if (dataMatch) {
+            dados.dataTexto = dataMatch[1];
+            dados.dataNormalizada = normalizeDate(dataMatch[1]);
+          }
+        }
+      });
+
+      if (!dados.loja && dados.rastreio) {
+        const lojaAposRastreio = extrairLojaAposRastreioVts(linhas, dados.rastreio);
+        if (ehLojaValidaVts(lojaAposRastreio)) dados.loja = lojaAposRastreio;
+      }
+
+      if (!ehLojaValidaVts(dados.loja)) dados.loja = '';
+      if (!ehSkuValidoVts(dados.sku)) dados.sku = '';
+
+      if (!dados.pedido) {
+        const sequencia = linhas
+          .map((texto) => normalizarLinhaVts(texto))
+          .map((valor) => valor.replace(/\s+/g, ''))
+          .find((valor) => /^\d{8,}$/.test(valor));
+        if (sequencia) dados.pedido = sequencia;
+      }
+
+      if (!dados.rastreio) {
+        const fallback = linhas
+          .map((texto) => normalizarLinhaVts(texto))
+          .map((valor) => extrairRastreioVts(valor, dados.pedido))
+          .find((valor) => Boolean(valor));
+        if (fallback) dados.rastreio = fallback;
+      }
+
+      const possuiInformacoes = possuiInformacoesEtiquetaVts(dados);
+      if (!possuiInformacoes) return null;
+
+      return dados;
+    }
+
+    function interpretarEtiquetaShopee(linhas, pagina) {
+      const resultadoMercadoLivre = interpretarEtiquetaMercadoLivre(linhas, pagina);
+      if (possuiInformacoesEtiquetaVts(resultadoMercadoLivre)) {
+        return resultadoMercadoLivre;
+      }
+
+      const resultadoGenerico = interpretarEtiquetaGenerica(linhas, pagina, {
+        pedidoPadroes: [
+          /pedido\s*(?:n[úu]mero|n[ºo°]|nº|n°|#)?\s*[:\-]*\s*([A-Z0-9-]+)/i,
+          /order\s*(?:id|number|no)?\s*[:\-]*\s*([A-Z0-9-]+)/i,
+          /refer[eê]ncia\s*(?:do)?\s*pedido\s*[:\-]*\s*([A-Z0-9-]+)/i,
+        ],
+        skuPadroes: [
+          /sku\s*(?:principal|produto)?\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+          /varia[cç][aã]o\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+          /item\s*id\s*[:\-]*\s*([A-Z0-9\-]+)/i,
+        ],
+        lojaPadroes: [
+          /loja\s*(?:oficial|origem)?\s*[:\-]*\s*(.+)/i,
+          /vendedor\s*[:\-]*\s*(.+)/i,
+          /seller\s*[:\-]*\s*(.+)/i,
+        ],
+      });
+
+      if (possuiInformacoesEtiquetaVts(resultadoGenerico)) {
+        return resultadoGenerico;
+      }
+
+      return interpretarEtiquetaMercadoLivre(linhas, pagina);
+    }
+
+    function interpretarEtiquetaMagalu(linhas, pagina) {
+      const resultadoGenerico = interpretarEtiquetaGenerica(linhas, pagina, {
+        pedidoPadroes: [
+          /pedido\s*(?:magalu|marketplace)?\s*[:\-]*\s*([A-Z0-9-]+)/i,
+          /numero\s*do\s*pedido\s*[:\-]*\s*([A-Z0-9-]+)/i,
+          /ordem\s*[:\-]*\s*([A-Z0-9-]+)/i,
+        ],
+        skuPadroes: [
+          /sku\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+          /c[oó]digo\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+          /refer[eê]ncia\s*[:\-]*\s*([A-Z0-9\-\.\/]+)/i,
+        ],
+        lojaPadroes: [
+          /loja\s*(?:magalu)?\s*[:\-]*\s*(.+)/i,
+          /seller\s*[:\-]*\s*(.+)/i,
+          /remetente\s*[:\-]*\s*(.+)/i,
+        ],
+      });
+
+      if (possuiInformacoesEtiquetaVts(resultadoGenerico)) {
+        return resultadoGenerico;
+      }
+
+      return interpretarEtiquetaMercadoLivre(linhas, pagina);
+    }
+
+    function obterInterpretadorPorModeloVts(modelo) {
+      switch (modelo) {
+        case 'shopee':
+          return interpretarEtiquetaShopee;
+        case 'magalu':
+          return interpretarEtiquetaMagalu;
+        case 'mercadoLivre':
+        default:
+          return interpretarEtiquetaMercadoLivre;
+      }
+    }
+
+    async function extrairEtiquetasDePdf(arquivo, modelo = 'mercadoLivre') {
       if (!window.pdfjsLib) {
         throw new Error('Biblioteca PDF.js não carregada.');
       }
 
+      const interpretador = obterInterpretadorPorModeloVts(modelo);
       const arrayBuffer = await arquivo.arrayBuffer();
       const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const resultados = [];
@@ -2213,9 +2472,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           linhas.push(atual);
         }
 
-        const interpretado = interpretarEtiquetaVts(linhas, pagina);
+        const interpretadoBase = interpretador(linhas, pagina);
+        const interpretado = interpretadoBase
+          ? { ...interpretadoBase, modelo }
+          : null;
         diagnostico.push({
           pagina,
+          modelo,
           linhas: linhas.slice(),
           interpretado: interpretado ? { ...interpretado } : null,
         });
@@ -2227,16 +2490,23 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return { registros: resultados, diagnostico };
     }
 
-    async function processarPdfVts() {
-      const input = document.getElementById('vtsPdfInput');
-      const botao = document.getElementById('vtsProcessarBtn');
+    async function processarPdfVts(modelo = 'mercadoLivre') {
+      const config = VTS_MODELOS_CONFIG[modelo];
+      if (!config) return;
+
+      const input = document.getElementById(config.inputId);
+      const botao = document.getElementById(config.buttonId);
       const indicador = document.getElementById('vtsLoading');
 
       if (!input || !botao) return;
 
       const arquivo = input.files && input.files[0];
       if (!arquivo) {
-        setVtsFeedback('Selecione um arquivo PDF de etiquetas para continuar.', 'warning');
+        setVtsFeedback(
+          `Selecione um arquivo PDF de etiquetas ${obterNomeModeloVts(modelo)} para continuar.`,
+          'warning',
+          modelo,
+        );
         return;
       }
 
@@ -2246,24 +2516,40 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           indicador.classList.remove('hidden');
           indicador.style.display = 'flex';
         }
-        setVtsFeedback('Processando etiquetas, aguarde...', 'info');
+        setVtsFeedback(
+          `Processando etiquetas ${obterNomeModeloVts(modelo)}, aguarde...`,
+          'info',
+          modelo,
+        );
 
-        const { registros: etiquetas, diagnostico } = await extrairEtiquetasDePdf(arquivo);
-        atualizarDiagnosticoVts(diagnostico, arquivo.name);
+        const { registros: etiquetas, diagnostico } = await extrairEtiquetasDePdf(arquivo, modelo);
+        atualizarDiagnosticoVts(diagnostico, arquivo.name, modelo);
 
         if (!etiquetas.length) {
-          setVtsFeedback('Nenhuma etiqueta reconhecida no PDF. Verifique o modelo e tente novamente.', 'warning');
+          setVtsFeedback(
+            `Nenhuma etiqueta ${obterNomeModeloVts(modelo)} reconhecida no PDF. Verifique o modelo e tente novamente.`,
+            'warning',
+            modelo,
+          );
           return;
         }
 
-        await salvarEtiquetasVts(etiquetas, arquivo);
-        setVtsFeedback(`${etiquetas.length} etiqueta(s) processadas com sucesso.`, 'success');
+        await salvarEtiquetasVts(etiquetas, arquivo, modelo);
+        setVtsFeedback(
+          `${etiquetas.length} etiqueta(s) ${obterNomeModeloVts(modelo)} processadas com sucesso.`,
+          'success',
+          modelo,
+        );
         input.value = '';
         await carregarEtiquetasVts();
       } catch (erro) {
         console.error('Erro ao processar PDF de etiquetas VTS:', erro);
-        setVtsFeedback('Não foi possível processar o arquivo. Confirme se o PDF está legível e tente novamente.', 'error');
-        atualizarDiagnosticoVts([]);
+        setVtsFeedback(
+          'Não foi possível processar o arquivo. Confirme se o PDF está legível e tente novamente.',
+          'error',
+          modelo,
+        );
+        atualizarDiagnosticoVts([], '', modelo);
       } finally {
         botao.disabled = false;
         if (indicador) {
@@ -2277,20 +2563,32 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const container = document.getElementById('vts');
       if (!container) return;
 
-      const botao = document.getElementById('vtsProcessarBtn');
-      const input = document.getElementById('vtsPdfInput');
       const toggle = document.getElementById('vtsToggleDebug');
       const debugContainer = document.getElementById('vtsDebugContainer');
 
-      if (!botao || !input) return;
-
       if (!container.dataset.initialized) {
-        botao.addEventListener('click', processarPdfVts);
-        input.addEventListener('change', () => {
-          if (input.files && input.files[0]) {
-            setVtsFeedback(`Arquivo "${input.files[0].name}" selecionado. Clique em "Processar etiquetas" para continuar.`, 'info');
-          } else {
-            setVtsFeedback('', 'info');
+        Object.entries(VTS_MODELOS_CONFIG).forEach(([modelo, config]) => {
+          const botaoModelo = document.getElementById(config.buttonId);
+          const inputModelo = document.getElementById(config.inputId);
+
+          if (botaoModelo && !botaoModelo.dataset.bound) {
+            botaoModelo.addEventListener('click', () => processarPdfVts(modelo));
+            botaoModelo.dataset.bound = 'true';
+          }
+
+          if (inputModelo && !inputModelo.dataset.bound) {
+            inputModelo.addEventListener('change', () => {
+              if (inputModelo.files && inputModelo.files[0]) {
+                setVtsFeedback(
+                  `Arquivo "${inputModelo.files[0].name}" selecionado para ${obterNomeModeloVts(modelo)}. Clique em "Processar etiquetas" para continuar.`,
+                  'info',
+                  modelo,
+                );
+              } else {
+                setVtsFeedback('', 'info', modelo);
+              }
+            });
+            inputModelo.dataset.bound = 'true';
           }
         });
         if (toggle && debugContainer && !toggle.dataset.bound) {
@@ -2300,7 +2598,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               debugContainer.classList.remove('hidden');
               toggle.textContent = 'Ocultar diagnóstico';
               if (!vtsUltimoDiagnostico.length) {
-                atualizarDiagnosticoVts(vtsUltimoDiagnostico, vtsUltimoArquivo);
+                atualizarDiagnosticoVts(vtsUltimoDiagnostico, vtsUltimoArquivo, vtsUltimoModelo);
               }
             } else {
               debugContainer.classList.add('hidden');
@@ -2313,7 +2611,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       await carregarEtiquetasVts();
-      atualizarDiagnosticoVts(vtsUltimoDiagnostico, vtsUltimoArquivo);
+      atualizarDiagnosticoVts(vtsUltimoDiagnostico, vtsUltimoArquivo, vtsUltimoModelo);
     }
 
 
