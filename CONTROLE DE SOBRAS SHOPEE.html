@@ -1648,6 +1648,104 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         .trim();
     }
 
+    function extrairCodigoPackVts(texto) {
+      const normalizado = normalizarLinhaVts(texto);
+      if (!normalizado) return '';
+
+      const truncado = normalizado.split(/\b(?:recorte|retire|retirar|despachar|despache|nf|nota fiscal|notafiscal|xsp\d+|spa\d+|unidade|sku|pedido|cidade|cep|endere[cç]o|destinat[aá]rio)\b/i)[0];
+      const codigo = sanitizarCodigoVts(truncado);
+
+      return codigo;
+    }
+
+    function extrairRastreioVts(texto, pedidoAtual) {
+      const normalizado = normalizarLinhaVts(texto);
+      if (!normalizado) return '';
+
+      const pedidoNumerico = (pedidoAtual || '').replace(/\D/g, '');
+
+      const formatoCorreios = normalizado.match(/\b[A-Z]{2}\d{9}[A-Z]{2}\b/);
+      if (formatoCorreios) return formatoCorreios[0];
+
+      const formatoAlfanumerico = normalizado.match(/\b[A-Z]{2}\d{8,}[A-Z]?\b/);
+      if (formatoAlfanumerico) return formatoAlfanumerico[0];
+
+      const candidatosNumericos = normalizado.match(/(\d[\d\s-]{8,}\d)/g);
+      if (candidatosNumericos) {
+        for (const candidato of candidatosNumericos) {
+          const digitos = candidato.replace(/\D/g, '');
+          if (digitos.length >= 10 && digitos.length <= 15) {
+            const ehSubsequenciaPedido = pedidoNumerico && pedidoNumerico.length > digitos.length && pedidoNumerico.includes(digitos);
+            if (!pedidoNumerico || (!ehSubsequenciaPedido && digitos !== pedidoNumerico)) {
+              return digitos;
+            }
+          }
+        }
+      }
+
+      const partes = normalizado.split(/\s+/);
+      for (const parte of partes) {
+        const digitos = parte.replace(/\D/g, '');
+        if (digitos.length >= 10 && digitos.length <= 15) {
+          const ehSubsequenciaPedido = pedidoNumerico && pedidoNumerico.length > digitos.length && pedidoNumerico.includes(digitos);
+          if (!pedidoNumerico || (!ehSubsequenciaPedido && digitos !== pedidoNumerico)) {
+            return digitos;
+          }
+        }
+      }
+
+      return '';
+    }
+
+    function extrairLojaDeTextoVts(texto) {
+      const normalizado = normalizarLinhaVts(texto);
+      if (!normalizado) return '';
+
+      if (!/#\d{5,}/.test(normalizado)) return '';
+
+      const tokens = normalizado.split(/\s+/);
+      const indiceHash = tokens.findIndex((token) => /#\d{5,}/.test(token));
+      if (indiceHash === -1) return normalizado;
+
+      const selecionados = [];
+      const conectores = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
+
+      for (let indice = indiceHash - 1; indice >= 0; indice -= 1) {
+        const tokenOriginal = tokens[indice];
+        const tokenLimpo = tokenOriginal.replace(/[^A-Za-zÀ-ÿ0-9]/g, '');
+        if (!tokenLimpo) continue;
+
+        const tokenMinusculo = tokenLimpo.toLowerCase();
+
+        if (/^(sku|pedido|pack|quantidade|unidade|recorte|remetente|destinatario|destinatário|nf|nota|cnpj|cpf|produto|produtos|kit|puxador|espelho|oferta|ofert)$/i.test(tokenLimpo)) {
+          if (!selecionados.length) continue;
+          break;
+        }
+
+        if (tokenOriginal.includes('-') && selecionados.length) break;
+
+        if (tokenLimpo.length <= 1 && !conectores.has(tokenMinusculo)) {
+          if (selecionados.length) break;
+          continue;
+        }
+
+        if (conectores.has(tokenMinusculo) && !selecionados.length) continue;
+
+        selecionados.unshift(tokenOriginal);
+
+        if (selecionados.length >= 5) break;
+      }
+
+      if (!selecionados.length) {
+        const anterior = tokens[indiceHash - 1];
+        if (anterior) selecionados.push(normalizarLinhaVts(anterior));
+      }
+
+      selecionados.push(tokens[indiceHash]);
+
+      return normalizarLinhaVts(selecionados.join(' '));
+    }
+
     function obterProximaLinhaVts(linhas, indiceAtual) {
       for (let indice = indiceAtual + 1; indice < linhas.length; indice += 1) {
         const valor = normalizarLinhaVts(linhas[indice]);
@@ -1702,40 +1800,39 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
 
         if (!dados.pedido) {
-          const packMatch = linha.match(/pack\s*id[:\s-]*([A-Z0-9][A-Z0-9\s-]+)/i);
+          const packMatch = linha.match(/pack\s*id[:\s-]*([A-Z0-9\s-]+)/i);
           if (packMatch) {
-            const packValor = sanitizarCodigoVts(packMatch[1]);
-            if (packValor) dados.pedido = packValor;
-          }
-        }
+            const packValor = extrairCodigoPackVts(packMatch[1]);
+            if (packValor) {
+              dados.pedido = packValor;
 
-        if (!dados.rastreio) {
-          const rastreioMatch = linha.match(/\b[A-Z]{2}\d{9}[A-Z]{2}\b/);
-          if (rastreioMatch) {
-            dados.rastreio = rastreioMatch[0];
-          }
-        }
-
-        if (!dados.rastreio) {
-          const alternativo = linha.match(/\b[A-Z]{2}\d{8,}\b/);
-          if (alternativo) {
-            dados.rastreio = alternativo[0];
-          }
-        }
-
-        if (!dados.rastreio) {
-          if (!/(cep|telefone|tel\.?|contato|cnpj|cpf|pedido|pack)/i.test(linha)) {
-            const somenteDigitos = linha.replace(/\D/g, '');
-            if (somenteDigitos.length >= 10 && somenteDigitos.length <= 13) {
-              dados.rastreio = somenteDigitos;
+              if (!dados.rastreio) {
+                const restanteLinha = linha.replace(packMatch[0], '').trim();
+                const rastreioPackLinha = extrairRastreioVts(restanteLinha, dados.pedido);
+                if (rastreioPackLinha) dados.rastreio = rastreioPackLinha;
+              }
             }
           }
         }
 
+        if (!dados.rastreio) {
+          const rastreioExtraido = extrairRastreioVts(linha, dados.pedido);
+          if (rastreioExtraido) dados.rastreio = rastreioExtraido;
+        }
+
         if (!dados.sku) {
           if (/sku[:\s-]/i.test(linha)) {
-            const valorSku = limparValorSkuVts(linha.replace(/.*sku[:\s-]*/i, ''));
-            if (valorSku) dados.sku = valorSku;
+            const segmentoSku = linha.replace(/.*sku[:\s-]*/i, '');
+            const valorSku = limparValorSkuVts(segmentoSku);
+            if (valorSku) {
+              dados.sku = valorSku;
+
+              if (!dados.loja) {
+                const resto = normalizarLinhaVts(segmentoSku.replace(valorSku, ''));
+                const lojaInline = extrairLojaDeTextoVts(resto);
+                if (lojaInline) dados.loja = lojaInline;
+              }
+            }
           } else if (/^sku$/i.test(linha)) {
             const prox = obterProximaLinhaVts(linhas, indice);
             const valorSku = limparValorSkuVts(prox);
@@ -1747,8 +1844,21 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           const skuInline = linha.match(/\bSKU\b[:\s-]*(.+)/i);
           if (skuInline) {
             const valorSku = limparValorSkuVts(skuInline[1]);
-            if (valorSku) dados.sku = valorSku;
+            if (valorSku) {
+              dados.sku = valorSku;
+
+              if (!dados.loja) {
+                const resto = normalizarLinhaVts(skuInline[1].replace(valorSku, ''));
+                const lojaInline = extrairLojaDeTextoVts(resto);
+                if (lojaInline) dados.loja = lojaInline;
+              }
+            }
           }
+        }
+
+        if (!dados.loja && /#\d{5,}/.test(linha)) {
+          const lojaHash = extrairLojaDeTextoVts(linha);
+          if (lojaHash) dados.loja = lojaHash;
         }
 
         if (!dados.loja && /remetente/i.test(linha)) {
@@ -1790,15 +1900,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           if (!/#\d{5,}/.test(valor)) continue;
           if (/pedido|pack|sku|quantidade|cep|cnpj|cpf/i.test(valor)) continue;
 
-          const semIdentificador = valor.replace(/\s*#\d+.*/, '').trim();
-          if (semIdentificador) {
-            dados.loja = semIdentificador;
-          } else {
-            const anterior = normalizarLinhaVts(linhas[i - 1] || '');
-            if (anterior) dados.loja = anterior;
+          const lojaHash = extrairLojaDeTextoVts(valor);
+          if (lojaHash) {
+            dados.loja = lojaHash;
+            break;
           }
 
-          if (dados.loja) break;
+          const anterior = normalizarLinhaVts(linhas[i - 1] || '');
+          if (anterior) {
+            dados.loja = anterior;
+            break;
+          }
         }
       }
 
