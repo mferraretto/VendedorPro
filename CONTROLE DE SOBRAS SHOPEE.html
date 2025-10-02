@@ -21,7 +21,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-      <script type="module" src="firebase-config.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha512-OtV7YCOguBF5B8Vg2ACHDj7Lpj4IJ05Kd1OkmPgFWbcgNAeqszDzf3FJ0rLZTSJytXBKJu9956PoAdStdc/GtA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script type="module" src="firebase-config.js"></script>
 
 
 </head>
@@ -139,6 +140,10 @@
       <div id="acompanhamento" class="tab-content">
 
       </div>
+      <!-- Aba de VTS -->
+      <div id="vts" class="tab-content">
+
+      </div>
       <!-- Aba de Acompanhamento Sobras (Gestor) -->
       <div id="acompanhamentoGestor" class="tab-content">
 
@@ -178,6 +183,13 @@ let graficoBarras, graficoPizza, graficoPrevisao;
 let previsaoDados = {};
 let initialTab = null;
 const API_URL = 'https://us-central1-matheus-35023.cloudfunctions.net/proxyDeepSeek';
+
+if (window.pdfjsLib?.GlobalWorkerOptions) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+let vtsEtiquetasRegistros = [];
+let vtsCarregado = false;
 
 function normalizeDate(value) {
   if (!value) return '';
@@ -937,7 +949,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
   };
 }
 
-   const tabIds = ['importar','metas','graficos','historico','faturamento','vendasML','registroFaturamento','controleVendas','produtosVendidos','sobras','previsao','acompanhamento','acompanhamentoGestor'];
+   const tabIds = ['importar','metas','graficos','historico','faturamento','vendasML','registroFaturamento','controleVendas','produtosVendidos','sobras','previsao','acompanhamento','vts','acompanhamentoGestor'];
       const tabsLoaded = Promise.all(
         tabIds.map(t =>
           fetch(`sobras-tabs/${t}.html`)
@@ -997,6 +1009,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           document.getElementById('filtroStatus').addEventListener('change', filtrarPorSKU);
           document.getElementById('tipoFiltro').addEventListener('change', filtrarPorSKU);
           document.getElementById('btnLimparFiltros')?.addEventListener('click', limparFiltros);
+          await inicializarAbaVts();
           if (initialTab && document.getElementById(initialTab)) {
             trocarAba(initialTab);
             if (initialTab === 'sobras') {
@@ -1303,7 +1316,459 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (!produtosVendidosCarregado) carregarProdutosVendidos();
         else renderProdutosVendidos();
       }
+      if (id === 'vts' && !vtsCarregado) {
+        carregarEtiquetasVts();
+      }
     };
+
+
+    // =============================================
+    // FUNÇÕES DA ABA VTS
+    // =============================================
+    function setVtsFeedback(mensagem = '', tipo = 'info') {
+      const feedback = document.getElementById('vtsFeedback');
+      if (!feedback) return;
+
+      const classesBase = 'mt-3 rounded-lg px-4 py-3 text-sm font-medium';
+      const tons = {
+        success: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+        error: 'bg-red-50 text-red-700 border border-red-200',
+        warning: 'bg-amber-50 text-amber-700 border border-amber-200',
+        info: 'bg-slate-50 text-slate-600 border border-slate-200',
+      };
+
+      if (!mensagem) {
+        feedback.style.display = 'none';
+        feedback.textContent = '';
+        feedback.className = classesBase;
+        return;
+      }
+
+      feedback.style.display = '';
+      feedback.textContent = mensagem;
+      feedback.className = `${classesBase} ${tons[tipo] || tons.info}`;
+    }
+
+    function formatarDataVts(valorISO, valorOriginal) {
+      if (valorISO) {
+        const [ano, mes, dia] = valorISO.split('-');
+        if (ano && mes && dia) {
+          return `${dia}/${mes}/${ano}`;
+        }
+      }
+      if (valorOriginal) {
+        return valorOriginal;
+      }
+      return '-';
+    }
+
+    async function carregarEtiquetasVts() {
+      if (!db || !usuarioLogado?.uid) return;
+
+      const corpoTabela = document.getElementById('vtsTabelaCorpo');
+      const indicadorCarregamento = document.getElementById('vtsLoading');
+      const resumo = document.getElementById('vtsResumo');
+
+      if (!corpoTabela) return;
+
+      try {
+        if (indicadorCarregamento) {
+          indicadorCarregamento.classList.remove('hidden');
+          indicadorCarregamento.style.display = 'flex';
+        }
+        const consulta = await db
+          .collection('vtsEtiquetas')
+          .where('usuarioId', '==', usuarioLogado.uid)
+          .orderBy('importadoEm', 'desc')
+          .limit(500)
+          .get();
+
+        vtsEtiquetasRegistros = consulta.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            sku: data.sku || '',
+            pedido: data.pedido || '',
+            rastreio: data.rastreio || '',
+            loja: data.loja || '',
+            dataEtiqueta: data.dataEtiqueta || '',
+            dataEtiquetaTexto: data.dataEtiquetaTexto || '',
+            importadoEm: data.importadoEm?.toDate?.() || null,
+            origemArquivo: data.origemArquivo || '',
+            paginaArquivo: data.paginaArquivo || null,
+          };
+        });
+
+        renderizarEtiquetasVts(vtsEtiquetasRegistros);
+        vtsCarregado = true;
+
+        if (resumo) {
+          if (vtsEtiquetasRegistros.length) {
+            resumo.textContent = `${vtsEtiquetasRegistros.length} etiqueta(s) importadas.`;
+          } else {
+            resumo.textContent = 'Nenhuma etiqueta importada até o momento.';
+          }
+        }
+      } catch (erro) {
+        console.error('Erro ao carregar etiquetas VTS:', erro);
+        setVtsFeedback('Não foi possível carregar as etiquetas importadas. Tente novamente mais tarde.', 'error');
+      } finally {
+        if (indicadorCarregamento) {
+          indicadorCarregamento.style.display = 'none';
+          indicadorCarregamento.classList.add('hidden');
+        }
+      }
+    }
+
+    function renderizarEtiquetasVts(registros = []) {
+      const corpoTabela = document.getElementById('vtsTabelaCorpo');
+      if (!corpoTabela) return;
+
+      corpoTabela.innerHTML = '';
+
+      if (!registros.length) {
+        const linha = document.createElement('tr');
+        const coluna = document.createElement('td');
+        coluna.colSpan = 6;
+        coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
+        coluna.textContent = 'Nenhum registro encontrado.';
+        linha.appendChild(coluna);
+        corpoTabela.appendChild(linha);
+        return;
+      }
+
+      registros.forEach((item) => {
+        const linha = document.createElement('tr');
+        linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+
+        const campos = [
+          item.sku || '-',
+          item.pedido || '-',
+          item.rastreio || '-',
+          item.loja || '-',
+          formatarDataVts(item.dataEtiqueta, item.dataEtiquetaTexto),
+          item.origemArquivo || '-',
+        ];
+
+        campos.forEach((texto) => {
+          const coluna = document.createElement('td');
+          coluna.className = 'px-4 py-3 text-sm text-slate-700 break-words max-w-xs';
+          coluna.textContent = texto;
+          linha.appendChild(coluna);
+        });
+
+        corpoTabela.appendChild(linha);
+      });
+    }
+
+    function construirIdEtiquetaVts(etiqueta, indice) {
+      const uidSanitizado = (usuarioLogado?.uid || 'anon')
+        .toString()
+        .replace(/[^a-zA-Z0-9-]/g, '')
+        .toLowerCase();
+      const partesBase = [etiqueta.pedido, etiqueta.rastreio, etiqueta.sku]
+        .filter(Boolean)
+        .map((parte) =>
+          parte
+            .toString()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9-]/g, '')
+            .toLowerCase(),
+        )
+        .filter(Boolean);
+
+      let base = partesBase.join('-');
+      if (!base) {
+        base = `etq-${Date.now()}-${indice}`;
+      }
+
+      const docId = `${uidSanitizado}-${base}`;
+      return docId.slice(0, 180);
+    }
+
+    async function salvarEtiquetasVts(etiquetas, arquivo) {
+      if (!db || !usuarioLogado?.uid || !Array.isArray(etiquetas)) return;
+
+      for (let indice = 0; indice < etiquetas.length; indice += 1) {
+        const etiqueta = etiquetas[indice];
+        const docId = construirIdEtiquetaVts(etiqueta, indice);
+        const docRef = db.collection('vtsEtiquetas').doc(docId);
+
+        let existente;
+        try {
+          existente = await docRef.get();
+        } catch (erro) {
+          console.warn('Não foi possível verificar etiqueta existente:', erro);
+        }
+
+        const payload = {
+          usuarioId: usuarioLogado.uid,
+          sku: etiqueta.sku || '',
+          pedido: etiqueta.pedido || '',
+          rastreio: etiqueta.rastreio || '',
+          loja: etiqueta.loja || '',
+          dataEtiqueta: etiqueta.dataNormalizada || '',
+          dataEtiquetaTexto: etiqueta.dataTexto || '',
+          origemArquivo: arquivo?.name || '',
+          paginaArquivo: etiqueta.pagina || indice + 1,
+          atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (!existente || !existente.exists) {
+          payload.importadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        }
+
+        try {
+          await docRef.set(payload, { merge: true });
+        } catch (erro) {
+          console.error('Erro ao salvar etiqueta VTS:', erro);
+          throw erro;
+        }
+      }
+    }
+
+    function normalizarLinhaVts(texto) {
+      return (texto || '')
+        .toString()
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function obterProximaLinhaVts(linhas, indiceAtual) {
+      for (let indice = indiceAtual + 1; indice < linhas.length; indice += 1) {
+        const valor = normalizarLinhaVts(linhas[indice]);
+        if (!valor) continue;
+        if (/^(SKU|Pedido|Pack ID|Remetente|Loja|Quantidade)$/i.test(valor)) continue;
+        return valor;
+      }
+      return '';
+    }
+
+    function interpretarEtiquetaVts(linhas, pagina) {
+      const dados = {
+        pagina,
+        sku: '',
+        pedido: '',
+        rastreio: '',
+        loja: '',
+        dataTexto: '',
+        dataNormalizada: '',
+      };
+
+      linhas.forEach((linhaOriginal, indice) => {
+        const linha = normalizarLinhaVts(linhaOriginal);
+        if (!linha) return;
+
+        if (!dados.pedido) {
+          const pedidoMatch = linha.match(/pedido[:\s-]*([A-Z0-9-]+)/i);
+          if (pedidoMatch) {
+            dados.pedido = pedidoMatch[1];
+          } else if (/^pedido$/i.test(linha) || /n[úu]mero do pedido/i.test(linha)) {
+            const prox = obterProximaLinhaVts(linhas, indice);
+            if (prox) {
+              const extraido = prox.match(/[A-Z0-9-]+/g);
+              if (extraido) {
+                dados.pedido = extraido.join('');
+              }
+            }
+          }
+        }
+
+        if (!dados.pedido) {
+          const packMatch = linha.match(/pack\s*id[:\s-]*([A-Z0-9-]+)/i);
+          if (packMatch) {
+            dados.pedido = packMatch[1];
+          }
+        }
+
+        if (!dados.rastreio) {
+          const rastreioMatch = linha.match(/\b[A-Z]{2}\d{9}[A-Z]{2}\b/);
+          if (rastreioMatch) {
+            dados.rastreio = rastreioMatch[0];
+          }
+        }
+
+        if (!dados.rastreio) {
+          const alternativo = linha.match(/\b[A-Z]{2}\d{8,}\b/);
+          if (alternativo) {
+            dados.rastreio = alternativo[0];
+          }
+        }
+
+        if (!dados.sku) {
+          if (/sku[:\s-]/i.test(linha)) {
+            const valorSku = linha.replace(/.*sku[:\s-]*/i, '').trim();
+            if (valorSku) dados.sku = valorSku;
+          } else if (/^sku$/i.test(linha)) {
+            const prox = obterProximaLinhaVts(linhas, indice);
+            if (prox) dados.sku = prox;
+          }
+        }
+
+        if (!dados.loja && /remetente/i.test(linha)) {
+          const nome = linha.replace(/remetente[:\s-]*/i, '').trim();
+          if (nome) {
+            dados.loja = nome;
+          } else {
+            const prox = obterProximaLinhaVts(linhas, indice);
+            if (prox) dados.loja = prox;
+          }
+        }
+
+        if (!dados.loja && /loja/i.test(linha) && !/lojamento/i.test(linha)) {
+          const nomeLoja = linha.replace(/loja[:\s-]*/i, '').trim();
+          if (nomeLoja) dados.loja = nomeLoja;
+        }
+
+        if (!dados.dataTexto) {
+          const dataMatch = linha.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+          if (dataMatch) {
+            dados.dataTexto = dataMatch[1];
+            dados.dataNormalizada = normalizeDate(dataMatch[1]);
+          }
+        }
+      });
+
+      if (!dados.sku) {
+        const indiceQuantidade = linhas.findIndex((texto) => /quantidade/i.test(texto));
+        if (indiceQuantidade > 0) {
+          dados.sku = normalizarLinhaVts(linhas[indiceQuantidade - 1]);
+        }
+      }
+
+      if (!dados.pedido) {
+        const sequencia = linhas
+          .map((texto) => normalizarLinhaVts(texto))
+          .find((valor) => /^\d{10,}$/.test(valor));
+        if (sequencia) dados.pedido = sequencia;
+      }
+
+      const possuiInformacoes = [
+        dados.sku,
+        dados.pedido,
+        dados.rastreio,
+        dados.loja,
+        dados.dataTexto,
+        dados.dataNormalizada,
+      ].some(Boolean);
+
+      if (!possuiInformacoes) return null;
+
+      return dados;
+    }
+
+    async function extrairEtiquetasDePdf(arquivo) {
+      if (!window.pdfjsLib) {
+        throw new Error('Biblioteca PDF.js não carregada.');
+      }
+
+      const arrayBuffer = await arquivo.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const resultados = [];
+
+      for (let pagina = 1; pagina <= pdf.numPages; pagina += 1) {
+        const paginaPdf = await pdf.getPage(pagina);
+        const conteudo = await paginaPdf.getTextContent();
+
+        const linhas = [];
+        let atual = '';
+
+        conteudo.items.forEach((item) => {
+          const texto = normalizarLinhaVts(item.str);
+          if (!texto) return;
+
+          if (atual) {
+            atual += ` ${texto}`;
+          } else {
+            atual = texto;
+          }
+
+          if (item.hasEOL) {
+            linhas.push(atual);
+            atual = '';
+          }
+        });
+
+        if (atual) {
+          linhas.push(atual);
+        }
+
+        const interpretado = interpretarEtiquetaVts(linhas, pagina);
+        if (interpretado) {
+          resultados.push(interpretado);
+        }
+      }
+
+      return resultados;
+    }
+
+    async function processarPdfVts() {
+      const input = document.getElementById('vtsPdfInput');
+      const botao = document.getElementById('vtsProcessarBtn');
+      const indicador = document.getElementById('vtsLoading');
+
+      if (!input || !botao) return;
+
+      const arquivo = input.files && input.files[0];
+      if (!arquivo) {
+        setVtsFeedback('Selecione um arquivo PDF de etiquetas para continuar.', 'warning');
+        return;
+      }
+
+      try {
+        botao.disabled = true;
+        if (indicador) {
+          indicador.classList.remove('hidden');
+          indicador.style.display = 'flex';
+        }
+        setVtsFeedback('Processando etiquetas, aguarde...', 'info');
+
+        const etiquetas = await extrairEtiquetasDePdf(arquivo);
+        if (!etiquetas.length) {
+          setVtsFeedback('Nenhuma etiqueta reconhecida no PDF. Verifique o modelo e tente novamente.', 'warning');
+          return;
+        }
+
+        await salvarEtiquetasVts(etiquetas, arquivo);
+        setVtsFeedback(`${etiquetas.length} etiqueta(s) processadas com sucesso.`, 'success');
+        input.value = '';
+        await carregarEtiquetasVts();
+      } catch (erro) {
+        console.error('Erro ao processar PDF de etiquetas VTS:', erro);
+        setVtsFeedback('Não foi possível processar o arquivo. Confirme se o PDF está legível e tente novamente.', 'error');
+      } finally {
+        botao.disabled = false;
+        if (indicador) {
+          indicador.style.display = 'none';
+          indicador.classList.add('hidden');
+        }
+      }
+    }
+
+    async function inicializarAbaVts() {
+      const container = document.getElementById('vts');
+      if (!container) return;
+
+      const botao = document.getElementById('vtsProcessarBtn');
+      const input = document.getElementById('vtsPdfInput');
+
+      if (!botao || !input) return;
+
+      if (!container.dataset.initialized) {
+        botao.addEventListener('click', processarPdfVts);
+        input.addEventListener('change', () => {
+          if (input.files && input.files[0]) {
+            setVtsFeedback(`Arquivo "${input.files[0].name}" selecionado. Clique em "Processar etiquetas" para continuar.`, 'info');
+          } else {
+            setVtsFeedback('', 'info');
+          }
+        });
+        container.dataset.initialized = 'true';
+      }
+
+      await carregarEtiquetasVts();
+    }
 
 
     // =============================================

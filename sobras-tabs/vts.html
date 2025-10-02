@@ -1,0 +1,73 @@
+<div class="card max-w-5xl mx-auto">
+  <div class="card-header flex items-center gap-3">
+    <i class="fas fa-qrcode text-indigo-600"></i>
+    <div>
+      <h3 class="text-xl font-semibold text-slate-800">VTS • Importação de Etiquetas</h3>
+      <p class="text-sm text-slate-500">
+        Importe PDFs de etiquetas para registrar automaticamente SKU, número do pedido, código de rastreio,
+        loja e data no acompanhamento dos usuários.
+      </p>
+    </div>
+  </div>
+  <div class="card-body space-y-4">
+    <div class="grid gap-4 md:grid-cols-[2fr,1fr] items-end">
+      <div class="space-y-2">
+        <label for="vtsPdfInput" class="block text-sm font-medium text-slate-700">Arquivo PDF de etiquetas</label>
+        <input
+          type="file"
+          id="vtsPdfInput"
+          accept="application/pdf"
+          class="form-control"
+        />
+        <p class="text-xs text-slate-500">
+          O sistema aceita múltiplos modelos de etiquetas Shopee. Certifique-se de que o PDF esteja legível.
+        </p>
+      </div>
+      <button
+        id="vtsProcessarBtn"
+        class="btn btn-primary justify-center"
+        type="button"
+      >
+        <i class="fas fa-file-import mr-2"></i>
+        Processar etiquetas
+      </button>
+    </div>
+    <div
+      id="vtsLoading"
+      class="hidden items-center gap-2 text-sm text-slate-500"
+    >
+      <i class="fas fa-circle-notch fa-spin"></i>
+      Processando etiquetas, aguarde...
+    </div>
+    <div
+      id="vtsFeedback"
+      class="mt-3 rounded-lg px-4 py-3 text-sm font-medium hidden"
+    ></div>
+  </div>
+</div>
+
+<div class="card max-w-6xl mx-auto mt-8">
+  <div class="card-header flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800">Etiquetas importadas</h3>
+      <p id="vtsResumo" class="text-sm text-slate-500">Carregando registros...</p>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
+          <tr>
+            <th class="px-4 py-3 text-left font-semibold">SKU</th>
+            <th class="px-4 py-3 text-left font-semibold">Número do pedido</th>
+            <th class="px-4 py-3 text-left font-semibold">Rastreio</th>
+            <th class="px-4 py-3 text-left font-semibold">Loja</th>
+            <th class="px-4 py-3 text-left font-semibold">Data</th>
+            <th class="px-4 py-3 text-left font-semibold">Arquivo</th>
+          </tr>
+        </thead>
+        <tbody id="vtsTabelaCorpo" class="bg-white"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
