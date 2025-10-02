@@ -71,3 +71,30 @@
     </div>
   </div>
 </div>
+
+<div class="card max-w-6xl mx-auto mt-6">
+  <div class="card-header flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800">Diagnóstico da leitura do PDF</h3>
+      <p class="text-sm text-slate-500">
+        Visualize exatamente o texto identificado em cada página e como o sistema interpretou as etiquetas.
+      </p>
+    </div>
+    <button
+      id="vtsToggleDebug"
+      type="button"
+      class="btn btn-secondary whitespace-nowrap"
+    >
+      Mostrar diagnóstico
+    </button>
+  </div>
+  <div id="vtsDebugContainer" class="card-body hidden">
+    <div class="space-y-3">
+      <p id="vtsDebugResumo" class="text-sm text-slate-600"></p>
+      <pre
+        id="vtsDebugPre"
+        class="bg-slate-900 text-slate-50 text-xs rounded-lg p-4 overflow-auto max-h-96"
+      ></pre>
+    </div>
+  </div>
+</div>
