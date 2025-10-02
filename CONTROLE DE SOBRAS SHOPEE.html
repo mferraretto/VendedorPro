@@ -1417,12 +1417,22 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return '-';
     }
 
+    function atualizarResumoEtiquetasVts(total = vtsEtiquetasRegistros.length) {
+      const resumo = document.getElementById('vtsResumo');
+      if (!resumo) return;
+
+      if (total > 0) {
+        resumo.textContent = `${total} etiqueta(s) importadas.`;
+      } else {
+        resumo.textContent = 'Nenhuma etiqueta importada até o momento.';
+      }
+    }
+
     async function carregarEtiquetasVts() {
       if (!db || !usuarioLogado?.uid) return;
 
       const corpoTabela = document.getElementById('vtsTabelaCorpo');
       const indicadorCarregamento = document.getElementById('vtsLoading');
-      const resumo = document.getElementById('vtsResumo');
 
       if (!corpoTabela) return;
 
@@ -1456,14 +1466,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
         renderizarEtiquetasVts(vtsEtiquetasRegistros);
         vtsCarregado = true;
-
-        if (resumo) {
-          if (vtsEtiquetasRegistros.length) {
-            resumo.textContent = `${vtsEtiquetasRegistros.length} etiqueta(s) importadas.`;
-          } else {
-            resumo.textContent = 'Nenhuma etiqueta importada até o momento.';
-          }
-        }
+        atualizarResumoEtiquetasVts(vtsEtiquetasRegistros.length);
       } catch (erro) {
         console.error('Erro ao carregar etiquetas VTS:', erro);
         setVtsFeedback('Não foi possível carregar as etiquetas importadas. Tente novamente mais tarde.', 'error');
@@ -1484,7 +1487,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!registros.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 6;
+        coluna.colSpan = 7;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhum registro encontrado.';
         linha.appendChild(coluna);
@@ -1512,8 +1515,55 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           linha.appendChild(coluna);
         });
 
+        const colunaAcoes = document.createElement('td');
+        colunaAcoes.className = 'px-4 py-3 text-sm';
+        const botaoExcluir = document.createElement('button');
+        botaoExcluir.type = 'button';
+        botaoExcluir.className = 'btn btn-sm flex items-center gap-2 text-rose-600 hover:text-rose-700';
+        botaoExcluir.innerHTML = '<i class="fas fa-trash-alt"></i><span>Excluir</span>';
+        botaoExcluir.addEventListener('click', () => excluirEtiquetaVts(item.id, item.pedido));
+        colunaAcoes.appendChild(botaoExcluir);
+        linha.appendChild(colunaAcoes);
+
         corpoTabela.appendChild(linha);
       });
+    }
+
+    async function excluirEtiquetaVts(registroId, numeroPedido) {
+      if (!db || !registroId) return;
+
+      let confirmado = true;
+      const mensagem = numeroPedido
+        ? `Deseja realmente excluir o pedido ${numeroPedido}?`
+        : 'Deseja realmente excluir este registro?';
+
+      if (window.Swal?.fire) {
+        const resultado = await window.Swal.fire({
+          title: 'Excluir registro',
+          text: mensagem,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, excluir',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#ef4444',
+        });
+        confirmado = resultado.isConfirmed;
+      } else {
+        confirmado = window.confirm(mensagem);
+      }
+
+      if (!confirmado) return;
+
+      try {
+        await db.collection('vtsEtiquetas').doc(registroId).delete();
+        vtsEtiquetasRegistros = vtsEtiquetasRegistros.filter((item) => item.id !== registroId);
+        renderizarEtiquetasVts(vtsEtiquetasRegistros);
+        atualizarResumoEtiquetasVts();
+        setVtsFeedback('Registro excluído com sucesso.', 'success');
+      } catch (erro) {
+        console.error('Erro ao excluir etiqueta VTS:', erro);
+        setVtsFeedback('Não foi possível excluir o registro. Tente novamente mais tarde.', 'error');
+      }
     }
 
     function construirIdEtiquetaVts(etiqueta, indice) {
