@@ -1596,6 +1596,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
         }
 
+        if (!dados.rastreio && /(rast|objeto|tracking)/i.test(linha)) {
+          const trecho = linha.replace(/.*(rast|objeto|tracking)[:\s-]*/i, '').trim();
+          const candidato =
+            trecho.match(/[A-Z0-9-]{8,}/i) ||
+            obterProximaLinhaVts(linhas, indice)?.match(/[A-Z0-9-]{8,}/i);
+          if (candidato) {
+            dados.rastreio = candidato[0];
+          }
+        }
+
+        if (!dados.rastreio) {
+          const numerico = linha.match(/\b\d{8,}\b/);
+          if (numerico) {
+            const valorNumerico = numerico[0];
+            if (!dados.pedido || dados.pedido !== valorNumerico) {
+              dados.rastreio = valorNumerico;
+            }
+          }
+        }
+
         if (!dados.sku) {
           if (/sku[:\s-]/i.test(linha)) {
             const valorSku = linha.replace(/.*sku[:\s-]*/i, '').trim();
@@ -1619,6 +1639,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (!dados.loja && /loja/i.test(linha) && !/lojamento/i.test(linha)) {
           const nomeLoja = linha.replace(/loja[:\s-]*/i, '').trim();
           if (nomeLoja) dados.loja = nomeLoja;
+        }
+
+        if (dados.loja) {
+          dados.loja = dados.loja.replace(/\s*#[A-Za-z0-9-]+$/, '').trim();
         }
 
         if (!dados.dataTexto) {
