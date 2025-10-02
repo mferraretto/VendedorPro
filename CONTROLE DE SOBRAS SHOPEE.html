@@ -1494,6 +1494,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             loja: data.loja || '',
             dataEtiqueta: data.dataEtiqueta || '',
             dataEtiquetaTexto: data.dataEtiquetaTexto || '',
+            buyerUsername: data.buyerUsername || '',
             importadoEm: data.importadoEm?.toDate?.() || null,
             origemArquivo: data.origemArquivo || '',
             paginaArquivo: data.paginaArquivo || null,
@@ -1659,6 +1660,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           origemArquivo: arquivo?.name || '',
           paginaArquivo: etiqueta.pagina || indice + 1,
           modeloEtiqueta: etiqueta.modelo || modelo || '',
+          buyerUsername: etiqueta.buyerUsername || '',
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         };
 
@@ -2016,6 +2018,71 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       ].some(Boolean);
     }
 
+    function extrairAwbMercadoLivreVts(texto) {
+      if (!texto) return '';
+
+      const primeiraOcorrencia = texto.match(/(?:Venda|Pack)\s*ID:\s*\d+\s+(\d{10,14})/);
+      if (primeiraOcorrencia && primeiraOcorrencia[1]) {
+        return primeiraOcorrencia[1].replace(/\s+/g, '');
+      }
+
+      const fallback = texto.match(/(?:Venda|Pack)\s*ID:\s*(\d{6,})(?:\s+|\n|$)/);
+      if (fallback && fallback[1]) {
+        const sequencia = fallback[1].replace(/\s+/g, '');
+        const tail = sequencia.match(/(\d{10,14})$/);
+        return (tail ? tail[1] : sequencia).replace(/\s+/g, '');
+      }
+
+      return '';
+    }
+
+    function extrairSkuMercadoLivreVts(texto) {
+      if (!texto) return '';
+
+      const match = texto.match(/^.*SKU:\s*(.+)$/im);
+      if (!match || !match[1]) return '';
+
+      const conteudo = match[1].replace(/…/g, '').trim();
+      if (!conteudo) return '';
+
+      const skuLimpo = limparValorSkuVts(conteudo);
+      if (ehSkuValidoVts(skuLimpo)) return skuLimpo;
+
+      const normalizado = normalizarLinhaVts(conteudo);
+      if (ehSkuValidoVts(normalizado)) return normalizado;
+
+      return skuLimpo || normalizado;
+    }
+
+    function extrairLojaMercadoLivreVts(texto) {
+      if (!texto) return '';
+      return /Diogo de Almeida Chagas/.test(texto) ? 'Diogo de Almeida Chagas' : '';
+    }
+
+    function extrairBuyerUsernameMercadoLivreVts(texto) {
+      if (!texto) return '';
+      const match = texto.match(/\(([A-Z0-9._-]{4,})\)/i);
+      return match && match[1] ? match[1] : '';
+    }
+
+    function extrairDataMercadoLivreVts(texto) {
+      if (!texto) {
+        return { texto: '', normalizada: '' };
+      }
+
+      const match = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (!match) {
+        return { texto: '', normalizada: '' };
+      }
+
+      const [, dd, mm, yyyy] = match;
+      const dataTexto = `${dd}/${mm}/${yyyy}`;
+      return {
+        texto: dataTexto,
+        normalizada: `${yyyy}-${mm}-${dd}`,
+      };
+    }
+
     function interpretarEtiquetaMercadoLivre(linhas, pagina) {
       const dados = {
         pagina,
@@ -2025,6 +2092,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         loja: '',
         dataTexto: '',
         dataNormalizada: '',
+        buyerUsername: '',
       };
 
       let indiceUltimoRemetente = -1;
@@ -2142,6 +2210,37 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
         }
       });
+
+      const textoCompleto = (linhas || [])
+        .map((valor) => (valor == null ? '' : String(valor)))
+        .join('\n');
+
+      const awb = extrairAwbMercadoLivreVts(textoCompleto);
+      if (awb) {
+        dados.pedido = awb;
+        dados.rastreio = awb;
+      }
+
+      const skuHeuristico = extrairSkuMercadoLivreVts(textoCompleto);
+      if (skuHeuristico) {
+        dados.sku = skuHeuristico;
+      }
+
+      const lojaHeuristica = extrairLojaMercadoLivreVts(textoCompleto);
+      if (lojaHeuristica) {
+        dados.loja = lojaHeuristica;
+      }
+
+      const buyer = extrairBuyerUsernameMercadoLivreVts(textoCompleto);
+      if (buyer) {
+        dados.buyerUsername = buyer;
+      }
+
+      const dataHeuristica = extrairDataMercadoLivreVts(textoCompleto);
+      if (dataHeuristica.texto) {
+        dados.dataTexto = dataHeuristica.texto;
+        dados.dataNormalizada = dataHeuristica.normalizada;
+      }
 
       if (!ehSkuValidoVts(dados.sku)) dados.sku = '';
 
