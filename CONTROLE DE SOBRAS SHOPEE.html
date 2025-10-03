@@ -1635,19 +1635,193 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
         const colunaAcoes = document.createElement('td');
         colunaAcoes.className = 'px-4 py-3 text-sm';
-        if (estaCancelado) {
-          colunaAcoes.classList.add('text-rose-700');
-        }
+if (estaCancelado) {
+  // Mantém o destaque quando o item está cancelado
+  colunaAcoes.classList.add('text-rose-700');
+}
+
+// Container dos botões
+const containerAcoes = document.createElement('div');
+containerAcoes.className = 'flex flex-wrap items-center gap-2';
+
+// Botão Editar
+const botaoEditar = document.createElement('button');
+botaoEditar.type = 'button';
+botaoEditar.className = 'btn btn-sm flex items-center gap-2 text-slate-600 hover:text-slate-700';
+botaoEditar.innerHTML = '<i class="fas fa-edit"></i><span>Editar</span>';
+botaoEditar.addEventListener('click', () => editarEtiquetaVts(item));
+containerAcoes.appendChild(botaoEditar);
+        
         const botaoExcluir = document.createElement('button');
         botaoExcluir.type = 'button';
         botaoExcluir.className = 'btn btn-sm flex items-center gap-2 text-rose-600 hover:text-rose-700';
         botaoExcluir.innerHTML = '<i class="fas fa-trash-alt"></i><span>Excluir</span>';
         botaoExcluir.addEventListener('click', () => excluirEtiquetaVts(item.id, item.pedido));
-        colunaAcoes.appendChild(botaoExcluir);
+        containerAcoes.appendChild(botaoExcluir);
+
+        colunaAcoes.appendChild(containerAcoes);
         linha.appendChild(colunaAcoes);
 
         corpoTabela.appendChild(linha);
       });
+    }
+
+    async function editarEtiquetaVts(registro) {
+      if (!db || !registro?.id) return;
+
+      const valoresIniciais = {
+        sku: registro.sku || '',
+        pedido: registro.pedido || '',
+        rastreio: registro.rastreio || '',
+        loja: registro.loja || '',
+        dataEtiqueta: registro.dataEtiqueta || '',
+        dataEtiquetaTexto: registro.dataEtiquetaTexto || '',
+        origemArquivo: registro.origemArquivo || '',
+        buyerUsername: registro.buyerUsername || '',
+      };
+
+      let valoresAtualizados = { ...valoresIniciais };
+
+      if (window.Swal?.fire) {
+        const { value, isConfirmed } = await window.Swal.fire({
+          title: 'Editar registro',
+          html: `
+            <div class="space-y-3 text-left">
+              <label class="flex flex-col text-sm text-slate-700 gap-1">
+                SKU
+                <input id="vtsEditSku" class="swal2-input" style="margin:0" />
+              </label>
+              <label class="flex flex-col text-sm text-slate-700 gap-1">
+                Número do pedido
+                <input id="vtsEditPedido" class="swal2-input" style="margin:0" />
+              </label>
+              <label class="flex flex-col text-sm text-slate-700 gap-1">
+                Código de rastreio
+                <input id="vtsEditRastreio" class="swal2-input" style="margin:0" />
+              </label>
+              <label class="flex flex-col text-sm text-slate-700 gap-1">
+                Loja
+                <input id="vtsEditLoja" class="swal2-input" style="margin:0" />
+              </label>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="flex flex-col text-sm text-slate-700 gap-1">
+                  Data (ISO)
+                  <input id="vtsEditDataEtiqueta" type="date" class="swal2-input" style="margin:0" />
+                </label>
+                <label class="flex flex-col text-sm text-slate-700 gap-1">
+                  Data original
+                  <input id="vtsEditDataEtiquetaTexto" class="swal2-input" style="margin:0" placeholder="Ex: 10/05/2024" />
+                </label>
+              </div>
+              <label class="flex flex-col text-sm text-slate-700 gap-1">
+                Arquivo de origem
+                <input id="vtsEditOrigemArquivo" class="swal2-input" style="margin:0" />
+              </label>
+              <label class="flex flex-col text-sm text-slate-700 gap-1">
+                Comprador
+                <input id="vtsEditBuyerUsername" class="swal2-input" style="margin:0" />
+              </label>
+            </div>
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: 'Salvar alterações',
+          cancelButtonText: 'Cancelar',
+          didOpen: () => {
+            const popup = window.Swal.getPopup();
+            if (!popup) return;
+            popup.querySelector('#vtsEditSku').value = valoresIniciais.sku;
+            popup.querySelector('#vtsEditPedido').value = valoresIniciais.pedido;
+            popup.querySelector('#vtsEditRastreio').value = valoresIniciais.rastreio;
+            popup.querySelector('#vtsEditLoja').value = valoresIniciais.loja;
+            popup.querySelector('#vtsEditDataEtiqueta').value = valoresIniciais.dataEtiqueta || '';
+            popup.querySelector('#vtsEditDataEtiquetaTexto').value = valoresIniciais.dataEtiquetaTexto;
+            popup.querySelector('#vtsEditOrigemArquivo').value = valoresIniciais.origemArquivo;
+            popup.querySelector('#vtsEditBuyerUsername').value = valoresIniciais.buyerUsername;
+          },
+          preConfirm: () => {
+            const popup = window.Swal.getPopup();
+            if (!popup) return null;
+            const obterValor = (seletor) => popup.querySelector(seletor)?.value?.trim() || '';
+            return {
+              sku: obterValor('#vtsEditSku'),
+              pedido: obterValor('#vtsEditPedido'),
+              rastreio: obterValor('#vtsEditRastreio'),
+              loja: obterValor('#vtsEditLoja'),
+              dataEtiqueta: popup.querySelector('#vtsEditDataEtiqueta')?.value || '',
+              dataEtiquetaTexto: obterValor('#vtsEditDataEtiquetaTexto'),
+              origemArquivo: obterValor('#vtsEditOrigemArquivo'),
+              buyerUsername: obterValor('#vtsEditBuyerUsername'),
+            };
+          },
+        });
+
+        if (!isConfirmed || !value) return;
+        valoresAtualizados = value;
+      } else {
+        const promptValue = (campo, atual) => {
+          const resposta = window.prompt(`Informe o novo valor para ${campo}:`, atual);
+          if (resposta === null) return null;
+          return resposta.trim();
+        };
+
+        const sku = promptValue('SKU', valoresIniciais.sku);
+        if (sku === null) return;
+        const pedido = promptValue('número do pedido', valoresIniciais.pedido);
+        if (pedido === null) return;
+        const rastreio = promptValue('código de rastreio', valoresIniciais.rastreio);
+        if (rastreio === null) return;
+        const loja = promptValue('loja', valoresIniciais.loja);
+        if (loja === null) return;
+        const dataEtiqueta = promptValue('data (AAAA-MM-DD)', valoresIniciais.dataEtiqueta);
+        if (dataEtiqueta === null) return;
+        const dataEtiquetaTexto = promptValue('data original', valoresIniciais.dataEtiquetaTexto);
+        if (dataEtiquetaTexto === null) return;
+        const origemArquivo = promptValue('arquivo de origem', valoresIniciais.origemArquivo);
+        if (origemArquivo === null) return;
+        const buyerUsername = promptValue('comprador', valoresIniciais.buyerUsername);
+        if (buyerUsername === null) return;
+
+        valoresAtualizados = {
+          sku,
+          pedido,
+          rastreio,
+          loja,
+          dataEtiqueta,
+          dataEtiquetaTexto,
+          origemArquivo,
+          buyerUsername,
+        };
+      }
+
+      try {
+        await db.collection('vtsEtiquetas').doc(registro.id).update({
+          sku: valoresAtualizados.sku,
+          pedido: valoresAtualizados.pedido,
+          rastreio: valoresAtualizados.rastreio,
+          loja: valoresAtualizados.loja,
+          dataEtiqueta: valoresAtualizados.dataEtiqueta,
+          dataEtiquetaTexto: valoresAtualizados.dataEtiquetaTexto,
+          origemArquivo: valoresAtualizados.origemArquivo,
+          buyerUsername: valoresAtualizados.buyerUsername,
+        });
+
+        vtsEtiquetasRegistros = vtsEtiquetasRegistros.map((item) =>
+          item.id === registro.id
+            ? {
+                ...item,
+                ...valoresAtualizados,
+              }
+            : item,
+        );
+
+        renderizarEtiquetasVts(vtsEtiquetasRegistros);
+        atualizarResumoEtiquetasVts();
+        setVtsFeedback('Registro atualizado com sucesso.', 'success');
+      } catch (erro) {
+        console.error('Erro ao atualizar etiqueta VTS:', erro);
+        setVtsFeedback('Não foi possível atualizar o registro. Tente novamente mais tarde.', 'error');
+      }
     }
 
     async function excluirEtiquetaVts(registroId, numeroPedido) {
