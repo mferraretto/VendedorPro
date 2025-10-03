@@ -195,6 +195,16 @@ let vtsCarregado = false;
 let vtsUltimoDiagnostico = [];
 let vtsUltimoArquivo = '';
 let vtsUltimoModelo = '';
+let vtsSubpaginaAtual = 'importacao';
+let vtsSkuAssociadosCache = new Map();
+let vtsSkuAssociadosCarregado = false;
+let vtsSkuAssociacaoEditando = null;
+let vtsSkuCanonicoPorChave = new Map();
+let vtsSkuGruposPorPrincipal = new Map();
+let vtsResumoCalculado = [];
+let vtsResumoCarregando = false;
+
+const VTS_CANCELAMENTO_REGEX = /(cancelad|não pago|nao pago|devolu|reemb|chargeback|fraude|sem estoque|sem estoque|nao aprovado|não aprovado)/i;
 
 const VTS_MODELOS_CONFIG = Object.freeze({
   mercadoLivre: {
@@ -1483,7 +1493,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           .collection('vtsEtiquetas')
           .where('usuarioId', '==', usuarioLogado.uid)
           .orderBy('importadoEm', 'desc')
-          .limit(500)
+          .limit(2000)
           .get();
 
         vtsEtiquetasRegistros = consulta.docs.map((doc) => {
@@ -1501,6 +1511,33 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             origemArquivo: data.origemArquivo || '',
             paginaArquivo: data.paginaArquivo || null,
             modeloEtiqueta: data.modeloEtiqueta || data.modelo || data.plataforma || '',
+            status:
+              data.status ||
+              data.statusPedido ||
+              data.pedidoStatus ||
+              data.statusProcessado ||
+              data.statusEtiqueta ||
+              '',
+            statusDetalhado:
+              data.statusDetalhado ||
+              data.statusDescricao ||
+              data.statusAtual ||
+              data.statusDetalhe ||
+              '',
+            situacao: data.situacao || data.situacaoPedido || data.situacaoEtiqueta || '',
+            ativo:
+              typeof data.ativo === 'boolean'
+                ? data.ativo
+                : typeof data.pedidoAtivo === 'boolean'
+                  ? data.pedidoAtivo
+                  : undefined,
+            cancelado:
+              typeof data.cancelado === 'boolean'
+                ? data.cancelado
+                : typeof data.pedidoCancelado === 'boolean'
+                  ? data.pedidoCancelado
+                  : undefined,
+            motivoCancelamento: data.cancelarMotivo || data.motivoCancelamento || '',
           };
         });
 
@@ -1516,6 +1553,749 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           indicadorCarregamento.classList.add('hidden');
         }
       }
+    }
+
+    function normalizarSkuChaveVts(valor) {
+      return (valor || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toUpperCase();
+    }
+
+    function separarSkusTextoVts(texto = '') {
+      return (texto || '')
+        .toString()
+        .split(/[\n,;]+/)
+        .map((parte) => parte.trim())
+        .filter((parte) => parte.length > 0);
+    }
+
+    function atualizarNavSubpaginasVts() {
+      const botoes = document.querySelectorAll('.vts-subnav-btn');
+      botoes.forEach((botao) => {
+        const destino = botao.dataset.vtsSubnav || 'importacao';
+        if (destino === vtsSubpaginaAtual) {
+          botao.classList.add('btn-primary');
+          botao.classList.remove('btn-secondary');
+        } else {
+          botao.classList.remove('btn-primary');
+          botao.classList.add('btn-secondary');
+        }
+      });
+
+      const subpaginas = document.querySelectorAll('[data-vts-subpagina]');
+      subpaginas.forEach((elemento) => {
+        if ((elemento.dataset.vtsSubpagina || 'importacao') === vtsSubpaginaAtual) {
+          elemento.classList.remove('hidden');
+        } else {
+          elemento.classList.add('hidden');
+        }
+      });
+    }
+
+    function registrarEventosAssociacaoVts() {
+      const salvar = document.getElementById('vtsSkuSalvar');
+      if (salvar && !salvar.dataset.bound) {
+        salvar.addEventListener('click', salvarAssociacaoVts);
+        salvar.dataset.bound = 'true';
+      }
+
+      const cancelar = document.getElementById('vtsSkuCancelar');
+      if (cancelar && !cancelar.dataset.bound) {
+        cancelar.addEventListener('click', () => limparFormularioAssociacaoVts(true));
+        cancelar.dataset.bound = 'true';
+      }
+
+      const principalInput = document.getElementById('vtsSkuPrincipal');
+      if (principalInput && !principalInput.dataset.bound) {
+        principalInput.addEventListener('input', () => {
+          const selecionados = obterPrincipaisSelecionadosAssociacaoVts();
+          popularSelectAssociacoesVts(principalInput.value, selecionados);
+        });
+        principalInput.dataset.bound = 'true';
+      }
+
+      const tabela = document.getElementById('vtsSkuTabelaCorpo');
+      if (tabela && !tabela.dataset.bound) {
+        tabela.addEventListener('click', (evento) => {
+          const botao = evento.target.closest('button[data-vts-acao]');
+          if (!botao) return;
+          const acao = botao.dataset.vtsAcao;
+          const id = botao.dataset.vtsId;
+          if (!id) return;
+          if (acao === 'editar') {
+            const dados = vtsSkuAssociadosCache.get(id);
+            if (dados) preencherFormularioAssociacaoVts(id, dados);
+          } else if (acao === 'excluir') {
+            const dados = vtsSkuAssociadosCache.get(id);
+            excluirAssociacaoVts(id, dados?.skuPrincipal || id);
+          }
+        });
+        tabela.dataset.bound = 'true';
+      }
+    }
+
+    function alternarSubpaginaVts(subpagina = 'importacao') {
+      vtsSubpaginaAtual = subpagina || 'importacao';
+      atualizarNavSubpaginasVts();
+
+      if (vtsSubpaginaAtual === 'associar') {
+        registrarEventosAssociacaoVts();
+        carregarAssociacoesVts();
+      } else if (vtsSubpaginaAtual === 'resumo') {
+        registrarEventosAssociacaoVts();
+        atualizarResumoMensalVts();
+      }
+    }
+
+    async function garantirAssociacoesVts(forcar = false) {
+      if (forcar) vtsSkuAssociadosCarregado = false;
+      if (vtsSkuAssociadosCarregado) return;
+      await carregarAssociacoesVts(true);
+    }
+
+    function atualizarStatusAssociacaoVts(mensagem) {
+      const status = document.getElementById('vtsSkuStatus');
+      if (status) {
+        status.textContent = mensagem || '';
+      }
+    }
+
+    function popularSelectAssociacoesVts(excluir = null, selecionados = []) {
+      const select = document.getElementById('vtsSkuPrincipaisVinculados');
+      if (!select) return;
+
+      const selecionadosSet = new Set(
+        (selecionados || []).map((valor) => normalizarSkuChaveVts(valor)),
+      );
+      const excluirNormalizado = excluir
+        ? normalizarSkuChaveVts(excluir)
+        : null;
+
+      const opcoesSet = new Set();
+      vtsSkuAssociadosCache.forEach((dados) => {
+        if (dados.skuPrincipal) opcoesSet.add(dados.skuPrincipal);
+        (dados.principaisVinculados || []).forEach((sku) => {
+          if (sku) opcoesSet.add(sku);
+        });
+      });
+
+      const opcoesOrdenadas = Array.from(opcoesSet.values()).sort((a, b) =>
+        a.localeCompare(b, 'pt-BR'),
+      );
+
+      select.innerHTML = '';
+      opcoesOrdenadas.forEach((texto) => {
+        const normalizado = normalizarSkuChaveVts(texto);
+        if (excluirNormalizado && normalizado === excluirNormalizado) return;
+        const option = document.createElement('option');
+        option.value = texto;
+        option.textContent = texto;
+        if (selecionadosSet.has(normalizado)) option.selected = true;
+        select.appendChild(option);
+      });
+    }
+
+    function renderizarAssociacoesVts() {
+      const tbody = document.getElementById('vtsSkuTabelaCorpo');
+      const totalEl = document.getElementById('vtsSkuTotal');
+      if (totalEl) {
+        const total = vtsSkuAssociadosCache.size;
+        totalEl.textContent = total
+          ? `${total} registro${total > 1 ? 's' : ''}`
+          : '';
+      }
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+
+      if (!vtsSkuAssociadosCache.size) {
+        const linha = document.createElement('tr');
+        const coluna = document.createElement('td');
+        coluna.colSpan = 4;
+        coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
+        coluna.textContent = 'Nenhuma associação cadastrada.';
+        linha.appendChild(coluna);
+        tbody.appendChild(linha);
+        return;
+      }
+
+      const registrosOrdenados = Array.from(vtsSkuAssociadosCache.values()).sort(
+        (a, b) => a.skuPrincipal.localeCompare(b.skuPrincipal, 'pt-BR'),
+      );
+
+      registrosOrdenados.forEach((item) => {
+        const linha = document.createElement('tr');
+        linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+
+        const associadosTexto = item.associados?.length
+          ? item.associados.join(', ')
+          : '-';
+        const principaisTexto = item.principaisVinculados?.length
+          ? item.principaisVinculados.join(', ')
+          : '-';
+
+        linha.innerHTML = `
+          <td class="px-4 py-3 text-sm text-slate-700">${item.skuPrincipal}</td>
+          <td class="px-4 py-3 text-sm text-slate-600">${associadosTexto}</td>
+          <td class="px-4 py-3 text-sm text-slate-600">${principaisTexto}</td>
+          <td class="px-4 py-3">
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="btn btn-sm flex items-center gap-2 text-slate-600 hover:text-slate-700"
+                data-vts-acao="editar"
+                data-vts-id="${item.id}"
+              >
+                <i class="fas fa-edit"></i>
+                Editar
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm flex items-center gap-2 text-rose-600 hover:text-rose-700"
+                data-vts-acao="excluir"
+                data-vts-id="${item.id}"
+              >
+                <i class="fas fa-trash-alt"></i>
+                Excluir
+              </button>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(linha);
+      });
+    }
+
+    function obterPrincipaisSelecionadosAssociacaoVts() {
+      const select = document.getElementById('vtsSkuPrincipaisVinculados');
+      if (!select) return [];
+      return Array.from(select.selectedOptions || [])
+        .map((opt) => opt.value.trim())
+        .filter(Boolean);
+    }
+
+    function limparFormularioAssociacaoVts(repopular = false) {
+      const principal = document.getElementById('vtsSkuPrincipal');
+      const associados = document.getElementById('vtsSkuAssociados');
+      const select = document.getElementById('vtsSkuPrincipaisVinculados');
+      if (principal) principal.value = '';
+      if (associados) associados.value = '';
+      if (select) {
+        Array.from(select.options).forEach((opt) => (opt.selected = false));
+      }
+      vtsSkuAssociacaoEditando = null;
+      if (repopular) {
+        popularSelectAssociacoesVts();
+      }
+      atualizarStatusAssociacaoVts('');
+    }
+
+    function preencherFormularioAssociacaoVts(id, dados) {
+      if (!dados) return;
+      const principal = document.getElementById('vtsSkuPrincipal');
+      const associados = document.getElementById('vtsSkuAssociados');
+      const select = document.getElementById('vtsSkuPrincipaisVinculados');
+      if (principal) principal.value = dados.skuPrincipal || '';
+      if (associados)
+        associados.value = (dados.associados || []).join('\n');
+      vtsSkuAssociacaoEditando = id;
+      popularSelectAssociacoesVts(dados.skuPrincipal, dados.principaisVinculados);
+      if (select) {
+        const selecionadosSet = new Set(
+          (dados.principaisVinculados || []).map((sku) =>
+            normalizarSkuChaveVts(sku),
+          ),
+        );
+        Array.from(select.options || []).forEach((opt) => {
+          opt.selected = selecionadosSet.has(normalizarSkuChaveVts(opt.value));
+        });
+      }
+      atualizarStatusAssociacaoVts('Editando associação existente.');
+    }
+
+    async function salvarAssociacaoVts() {
+      if (!db) return;
+      const principalEl = document.getElementById('vtsSkuPrincipal');
+      const associadosEl = document.getElementById('vtsSkuAssociados');
+      if (!principalEl || !associadosEl) return;
+
+      const principal = principalEl.value.trim();
+      if (!principal) {
+        atualizarStatusAssociacaoVts('Informe o SKU principal para salvar a associação.');
+        principalEl.focus();
+        return;
+      }
+
+      const associadosBrutos = separarSkusTextoVts(associadosEl.value);
+      const selecionadosPrincipais = obterPrincipaisSelecionadosAssociacaoVts();
+
+      const principalNormalizado = normalizarSkuChaveVts(principal);
+      const associadosFiltrados = [];
+      const associadosNormalizados = new Set();
+      associadosBrutos.forEach((sku) => {
+        const normalizado = normalizarSkuChaveVts(sku);
+        if (!normalizado || normalizado === principalNormalizado) return;
+        if (!associadosNormalizados.has(normalizado)) {
+          associadosNormalizados.add(normalizado);
+          associadosFiltrados.push(sku);
+        }
+      });
+
+      const principaisFiltrados = [];
+      const principaisNormalizados = new Set();
+      selecionadosPrincipais.forEach((sku) => {
+        const normalizado = normalizarSkuChaveVts(sku);
+        if (!normalizado || normalizado === principalNormalizado) return;
+        if (!principaisNormalizados.has(normalizado)) {
+          principaisNormalizados.add(normalizado);
+          principaisFiltrados.push(sku);
+        }
+      });
+
+      const docId = principal;
+      try {
+        if (vtsSkuAssociacaoEditando && vtsSkuAssociacaoEditando !== docId) {
+          await db.collection('skuAssociado').doc(vtsSkuAssociacaoEditando).delete();
+        }
+
+        await db.collection('skuAssociado').doc(docId).set(
+          {
+            skuPrincipal: principal,
+            associados: associadosFiltrados,
+            principaisVinculados: principaisFiltrados,
+          },
+          { merge: true },
+        );
+
+        atualizarStatusAssociacaoVts('Associação salva com sucesso.');
+        await carregarAssociacoesVts(true);
+        limparFormularioAssociacaoVts(true);
+      } catch (erro) {
+        console.error('Erro ao salvar associação de SKU:', erro);
+        atualizarStatusAssociacaoVts('Não foi possível salvar a associação. Tente novamente.');
+      }
+    }
+
+    async function excluirAssociacaoVts(id, skuPrincipal) {
+      if (!db || !id) return;
+      let confirmar = true;
+      const mensagem = skuPrincipal
+        ? `Deseja excluir a associação do SKU "${skuPrincipal}"?`
+        : 'Deseja excluir esta associação de SKU?';
+
+      if (window.Swal?.fire) {
+        const resultado = await window.Swal.fire({
+          title: 'Excluir associação',
+          text: mensagem,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Excluir',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#ef4444',
+        });
+        confirmar = resultado.isConfirmed;
+      } else {
+        confirmar = window.confirm(mensagem);
+      }
+
+      if (!confirmar) return;
+
+      try {
+        await db.collection('skuAssociado').doc(id).delete();
+        if (vtsSkuAssociacaoEditando === id) {
+          limparFormularioAssociacaoVts(true);
+        }
+        await carregarAssociacoesVts(true);
+        atualizarStatusAssociacaoVts('Associação excluída com sucesso.');
+      } catch (erro) {
+        console.error('Erro ao excluir associação de SKU:', erro);
+        atualizarStatusAssociacaoVts('Não foi possível excluir a associação.');
+      }
+    }
+
+    async function carregarAssociacoesVts(forcar = false) {
+      if (!db) return;
+      if (vtsSkuAssociadosCarregado && !forcar) {
+        renderizarAssociacoesVts();
+        return;
+      }
+
+      const tbody = document.getElementById('vtsSkuTabelaCorpo');
+      if (tbody) {
+        tbody.innerHTML =
+          '<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-slate-500">Carregando associações...</td></tr>';
+      }
+      atualizarStatusAssociacaoVts('Carregando associações...');
+
+      try {
+        const snapshot = await db.collection('skuAssociado').orderBy('skuPrincipal').get();
+        vtsSkuAssociadosCache = new Map();
+        snapshot.forEach((docSnap) => {
+          const dados = docSnap.data() || {};
+          const principal = String(dados.skuPrincipal || docSnap.id || '')
+            .trim();
+          if (!principal) return;
+          const associados = Array.isArray(dados.associados)
+            ? dados.associados
+                .map((sku) => (sku || '').toString().trim())
+                .filter(Boolean)
+            : [];
+          const principaisVinculados = Array.isArray(dados.principaisVinculados)
+            ? dados.principaisVinculados
+                .map((sku) => (sku || '').toString().trim())
+                .filter(Boolean)
+            : [];
+
+          vtsSkuAssociadosCache.set(docSnap.id, {
+            id: docSnap.id,
+            skuPrincipal: principal,
+            associados,
+            principaisVinculados,
+          });
+        });
+
+        vtsSkuAssociadosCarregado = true;
+        recalcularMapeamentosAssociadosVts();
+        renderizarAssociacoesVts();
+        popularSelectAssociacoesVts();
+
+        const total = vtsSkuAssociadosCache.size;
+        atualizarStatusAssociacaoVts(
+          total
+            ? `${total} registro${total > 1 ? 's' : ''} carregado${
+                total > 1 ? 's' : ''
+              }.`
+            : 'Nenhuma associação cadastrada ainda.',
+        );
+      } catch (erro) {
+        console.error('Erro ao carregar SKUs associados:', erro);
+        atualizarStatusAssociacaoVts('Não foi possível carregar as associações de SKU.');
+        if (tbody) {
+          tbody.innerHTML =
+            '<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-rose-500">Erro ao carregar associações.</td></tr>';
+        }
+      }
+    }
+
+    function recalcularMapeamentosAssociadosVts() {
+      vtsSkuCanonicoPorChave = new Map();
+      vtsSkuGruposPorPrincipal = new Map();
+
+      if (!vtsSkuAssociadosCache.size) return;
+
+      const parent = new Map();
+      const rank = new Map();
+      const displayPorChave = new Map();
+      const preferidoPorChave = new Map();
+
+      const registrarDisplay = (chave, display) => {
+        if (!chave) return;
+        const conjunto = displayPorChave.get(chave) || new Set();
+        if (display) conjunto.add(display);
+        displayPorChave.set(chave, conjunto);
+      };
+
+      const makeSet = (chave, display) => {
+        if (!chave) return;
+        if (!parent.has(chave)) {
+          parent.set(chave, chave);
+          rank.set(chave, 0);
+        }
+        if (display) {
+          registrarDisplay(chave, display);
+          if (!preferidoPorChave.has(chave)) {
+            preferidoPorChave.set(chave, display);
+          }
+        }
+      };
+
+      const find = (chave) => {
+        if (!parent.has(chave)) return chave;
+        const pai = parent.get(chave);
+        if (pai !== chave) {
+          parent.set(chave, find(pai));
+        }
+        return parent.get(chave);
+      };
+
+      const union = (a, b) => {
+        if (!a || !b) return;
+        const raizA = find(a);
+        const raizB = find(b);
+        if (raizA === raizB) return;
+
+        const rankA = rank.get(raizA) || 0;
+        const rankB = rank.get(raizB) || 0;
+
+        if (rankA < rankB) {
+          parent.set(raizA, raizB);
+        } else if (rankA > rankB) {
+          parent.set(raizB, raizA);
+        } else {
+          parent.set(raizB, raizA);
+          rank.set(raizA, rankA + 1);
+        }
+      };
+
+      vtsSkuAssociadosCache.forEach((dados) => {
+        const principalDisplay = dados.skuPrincipal || dados.id;
+        const principalChave = normalizarSkuChaveVts(principalDisplay);
+        if (!principalChave) return;
+        makeSet(principalChave, principalDisplay);
+
+        (dados.associados || []).forEach((sku) => {
+          const chave = normalizarSkuChaveVts(sku);
+          if (!chave) return;
+          makeSet(chave, sku);
+          union(principalChave, chave);
+        });
+
+        (dados.principaisVinculados || []).forEach((sku) => {
+          const chave = normalizarSkuChaveVts(sku);
+          if (!chave) return;
+          makeSet(chave, sku);
+          union(principalChave, chave);
+        });
+      });
+
+      const gruposTemporarios = new Map();
+
+      parent.forEach((_, chave) => {
+        const raiz = find(chave);
+        const grupo = gruposTemporarios.get(raiz) || {
+          normalizados: new Set(),
+          displays: new Set(),
+          preferidos: new Set(),
+        };
+        grupo.normalizados.add(chave);
+        const displays = displayPorChave.get(chave);
+        if (displays) {
+          displays.forEach((valor) => grupo.displays.add(valor));
+        }
+        const preferido = preferidoPorChave.get(chave);
+        if (preferido) grupo.preferidos.add(preferido);
+        gruposTemporarios.set(raiz, grupo);
+      });
+
+      gruposTemporarios.forEach((grupo) => {
+        const principalDisplay =
+          Array.from(grupo.preferidos.values())[0] ||
+          Array.from(grupo.displays.values())[0] ||
+          'SKU não informado';
+
+        const normalizados = Array.from(grupo.normalizados.values());
+        normalizados.forEach((chave) => {
+          vtsSkuCanonicoPorChave.set(chave, principalDisplay);
+        });
+
+        const vinculados = Array.from(grupo.displays.values())
+          .filter(
+            (sku) =>
+              normalizarSkuChaveVts(sku) !==
+              normalizarSkuChaveVts(principalDisplay),
+          )
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+        vtsSkuGruposPorPrincipal.set(principalDisplay, {
+          principal: principalDisplay,
+          vinculados,
+          normalizados: new Set(normalizados),
+        });
+      });
+    }
+
+    function determinarCancelamentoRegistroVts(registro = {}) {
+      if (typeof registro.cancelado === 'boolean') return registro.cancelado;
+      if (typeof registro.ativo === 'boolean') return !registro.ativo;
+
+      const campos = [
+        registro.status,
+        registro.statusDetalhado,
+        registro.situacao,
+        registro.motivoCancelamento,
+      ];
+
+      return campos.some((campo) =>
+        campo ? VTS_CANCELAMENTO_REGEX.test(String(campo)) : false,
+      );
+    }
+
+    function obterDescricaoMesVts(ano, mes) {
+      if (!ano || !mes) return '';
+      const nomes = [
+        'janeiro',
+        'fevereiro',
+        'março',
+        'abril',
+        'maio',
+        'junho',
+        'julho',
+        'agosto',
+        'setembro',
+        'outubro',
+        'novembro',
+        'dezembro',
+      ];
+      const indice = Math.min(Math.max(mes - 1, 0), 11);
+      return `${nomes[indice]} de ${ano}`;
+    }
+
+    async function atualizarResumoMensalVts() {
+      if (vtsResumoCarregando) return;
+
+      const tabela = document.getElementById('vtsResumoTabelaCorpo');
+      const status = document.getElementById('vtsResumoStatus');
+      const mesInput = document.getElementById('vtsResumoMes');
+
+      if (status) status.textContent = 'Calculando resumo...';
+      if (tabela) {
+        tabela.innerHTML =
+          '<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-slate-500">Carregando resumo...</td></tr>';
+      }
+
+      vtsResumoCarregando = true;
+
+      try {
+        if (!vtsCarregado) {
+          await carregarEtiquetasVts();
+        }
+        await garantirAssociacoesVts();
+
+        let mesValor = mesInput?.value;
+        if (!mesValor) {
+          const hoje = new Date();
+          mesValor = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+          if (mesInput) mesInput.value = mesValor;
+        }
+
+        const [anoStr, mesStr] = (mesValor || '').split('-');
+        const ano = Number(anoStr);
+        const mes = Number(mesStr);
+        if (!ano || !mes) {
+          throw new Error('Mês de referência inválido.');
+        }
+
+        const resumoPorPrincipal = new Map();
+
+        vtsEtiquetasRegistros.forEach((registro) => {
+          if (!registro) return;
+          let anoRegistro = null;
+          let mesRegistro = null;
+
+          if (registro.dataEtiqueta && /^\d{4}-\d{2}-\d{2}$/.test(registro.dataEtiqueta)) {
+            anoRegistro = Number(registro.dataEtiqueta.slice(0, 4));
+            mesRegistro = Number(registro.dataEtiqueta.slice(5, 7));
+          } else if (registro.importadoEm instanceof Date && !isNaN(registro.importadoEm)) {
+            anoRegistro = registro.importadoEm.getFullYear();
+            mesRegistro = registro.importadoEm.getMonth() + 1;
+          } else if (registro.dataEtiquetaTexto) {
+            const normalizada = normalizeDate(registro.dataEtiquetaTexto);
+            if (normalizada) {
+              anoRegistro = Number(normalizada.slice(0, 4));
+              mesRegistro = Number(normalizada.slice(5, 7));
+            }
+          }
+
+          if (anoRegistro !== ano || mesRegistro !== mes) return;
+
+          const skuOriginal = (registro.sku || '').trim();
+          const chaveSku = normalizarSkuChaveVts(skuOriginal);
+          let principalDisplay = vtsSkuCanonicoPorChave.get(chaveSku);
+          if (!principalDisplay) {
+            principalDisplay = skuOriginal || 'SKU não informado';
+          }
+
+          const grupoInfo = vtsSkuGruposPorPrincipal.get(principalDisplay);
+
+          let resumo = resumoPorPrincipal.get(principalDisplay);
+          if (!resumo) {
+            const vinculados = grupoInfo?.vinculados || [];
+            resumo = {
+              principal: principalDisplay,
+              vinculados,
+              totalVendido: 0,
+              totalCancelado: 0,
+              totalRegistros: 0,
+            };
+            resumoPorPrincipal.set(principalDisplay, resumo);
+          }
+
+          resumo.totalRegistros += 1;
+          if (determinarCancelamentoRegistroVts(registro)) {
+            resumo.totalCancelado += 1;
+          } else {
+            resumo.totalVendido += 1;
+          }
+        });
+
+        vtsResumoCalculado = Array.from(resumoPorPrincipal.values()).sort((a, b) =>
+          a.principal.localeCompare(b.principal, 'pt-BR'),
+        );
+
+        renderizarResumoVtsTabela(vtsResumoCalculado);
+
+        if (status) {
+          const descricaoMes = obterDescricaoMesVts(ano, mes);
+          if (vtsResumoCalculado.length) {
+            status.textContent = `${vtsResumoCalculado.length} SKU${
+              vtsResumoCalculado.length > 1 ? 's' : ''
+            } encontrados em ${descricaoMes}.`;
+          } else {
+            status.textContent = `Nenhum pedido encontrado para ${descricaoMes}.`;
+          }
+        }
+      } catch (erro) {
+        console.error('Erro ao calcular resumo VTS:', erro);
+        if (status) status.textContent = 'Não foi possível calcular o resumo das etiquetas.';
+        if (tabela) {
+          tabela.innerHTML =
+            '<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-rose-500">Erro ao gerar o resumo.</td></tr>';
+        }
+      } finally {
+        vtsResumoCarregando = false;
+      }
+    }
+
+    function renderizarResumoVtsTabela(resumo = []) {
+      const tbody = document.getElementById('vtsResumoTabelaCorpo');
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+
+      if (!Array.isArray(resumo) || !resumo.length) {
+        const linha = document.createElement('tr');
+        const coluna = document.createElement('td');
+        coluna.colSpan = 4;
+        coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
+        coluna.textContent = 'Nenhum dado disponível para o período selecionado.';
+        linha.appendChild(coluna);
+        tbody.appendChild(linha);
+        return;
+      }
+
+      resumo.forEach((item) => {
+        const linha = document.createElement('tr');
+        linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+
+        const vinculadosTexto = item.vinculados?.length
+          ? item.vinculados.join(', ')
+          : '-';
+
+        const vendidoTexto = Number(item.totalVendido || 0).toLocaleString('pt-BR');
+        const canceladoTexto = Number(item.totalCancelado || 0).toLocaleString('pt-BR');
+
+        linha.innerHTML = `
+          <td class="px-4 py-3 text-sm text-slate-700">${item.principal}</td>
+          <td class="px-4 py-3 text-sm text-slate-600">${vinculadosTexto}</td>
+          <td class="px-4 py-3 text-sm text-right text-slate-700 font-semibold">${vendidoTexto}</td>
+          <td class="px-4 py-3 text-sm text-right text-slate-700 font-semibold">${canceladoTexto}</td>
+        `;
+
+        tbody.appendChild(linha);
+      });
     }
 
     function renderizarEtiquetasVts(registros = []) {
@@ -3032,10 +3812,49 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           });
           toggle.dataset.bound = 'true';
         }
+
+        const botoesSubnav = container.querySelectorAll('.vts-subnav-btn');
+        botoesSubnav.forEach((botao) => {
+          if (botao.dataset.bound) return;
+          botao.addEventListener('click', () =>
+            alternarSubpaginaVts(botao.dataset.vtsSubnav || 'importacao'),
+          );
+          botao.dataset.bound = 'true';
+        });
+
+        const resumoMesInput = document.getElementById('vtsResumoMes');
+        if (resumoMesInput && !resumoMesInput.dataset.bound) {
+          if (!resumoMesInput.value) {
+            const hoje = new Date();
+            const mesAtual = String(hoje.getMonth() + 1).padStart(2, '0');
+            resumoMesInput.value = `${hoje.getFullYear()}-${mesAtual}`;
+          }
+          resumoMesInput.addEventListener('change', () => {
+            if (vtsSubpaginaAtual === 'resumo') {
+              atualizarResumoMensalVts();
+            }
+          });
+          resumoMesInput.dataset.bound = 'true';
+        }
+
+        const resumoAtualizarBtn = document.getElementById('vtsResumoAtualizar');
+        if (resumoAtualizarBtn && !resumoAtualizarBtn.dataset.bound) {
+          resumoAtualizarBtn.addEventListener('click', atualizarResumoMensalVts);
+          resumoAtualizarBtn.dataset.bound = 'true';
+        }
+
         container.dataset.initialized = 'true';
       }
 
+      registrarEventosAssociacaoVts();
+      atualizarNavSubpaginasVts();
+
       await carregarEtiquetasVts();
+      if (vtsSubpaginaAtual === 'associar') {
+        await carregarAssociacoesVts();
+      } else if (vtsSubpaginaAtual === 'resumo') {
+        await atualizarResumoMensalVts();
+      }
       atualizarDiagnosticoVts(vtsUltimoDiagnostico, vtsUltimoArquivo, vtsUltimoModelo);
     }
 
