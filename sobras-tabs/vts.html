@@ -86,6 +86,54 @@
         </button>
       </div>
     </div>
+    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h4 class="text-sm font-semibold text-amber-800 uppercase tracking-wide">Devoluções</h4>
+          <p class="mt-1 text-[11px] leading-relaxed text-amber-800/80">
+            Informe o número do pedido ou o código de rastreio e a loja para identificar e sinalizar devoluções.
+            O pedido será marcado como cancelado na lista de etiquetas.
+          </p>
+        </div>
+        <i class="fas fa-undo-alt text-amber-500"></i>
+      </div>
+      <div class="mt-4 grid gap-3 sm:grid-cols-3">
+        <div class="sm:col-span-2">
+          <label for="vtsDevolucaoCodigo" class="block text-xs font-medium text-amber-900">Pedido ou rastreio</label>
+          <input
+            type="text"
+            id="vtsDevolucaoCodigo"
+            class="form-control"
+            placeholder="Ex.: 123456789 ou BR1234567890"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label for="vtsDevolucaoLoja" class="block text-xs font-medium text-amber-900">Loja</label>
+          <input
+            type="text"
+            id="vtsDevolucaoLoja"
+            class="form-control"
+            placeholder="Ex.: Shopee"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+      <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <button
+          id="vtsDevolucaoBtn"
+          class="btn btn-secondary inline-flex items-center justify-center gap-2"
+          type="button"
+        >
+          <i class="fas fa-ban"></i>
+          Marcar pedido como cancelado
+        </button>
+        <p
+          id="vtsDevolucaoFeedback"
+          class="hidden rounded border border-transparent px-3 py-2 text-xs font-medium"
+        ></p>
+      </div>
+    </div>
     <div
       id="vtsLoading"
       class="hidden items-center gap-2 text-sm text-slate-500"
@@ -117,6 +165,7 @@
             <th class="px-4 py-3 text-left font-semibold">Rastreio</th>
             <th class="px-4 py-3 text-left font-semibold">Loja</th>
             <th class="px-4 py-3 text-left font-semibold">Data</th>
+            <th class="px-4 py-3 text-left font-semibold">Status</th>
             <th class="px-4 py-3 text-left font-semibold">Arquivo</th>
             <th class="px-4 py-3 text-left font-semibold">Ações</th>
           </tr>

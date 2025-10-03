@@ -214,6 +214,20 @@ const VTS_MODELOS_CONFIG = Object.freeze({
   },
 });
 
+const VTS_DEVOLUCAO_FEEDBACK_CLASSES = Object.freeze({
+  success: ['bg-emerald-50', 'text-emerald-700', 'border-emerald-200'],
+  warning: ['bg-amber-50', 'text-amber-700', 'border-amber-200'],
+  error: ['bg-rose-50', 'text-rose-700', 'border-rose-200'],
+  info: ['bg-slate-100', 'text-slate-700', 'border-slate-200'],
+});
+
+const VTS_DEVOLUCAO_FEEDBACK_ALL_CLASSES = [
+  ...VTS_DEVOLUCAO_FEEDBACK_CLASSES.success,
+  ...VTS_DEVOLUCAO_FEEDBACK_CLASSES.warning,
+  ...VTS_DEVOLUCAO_FEEDBACK_CLASSES.error,
+  ...VTS_DEVOLUCAO_FEEDBACK_CLASSES.info,
+];
+
 function normalizeDate(value) {
   if (!value) return '';
   if (value instanceof Date && !isNaN(value)) return value.toISOString().split('T')[0];
@@ -1455,6 +1469,56 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return '-';
     }
 
+    function formatarDataHoraVts(data) {
+      if (!(data instanceof Date) || Number.isNaN(data.getTime())) return '';
+      try {
+        return new Intl.DateTimeFormat('pt-BR', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        }).format(data);
+      } catch (erro) {
+        console.warn('Não foi possível formatar data de cancelamento VTS:', erro);
+      }
+      return '';
+    }
+
+    function normalizarCodigoBuscaVts(valor) {
+      return (valor || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function normalizarTextoLivreVts(valor) {
+      return (valor || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    function setVtsDevolucaoFeedback(mensagem = '', tipo = 'info') {
+      const feedback = document.getElementById('vtsDevolucaoFeedback');
+      if (!feedback) return;
+
+      feedback.textContent = mensagem;
+      feedback.classList.remove('hidden');
+      feedback.classList.remove(...VTS_DEVOLUCAO_FEEDBACK_ALL_CLASSES);
+
+      if (!mensagem) {
+        feedback.classList.add('hidden');
+        return;
+      }
+
+      const classes = VTS_DEVOLUCAO_FEEDBACK_CLASSES[tipo] || VTS_DEVOLUCAO_FEEDBACK_CLASSES.info;
+      feedback.classList.add(...classes);
+    }
+
     function atualizarResumoEtiquetasVts(total = vtsEtiquetasRegistros.length) {
       const resumo = document.getElementById('vtsResumo');
       if (!resumo) return;
@@ -1463,6 +1527,97 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         resumo.textContent = `${total} etiqueta(s) importadas.`;
       } else {
         resumo.textContent = 'Nenhuma etiqueta importada até o momento.';
+      }
+    }
+
+    async function marcarPedidoComoDevolucaoVts() {
+      if (!db || !usuarioLogado?.uid) return;
+
+      const inputCodigo = document.getElementById('vtsDevolucaoCodigo');
+      const inputLoja = document.getElementById('vtsDevolucaoLoja');
+      const botao = document.getElementById('vtsDevolucaoBtn');
+
+      if (!inputCodigo || !botao) return;
+
+      const codigoBruto = inputCodigo.value || '';
+      const lojaBruta = inputLoja?.value || '';
+      const codigoNormalizado = normalizarCodigoBuscaVts(codigoBruto);
+      const lojaNormalizada = normalizarTextoLivreVts(lojaBruta);
+
+      if (!codigoNormalizado) {
+        setVtsDevolucaoFeedback(
+          'Informe o número do pedido ou o código de rastreio para localizar a devolução.',
+          'warning',
+        );
+        return;
+      }
+
+      const candidatos = vtsEtiquetasRegistros.filter((registro) => {
+        const pedidoNormalizado = normalizarCodigoBuscaVts(registro.pedido);
+        const rastreioNormalizado = normalizarCodigoBuscaVts(registro.rastreio);
+        const lojaRegistro = normalizarTextoLivreVts(registro.loja);
+        const codigoConfere =
+          (pedidoNormalizado && pedidoNormalizado === codigoNormalizado) ||
+          (rastreioNormalizado && rastreioNormalizado === codigoNormalizado);
+        if (!codigoConfere) return false;
+        if (!lojaNormalizada) return true;
+        return lojaRegistro.includes(lojaNormalizada);
+      });
+
+      if (!candidatos.length) {
+        setVtsDevolucaoFeedback(
+          'Não encontramos registros para os dados informados. Verifique e tente novamente.',
+          'warning',
+        );
+        return;
+      }
+
+      const naoCancelados = candidatos.filter((registro) => !registro.cancelado);
+
+      if (!naoCancelados.length) {
+        setVtsDevolucaoFeedback(
+          'Os registros informados já estão marcados como cancelados.',
+          'info',
+        );
+        inputCodigo.value = '';
+        if (inputLoja) inputLoja.value = '';
+        inputCodigo.focus();
+        return;
+      }
+
+      try {
+        botao.disabled = true;
+        setVtsDevolucaoFeedback('Marcando o pedido como cancelado, aguarde...', 'info');
+
+        const atualizacoes = naoCancelados.map((registro) =>
+          db
+            .collection('vtsEtiquetas')
+            .doc(registro.id)
+            .set(
+              {
+                cancelado: true,
+                canceladoPor: usuarioLogado.uid,
+                canceladoEm: firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            ),
+        );
+
+        await Promise.all(atualizacoes);
+        await carregarEtiquetasVts();
+
+        setVtsDevolucaoFeedback(
+          `${naoCancelados.length} registro(s) marcado(s) como cancelado.`,
+          'success',
+        );
+        inputCodigo.value = '';
+        if (inputLoja) inputLoja.value = '';
+        inputCodigo.focus();
+      } catch (erro) {
+        console.error('Erro ao marcar pedido como devolução VTS:', erro);
+        setVtsDevolucaoFeedback('Não foi possível marcar o pedido como cancelado. Tente novamente.', 'error');
+      } finally {
+        botao.disabled = false;
       }
     }
 
@@ -1497,6 +1652,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             dataEtiqueta: data.dataEtiqueta || '',
             dataEtiquetaTexto: data.dataEtiquetaTexto || '',
             buyerUsername: data.buyerUsername || '',
+            cancelado: Boolean(data.cancelado),
+            canceladoPor: data.canceladoPor || '',
+            canceladoEm: data.canceladoEm?.toDate?.() || null,
             importadoEm: data.importadoEm?.toDate?.() || null,
             origemArquivo: data.origemArquivo || '',
             paginaArquivo: data.paginaArquivo || null,
@@ -1527,7 +1685,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!registros.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 7;
+        coluna.colSpan = 8;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhum registro encontrado.';
         linha.appendChild(coluna);
@@ -1537,11 +1695,23 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       registros.forEach((item) => {
         const linha = document.createElement('tr');
-        linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+        const estaCancelado = Boolean(item.cancelado);
+        linha.className = 'border-b transition-colors';
+        linha.dataset.status = estaCancelado ? 'cancelado' : 'ativo';
+        if (estaCancelado) {
+          linha.classList.add('border-rose-200', 'bg-rose-50', 'hover:bg-rose-100');
+        } else {
+          linha.classList.add('border-slate-100', 'hover:bg-slate-50');
+        }
         if (item.modeloEtiqueta) {
           linha.dataset.modeloEtiqueta = item.modeloEtiqueta;
           linha.title = `Modelo da etiqueta: ${obterNomeModeloVts(item.modeloEtiqueta)}`;
         }
+
+        const dataCancelamentoFormatada = formatarDataHoraVts(item.canceladoEm);
+        const statusTexto = estaCancelado
+          ? `Pedido cancelado${dataCancelamentoFormatada ? ` em ${dataCancelamentoFormatada}` : ''}`
+          : 'Ativo';
 
         const campos = [
           item.sku || '-',
@@ -1549,18 +1719,47 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           item.rastreio || '-',
           item.loja || '-',
           formatarDataVts(item.dataEtiqueta, item.dataEtiquetaTexto),
+          statusTexto,
           item.origemArquivo || '-',
         ];
 
-        campos.forEach((texto) => {
+        campos.forEach((texto, indice) => {
           const coluna = document.createElement('td');
-          coluna.className = 'px-4 py-3 text-sm text-slate-700 break-words max-w-xs';
-          coluna.textContent = texto;
+          coluna.className = 'px-4 py-3 text-sm break-words max-w-xs';
+          if (estaCancelado) {
+            coluna.classList.add('text-rose-700');
+          } else {
+            coluna.classList.add('text-slate-700');
+          }
+
+          const textoSpan = document.createElement('span');
+          textoSpan.textContent = texto;
+          coluna.appendChild(textoSpan);
+
+          if (estaCancelado && indice === 1) {
+            const aviso = document.createElement('span');
+            aviso.className = 'ml-2 inline-flex items-center gap-1 text-xs font-semibold text-rose-700';
+            aviso.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Cancelado';
+            coluna.appendChild(aviso);
+          }
+
+          if (indice === 5) {
+            if (estaCancelado) {
+              coluna.classList.add('font-semibold');
+            } else {
+              coluna.classList.remove('text-slate-700');
+              coluna.classList.add('text-slate-500');
+            }
+          }
+
           linha.appendChild(coluna);
         });
 
         const colunaAcoes = document.createElement('td');
         colunaAcoes.className = 'px-4 py-3 text-sm';
+        if (estaCancelado) {
+          colunaAcoes.classList.add('text-rose-700');
+        }
         const botaoExcluir = document.createElement('button');
         botaoExcluir.type = 'button';
         botaoExcluir.className = 'btn btn-sm flex items-center gap-2 text-rose-600 hover:text-rose-700';
@@ -2861,6 +3060,31 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           });
           toggle.dataset.bound = 'true';
         }
+        const botaoDevolucao = document.getElementById('vtsDevolucaoBtn');
+        const inputCodigo = document.getElementById('vtsDevolucaoCodigo');
+        const inputLoja = document.getElementById('vtsDevolucaoLoja');
+
+        if (botaoDevolucao && !botaoDevolucao.dataset.bound) {
+          botaoDevolucao.addEventListener('click', () => marcarPedidoComoDevolucaoVts());
+          botaoDevolucao.dataset.bound = 'true';
+        }
+
+        const bindEnter = (input) => {
+          if (!input || input.dataset.boundEnter) return;
+          input.addEventListener('keydown', (evento) => {
+            if (evento.key === 'Enter') {
+              evento.preventDefault();
+              marcarPedidoComoDevolucaoVts();
+            }
+          });
+          input.dataset.boundEnter = 'true';
+        };
+
+        bindEnter(inputCodigo);
+        bindEnter(inputLoja);
+
+        setVtsDevolucaoFeedback('', 'info');
+
         container.dataset.initialized = 'true';
       }
 
