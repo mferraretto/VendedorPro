@@ -475,10 +475,21 @@
   </div>
 
   <div class="card max-w-5xl mx-auto">
-    <div class="card-header flex items-center justify-between gap-2">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
       <div>
         <h3 class="text-lg font-semibold text-slate-800">SKUs associados</h3>
         <p class="text-sm text-slate-500">Gerencie os SKUs já cadastrados. É possível editar ou excluir quando necessário.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="btn btn-light whitespace-nowrap" id="vtsSkuExportarExcel">
+          <i class="fas fa-file-excel mr-2"></i>
+          Exportar Excel
+        </button>
+        <button type="button" class="btn btn-secondary whitespace-nowrap" id="vtsSkuImportarExcel">
+          <i class="fas fa-file-import mr-2"></i>
+          Importar Excel
+        </button>
+        <input type="file" id="vtsSkuImportarExcelInput" accept=".xlsx,.xls" class="hidden" />
       </div>
     </div>
     <div class="card-body p-0">
@@ -547,6 +558,24 @@
           <i class="fas fa-eraser mr-2"></i>
           Limpar filtros
         </button>
+        <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
+          <button
+            id="vtsResumoExportarPdf"
+            type="button"
+            class="btn btn-secondary whitespace-nowrap"
+          >
+            <i class="fas fa-file-pdf mr-2"></i>
+            Exportar PDF
+          </button>
+          <button
+            id="vtsResumoExportarExcel"
+            type="button"
+            class="btn btn-light whitespace-nowrap"
+          >
+            <i class="fas fa-file-excel mr-2"></i>
+            Exportar Excel
+          </button>
+        </div>
       </div>
     </div>
     <div class="card-body space-y-4">

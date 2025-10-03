@@ -204,6 +204,8 @@ let vtsFiltroDataColocadaInicio = '';
 let vtsFiltroDataColocadaFim = '';
 let vtsFiltroLoja = '';
 let vtsEtiquetasSelecionadas = new Set();
+let vtsResumoDadosExportacao = [];
+let vtsResumoTotaisExportacao = { vendido: 0, cancelado: 0, esperado: 0 };
 
 const VTS_MODELOS_CONFIG = Object.freeze({
   mercadoLivre: {
@@ -238,6 +240,26 @@ const VTS_PLANILHA_COLUNAS = Object.freeze([
 const VTS_PLANILHA_HEADER_NORMALIZADO = Object.freeze(
   VTS_PLANILHA_COLUNAS.reduce((acc, coluna) => {
     acc[coluna.chave] = normalizeHeaderKey(coluna.rotulo);
+    return acc;
+  }, {}),
+);
+
+const VTS_SKU_PLANILHA_COLUNAS = Object.freeze([
+  { chave: 'skuPrincipal', rotulo: 'SKU principal' },
+  { chave: 'associados', rotulo: 'SKUs associados' },
+  { chave: 'sobraEsperada', rotulo: 'Sobra esperada' },
+]);
+
+const VTS_SKU_PLANILHA_HEADER_NORMALIZADO = Object.freeze(
+  VTS_SKU_PLANILHA_COLUNAS.reduce((acc, coluna) => {
+    acc[coluna.chave] = normalizeHeaderKey(coluna.rotulo);
+    return acc;
+  }, {}),
+);
+
+const VTS_SKU_PLANILHA_HEADER_MAP = Object.freeze(
+  Object.entries(VTS_SKU_PLANILHA_HEADER_NORMALIZADO).reduce((acc, [chave, normalizado]) => {
+    acc[normalizado] = chave;
     return acc;
   }, {}),
 );
@@ -305,6 +327,14 @@ function normalizeHeaderKey(key) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]/g, '')
     .toLowerCase();
+}
+
+function gerarTimestampArquivoVts() {
+  const agora = new Date();
+  const pad = (valor) => String(valor).padStart(2, '0');
+  return `${agora.getFullYear()}${pad(agora.getMonth() + 1)}${pad(agora.getDate())}-${pad(agora.getHours())}${pad(
+    agora.getMinutes(),
+  )}${pad(agora.getSeconds())}`;
 }
 
 function buildHeaderMap(row) {
@@ -1824,6 +1854,180 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       });
     }
 
+    function exportarAssociacoesSkuVtsExcel() {
+      if (!vtsSkuAssociacoes.length) {
+        aplicarFeedbackGenericoVts(
+          'vtsSkuFeedback',
+          'Não há associações cadastradas para exportar. Cadastre algum SKU antes de gerar a planilha.',
+          'warning',
+        );
+        return;
+      }
+
+      try {
+        const cabecalho = VTS_SKU_PLANILHA_COLUNAS.map((coluna) => coluna.rotulo);
+        const linhas = [...vtsSkuAssociacoes]
+          .sort((a, b) => (a.skuPrincipal || '').localeCompare(b.skuPrincipal || '', 'pt-BR', { sensitivity: 'base' }))
+          .map((associacao) => {
+            const associados = [...new Set([...(associacao.associados || []), ...(associacao.principaisVinculados || [])])]
+              .filter(Boolean)
+              .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
+              .join(', ');
+            const sobraEsperadaNumero = Number(associacao.sobraEsperada ?? 0);
+            const sobraEsperadaValida = Number.isFinite(sobraEsperadaNumero) && sobraEsperadaNumero >= 0
+              ? sobraEsperadaNumero
+              : 0;
+            return [
+              associacao.skuPrincipal || associacao.id || '',
+              associados,
+              sobraEsperadaValida,
+            ];
+          });
+
+        const worksheet = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'SKUs associados');
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const nomeArquivo = `vts-sku-associados-${gerarTimestampArquivoVts()}.xlsx`;
+        const blob = new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        saveAs(blob, nomeArquivo);
+
+        aplicarFeedbackGenericoVts(
+          'vtsSkuFeedback',
+          'Planilha de SKUs exportada com sucesso. Utilize este arquivo como modelo para futuras importações.',
+          'success',
+        );
+      } catch (erro) {
+        console.error('Erro ao exportar associações de SKU VTS:', erro);
+        aplicarFeedbackGenericoVts(
+          'vtsSkuFeedback',
+          'Não foi possível exportar a planilha de SKUs. Tente novamente mais tarde.',
+          'error',
+        );
+      }
+    }
+
+    async function importarAssociacoesSkuVts(evento) {
+      const input = evento?.target;
+      const arquivo = input?.files?.[0];
+      if (!arquivo) return;
+
+      if (!db) {
+        aplicarFeedbackGenericoVts(
+          'vtsSkuFeedback',
+          'Não foi possível conectar ao banco de dados para importar os SKUs.',
+          'error',
+        );
+        input.value = '';
+        return;
+      }
+
+      try {
+        aplicarFeedbackGenericoVts('vtsSkuFeedback', 'Importando planilha de SKUs, aguarde...', 'info');
+
+        const arrayBuffer = await arquivo.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const primeiraPlanilha = workbook.SheetNames[0];
+        if (!primeiraPlanilha) {
+          aplicarFeedbackGenericoVts(
+            'vtsSkuFeedback',
+            'Não encontramos dados na planilha enviada. Verifique o arquivo e tente novamente.',
+            'warning',
+          );
+          input.value = '';
+          return;
+        }
+
+        const sheet = workbook.Sheets[primeiraPlanilha];
+        const linhas = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        if (!linhas.length) {
+          aplicarFeedbackGenericoVts(
+            'vtsSkuFeedback',
+            'A planilha está vazia. Utilize o modelo exportado para importar os SKUs.',
+            'warning',
+          );
+          input.value = '';
+          return;
+        }
+
+        const operacoes = [];
+        let registrosProcessados = 0;
+
+        linhas.forEach((linha, indice) => {
+          const dadosNormalizados = {};
+          Object.entries(linha).forEach(([coluna, valor]) => {
+            const chaveNormalizada = normalizeHeaderKey(coluna);
+            const destino = VTS_SKU_PLANILHA_HEADER_MAP[chaveNormalizada];
+            if (destino) {
+              dadosNormalizados[destino] = valor;
+            }
+          });
+
+          const skuPrincipal = String(dadosNormalizados.skuPrincipal || '').trim();
+          if (!skuPrincipal) {
+            console.warn(`Linha ${indice + 2} ignorada por não conter SKU principal.`);
+            return;
+          }
+
+          const associadosValor = dadosNormalizados.associados || '';
+          const associados = Array.isArray(associadosValor)
+            ? associadosValor.map((item) => String(item).trim()).filter(Boolean)
+            : parseListaSkusVts(String(associadosValor));
+          const sobraEsperadaNumero = parseNumber(dadosNormalizados.sobraEsperada ?? 0);
+          const sobraEsperada = Number.isFinite(sobraEsperadaNumero) && sobraEsperadaNumero >= 0 ? sobraEsperadaNumero : 0;
+
+          operacoes.push(
+            db
+              .collection('skuAssociado')
+              .doc(skuPrincipal)
+              .set(
+                {
+                  skuPrincipal,
+                  associados,
+                  principaisVinculados: [],
+                  sobraEsperada,
+                  apenasVts: true,
+                  escopo: 'vts',
+                },
+                { merge: true },
+              ),
+          );
+          registrosProcessados += 1;
+        });
+
+        if (!registrosProcessados) {
+          aplicarFeedbackGenericoVts(
+            'vtsSkuFeedback',
+            'Não identificamos SKUs válidos na planilha. Confirme se o cabeçalho está igual ao arquivo modelo.',
+            'warning',
+          );
+          input.value = '';
+          return;
+        }
+
+        await Promise.all(operacoes);
+        aplicarFeedbackGenericoVts(
+          'vtsSkuFeedback',
+          `Importação concluída com sucesso. ${registrosProcessados} registro(s) atualizado(s).`,
+          'success',
+        );
+        await carregarAssociacoesSkuVts();
+      } catch (erro) {
+        console.error('Erro ao importar planilha de SKUs VTS:', erro);
+        aplicarFeedbackGenericoVts(
+          'vtsSkuFeedback',
+          'Não foi possível importar a planilha de SKUs. Verifique o arquivo e tente novamente.',
+          'error',
+        );
+      } finally {
+        if (input) {
+          input.value = '';
+        }
+      }
+    }
+
     function resetFormularioAssociacaoVts() {
       const principalInput = document.getElementById('vtsSkuPrincipal');
       const associadosInput = document.getElementById('vtsSkuAssociados');
@@ -2084,6 +2288,24 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
         });
         tabela.dataset.bound = 'true';
+      }
+
+      const botaoExportar = document.getElementById('vtsSkuExportarExcel');
+      if (botaoExportar && !botaoExportar.dataset.bound) {
+        botaoExportar.addEventListener('click', exportarAssociacoesSkuVtsExcel);
+        botaoExportar.dataset.bound = 'true';
+      }
+
+      const botaoImportar = document.getElementById('vtsSkuImportarExcel');
+      const inputImportar = document.getElementById('vtsSkuImportarExcelInput');
+      if (botaoImportar && inputImportar && !botaoImportar.dataset.bound) {
+        botaoImportar.addEventListener('click', () => inputImportar.click());
+        botaoImportar.dataset.bound = 'true';
+      }
+
+      if (inputImportar && !inputImportar.dataset.bound) {
+        inputImportar.addEventListener('change', importarAssociacoesSkuVts);
+        inputImportar.dataset.bound = 'true';
       }
     }
 
@@ -2463,6 +2685,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       const registros = Array.isArray(registrosFiltrados) ? registrosFiltrados : obterEtiquetasFiltradasVts();
 
+      vtsResumoDadosExportacao = [];
+      vtsResumoTotaisExportacao = { vendido: 0, cancelado: 0, esperado: 0 };
+
       const resumoMapa = new Map();
       let totalVendido = 0;
       let totalCancelado = 0;
@@ -2505,9 +2730,29 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         a.skuPrincipal.localeCompare(b.skuPrincipal, 'pt-BR', { sensitivity: 'base' }),
       );
 
+      const dadosExportacao = linhasOrdenadas.map((item) => {
+        const consideradosArray = Array.from(item.considerados)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+        const vendidoNumero = Number(item.vendido ?? 0);
+        const canceladoNumero = Number(item.cancelado ?? 0);
+        const sobraCadastro = Number(item.sobraEsperadaCadastro ?? 0);
+        const sobraCadastroValida = Number.isFinite(sobraCadastro) && sobraCadastro >= 0 ? sobraCadastro : 0;
+        const esperadoNumero = sobraCadastroValida * (Number.isFinite(vendidoNumero) ? vendidoNumero : 0);
+
+        return {
+          skuPrincipal: item.skuPrincipal,
+          skusConsiderados: consideradosArray.join(', '),
+          sobraUnitaria: sobraCadastroValida,
+          sobraEstimativa: Number.isFinite(esperadoNumero) ? esperadoNumero : 0,
+          totalVendido: Number.isFinite(vendidoNumero) ? vendidoNumero : 0,
+          totalCancelado: Number.isFinite(canceladoNumero) ? canceladoNumero : 0,
+        };
+      });
+
       tabelaCorpo.innerHTML = '';
 
-      if (!linhasOrdenadas.length) {
+      if (!dadosExportacao.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
         coluna.colSpan = 5;
@@ -2516,24 +2761,20 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         linha.appendChild(coluna);
         tabelaCorpo.appendChild(linha);
       } else {
-        linhasOrdenadas.forEach((item) => {
-          const considerados = Array.from(item.considerados)
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
-            .join(', ');
-          const esperadoNumero = Number(item.sobraEsperadaCadastro ?? 0) * Number(item.vendido ?? 0);
-          const esperadoTexto = Number.isFinite(esperadoNumero)
-            ? esperadoNumero.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-            : '0';
-
+        dadosExportacao.forEach((item) => {
+          const esperadoNumero = Number.isFinite(item.sobraEstimativa) ? item.sobraEstimativa : 0;
+          const esperadoTexto = esperadoNumero.toLocaleString('pt-BR', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          });
           const linha = document.createElement('tr');
           linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
           linha.innerHTML = `
             <td class="px-4 py-3 font-semibold text-slate-700">${item.skuPrincipal}</td>
-            <td class="px-4 py-3 text-slate-600">${considerados}</td>
+            <td class="px-4 py-3 text-slate-600">${item.skusConsiderados}</td>
             <td class="px-4 py-3 text-right text-slate-700 font-semibold">${esperadoTexto}</td>
-            <td class="px-4 py-3 text-right text-slate-700 font-semibold">${item.vendido}</td>
-            <td class="px-4 py-3 text-right text-slate-700 font-semibold">${item.cancelado}</td>
+            <td class="px-4 py-3 text-right text-slate-700 font-semibold">${item.totalVendido}</td>
+            <td class="px-4 py-3 text-right text-slate-700 font-semibold">${item.totalCancelado}</td>
           `;
           tabelaCorpo.appendChild(linha);
         });
@@ -2541,18 +2782,23 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       totalVendidoEl.textContent = totalVendido.toString();
       totalCanceladoEl.textContent = totalCancelado.toString();
-      const totalEsperado = linhasOrdenadas.reduce((acc, item) => {
-        const sobraCadastro = Number(item.sobraEsperadaCadastro ?? 0);
-        const vendido = Number(item.vendido ?? 0);
-        const esperadoCalculado = sobraCadastro * vendido;
-        return acc + (Number.isFinite(esperadoCalculado) ? esperadoCalculado : 0);
-      }, 0);
+      const totalEsperado = dadosExportacao.reduce(
+        (acc, item) => acc + (Number.isFinite(item.sobraEstimativa) ? item.sobraEstimativa : 0),
+        0,
+      );
       totalEsperadoEl.textContent = Number(totalEsperado).toLocaleString('pt-BR', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 2,
       });
 
-      const possuiResultados = linhasOrdenadas.length > 0;
+      vtsResumoDadosExportacao = dadosExportacao;
+      vtsResumoTotaisExportacao = {
+        vendido: totalVendido,
+        cancelado: totalCancelado,
+        esperado: Number.isFinite(totalEsperado) ? totalEsperado : 0,
+      };
+
+      const possuiResultados = dadosExportacao.length > 0;
       const descricaoFiltros = construirDescricaoFiltrosVts();
       aplicarFeedbackGenericoVts(
         'vtsResumoFeedback',
@@ -2561,6 +2807,210 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           : `Não encontramos etiquetas para os filtros selecionados. ${descricaoFiltros}`,
         possuiResultados ? 'info' : 'warning',
       );
+    }
+
+    function exportarResumoVtsExcel() {
+      if (!vtsResumoDadosExportacao.length) {
+        aplicarFeedbackGenericoVts(
+          'vtsResumoFeedback',
+          'Não há dados para exportar. Ajuste os filtros e tente novamente.',
+          'warning',
+        );
+        return;
+      }
+
+      try {
+        const cabecalho = [
+          'SKU principal',
+          'SKUs considerados',
+          'Sobra esperada por unidade',
+          'Sobra esperada estimada',
+          'Total vendido',
+          'Total cancelado',
+        ];
+        const linhas = vtsResumoDadosExportacao.map((item) => [
+          item.skuPrincipal,
+          item.skusConsiderados,
+          Number.isFinite(item.sobraUnitaria) ? item.sobraUnitaria : 0,
+          Number.isFinite(item.sobraEstimativa) ? item.sobraEstimativa : 0,
+          Number.isFinite(item.totalVendido) ? item.totalVendido : 0,
+          Number.isFinite(item.totalCancelado) ? item.totalCancelado : 0,
+        ]);
+        const totais = [
+          'Totais',
+          '',
+          '',
+          Number(vtsResumoTotaisExportacao.esperado || 0),
+          Number(vtsResumoTotaisExportacao.vendido || 0),
+          Number(vtsResumoTotaisExportacao.cancelado || 0),
+        ];
+
+        const worksheet = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas, [], totais]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Resumo VTS');
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        saveAs(blob, `vts-resumo-${gerarTimestampArquivoVts()}.xlsx`);
+        aplicarFeedbackGenericoVts('vtsResumoFeedback', 'Resumo exportado em Excel com sucesso.', 'success');
+      } catch (erro) {
+        console.error('Erro ao exportar resumo VTS em Excel:', erro);
+        aplicarFeedbackGenericoVts(
+          'vtsResumoFeedback',
+          'Não foi possível exportar o resumo em Excel. Tente novamente mais tarde.',
+          'error',
+        );
+      }
+    }
+
+    async function exportarResumoVtsPdf() {
+      if (!vtsResumoDadosExportacao.length) {
+        aplicarFeedbackGenericoVts(
+          'vtsResumoFeedback',
+          'Não há dados para exportar. Ajuste os filtros e tente novamente.',
+          'warning',
+        );
+        return;
+      }
+
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.padding = '24px';
+      container.style.fontFamily = 'Inter, sans-serif';
+      container.style.color = '#1f2937';
+      container.style.maxWidth = '900px';
+
+      const titulo = document.createElement('h2');
+      titulo.textContent = 'Resumo por SKU';
+      titulo.style.marginBottom = '8px';
+      titulo.style.fontSize = '18px';
+      container.appendChild(titulo);
+
+      const descricao = document.createElement('p');
+      descricao.textContent = construirDescricaoFiltrosVts();
+      descricao.style.marginBottom = '16px';
+      descricao.style.fontSize = '12px';
+      container.appendChild(descricao);
+
+      const tabela = document.createElement('table');
+      tabela.style.width = '100%';
+      tabela.style.borderCollapse = 'collapse';
+      tabela.style.fontSize = '11px';
+
+      const cabecalho = document.createElement('thead');
+      const cabecalhoLinha = document.createElement('tr');
+      ['SKU principal', 'SKUs considerados', 'Sobra esperada estimada', 'Total vendido', 'Total cancelado'].forEach((texto, indice) => {
+        const th = document.createElement('th');
+        th.textContent = texto;
+        th.style.border = '1px solid #e2e8f0';
+        th.style.backgroundColor = '#f1f5f9';
+        th.style.padding = '8px';
+        th.style.fontWeight = '600';
+        th.style.textAlign = indice <= 1 ? 'left' : 'right';
+        cabecalhoLinha.appendChild(th);
+      });
+      cabecalho.appendChild(cabecalhoLinha);
+      tabela.appendChild(cabecalho);
+
+      const corpo = document.createElement('tbody');
+      vtsResumoDadosExportacao.forEach((item) => {
+        const linha = document.createElement('tr');
+        linha.style.borderBottom = '1px solid #e2e8f0';
+
+        const esperadoNumero = Number.isFinite(item.sobraEstimativa) ? item.sobraEstimativa : 0;
+
+        const colunas = [
+          { valor: item.skuPrincipal || '', alinhamento: 'left' },
+          { valor: item.skusConsiderados || '-', alinhamento: 'left' },
+          {
+            valor: esperadoNumero.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+            alinhamento: 'right',
+          },
+          {
+            valor: Number(item.totalVendido || 0).toLocaleString('pt-BR', {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            }),
+            alinhamento: 'right',
+          },
+          {
+            valor: Number(item.totalCancelado || 0).toLocaleString('pt-BR', {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            }),
+            alinhamento: 'right',
+          },
+        ];
+
+        colunas.forEach(({ valor, alinhamento }) => {
+          const td = document.createElement('td');
+          td.textContent = valor;
+          td.style.padding = '8px';
+          td.style.border = '1px solid #e2e8f0';
+          td.style.textAlign = alinhamento;
+          linha.appendChild(td);
+        });
+
+        corpo.appendChild(linha);
+      });
+      tabela.appendChild(corpo);
+      container.appendChild(tabela);
+
+      const totais = document.createElement('div');
+      totais.style.marginTop = '16px';
+      totais.style.fontSize = '12px';
+      totais.innerHTML = `
+        <p><strong>Total vendido:</strong> ${Number(vtsResumoTotaisExportacao.vendido || 0).toLocaleString('pt-BR')}</p>
+        <p><strong>Total cancelado:</strong> ${Number(vtsResumoTotaisExportacao.cancelado || 0).toLocaleString('pt-BR')}</p>
+        <p><strong>Sobra esperada estimada:</strong> ${Number(vtsResumoTotaisExportacao.esperado || 0).toLocaleString('pt-BR', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        })}</p>
+      `;
+      container.appendChild(totais);
+
+      document.body.appendChild(container);
+
+      try {
+        await html2pdf()
+          .set({
+            margin: 10,
+            filename: `vts-resumo-${gerarTimestampArquivoVts()}.pdf`,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          })
+          .from(container)
+          .save();
+        aplicarFeedbackGenericoVts('vtsResumoFeedback', 'Resumo exportado em PDF com sucesso.', 'success');
+      } catch (erro) {
+        console.error('Erro ao exportar resumo VTS em PDF:', erro);
+        aplicarFeedbackGenericoVts(
+          'vtsResumoFeedback',
+          'Não foi possível exportar o resumo em PDF. Tente novamente mais tarde.',
+          'error',
+        );
+      } finally {
+        container.remove();
+      }
+    }
+
+    function configurarResumoVtsExportacoes() {
+      const botaoExcel = document.getElementById('vtsResumoExportarExcel');
+      if (botaoExcel && !botaoExcel.dataset.bound) {
+        botaoExcel.addEventListener('click', exportarResumoVtsExcel);
+        botaoExcel.dataset.bound = 'true';
+      }
+
+      const botaoPdf = document.getElementById('vtsResumoExportarPdf');
+      if (botaoPdf && !botaoPdf.dataset.bound) {
+        botaoPdf.addEventListener('click', () => {
+          exportarResumoVtsPdf();
+        });
+        botaoPdf.dataset.bound = 'true';
+      }
     }
 
     function atualizarResumoEtiquetasVts(totalFiltrado = obterEtiquetasFiltradasVts().length, totalGeral = vtsEtiquetasRegistros.length) {
@@ -4885,6 +5335,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         configurarSubtabsVts();
         configurarAssociacoesVts();
         configurarFiltrosVts();
+        configurarResumoVtsExportacoes();
         container.dataset.initialized = 'true';
       }
 
