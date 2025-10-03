@@ -160,6 +160,7 @@
 <script type="module">
     import { firebaseConfig } from './firebase-config.js';
     import { parseMagalu } from './parser-magalu.js';
+    import { parseShopeePage } from './parser-shopee.js';
   // =============================================
     // CONFIGURAÇÃO INICIAL E VARIÁVEIS GLOBAIS
     // =============================================
@@ -2515,9 +2516,47 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     }
 
     function interpretarEtiquetaShopee(linhas, pagina) {
-      const resultadoMercadoLivre = interpretarEtiquetaMercadoLivre(linhas, pagina);
-      if (possuiInformacoesEtiquetaVts(resultadoMercadoLivre)) {
-        return resultadoMercadoLivre;
+      const textoCompleto = (linhas || [])
+        .map((valor) => (valor == null ? '' : String(valor)))
+        .join('\n');
+
+      const parsed = parseShopeePage({ text: textoCompleto, pagina }) || {};
+
+      const dadosShopee = {
+        pagina,
+        modelo: 'shopee',
+        sku: parsed.sku || '',
+        pedido: parsed.pedido || '',
+        rastreio: parsed.rastreio ? parsed.rastreio.toUpperCase() : '',
+        loja: parsed.loja || '',
+        dataTexto: parsed.dataPrevistaEnvio || '',
+        dataNormalizada: parsed.dataPrevistaEnvioISO || '',
+        produto: parsed.produto || '',
+        qtd: parsed.qtd || '',
+        nfeChave: parsed.nfeChave || '',
+        emissaoNFe: parsed.emissaoNFe || '',
+        emissaoNFeISO: parsed.emissaoNFeISO || '',
+        dataPrevistaEnvio: parsed.dataPrevistaEnvio || '',
+        dataPrevistaEnvioISO: parsed.dataPrevistaEnvioISO || '',
+      };
+
+      if (!dadosShopee.dataTexto && parsed.emissaoNFe) {
+        dadosShopee.dataTexto = parsed.emissaoNFe;
+        dadosShopee.dataNormalizada = parsed.emissaoNFeISO
+          ? parsed.emissaoNFeISO.split('T')[0]
+          : '';
+      }
+
+      if (!dadosShopee.sku && parsed.produto) {
+        dadosShopee.sku = parsed.produto;
+      }
+
+      if (!dadosShopee.qtd) {
+        dadosShopee.qtd = '1';
+      }
+
+      if (possuiInformacoesEtiquetaVts(dadosShopee)) {
+        return dadosShopee;
       }
 
       const resultadoGenerico = interpretarEtiquetaGenerica(linhas, pagina, {
@@ -2542,7 +2581,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         return resultadoGenerico;
       }
 
-      return interpretarEtiquetaMercadoLivre(linhas, pagina);
+      const resultadoMercadoLivre = interpretarEtiquetaMercadoLivre(linhas, pagina);
+      if (possuiInformacoesEtiquetaVts(resultadoMercadoLivre)) {
+        return resultadoMercadoLivre;
+      }
+
+      return null;
     }
 
     function interpretarEtiquetaMagalu(linhas, pagina) {
