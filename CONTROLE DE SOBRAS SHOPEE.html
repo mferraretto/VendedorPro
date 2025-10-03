@@ -3888,21 +3888,54 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       };
     }
 
+    function buscarSegmentosRastreioMercadoLivreVts(texto) {
+      if (!texto) return [];
+
+      const normalizado = texto.replace(/\s+/g, ' ');
+      const resultados = [];
+      const regex = /(\d{4,7})\s+(\d{4,7})/g;
+      let match;
+
+      while ((match = regex.exec(normalizado))) {
+        const indice = match.index;
+        const bruto = match[0];
+        const digitos = bruto.replace(/\D/g, '');
+        if (digitos.length < 10 || digitos.length > 15) continue;
+
+        const contextoAntes = normalizado.slice(Math.max(0, indice - 30), indice).toLowerCase();
+        if (/\b(pack|venda)\s*id\b/.test(contextoAntes)) continue;
+
+        const contextoDepois = normalizado
+          .slice(indice + bruto.length, indice + bruto.length + 30)
+          .toLowerCase();
+        const contexto = removerAcentosVts(`${contextoAntes} ${contextoDepois}`);
+        const prioridade = /\b(despach|despache|despachar|antes das|ate as|horario)\b/.test(contexto)
+          ? 0
+          : 1;
+
+        resultados.push({
+          digitos,
+          formatado: `${match[1]} ${match[2]}`.trim(),
+          indice,
+          prioridade,
+        });
+      }
+
+      resultados.sort((a, b) => a.prioridade - b.prioridade || a.indice - b.indice);
+      return resultados;
+    }
+
     function extrairRastreioSegmentadoMercadoLivreVts(texto, pedidoAtual) {
       if (!texto) return '';
 
       const pedidoNumerico = (pedidoAtual || '').replace(/\D/g, '');
-      const normalizado = texto.replace(/\s+/g, ' ');
-      const regex = /(\d{5,6})\s+(\d{5,6})/g;
-      let match;
+      const candidatos = buscarSegmentosRastreioMercadoLivreVts(texto);
 
-      while ((match = regex.exec(normalizado))) {
-        const [_, parteA, parteB] = match;
-        const combinado = `${parteA}${parteB}`;
-        if (pedidoNumerico && (combinado === pedidoNumerico || pedidoNumerico.includes(combinado))) {
+      for (const candidato of candidatos) {
+        if (pedidoNumerico && (candidato.digitos === pedidoNumerico || pedidoNumerico.includes(candidato.digitos))) {
           continue;
         }
-        return `${parteA} ${parteB}`.trim();
+        return candidato.formatado;
       }
 
       return '';
@@ -3914,19 +3947,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const alvo = rastreioAtual.replace(/\D/g, '');
       if (!alvo) return '';
 
-      const normalizado = texto.replace(/\s+/g, ' ');
-      const regex = /(\d{5,6})\s+(\d{5,6})/g;
-      let match;
-
-      while ((match = regex.exec(normalizado))) {
-        const [_, parteA, parteB] = match;
-        const combinado = `${parteA}${parteB}`;
-        if (combinado === alvo) {
-          return `${parteA} ${parteB}`.trim();
-        }
-      }
-
-      return '';
+      const candidatos = buscarSegmentosRastreioMercadoLivreVts(texto);
+      const encontrado = candidatos.find((candidato) => candidato.digitos === alvo);
+      return encontrado ? encontrado.formatado : '';
     }
 
     function interpretarEtiquetaMercadoLivre(linhas, pagina) {
@@ -4064,7 +4087,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const awb = extrairAwbMercadoLivreVts(textoCompleto);
       if (awb) {
         dados.pedido = awb;
-        if (!dados.rastreio) dados.rastreio = awb;
+        if (!dados.rastreio && /[A-Za-z]/.test(awb)) dados.rastreio = awb;
       }
 
       const skuHeuristico = extrairSkuMercadoLivreVts(textoCompleto);
