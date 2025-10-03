@@ -270,11 +270,41 @@
     </p>
   </div>
 </div>
-<div class="card max-w-6xl mx-auto mt-8">
-  <div class="card-header flex flex-wrap items-center justify-between gap-2">
+  <div class="card max-w-6xl mx-auto mt-8">
+  <div class="card-header flex flex-wrap items-start justify-between gap-3">
     <div>
       <h3 class="text-lg font-semibold text-slate-800">Etiquetas importadas</h3>
       <p id="vtsResumo" class="text-sm text-slate-500">Carregando registros...</p>
+    </div>
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="flex flex-col gap-1">
+        <label for="vtsFiltroDataInicio" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Data inicial</label>
+        <input type="date" id="vtsFiltroDataInicio" class="form-control w-36" />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="vtsFiltroDataFim" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Data final</label>
+        <input type="date" id="vtsFiltroDataFim" class="form-control w-36" />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="vtsFiltroLoja" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Loja</label>
+        <input
+          type="text"
+          id="vtsFiltroLoja"
+          class="form-control w-40"
+          placeholder="Todas"
+          list="vtsFiltroLojas"
+          autocomplete="off"
+        />
+        <datalist id="vtsFiltroLojas"></datalist>
+      </div>
+      <button
+        type="button"
+        id="vtsFiltroLimpar"
+        class="btn btn-secondary whitespace-nowrap"
+      >
+        <i class="fas fa-eraser mr-2"></i>
+        Limpar filtros
+      </button>
     </div>
   </div>
   <div class="card-body p-0">
@@ -423,16 +453,45 @@
   class="space-y-6 mt-6 hidden"
 >
   <div class="card max-w-5xl mx-auto">
-    <div class="card-header flex flex-wrap items-center justify-between gap-3">
+    <div class="card-header flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 class="text-lg font-semibold text-slate-800">Resumo mensal por SKU</h3>
         <p class="text-sm text-slate-500">
           O resumo consolida as etiquetas importadas agrupando por SKU principal e seus associados.
         </p>
       </div>
-      <div class="flex items-center gap-2">
-        <label for="vtsResumoMes" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Mês de referência</label>
-        <input type="month" id="vtsResumoMes" class="form-control w-36" />
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="flex flex-col gap-1">
+          <label for="vtsResumoMes" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Mês de referência</label>
+          <input type="month" id="vtsResumoMes" class="form-control w-36" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="vtsResumoFiltroDataInicio" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Data inicial</label>
+          <input type="date" id="vtsResumoFiltroDataInicio" class="form-control w-36" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="vtsResumoFiltroDataFim" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Data final</label>
+          <input type="date" id="vtsResumoFiltroDataFim" class="form-control w-36" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="vtsResumoFiltroLoja" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Loja</label>
+          <input
+            type="text"
+            id="vtsResumoFiltroLoja"
+            class="form-control w-40"
+            placeholder="Todas"
+            list="vtsFiltroLojas"
+            autocomplete="off"
+          />
+        </div>
+        <button
+          type="button"
+          id="vtsResumoFiltroLimpar"
+          class="btn btn-secondary whitespace-nowrap"
+        >
+          <i class="fas fa-eraser mr-2"></i>
+          Limpar filtros
+        </button>
       </div>
     </div>
     <div class="card-body space-y-4">
