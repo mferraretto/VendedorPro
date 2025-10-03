@@ -100,6 +100,55 @@
   </div>
 </div>
 
+<div class="card max-w-5xl mx-auto mt-6">
+  <div class="card-header flex items-center gap-3">
+    <i class="fas fa-undo-alt text-rose-600"></i>
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800">Registrar devolução</h3>
+      <p class="text-sm text-slate-500">
+        Informe o número do pedido ou rastreio e a loja para sinalizar devoluções/cancelamentos nas etiquetas importadas.
+      </p>
+    </div>
+  </div>
+  <div class="card-body">
+    <form id="vtsDevolucaoForm" class="grid gap-4 md:grid-cols-3" autocomplete="off">
+      <div class="md:col-span-1">
+        <label for="vtsDevolucaoCodigo" class="text-xs font-semibold uppercase text-slate-600">Pedido ou rastreio</label>
+        <input
+          type="text"
+          id="vtsDevolucaoCodigo"
+          class="form-control mt-1"
+          placeholder="Ex.: PED123 ou LB123456789BR"
+          required
+        />
+      </div>
+      <div class="md:col-span-1">
+        <label for="vtsDevolucaoLoja" class="text-xs font-semibold uppercase text-slate-600">Loja</label>
+        <input
+          type="text"
+          id="vtsDevolucaoLoja"
+          class="form-control mt-1"
+          placeholder="Ex.: Shopee"
+          required
+        />
+      </div>
+      <div class="md:col-span-1 flex items-end">
+        <button
+          id="vtsDevolucaoSubmit"
+          type="submit"
+          class="btn btn-danger w-full justify-center"
+        >
+          <i class="fas fa-ban mr-2"></i>
+          Marcar como cancelado
+        </button>
+      </div>
+    </form>
+    <p class="mt-3 text-xs text-slate-500">
+      O sistema localizará o pedido nas etiquetas importadas e destacará o registro em vermelho com o aviso de cancelamento.
+    </p>
+  </div>
+</div>
+
 <div class="card max-w-6xl mx-auto mt-8">
   <div class="card-header flex flex-wrap items-center justify-between gap-2">
     <div>
@@ -118,6 +167,7 @@
             <th class="px-4 py-3 text-left font-semibold">Loja</th>
             <th class="px-4 py-3 text-left font-semibold">Data</th>
             <th class="px-4 py-3 text-left font-semibold">Arquivo</th>
+            <th class="px-4 py-3 text-left font-semibold">Status</th>
             <th class="px-4 py-3 text-left font-semibold">Ações</th>
           </tr>
         </thead>

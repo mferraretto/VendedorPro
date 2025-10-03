@@ -1459,8 +1459,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const resumo = document.getElementById('vtsResumo');
       if (!resumo) return;
 
+      const totalCancelados = vtsEtiquetasRegistros.filter((item) => item.cancelado).length;
+
       if (total > 0) {
-        resumo.textContent = `${total} etiqueta(s) importadas.`;
+        let mensagem = `${total} etiqueta(s) importadas.`;
+        if (totalCancelados > 0) {
+          mensagem += ` ${totalCancelados} pedido(s) cancelado(s) destacado(s) em vermelho.`;
+        }
+        resumo.textContent = mensagem;
       } else {
         resumo.textContent = 'Nenhuma etiqueta importada até o momento.';
       }
@@ -1501,6 +1507,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             origemArquivo: data.origemArquivo || '',
             paginaArquivo: data.paginaArquivo || null,
             modeloEtiqueta: data.modeloEtiqueta || data.modelo || data.plataforma || '',
+            cancelado: Boolean(data.cancelado),
+            canceladoEm: data.canceladoEm?.toDate?.() || null,
+            canceladoPor: data.canceladoPor || '',
+            canceladoLoja: data.canceladoLoja || '',
           };
         });
 
@@ -1527,7 +1537,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!registros.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 7;
+        coluna.colSpan = 8;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhum registro encontrado.';
         linha.appendChild(coluna);
@@ -1537,30 +1547,65 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       registros.forEach((item) => {
         const linha = document.createElement('tr');
-        linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+        linha.className = 'border-b border-slate-100 transition-colors';
+        linha.dataset.cancelado = item.cancelado ? 'true' : 'false';
+
+        if (item.cancelado) {
+          linha.classList.add('bg-rose-50', 'hover:bg-rose-100');
+        } else {
+          linha.classList.add('hover:bg-slate-50');
+        }
+
         if (item.modeloEtiqueta) {
           linha.dataset.modeloEtiqueta = item.modeloEtiqueta;
           linha.title = `Modelo da etiqueta: ${obterNomeModeloVts(item.modeloEtiqueta)}`;
         }
 
+        if (item.cancelado) {
+          const dataCancelamento = item.canceladoEm instanceof Date
+            ? item.canceladoEm.toLocaleString('pt-BR')
+            : '';
+          const avisoCancelamento = dataCancelamento
+            ? `Pedido cancelado em ${dataCancelamento}.`
+            : 'Pedido cancelado.';
+          linha.title = linha.title ? `${linha.title}\n${avisoCancelamento}` : avisoCancelamento;
+        }
+
+        const classeTexto = item.cancelado ? 'text-rose-700 font-semibold' : 'text-slate-700';
+        const statusHtml = item.cancelado
+          ? '<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"><i class="fas fa-exclamation-triangle"></i> Pedido cancelado</span>'
+          : '<span class="text-slate-400">-</span>';
+
         const campos = [
-          item.sku || '-',
-          item.pedido || '-',
-          item.rastreio || '-',
-          item.loja || '-',
-          formatarDataVts(item.dataEtiqueta, item.dataEtiquetaTexto),
-          item.origemArquivo || '-',
+          { texto: item.sku || '-', classe: classeTexto },
+          { texto: item.pedido || '-', classe: classeTexto },
+          { texto: item.rastreio || '-', classe: classeTexto },
+          { texto: item.loja || '-', classe: classeTexto },
+          { texto: formatarDataVts(item.dataEtiqueta, item.dataEtiquetaTexto), classe: classeTexto },
+          { texto: item.origemArquivo || '-', classe: classeTexto },
+          { html: statusHtml, classe: item.cancelado ? 'text-rose-700' : 'text-slate-500', semLimite: true },
         ];
 
-        campos.forEach((texto) => {
+        campos.forEach((campo) => {
           const coluna = document.createElement('td');
-          coluna.className = 'px-4 py-3 text-sm text-slate-700 break-words max-w-xs';
-          coluna.textContent = texto;
+          const classes = ['px-4', 'py-3', 'text-sm', 'break-words'];
+          if (!campo.semLimite) {
+            classes.push('max-w-xs');
+          }
+          if (campo.classe) {
+            classes.push(campo.classe);
+          }
+          coluna.className = classes.join(' ');
+          if (campo.html) {
+            coluna.innerHTML = campo.html;
+          } else {
+            coluna.textContent = campo.texto ?? '-';
+          }
           linha.appendChild(coluna);
         });
 
         const colunaAcoes = document.createElement('td');
-        colunaAcoes.className = 'px-4 py-3 text-sm';
+        colunaAcoes.className = `px-4 py-3 text-sm ${item.cancelado ? 'text-rose-700' : ''}`.trim();
         const botaoExcluir = document.createElement('button');
         botaoExcluir.type = 'button';
         botaoExcluir.className = 'btn btn-sm flex items-center gap-2 text-rose-600 hover:text-rose-700';
@@ -1681,6 +1726,127 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           console.error('Erro ao salvar etiqueta VTS:', erro);
           throw erro;
         }
+      }
+    }
+
+    function normalizarCodigoBuscaVts(valor = '') {
+      return (valor || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toLowerCase();
+    }
+
+    function normalizarLojaBuscaVts(valor = '') {
+      return (valor || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    async function marcarPedidoCanceladoVts(registroId, lojaInformada = '') {
+      if (!db || !registroId) throw new Error('Registro inválido para cancelamento.');
+
+      const docRef = db.collection('vtsEtiquetas').doc(registroId);
+      const atualizacoes = {
+        cancelado: true,
+        canceladoLoja: lojaInformada || '',
+        canceladoPor: usuarioLogado?.uid || '',
+        canceladoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await docRef.set(atualizacoes, { merge: true });
+
+      const indice = vtsEtiquetasRegistros.findIndex((item) => item.id === registroId);
+      if (indice >= 0) {
+        const registroAtual = vtsEtiquetasRegistros[indice];
+        vtsEtiquetasRegistros.splice(indice, 1, {
+          ...registroAtual,
+          cancelado: true,
+          canceladoLoja: atualizacoes.canceladoLoja || registroAtual.canceladoLoja || registroAtual.loja || '',
+          canceladoPor: atualizacoes.canceladoPor,
+          canceladoEm: new Date(),
+        });
+      }
+
+      renderizarEtiquetasVts(vtsEtiquetasRegistros);
+      atualizarResumoEtiquetasVts();
+    }
+
+    async function processarFormularioDevolucaoVts(evento) {
+      evento.preventDefault();
+
+      const inputCodigo = document.getElementById('vtsDevolucaoCodigo');
+      const inputLoja = document.getElementById('vtsDevolucaoLoja');
+
+      if (!inputCodigo || !inputLoja) return;
+
+      const codigo = inputCodigo.value.trim();
+      const loja = inputLoja.value.trim();
+
+      if (!codigo || !loja) {
+        setVtsFeedback('Informe o número do pedido ou rastreio e a loja para registrar a devolução.', 'warning');
+        return;
+      }
+
+      if (!vtsEtiquetasRegistros.length) {
+        setVtsFeedback('Nenhum pedido importado para localizar. Importe etiquetas antes de registrar devoluções.', 'warning');
+        return;
+      }
+
+      const codigoNormalizado = normalizarCodigoBuscaVts(codigo);
+      const lojaNormalizada = normalizarLojaBuscaVts(loja);
+
+      if (!codigoNormalizado) {
+        setVtsFeedback('Informe um número de pedido ou rastreio válido.', 'warning');
+        return;
+      }
+
+      const registrosPorCodigo = vtsEtiquetasRegistros.filter((item) => {
+        const pedidoNormalizado = normalizarCodigoBuscaVts(item.pedido);
+        const rastreioNormalizado = normalizarCodigoBuscaVts(item.rastreio);
+        return (
+          (pedidoNormalizado && pedidoNormalizado === codigoNormalizado) ||
+          (rastreioNormalizado && rastreioNormalizado === codigoNormalizado)
+        );
+      });
+
+      if (!registrosPorCodigo.length) {
+        setVtsFeedback('Nenhum pedido encontrado com as informações informadas. Verifique os dados e tente novamente.', 'error');
+        return;
+      }
+
+      const registrosComLoja = registrosPorCodigo.filter(
+        (item) => normalizarLojaBuscaVts(item.loja) === lojaNormalizada,
+      );
+
+      let registroSelecionado = registrosComLoja[0] || null;
+
+      if (!registroSelecionado && registrosPorCodigo.length === 1) {
+        registroSelecionado = registrosPorCodigo[0];
+      }
+
+      if (!registroSelecionado) {
+        setVtsFeedback('Mais de um pedido encontrado para esse código. Confirme a loja informada para continuar.', 'warning');
+        return;
+      }
+
+      if (registroSelecionado.cancelado) {
+        setVtsFeedback('Esse pedido já está marcado como cancelado.', 'warning');
+        return;
+      }
+
+      try {
+        await marcarPedidoCanceladoVts(registroSelecionado.id, loja);
+        setVtsFeedback('Pedido marcado como cancelado e destacado na lista.', 'success');
+        inputCodigo.value = '';
+        inputLoja.value = '';
+      } catch (erro) {
+        console.error('Erro ao registrar devolução VTS:', erro);
+        setVtsFeedback('Não foi possível registrar a devolução. Tente novamente mais tarde.', 'error');
       }
     }
 
@@ -2845,6 +3011,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             inputModelo.dataset.bound = 'true';
           }
         });
+        const formularioDevolucao = document.getElementById('vtsDevolucaoForm');
+        if (formularioDevolucao && !formularioDevolucao.dataset.bound) {
+          formularioDevolucao.addEventListener('submit', processarFormularioDevolucaoVts);
+          formularioDevolucao.dataset.bound = 'true';
+        }
         if (toggle && debugContainer && !toggle.dataset.bound) {
           toggle.addEventListener('click', () => {
             const estaOculto = debugContainer.classList.contains('hidden');
