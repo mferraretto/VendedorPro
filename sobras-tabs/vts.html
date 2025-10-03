@@ -1,4 +1,34 @@
-<div class="card max-w-5xl mx-auto">
+<div class="max-w-6xl mx-auto">
+  <div class="flex flex-wrap items-center gap-2">
+    <button
+      type="button"
+      class="btn btn-secondary vts-subtab-btn active"
+      data-vts-subtab="etiquetas"
+    >
+      <i class="fas fa-tags mr-2"></i>
+      Etiquetas
+    </button>
+    <button
+      type="button"
+      class="btn btn-secondary vts-subtab-btn"
+      data-vts-subtab="associacoes"
+    >
+      <i class="fas fa-link mr-2"></i>
+      Associar SKU
+    </button>
+    <button
+      type="button"
+      class="btn btn-secondary vts-subtab-btn"
+      data-vts-subtab="resumo"
+    >
+      <i class="fas fa-chart-column mr-2"></i>
+      Resumo mensal
+    </button>
+  </div>
+</div>
+
+<div id="vtsSubtabEtiquetas" data-vts-subtab-panel="etiquetas" class="space-y-6 mt-6">
+  <div class="card max-w-5xl mx-auto">
   <div class="card-header flex items-center gap-3">
     <i class="fas fa-qrcode text-indigo-600"></i>
     <div>
@@ -99,7 +129,6 @@
     ></div>
   </div>
 </div>
-
 <div class="card max-w-5xl mx-auto mt-6">
   <div class="card-header">
     <h3 class="text-lg font-semibold text-slate-800">Devoluções e cancelamentos</h3>
@@ -159,7 +188,6 @@
     </p>
   </div>
 </div>
-
 <div class="card max-w-6xl mx-auto mt-8">
   <div class="card-header flex flex-wrap items-center justify-between gap-2">
     <div>
@@ -187,30 +215,154 @@
     </div>
   </div>
 </div>
+  <div class="card max-w-6xl mx-auto mt-6">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800">Diagnóstico da leitura do PDF</h3>
+        <p class="text-sm text-slate-500">
+          Visualize exatamente o texto identificado em cada página e como o sistema interpretou as etiquetas.
+        </p>
+      </div>
+      <button
+        id="vtsToggleDebug"
+        type="button"
+        class="btn btn-secondary whitespace-nowrap"
+      >
+        Mostrar diagnóstico
+      </button>
+    </div>
+    <div id="vtsDebugContainer" class="card-body hidden">
+      <div class="space-y-3">
+        <p id="vtsDebugResumo" class="text-sm text-slate-600"></p>
+        <pre
+          id="vtsDebugPre"
+          class="bg-slate-900 text-slate-50 text-xs rounded-lg p-4 overflow-auto max-h-96"
+        ></pre>
+      </div>
+    </div>
+  </div>
 
-<div class="card max-w-6xl mx-auto mt-6">
-  <div class="card-header flex flex-wrap items-center justify-between gap-2">
-    <div>
-      <h3 class="text-lg font-semibold text-slate-800">Diagnóstico da leitura do PDF</h3>
+</div>
+
+<div
+  id="vtsSubtabAssociacoes"
+  data-vts-subtab-panel="associacoes"
+  class="space-y-6 mt-6 hidden"
+>
+  <div class="card max-w-4xl mx-auto">
+    <div class="card-header">
+      <h3 class="text-lg font-semibold text-slate-800">Associar SKUs</h3>
       <p class="text-sm text-slate-500">
-        Visualize exatamente o texto identificado em cada página e como o sistema interpretou as etiquetas.
+        Defina um SKU principal e inclua variações ou códigos equivalentes para consolidar a análise do resumo mensal.
       </p>
     </div>
-    <button
-      id="vtsToggleDebug"
-      type="button"
-      class="btn btn-secondary whitespace-nowrap"
-    >
-      Mostrar diagnóstico
-    </button>
+    <div class="card-body space-y-4">
+      <form id="vtsSkuForm" class="grid gap-4 md:grid-cols-2">
+        <div class="md:col-span-2">
+          <label for="vtsSkuPrincipal" class="block text-xs font-medium text-slate-600">SKU principal</label>
+          <input
+            type="text"
+            id="vtsSkuPrincipal"
+            class="form-control"
+            placeholder="Informe o SKU principal"
+            autocomplete="off"
+            required
+          />
+        </div>
+        <div class="md:col-span-2">
+          <label for="vtsSkuAssociados" class="block text-xs font-medium text-slate-600">SKUs associados</label>
+          <textarea
+            id="vtsSkuAssociados"
+            class="form-control"
+            rows="3"
+            placeholder="Informe os SKUs relacionados separados por vírgula ou linha"
+          ></textarea>
+          <p class="mt-1 text-[11px] leading-relaxed text-slate-500">
+            Utilize esta lista para adicionar códigos que representam o mesmo produto (por exemplo, variações de cor ou embalagem).
+          </p>
+        </div>
+        <div class="flex items-center gap-3 md:col-span-2">
+          <button type="submit" class="btn btn-primary" id="vtsSkuSalvar">
+            <i class="fas fa-save mr-2"></i>
+            Salvar associação
+          </button>
+          <button type="button" class="btn btn-secondary hidden" id="vtsSkuCancelar">
+            <i class="fas fa-xmark mr-2"></i>
+            Cancelar edição
+          </button>
+        </div>
+      </form>
+      <div id="vtsSkuFeedback" class="hidden"></div>
+    </div>
   </div>
-  <div id="vtsDebugContainer" class="card-body hidden">
-    <div class="space-y-3">
-      <p id="vtsDebugResumo" class="text-sm text-slate-600"></p>
-      <pre
-        id="vtsDebugPre"
-        class="bg-slate-900 text-slate-50 text-xs rounded-lg p-4 overflow-auto max-h-96"
-      ></pre>
+
+  <div class="card max-w-5xl mx-auto">
+    <div class="card-header flex items-center justify-between gap-2">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800">SKUs associados</h3>
+        <p class="text-sm text-slate-500">Gerencie os SKUs já cadastrados. É possível editar ou excluir quando necessário.</p>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">SKU principal</th>
+              <th class="px-4 py-3 text-left font-semibold">Associados</th>
+              <th class="px-4 py-3 text-left font-semibold">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="vtsSkuTabelaCorpo" class="bg-white"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  id="vtsSubtabResumo"
+  data-vts-subtab-panel="resumo"
+  class="space-y-6 mt-6 hidden"
+>
+  <div class="card max-w-5xl mx-auto">
+    <div class="card-header flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800">Resumo mensal por SKU</h3>
+        <p class="text-sm text-slate-500">
+          O resumo consolida as etiquetas importadas agrupando por SKU principal e seus associados.
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <label for="vtsResumoMes" class="text-xs font-medium text-slate-600 uppercase tracking-wide">Mês de referência</label>
+        <input type="month" id="vtsResumoMes" class="form-control w-36" />
+      </div>
+    </div>
+    <div class="card-body space-y-4">
+      <div id="vtsResumoFeedback" class="hidden"></div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">SKU principal</th>
+              <th class="px-4 py-3 text-left font-semibold">SKUs considerados</th>
+              <th class="px-4 py-3 text-right font-semibold">Total vendido</th>
+              <th class="px-4 py-3 text-right font-semibold">Total cancelado</th>
+            </tr>
+          </thead>
+          <tbody id="vtsResumoTabelaCorpo" class="bg-white"></tbody>
+        </table>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <p>
+          <strong>Total vendido no período:</strong>
+          <span id="vtsResumoTotalVendido" class="font-semibold text-slate-800">0</span>
+        </p>
+        <p class="mt-1">
+          <strong>Total cancelado no período:</strong>
+          <span id="vtsResumoTotalCancelado" class="font-semibold text-slate-800">0</span>
+        </p>
+      </div>
     </div>
   </div>
 </div>
