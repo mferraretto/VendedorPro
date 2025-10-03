@@ -201,6 +201,7 @@ let vtsSkuEdicaoAtual = null;
 let vtsFiltroDataInicio = '';
 let vtsFiltroDataFim = '';
 let vtsFiltroLoja = '';
+let vtsEtiquetasSelecionadas = new Set();
 
 const VTS_MODELOS_CONFIG = Object.freeze({
   mercadoLivre: {
@@ -2547,20 +2548,58 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       });
     }
 
+    function sanitizarSelecaoEtiquetasVts() {
+      if (!vtsEtiquetasSelecionadas?.size) return;
+      const idsDisponiveis = new Set(vtsEtiquetasRegistros.map((item) => item.id));
+      vtsEtiquetasSelecionadas.forEach((id) => {
+        if (!idsDisponiveis.has(id)) {
+          vtsEtiquetasSelecionadas.delete(id);
+        }
+      });
+    }
+
+    function atualizarControleSelecaoVts(registrosVisiveis = []) {
+      const botaoExcluir = document.getElementById('vtsExcluirSelecionados');
+      const totalSelecionados = vtsEtiquetasSelecionadas.size;
+      if (botaoExcluir) {
+        botaoExcluir.disabled = totalSelecionados === 0;
+        const textoBotao = botaoExcluir.querySelector('span');
+        if (textoBotao) {
+          const contador = totalSelecionados > 0 ? ` (${totalSelecionados})` : '';
+          textoBotao.textContent = `Excluir selecionados${contador}`;
+        }
+      }
+
+      const checkboxSelecionarTodos = document.getElementById('vtsSelecionarTodos');
+      if (!checkboxSelecionarTodos) return;
+
+      const totalVisiveis = Array.isArray(registrosVisiveis) ? registrosVisiveis.length : 0;
+      const totalSelecionadosVisiveis = Array.isArray(registrosVisiveis)
+        ? registrosVisiveis.filter((item) => vtsEtiquetasSelecionadas.has(item.id)).length
+        : 0;
+
+      checkboxSelecionarTodos.disabled = totalVisiveis === 0;
+      checkboxSelecionarTodos.checked = totalVisiveis > 0 && totalSelecionadosVisiveis === totalVisiveis;
+      checkboxSelecionarTodos.indeterminate =
+        totalVisiveis > 0 && totalSelecionadosVisiveis > 0 && totalSelecionadosVisiveis < totalVisiveis;
+    }
+
     function renderizarEtiquetasVts(registros = []) {
       const corpoTabela = document.getElementById('vtsTabelaCorpo');
       if (!corpoTabela) return;
 
+      sanitizarSelecaoEtiquetasVts();
       corpoTabela.innerHTML = '';
 
       if (!registros.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 8;
+        coluna.colSpan = 9;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhum registro encontrado.';
         linha.appendChild(coluna);
         corpoTabela.appendChild(linha);
+        atualizarControleSelecaoVts(registros);
         return;
       }
 
@@ -2591,6 +2630,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         } else if (tituloModelo) {
           linha.title = tituloModelo;
         }
+
+        const colunaSelecao = document.createElement('td');
+        colunaSelecao.className = 'px-4 py-3 text-sm text-slate-700';
+        if (estaCancelado) {
+          colunaSelecao.classList.add('text-rose-700');
+        }
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-checkbox h-4 w-4 text-indigo-600';
+        checkbox.checked = vtsEtiquetasSelecionadas.has(item.id);
+        checkbox.addEventListener('change', (evento) => {
+          if (evento.target.checked) {
+            vtsEtiquetasSelecionadas.add(item.id);
+          } else {
+            vtsEtiquetasSelecionadas.delete(item.id);
+          }
+          atualizarControleSelecaoVts(obterEtiquetasFiltradasVts());
+        });
+        colunaSelecao.appendChild(checkbox);
+        linha.appendChild(colunaSelecao);
 
         const campos = [
           { valor: item.sku || '-', html: false },
@@ -2639,23 +2698,20 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
         const colunaAcoes = document.createElement('td');
         colunaAcoes.className = 'px-4 py-3 text-sm';
-if (estaCancelado) {
-  // Mantém o destaque quando o item está cancelado
-  colunaAcoes.classList.add('text-rose-700');
-}
+        if (estaCancelado) {
+          colunaAcoes.classList.add('text-rose-700');
+        }
 
-// Container dos botões
-const containerAcoes = document.createElement('div');
-containerAcoes.className = 'flex flex-wrap items-center gap-2';
+        const containerAcoes = document.createElement('div');
+        containerAcoes.className = 'flex flex-wrap items-center gap-2';
 
-// Botão Editar
-const botaoEditar = document.createElement('button');
-botaoEditar.type = 'button';
-botaoEditar.className = 'btn btn-sm flex items-center gap-2 text-slate-600 hover:text-slate-700';
-botaoEditar.innerHTML = '<i class="fas fa-edit"></i><span>Editar</span>';
-botaoEditar.addEventListener('click', () => editarEtiquetaVts(item));
-containerAcoes.appendChild(botaoEditar);
-        
+        const botaoEditar = document.createElement('button');
+        botaoEditar.type = 'button';
+        botaoEditar.className = 'btn btn-sm flex items-center gap-2 text-slate-600 hover:text-slate-700';
+        botaoEditar.innerHTML = '<i class="fas fa-edit"></i><span>Editar</span>';
+        botaoEditar.addEventListener('click', () => editarEtiquetaVts(item));
+        containerAcoes.appendChild(botaoEditar);
+
         const botaoExcluir = document.createElement('button');
         botaoExcluir.type = 'button';
         botaoExcluir.className = 'btn btn-sm flex items-center gap-2 text-rose-600 hover:text-rose-700';
@@ -2669,6 +2725,7 @@ containerAcoes.appendChild(botaoEditar);
         corpoTabela.appendChild(linha);
       });
 
+      atualizarControleSelecaoVts(registros);
     }
 
     function aplicarFiltrosEtiquetasVts() {
@@ -2866,11 +2923,72 @@ containerAcoes.appendChild(botaoEditar);
       try {
         await db.collection('vtsEtiquetas').doc(registroId).delete();
         vtsEtiquetasRegistros = vtsEtiquetasRegistros.filter((item) => item.id !== registroId);
+        vtsEtiquetasSelecionadas.delete(registroId);
         aplicarFiltrosEtiquetasVts();
         setVtsFeedback('Registro excluído com sucesso.', 'success');
       } catch (erro) {
         console.error('Erro ao excluir etiqueta VTS:', erro);
         setVtsFeedback('Não foi possível excluir o registro. Tente novamente mais tarde.', 'error');
+      }
+    }
+
+    async function excluirEtiquetasSelecionadasVts() {
+      if (!db || !vtsEtiquetasSelecionadas.size) return;
+
+      const idsSelecionados = Array.from(vtsEtiquetasSelecionadas).filter(Boolean);
+      if (!idsSelecionados.length) {
+        vtsEtiquetasSelecionadas.clear();
+        atualizarControleSelecaoVts(obterEtiquetasFiltradasVts());
+        return;
+      }
+
+      const registrosSelecionados = vtsEtiquetasRegistros.filter((item) => idsSelecionados.includes(item.id));
+      if (!registrosSelecionados.length) {
+        vtsEtiquetasSelecionadas.clear();
+        atualizarControleSelecaoVts(obterEtiquetasFiltradasVts());
+        return;
+      }
+
+      const quantidade = registrosSelecionados.length;
+      let confirmado = true;
+      const exemploPedido = registrosSelecionados[0]?.pedido;
+      const mensagem =
+        quantidade === 1 && exemploPedido
+          ? `Deseja realmente excluir o pedido ${exemploPedido}?`
+          : `Deseja realmente excluir ${quantidade} registro(s) selecionado(s)?`;
+
+      if (window.Swal?.fire) {
+        const resultado = await window.Swal.fire({
+          title: 'Excluir registros selecionados',
+          text: mensagem,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, excluir',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#ef4444',
+        });
+        confirmado = resultado.isConfirmed;
+      } else {
+        confirmado = window.confirm(mensagem);
+      }
+
+      if (!confirmado) return;
+
+      try {
+        setVtsFeedback('Excluindo registros selecionados...', 'info');
+        const tarefas = idsSelecionados.map((id) => db.collection('vtsEtiquetas').doc(id).delete());
+        await Promise.all(tarefas);
+
+        const idsRemovidos = new Set(idsSelecionados);
+        vtsEtiquetasRegistros = vtsEtiquetasRegistros.filter((item) => !idsRemovidos.has(item.id));
+        idsRemovidos.forEach((id) => vtsEtiquetasSelecionadas.delete(id));
+        aplicarFiltrosEtiquetasVts();
+        setVtsFeedback(`${quantidade} registro(s) excluído(s) com sucesso.`, 'success');
+      } catch (erro) {
+        console.error('Erro ao excluir etiquetas selecionadas VTS:', erro);
+        setVtsFeedback('Não foi possível excluir os registros selecionados. Tente novamente mais tarde.', 'error');
+      } finally {
+        atualizarControleSelecaoVts(obterEtiquetasFiltradasVts());
       }
     }
 
@@ -4453,10 +4571,36 @@ containerAcoes.appendChild(botaoEditar);
           botaoExportar.addEventListener('click', exportarEtiquetasVtsExcel);
           botaoExportar.dataset.bound = 'true';
         }
+        const botaoExcluirSelecionados = document.getElementById('vtsExcluirSelecionados');
+        if (botaoExcluirSelecionados && !botaoExcluirSelecionados.dataset.bound) {
+          botaoExcluirSelecionados.addEventListener('click', excluirEtiquetasSelecionadasVts);
+          botaoExcluirSelecionados.dataset.bound = 'true';
+        }
         const inputImportar = document.getElementById('vtsImportarExcel');
         if (inputImportar && !inputImportar.dataset.bound) {
           inputImportar.addEventListener('change', importarEtiquetasVtsExcel);
           inputImportar.dataset.bound = 'true';
+        }
+        const selecionarTodos = document.getElementById('vtsSelecionarTodos');
+        if (selecionarTodos && !selecionarTodos.dataset.bound) {
+          selecionarTodos.addEventListener('change', (evento) => {
+            const registrosVisiveis = obterEtiquetasFiltradasVts();
+            if (evento.target.checked) {
+              registrosVisiveis.forEach((item) => {
+                if (item?.id) {
+                  vtsEtiquetasSelecionadas.add(item.id);
+                }
+              });
+            } else {
+              registrosVisiveis.forEach((item) => {
+                if (item?.id) {
+                  vtsEtiquetasSelecionadas.delete(item.id);
+                }
+              });
+            }
+            renderizarEtiquetasVts(registrosVisiveis);
+          });
+          selecionarTodos.dataset.bound = 'true';
         }
         configurarSubtabsVts();
         configurarAssociacoesVts();
