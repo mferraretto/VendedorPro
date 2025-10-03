@@ -15,19 +15,7 @@ export function parseMagalu(pages = []) {
     (p2.match(/C[oó]digo\s+de\s+Rastreamento:\s*([A-Z0-9-]{8,})/i) || [])[1] ||
     '';
 
-  const loja = (() => {
-    let nome =
-      (p1.match(/REMETENTE\s*\n\s*([^\n]+)/i) || [])[1] ||
-      (p1.match(/REMETENTE\s+([^\n]+)/i) || [])[1] ||
-      (p2.match(/REMETENTE[\s\S]*?NOME:\s*([^\n]+)/i) || [])[1] ||
-      '';
-
-    nome = nome
-      .replace(/^Magalu\s+/i, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-    return nome ? nome.toUpperCase() : '';
-  })();
+  const loja = 'MAGALU';
 
   const norm = (data) =>
     data ? data.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1') : '';
@@ -45,12 +33,17 @@ export function parseMagalu(pages = []) {
 
     const linhaItem = linhas.find((linha) => /^\d+\s+\S+/.test(linha)) || '';
 
-    let sku = '';
+    let sku =
+      (p2.match(/QTD\s*1\s*([A-Za-z0-9]{12})/) || [])[1] ||
+      (p2.match(/QTD\s*1[^A-Za-z0-9]*([A-Za-z0-9]{12})/) || [])[1] ||
+      '';
     let variacao = '';
     if (linhaItem) {
       const partes = linhaItem.match(/^\d+\s+([^\s]+)(?:\s+([^\s]+))?/);
       if (partes) {
-        sku = partes[1] || '';
+        if (!sku) {
+          sku = partes[1] || '';
+        }
         const possivelVariacao = partes[2] || '';
         if (
           possivelVariacao &&
