@@ -3315,6 +3315,16 @@ containerAcoes.appendChild(botaoEditar);
       const formatoAlfanumerico = normalizado.match(/\b[A-Z]{2}\d{8,}[A-Z]?\b/);
       if (formatoAlfanumerico) return formatoAlfanumerico[0];
 
+      const rastreioHorarioMatch = normalizado.match(/\b\d{1,2}:\d{2}\s*h?\s*(\d{4,7})\s+(\d{4,7})(?!\s*\d{4,})/);
+      if (rastreioHorarioMatch) {
+        const parte1 = (rastreioHorarioMatch[1] || '').replace(/\D/g, '');
+        const parte2 = (rastreioHorarioMatch[2] || '').replace(/\D/g, '');
+        const combinado = `${parte1}${parte2}`;
+        if (combinado.length >= 10 && combinado.length <= 15) {
+          return combinado;
+        }
+      }
+
       const candidatosNumericos = normalizado.match(/(\d[\d\s-]{8,}\d)/g);
       if (candidatosNumericos) {
         for (const candidato of candidatosNumericos) {
