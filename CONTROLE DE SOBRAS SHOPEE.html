@@ -2116,9 +2116,6 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     }
 
     function atualizarDatalistLojasVts(registros = []) {
-      const datalist = document.getElementById('vtsDevolucaoLojas');
-      if (!datalist) return;
-
       const lojas = Array.from(
         new Set(
           registros
@@ -2127,11 +2124,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         ),
       ).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
-      datalist.innerHTML = '';
-      lojas.forEach((loja) => {
-        const option = document.createElement('option');
-        option.value = loja;
-        datalist.appendChild(option);
+      ['vtsDevolucaoLojas', 'vtsManualLojas'].forEach((id) => {
+        const datalist = document.getElementById(id);
+        if (!datalist) return;
+
+        datalist.innerHTML = '';
+        lojas.forEach((loja) => {
+          const option = document.createElement('option');
+          option.value = loja;
+          datalist.appendChild(option);
+        });
       });
     }
 
@@ -2454,6 +2456,105 @@ containerAcoes.appendChild(botaoEditar);
       } catch (erro) {
         console.error('Erro ao excluir etiqueta VTS:', erro);
         setVtsFeedback('Não foi possível excluir o registro. Tente novamente mais tarde.', 'error');
+      }
+    }
+
+    async function registrarEntradaManualVts(event) {
+      event?.preventDefault?.();
+
+      if (!db || !usuarioLogado?.uid) {
+        setVtsFeedback('Não foi possível registrar a etiqueta manualmente no momento. Tente novamente mais tarde.', 'error');
+        return;
+      }
+
+      const formulario = document.getElementById('vtsEntradaManualForm');
+      if (!formulario) return;
+
+      const skuInput = document.getElementById('vtsManualSku');
+      const pedidoInput = document.getElementById('vtsManualPedido');
+      const rastreioInput = document.getElementById('vtsManualRastreio');
+      const lojaInput = document.getElementById('vtsManualLoja');
+      const dataInput = document.getElementById('vtsManualData');
+      const buyerInput = document.getElementById('vtsManualBuyer');
+      const botao = document.getElementById('vtsEntradaManualSubmit');
+
+      const skuValorBruto = skuInput?.value?.trim() || '';
+      const skuValorNormalizado = skuValorBruto ? limparValorSkuVts(skuValorBruto) : '';
+      const skuValor = skuValorNormalizado || skuValorBruto;
+
+      const pedidoValorBruto = pedidoInput?.value?.trim() || '';
+      const pedidoValor = pedidoValorBruto ? normalizarLinhaVts(pedidoValorBruto) : '';
+
+      const rastreioValorBruto = rastreioInput?.value?.trim() || '';
+      const rastreioValor = rastreioValorBruto ? normalizarLinhaVts(rastreioValorBruto) : '';
+
+      if (!pedidoValor && !rastreioValor) {
+        setVtsFeedback('Informe o número do pedido ou o código de rastreio para registrar a etiqueta manualmente.', 'warning');
+        (pedidoInput || rastreioInput)?.focus();
+        return;
+      }
+
+      let lojaValor = lojaInput?.value?.trim() || '';
+      if (lojaValor) {
+        const lojaLimpa = limparNomeLojaVts(lojaValor);
+        lojaValor = lojaLimpa || lojaValor;
+      }
+
+      const dataValor = dataInput?.value?.trim() || '';
+      let dataNormalizada = '';
+      let dataTexto = '';
+      if (dataValor) {
+        dataNormalizada = normalizeDate(dataValor);
+        if (dataNormalizada) {
+          const [ano, mes, dia] = dataNormalizada.split('-');
+          if (ano && mes && dia) {
+            dataTexto = `${dia}/${mes}/${ano}`;
+          }
+        }
+      }
+
+      const buyerValor = buyerInput?.value?.trim() || '';
+
+      const textoOriginalBotao = botao?.innerHTML;
+      if (botao) {
+        botao.disabled = true;
+        botao.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Registrando etiqueta...';
+        botao.classList.add('opacity-70');
+      }
+
+      try {
+        const etiquetaManual = {
+          sku: skuValor,
+          pedido: pedidoValor,
+          rastreio: rastreioValor,
+          loja: lojaValor,
+          dataNormalizada,
+          dataTexto,
+          buyerUsername: buyerValor,
+          modelo: 'manual',
+        };
+
+        const { salvos = 0, ignorados = 0 } = await salvarEtiquetasVts([etiquetaManual], null, 'manual');
+
+        if (salvos > 0) {
+          setVtsFeedback('Etiqueta registrada manualmente com sucesso.', 'success');
+          formulario.reset();
+          skuInput?.focus();
+          await carregarEtiquetasVts();
+        } else if (ignorados > 0) {
+          setVtsFeedback('O pedido informado já possui uma etiqueta cadastrada anteriormente.', 'warning');
+        } else {
+          setVtsFeedback('Nenhum registro foi criado. Verifique os dados informados e tente novamente.', 'info');
+        }
+      } catch (erro) {
+        console.error('Erro ao registrar etiqueta manual VTS:', erro);
+        setVtsFeedback('Não foi possível registrar a etiqueta manualmente. Tente novamente mais tarde.', 'error');
+      } finally {
+        if (botao) {
+          botao.disabled = false;
+          botao.innerHTML = textoOriginalBotao || 'Registrar etiqueta manualmente';
+          botao.classList.remove('opacity-70');
+        }
       }
     }
 
@@ -3906,6 +4007,11 @@ containerAcoes.appendChild(botaoEditar);
             inputModelo.dataset.bound = 'true';
           }
         });
+        const formularioManual = document.getElementById('vtsEntradaManualForm');
+        if (formularioManual && !formularioManual.dataset.bound) {
+          formularioManual.addEventListener('submit', registrarEntradaManualVts);
+          formularioManual.dataset.bound = 'true';
+        }
         const formularioDevolucao = document.getElementById('vtsDevolucaoForm');
         if (formularioDevolucao && !formularioDevolucao.dataset.bound) {
           formularioDevolucao.addEventListener('submit', registrarDevolucaoVts);
