@@ -1487,7 +1487,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           .get();
 
         vtsEtiquetasRegistros = consulta.docs.map((doc) => {
-          const data = doc.data();
+          const data = doc.data() || {};
           return {
             id: doc.id,
             sku: data.sku || '',
@@ -1501,6 +1501,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             origemArquivo: data.origemArquivo || '',
             paginaArquivo: data.paginaArquivo || null,
             modeloEtiqueta: data.modeloEtiqueta || data.modelo || data.plataforma || '',
+            status: data.status || '',
+            canceladoEm: data.canceladoEm?.toDate?.() || null,
+            canceladoPor: data.canceladoPor || '',
+            canceladoMotivo: data.canceladoMotivo || '',
           };
         });
 
@@ -1518,16 +1522,37 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
     }
 
+    function atualizarDatalistLojasVts(registros = []) {
+      const datalist = document.getElementById('vtsDevolucaoLojas');
+      if (!datalist) return;
+
+      const lojas = Array.from(
+        new Set(
+          registros
+            .map((item) => (item.loja || '').trim())
+            .filter((valor) => valor),
+        ),
+      ).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
+      datalist.innerHTML = '';
+      lojas.forEach((loja) => {
+        const option = document.createElement('option');
+        option.value = loja;
+        datalist.appendChild(option);
+      });
+    }
+
     function renderizarEtiquetasVts(registros = []) {
       const corpoTabela = document.getElementById('vtsTabelaCorpo');
       if (!corpoTabela) return;
 
       corpoTabela.innerHTML = '';
+      atualizarDatalistLojasVts(registros);
 
       if (!registros.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 7;
+        coluna.colSpan = 8;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhum registro encontrado.';
         linha.appendChild(coluna);
@@ -1537,41 +1562,96 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       registros.forEach((item) => {
         const linha = document.createElement('tr');
-        linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+        linha.className = 'border-b border-slate-100 transition-colors hover:bg-slate-50';
+        let tituloModelo = '';
         if (item.modeloEtiqueta) {
           linha.dataset.modeloEtiqueta = item.modeloEtiqueta;
-          linha.title = `Modelo da etiqueta: ${obterNomeModeloVts(item.modeloEtiqueta)}`;
+          tituloModelo = `Modelo da etiqueta: ${obterNomeModeloVts(item.modeloEtiqueta)}`;
+          linha.title = tituloModelo;
+        }
+
+        const estaCancelado = (item.status || '').toString().toLowerCase() === 'cancelado';
+        linha.dataset.status = item.status || '';
+        const dataCancelamento =
+          item.canceladoEm instanceof Date && !Number.isNaN(item.canceladoEm.getTime())
+            ? item.canceladoEm
+            : null;
+        if (estaCancelado) {
+          linha.classList.add('bg-rose-50/70', 'hover:bg-rose-100');
+          linha.classList.remove('hover:bg-slate-50');
+          const dataDescricao = dataCancelamento
+            ? ` em ${dataCancelamento.toLocaleDateString('pt-BR')} às ${dataCancelamento.toLocaleTimeString('pt-BR')}`
+            : '';
+          const tituloCancelado = `Pedido cancelado${dataDescricao} (devolução sinalizada)`;
+          linha.title = tituloModelo ? `${tituloCancelado}\n${tituloModelo}` : tituloCancelado;
+        } else if (tituloModelo) {
+          linha.title = tituloModelo;
         }
 
         const campos = [
-          item.sku || '-',
-          item.pedido || '-',
-          item.rastreio || '-',
-          item.loja || '-',
-          formatarDataVts(item.dataEtiqueta, item.dataEtiquetaTexto),
-          item.origemArquivo || '-',
+          { valor: item.sku || '-', html: false },
+          { valor: item.pedido || '-', html: false },
+          { valor: item.rastreio || '-', html: false },
+          { valor: item.loja || '-', html: false },
+          { valor: formatarDataVts(item.dataEtiqueta, item.dataEtiquetaTexto), html: false },
+          { valor: item.origemArquivo || '-', html: false },
+          {
+            valor: estaCancelado
+              ? '<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"><i class="fas fa-exclamation-triangle"></i> Pedido cancelado</span>'
+              : item.status
+                ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">${item.status}</span>`
+                : '<span class="text-slate-400">-</span>',
+            html: true,
+            classeExtra: 'min-w-[160px]',
+            titulo: estaCancelado
+              ? dataCancelamento
+                ? `Pedido cancelado em ${dataCancelamento.toLocaleDateString('pt-BR')} às ${dataCancelamento.toLocaleTimeString('pt-BR')}`
+                : 'Pedido cancelado'
+              : item.status
+                ? `Status: ${item.status}`
+                : '',
+          },
         ];
 
-        campos.forEach((texto) => {
+        campos.forEach((campo) => {
           const coluna = document.createElement('td');
           coluna.className = 'px-4 py-3 text-sm text-slate-700 break-words max-w-xs';
-          coluna.textContent = texto;
+          if (campo.classeExtra) {
+            coluna.classList.add(...campo.classeExtra.split(' '));
+          }
+          if (estaCancelado) {
+            coluna.classList.add('text-rose-700');
+          }
+          if (campo.titulo) {
+            coluna.title = campo.titulo;
+          }
+          if (campo.html) {
+            coluna.innerHTML = campo.valor;
+          } else {
+            coluna.textContent = campo.valor;
+          }
           linha.appendChild(coluna);
         });
 
         const colunaAcoes = document.createElement('td');
         colunaAcoes.className = 'px-4 py-3 text-sm';
+if (estaCancelado) {
+  // Mantém o destaque quando o item está cancelado
+  colunaAcoes.classList.add('text-rose-700');
+}
 
-        const containerAcoes = document.createElement('div');
-        containerAcoes.className = 'flex flex-wrap gap-2';
+// Container dos botões
+const containerAcoes = document.createElement('div');
+containerAcoes.className = 'flex flex-wrap items-center gap-2';
 
-        const botaoEditar = document.createElement('button');
-        botaoEditar.type = 'button';
-        botaoEditar.className = 'btn btn-sm flex items-center gap-2 text-slate-600 hover:text-slate-700';
-        botaoEditar.innerHTML = '<i class="fas fa-edit"></i><span>Editar</span>';
-        botaoEditar.addEventListener('click', () => editarEtiquetaVts(item));
-        containerAcoes.appendChild(botaoEditar);
-
+// Botão Editar
+const botaoEditar = document.createElement('button');
+botaoEditar.type = 'button';
+botaoEditar.className = 'btn btn-sm flex items-center gap-2 text-slate-600 hover:text-slate-700';
+botaoEditar.innerHTML = '<i class="fas fa-edit"></i><span>Editar</span>';
+botaoEditar.addEventListener('click', () => editarEtiquetaVts(item));
+containerAcoes.appendChild(botaoEditar);
+        
         const botaoExcluir = document.createElement('button');
         botaoExcluir.type = 'button';
         botaoExcluir.className = 'btn btn-sm flex items-center gap-2 text-rose-600 hover:text-rose-700';
@@ -1781,6 +1861,135 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
     }
 
+    async function registrarDevolucaoVts(event) {
+      if (event?.preventDefault) {
+        event.preventDefault();
+      }
+
+      if (!db) {
+        setVtsFeedback('Não foi possível registrar a devolução: serviço indisponível.', 'error');
+        return;
+      }
+
+      const formulario = document.getElementById('vtsDevolucaoForm');
+      const pedidoInput = document.getElementById('vtsDevolucaoPedido');
+      const rastreioInput = document.getElementById('vtsDevolucaoRastreio');
+      const lojaInput = document.getElementById('vtsDevolucaoLoja');
+      const botao = document.getElementById('vtsDevolucaoSubmit');
+
+      const pedidoValor = pedidoInput?.value?.trim() || '';
+      const rastreioValor = rastreioInput?.value?.trim() || '';
+      const lojaValor = lojaInput?.value?.trim() || '';
+
+      if (!pedidoValor && !rastreioValor) {
+        setVtsFeedback('Informe o número do pedido ou o código de rastreio para registrar a devolução.', 'warning');
+        pedidoInput?.focus();
+        return;
+      }
+
+      if (!lojaValor) {
+        setVtsFeedback('Informe a loja relacionada ao pedido para registrar a devolução.', 'warning');
+        lojaInput?.focus();
+        return;
+      }
+
+      const pedidoNormalizado = normalizarComparacaoVts(pedidoValor);
+      const rastreioNormalizado = normalizarComparacaoVts(rastreioValor);
+      const lojaNormalizada = normalizarComparacaoVts(lojaValor);
+
+      const correspondencias = vtsEtiquetasRegistros.filter((item) => {
+        const pedidoItem = normalizarComparacaoVts(item.pedido);
+        const rastreioItem = normalizarComparacaoVts(item.rastreio);
+        const lojaItem = normalizarComparacaoVts(item.loja);
+
+        const pedidoConfere = pedidoNormalizado ? pedidoItem === pedidoNormalizado : true;
+        const rastreioConfere = rastreioNormalizado ? rastreioItem === rastreioNormalizado : true;
+        const lojaConfere = lojaNormalizada ? (lojaItem ? lojaItem === lojaNormalizada : true) : true;
+
+        return pedidoConfere && rastreioConfere && lojaConfere;
+      });
+
+      if (!correspondencias.length) {
+        setVtsFeedback('Nenhum pedido foi localizado com os dados informados. Verifique os valores e tente novamente.', 'warning');
+        return;
+      }
+
+      const jaCancelados = correspondencias.filter((item) => (item.status || '').toLowerCase() === 'cancelado');
+      const pendentes = correspondencias.filter((item) => (item.status || '').toLowerCase() !== 'cancelado');
+
+      if (!pendentes.length) {
+        setVtsFeedback('O pedido informado já está marcado como cancelado.', 'info');
+        renderizarEtiquetasVts(vtsEtiquetasRegistros);
+        return;
+      }
+
+      const textoOriginalBotao = botao?.innerHTML;
+      if (botao) {
+        botao.disabled = true;
+        botao.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Registrando devolução...';
+        botao.classList.add('opacity-70');
+      }
+
+      try {
+        await Promise.all(
+          pendentes.map((item) =>
+            db.collection('vtsEtiquetas').doc(item.id).set(
+              {
+                status: 'cancelado',
+                canceladoEm: firebase.firestore.FieldValue.serverTimestamp(),
+                canceladoPor: usuarioLogado?.uid || '',
+                canceladoMotivo: 'devolucao',
+              },
+              { merge: true },
+            ),
+          ),
+        );
+
+        const agora = new Date();
+        pendentes.forEach((item) => {
+          item.status = 'cancelado';
+          item.canceladoEm = agora;
+          item.canceladoPor = usuarioLogado?.uid || '';
+          item.canceladoMotivo = 'devolucao';
+        });
+
+        renderizarEtiquetasVts(vtsEtiquetasRegistros);
+
+        if (formulario) {
+          formulario.reset();
+          const campoLoja = document.getElementById('vtsDevolucaoLoja');
+          campoLoja?.focus();
+        } else {
+          if (pedidoInput) pedidoInput.value = '';
+          if (rastreioInput) rastreioInput.value = '';
+          if (lojaInput) {
+            lojaInput.value = '';
+            lojaInput.focus();
+          }
+        }
+
+        const partesMensagem = [];
+        partesMensagem.push(
+          pendentes.length > 1
+            ? `${pendentes.length} pedidos foram marcados como cancelados e destacados na lista.`
+            : 'Pedido marcado como cancelado e destacado na lista.',
+        );
+        if (jaCancelados.length) {
+          partesMensagem.push('Alguns registros já estavam sinalizados anteriormente.');
+        }
+        setVtsFeedback(partesMensagem.join(' '), 'warning');
+      } catch (erro) {
+        console.error('Erro ao registrar devolução VTS:', erro);
+        setVtsFeedback('Não foi possível registrar a devolução. Tente novamente mais tarde.', 'error');
+      } finally {
+        if (botao) {
+          botao.disabled = false;
+          botao.innerHTML = textoOriginalBotao || 'Registrar devolução';
+          botao.classList.remove('opacity-70');
+        }
+      }
+    }
+
     function construirIdEtiquetaVts(etiqueta, indice, modelo = '') {
       const uidSanitizado = (usuarioLogado?.uid || 'anon')
         .toString()
@@ -1868,6 +2077,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         .replace(/\s+/g, '')
         .replace(/[^A-Za-z0-9-]/g, '')
         .trim();
+    }
+
+    function normalizarComparacaoVts(texto) {
+      return (texto || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
     }
 
     function removerAcentosVts(texto) {
@@ -3016,6 +3235,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             inputModelo.dataset.bound = 'true';
           }
         });
+        const formularioDevolucao = document.getElementById('vtsDevolucaoForm');
+        if (formularioDevolucao && !formularioDevolucao.dataset.bound) {
+          formularioDevolucao.addEventListener('submit', registrarDevolucaoVts);
+          formularioDevolucao.dataset.bound = 'true';
+        }
         if (toggle && debugContainer && !toggle.dataset.bound) {
           toggle.addEventListener('click', () => {
             const estaOculto = debugContainer.classList.contains('hidden');
