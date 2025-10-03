@@ -2485,7 +2485,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             considerados,
             vendido: 0,
             cancelado: 0,
-            esperado: Number.isFinite(sobraEsperadaNumero) && sobraEsperadaNumero >= 0 ? sobraEsperadaNumero : 0,
+            sobraEsperadaCadastro:
+              Number.isFinite(sobraEsperadaNumero) && sobraEsperadaNumero >= 0 ? sobraEsperadaNumero : 0,
           });
         }
 
@@ -2520,7 +2521,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
             .join(', ');
-          const esperadoNumero = Number(item.esperado ?? 0);
+          const esperadoNumero = Number(item.sobraEsperadaCadastro ?? 0) * Number(item.vendido ?? 0);
           const esperadoTexto = Number.isFinite(esperadoNumero)
             ? esperadoNumero.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
             : '0';
@@ -2540,10 +2541,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       totalVendidoEl.textContent = totalVendido.toString();
       totalCanceladoEl.textContent = totalCancelado.toString();
-      const totalEsperado = linhasOrdenadas.reduce(
-        (acc, item) => acc + (Number.isFinite(Number(item.esperado)) ? Number(item.esperado) : 0),
-        0,
-      );
+      const totalEsperado = linhasOrdenadas.reduce((acc, item) => {
+        const sobraCadastro = Number(item.sobraEsperadaCadastro ?? 0);
+        const vendido = Number(item.vendido ?? 0);
+        const esperadoCalculado = sobraCadastro * vendido;
+        return acc + (Number.isFinite(esperadoCalculado) ? esperadoCalculado : 0);
+      }, 0);
       totalEsperadoEl.textContent = Number(totalEsperado).toLocaleString('pt-BR', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 2,
