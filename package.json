@@ -2,7 +2,7 @@
   "name": "vendedorpro",
   "type": "module",
   "scripts": {
-    "test": "node tests/comissoes.test.js",
+    "test": "node tests/comissoes.test.js && node tests/parser-magalu.test.js",
     "lint": "eslint \"*.js\"",
     "format": "prettier --write \"*.js\" \"css/*.css\"",
     "prepare": "husky install"
