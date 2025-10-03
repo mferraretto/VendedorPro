@@ -159,6 +159,7 @@
 
 <script type="module">
     import { firebaseConfig } from './firebase-config.js';
+    import { parseMagalu } from './parser-magalu.js';
   // =============================================
     // CONFIGURAÇÃO INICIAL E VARIÁVEIS GLOBAIS
     // =============================================
@@ -2592,6 +2593,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const resultados = [];
       const diagnostico = [];
+      const paginasMagalu = [];
 
       for (let pagina = 1; pagina <= pdf.numPages; pagina += 1) {
         const paginaPdf = await pdf.getPage(pagina);
@@ -2620,18 +2622,73 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           linhas.push(atual);
         }
 
-        const interpretadoBase = interpretador(linhas, pagina);
-        const interpretado = interpretadoBase
-          ? { ...interpretadoBase, modelo }
-          : null;
-        diagnostico.push({
-          pagina,
-          modelo,
-          linhas: linhas.slice(),
-          interpretado: interpretado ? { ...interpretado } : null,
-        });
-        if (interpretado) {
-          resultados.push(interpretado);
+        if (modelo === 'magalu') {
+          paginasMagalu.push({
+            pagina,
+            linhas: linhas.slice(),
+            texto: linhas.join('\n'),
+          });
+        } else {
+          const interpretadoBase = interpretador(linhas, pagina);
+          const interpretado = interpretadoBase
+            ? { ...interpretadoBase, modelo }
+            : null;
+          diagnostico.push({
+            pagina,
+            modelo,
+            linhas: linhas.slice(),
+            interpretado: interpretado ? { ...interpretado } : null,
+          });
+          if (interpretado) {
+            resultados.push(interpretado);
+          }
+        }
+      }
+
+      if (modelo === 'magalu') {
+        for (let indice = 0; indice < paginasMagalu.length; indice += 2) {
+          const atual = paginasMagalu[indice] || null;
+          const proxima = paginasMagalu[indice + 1] || null;
+
+          const paginasParaParser = [];
+          if (atual) paginasParaParser.push({ pagina: 1, text: atual.texto });
+          if (proxima) {
+            paginasParaParser.push({
+              pagina: paginasParaParser.length ? 2 : 1,
+              text: proxima.texto,
+            });
+          }
+
+          const interpretadoBase = parseMagalu(paginasParaParser);
+          const interpretadoValido =
+            interpretadoBase && possuiInformacoesEtiquetaVts(interpretadoBase)
+              ? {
+                  ...interpretadoBase,
+                  modelo,
+                  pagina: proxima?.pagina ?? atual?.pagina ?? indice + 1,
+                }
+              : null;
+
+          if (atual) {
+            diagnostico.push({
+              pagina: atual.pagina,
+              modelo,
+              linhas: atual.linhas.slice(),
+              interpretado: interpretadoValido ? { ...interpretadoValido } : null,
+            });
+          }
+          if (proxima) {
+            diagnostico.push({
+              pagina: proxima.pagina,
+              modelo,
+              linhas: proxima.linhas.slice(),
+              interpretado: interpretadoValido ? { ...interpretadoValido } : null,
+            });
+          }
+
+          if (interpretadoValido) {
+            resultados.push(interpretadoValido);
+          }
         }
       }
 
