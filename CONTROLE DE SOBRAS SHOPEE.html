@@ -2613,10 +2613,64 @@ containerAcoes.appendChild(botaoEditar);
     }
 
     async function salvarEtiquetasVts(etiquetas, arquivo, modelo = '') {
-      if (!db || !usuarioLogado?.uid || !Array.isArray(etiquetas)) return;
+      if (!db || !usuarioLogado?.uid || !Array.isArray(etiquetas)) {
+        return { salvos: 0, ignorados: 0 };
+      }
+
+      const usuarioId = usuarioLogado.uid;
+      const pedidosExistentesNormalizados = new Set(
+        (vtsEtiquetasRegistros || [])
+          .map((item) => normalizarComparacaoVts(item?.pedido))
+          .filter(Boolean),
+      );
+
+      const pedidosParaConsulta = new Map();
+
+      etiquetas.forEach((etiqueta) => {
+        const pedidoNormalizado = normalizarComparacaoVts(etiqueta?.pedido);
+        if (!pedidoNormalizado || pedidosExistentesNormalizados.has(pedidoNormalizado)) return;
+
+        const pedidoOriginal = normalizarLinhaVts(etiqueta?.pedido);
+        if (!pedidoOriginal) return;
+
+        if (!pedidosParaConsulta.has(pedidoNormalizado)) {
+          pedidosParaConsulta.set(pedidoNormalizado, new Set());
+        }
+        pedidosParaConsulta.get(pedidoNormalizado).add(pedidoOriginal);
+      });
+
+      for (const [pedidoNormalizado, valores] of pedidosParaConsulta.entries()) {
+        for (const pedidoOriginal of valores) {
+          try {
+            const existenteSnapshot = await db
+              .collection('vtsEtiquetas')
+              .where('usuarioId', '==', usuarioId)
+              .where('pedido', '==', pedidoOriginal)
+              .limit(1)
+              .get();
+
+            if (!existenteSnapshot.empty) {
+              pedidosExistentesNormalizados.add(pedidoNormalizado);
+              break;
+            }
+          } catch (erro) {
+            console.warn('Não foi possível verificar pedido existente:', erro);
+          }
+        }
+      }
+
+      let salvos = 0;
+      let ignorados = 0;
 
       for (let indice = 0; indice < etiquetas.length; indice += 1) {
         const etiqueta = etiquetas[indice];
+        const pedidoNormalizado = normalizarComparacaoVts(etiqueta?.pedido);
+
+        if (pedidoNormalizado && pedidosExistentesNormalizados.has(pedidoNormalizado)) {
+          ignorados += 1;
+          continue;
+        }
+
         const docId = construirIdEtiquetaVts(etiqueta, indice, modelo || etiqueta.modelo);
         const docRef = db.collection('vtsEtiquetas').doc(docId);
 
@@ -2629,7 +2683,7 @@ containerAcoes.appendChild(botaoEditar);
 
         const modeloEtiqueta = etiqueta.modelo || modelo || '';
         const payload = {
-          usuarioId: usuarioLogado.uid,
+          usuarioId,
           sku: etiqueta.sku || '',
           pedido: etiqueta.pedido || '',
           rastreio: etiqueta.rastreio || '',
@@ -2643,6 +2697,10 @@ containerAcoes.appendChild(botaoEditar);
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         };
 
+        if (pedidoNormalizado) {
+          payload.pedidoNormalizado = pedidoNormalizado;
+        }
+
         if (!payload.loja && modeloEtiqueta === 'mercadoLivre') {
           payload.loja = 'Mercado livre';
         }
@@ -2653,11 +2711,17 @@ containerAcoes.appendChild(botaoEditar);
 
         try {
           await docRef.set(payload, { merge: true });
+          salvos += 1;
+          if (pedidoNormalizado) {
+            pedidosExistentesNormalizados.add(pedidoNormalizado);
+          }
         } catch (erro) {
           console.error('Erro ao salvar etiqueta VTS:', erro);
           throw erro;
         }
       }
+
+      return { salvos, ignorados };
     }
 
     function normalizarLinhaVts(texto) {
@@ -3774,12 +3838,23 @@ containerAcoes.appendChild(botaoEditar);
           return;
         }
 
-        await salvarEtiquetasVts(etiquetas, arquivo, modelo);
-        setVtsFeedback(
-          `${etiquetas.length} etiqueta(s) ${obterNomeModeloVts(modelo)} processadas com sucesso.`,
-          'success',
-          modelo,
-        );
+        const { salvos = 0, ignorados = 0 } = await salvarEtiquetasVts(etiquetas, arquivo, modelo);
+
+        const mensagens = [];
+        if (salvos > 0) {
+          mensagens.push(`${salvos} etiqueta(s) ${obterNomeModeloVts(modelo)} registrada(s) com sucesso.`);
+        }
+        if (ignorados > 0) {
+          mensagens.push(
+            `${ignorados} etiqueta(s) ignorada(s) porque o pedido já estava cadastrado anteriormente.`,
+          );
+        }
+        if (!mensagens.length) {
+          mensagens.push('Nenhuma etiqueta nova foi registrada.');
+        }
+
+        const tipoFeedback = salvos > 0 ? 'success' : ignorados > 0 ? 'warning' : 'info';
+        setVtsFeedback(mensagens.join(' '), tipoFeedback, modelo);
         input.value = '';
         await carregarEtiquetasVts();
       } catch (erro) {
