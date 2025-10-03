@@ -1,155 +1,310 @@
-<div class="card max-w-5xl mx-auto">
-  <div class="card-header flex items-center gap-3">
-    <i class="fas fa-qrcode text-indigo-600"></i>
-    <div>
-      <h3 class="text-xl font-semibold text-slate-800">VTS • Importação de Etiquetas</h3>
-      <p class="text-sm text-slate-500">
-        Importe PDFs de etiquetas para registrar automaticamente SKU, número do pedido, código de rastreio,
-        loja e data no acompanhamento dos usuários.
-      </p>
+<div class="card max-w-6xl mx-auto">
+  <div class="card-header flex flex-wrap items-start justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-qrcode text-indigo-600"></i>
+      <div>
+        <h3 class="text-xl font-semibold text-slate-800">VTS • Importação de Etiquetas</h3>
+        <p class="text-sm text-slate-500">
+          Centralize o processamento de etiquetas, organize as associações de SKU e acompanhe o desempenho mensal das vendas.
+        </p>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        class="vts-subtab-btn inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 bg-indigo-600 text-white border-indigo-600 shadow"
+        data-vts-subtab="importacao"
+      >
+        <i class="fas fa-file-import"></i>
+        Importação
+      </button>
+      <button
+        type="button"
+        class="vts-subtab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        data-vts-subtab="associar"
+      >
+        <i class="fas fa-link"></i>
+        Associações de SKU
+      </button>
+      <button
+        type="button"
+        class="vts-subtab-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        data-vts-subtab="resumo"
+      >
+        <i class="fas fa-chart-pie"></i>
+        Resumo
+      </button>
     </div>
   </div>
-  <div class="card-body space-y-6">
-    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-        <div class="flex items-center justify-between gap-2">
-          <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Mercado Livre</h4>
-          <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">PDF</span>
-        </div>
-        <label for="vtsPdfInput" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Mercado Livre</label>
-        <input
-          type="file"
-          id="vtsPdfInput"
-          accept="application/pdf"
-          class="form-control"
-        />
-        <p class="text-[11px] leading-relaxed text-slate-500">
-          Utilize o PDF gerado pelo Mercado Livre. O leitor identifica SKU, pedido, rastreio, data e loja automaticamente.
-        </p>
-        <button
-          id="vtsProcessarBtn"
-          class="btn btn-primary w-full justify-center"
-          type="button"
-        >
-          <i class="fas fa-file-import mr-2"></i>
-          Processar etiquetas Mercado Livre
-        </button>
-      </div>
-
-      <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-        <div class="flex items-center justify-between gap-2">
-          <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Shopee</h4>
-          <span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">PDF</span>
-        </div>
-        <label for="vtsPdfInputShopee" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Shopee</label>
-        <input
-          type="file"
-          id="vtsPdfInputShopee"
-          accept="application/pdf"
-          class="form-control"
-        />
-        <p class="text-[11px] leading-relaxed text-slate-500">
-          Faça o upload do PDF exportado na Shopee. O sistema extrai SKU, pedido, rastreio, data e loja do documento.
-        </p>
-        <button
-          id="vtsProcessarBtnShopee"
-          class="btn btn-primary w-full justify-center"
-          type="button"
-        >
-          <i class="fas fa-file-import mr-2"></i>
-          Processar etiquetas Shopee
-        </button>
-      </div>
-
-      <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-        <div class="flex items-center justify-between gap-2">
-          <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Magalu</h4>
-          <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">PDF</span>
-        </div>
-        <label for="vtsPdfInputMagalu" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Magalu</label>
-        <input
-          type="file"
-          id="vtsPdfInputMagalu"
-          accept="application/pdf"
-          class="form-control"
-        />
-        <p class="text-[11px] leading-relaxed text-slate-500">
-          Envie o PDF de etiquetas emitido pela Magalu. Vamos localizar SKU, pedido, rastreio, data e loja.
-        </p>
-        <button
-          id="vtsProcessarBtnMagalu"
-          class="btn btn-primary w-full justify-center"
-          type="button"
-        >
-          <i class="fas fa-file-import mr-2"></i>
-          Processar etiquetas Magalu
-        </button>
-      </div>
-    </div>
-    <div
-      id="vtsLoading"
-      class="hidden items-center gap-2 text-sm text-slate-500"
-    >
-      <i class="fas fa-circle-notch fa-spin"></i>
-      Processando etiquetas, aguarde...
-    </div>
-    <div
-      id="vtsFeedback"
-      class="mt-3 rounded-lg px-4 py-3 text-sm font-medium hidden"
-    ></div>
+  <div class="card-body text-sm text-slate-600">
+    <p>
+      Utilize as abas acima para importar novas etiquetas, associar variações de SKU e analisar o consolidado mensal das vendas por produto.
+    </p>
   </div>
 </div>
 
-<div class="card max-w-6xl mx-auto mt-8">
-  <div class="card-header flex flex-wrap items-center justify-between gap-2">
-    <div>
-      <h3 class="text-lg font-semibold text-slate-800">Etiquetas importadas</h3>
-      <p id="vtsResumo" class="text-sm text-slate-500">Carregando registros...</p>
+<div id="vtsSubtab-importacao" class="space-y-8">
+  <div class="card max-w-6xl mx-auto">
+    <div class="card-body space-y-6">
+      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Mercado Livre</h4>
+            <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">PDF</span>
+          </div>
+          <label for="vtsPdfInput" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Mercado Livre</label>
+          <input
+            type="file"
+            id="vtsPdfInput"
+            accept="application/pdf"
+            class="form-control"
+          />
+          <p class="text-[11px] leading-relaxed text-slate-500">
+            Utilize o PDF gerado pelo Mercado Livre. O leitor identifica SKU, pedido, rastreio, data e loja automaticamente.
+          </p>
+          <button
+            id="vtsProcessarBtn"
+            class="btn btn-primary w-full justify-center"
+            type="button"
+          >
+            <i class="fas fa-file-import mr-2"></i>
+            Processar etiquetas Mercado Livre
+          </button>
+        </div>
+
+        <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Shopee</h4>
+            <span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">PDF</span>
+          </div>
+          <label for="vtsPdfInputShopee" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Shopee</label>
+          <input
+            type="file"
+            id="vtsPdfInputShopee"
+            accept="application/pdf"
+            class="form-control"
+          />
+          <p class="text-[11px] leading-relaxed text-slate-500">
+            Faça o upload do PDF exportado na Shopee. O sistema extrai SKU, pedido, rastreio, data e loja do documento.
+          </p>
+          <button
+            id="vtsProcessarBtnShopee"
+            class="btn btn-primary w-full justify-center"
+            type="button"
+          >
+            <i class="fas fa-file-import mr-2"></i>
+            Processar etiquetas Shopee
+          </button>
+        </div>
+
+        <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Magalu</h4>
+            <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">PDF</span>
+          </div>
+          <label for="vtsPdfInputMagalu" class="block text-xs font-medium text-slate-600">Arquivo de etiquetas Magalu</label>
+          <input
+            type="file"
+            id="vtsPdfInputMagalu"
+            accept="application/pdf"
+            class="form-control"
+          />
+          <p class="text-[11px] leading-relaxed text-slate-500">
+            Envie o PDF de etiquetas emitido pela Magalu. Vamos localizar SKU, pedido, rastreio, data e loja.
+          </p>
+          <button
+            id="vtsProcessarBtnMagalu"
+            class="btn btn-primary w-full justify-center"
+            type="button"
+          >
+            <i class="fas fa-file-import mr-2"></i>
+            Processar etiquetas Magalu
+          </button>
+        </div>
+      </div>
+      <div
+        id="vtsLoading"
+        class="hidden items-center gap-2 text-sm text-slate-500"
+      >
+        <i class="fas fa-circle-notch fa-spin"></i>
+        Processando etiquetas, aguarde...
+      </div>
+      <div
+        id="vtsFeedback"
+        class="mt-3 rounded-lg px-4 py-3 text-sm font-medium hidden"
+      ></div>
     </div>
   </div>
-  <div class="card-body p-0">
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
-          <tr>
-            <th class="px-4 py-3 text-left font-semibold">SKU</th>
-            <th class="px-4 py-3 text-left font-semibold">Número do pedido</th>
-            <th class="px-4 py-3 text-left font-semibold">Rastreio</th>
-            <th class="px-4 py-3 text-left font-semibold">Loja</th>
-            <th class="px-4 py-3 text-left font-semibold">Data</th>
-            <th class="px-4 py-3 text-left font-semibold">Arquivo</th>
-            <th class="px-4 py-3 text-left font-semibold">Ações</th>
-          </tr>
-        </thead>
-        <tbody id="vtsTabelaCorpo" class="bg-white"></tbody>
-      </table>
+
+  <div class="card max-w-6xl mx-auto">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800">Etiquetas importadas</h3>
+        <p id="vtsResumo" class="text-sm text-slate-500">Carregando registros...</p>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">SKU</th>
+              <th class="px-4 py-3 text-left font-semibold">Número do pedido</th>
+              <th class="px-4 py-3 text-left font-semibold">Rastreio</th>
+              <th class="px-4 py-3 text-left font-semibold">Loja</th>
+              <th class="px-4 py-3 text-left font-semibold">Data</th>
+              <th class="px-4 py-3 text-left font-semibold">Arquivo</th>
+              <th class="px-4 py-3 text-left font-semibold">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="vtsTabelaCorpo" class="bg-white"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card max-w-6xl mx-auto">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800">Diagnóstico da leitura do PDF</h3>
+        <p class="text-sm text-slate-500">
+          Visualize exatamente o texto identificado em cada página e como o sistema interpretou as etiquetas.
+        </p>
+      </div>
+      <button
+        id="vtsToggleDebug"
+        type="button"
+        class="btn btn-secondary whitespace-nowrap"
+      >
+        Mostrar diagnóstico
+      </button>
+    </div>
+    <div id="vtsDebugContainer" class="card-body hidden">
+      <div class="space-y-3">
+        <p id="vtsDebugResumo" class="text-sm text-slate-600"></p>
+        <pre
+          id="vtsDebugPre"
+          class="bg-slate-900 text-slate-50 text-xs rounded-lg p-4 overflow-auto max-h-96"
+        ></pre>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="card max-w-6xl mx-auto mt-6">
-  <div class="card-header flex flex-wrap items-center justify-between gap-2">
-    <div>
-      <h3 class="text-lg font-semibold text-slate-800">Diagnóstico da leitura do PDF</h3>
-      <p class="text-sm text-slate-500">
-        Visualize exatamente o texto identificado em cada página e como o sistema interpretou as etiquetas.
-      </p>
+<div id="vtsSubtab-associar" class="space-y-6 hidden">
+  <div class="card max-w-4xl mx-auto">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800" id="vtsAssociarTitulo">Cadastrar associações de SKU</h3>
+        <p class="text-sm text-slate-500">
+          Mapeie variações e SKUs equivalentes para consolidar a análise de vendas.
+        </p>
+      </div>
     </div>
-    <button
-      id="vtsToggleDebug"
-      type="button"
-      class="btn btn-secondary whitespace-nowrap"
-    >
-      Mostrar diagnóstico
-    </button>
+    <div class="card-body space-y-4">
+      <form id="vtsAssociarForm" class="space-y-4">
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label for="vtsSkuBase" class="block text-xs font-medium text-slate-600 uppercase tracking-wide">SKU base</label>
+            <input
+              id="vtsSkuBase"
+              class="form-control"
+              placeholder="Ex: CAMISETA-123"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label for="vtsSkuAssociados" class="block text-xs font-medium text-slate-600 uppercase tracking-wide">SKUs associados</label>
+            <textarea
+              id="vtsSkuAssociados"
+              rows="3"
+              class="form-control"
+              placeholder="Informe outros SKUs separados por vírgula, ponto e vírgula ou quebra de linha"
+            ></textarea>
+            <p class="mt-2 text-[11px] text-slate-500">
+              Todos os SKUs informados serão consolidados com o SKU base no resumo mensal.
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="submit" id="vtsAssociarSubmit" class="btn btn-primary">
+            <i class="fas fa-save mr-2"></i>
+            Salvar associação
+          </button>
+          <button type="button" id="vtsAssociarCancelar" class="btn btn-secondary hidden">
+            <i class="fas fa-undo mr-2"></i>
+            Cancelar edição
+          </button>
+          <span id="vtsAssociarEditando" class="text-xs font-medium text-indigo-600 hidden"></span>
+        </div>
+        <div id="vtsAssociarFeedback" class="hidden rounded-lg border px-4 py-3 text-sm font-medium"></div>
+      </form>
+    </div>
   </div>
-  <div id="vtsDebugContainer" class="card-body hidden">
-    <div class="space-y-3">
-      <p id="vtsDebugResumo" class="text-sm text-slate-600"></p>
-      <pre
-        id="vtsDebugPre"
-        class="bg-slate-900 text-slate-50 text-xs rounded-lg p-4 overflow-auto max-h-96"
-      ></pre>
+
+  <div class="card max-w-5xl mx-auto">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800">Associações cadastradas</h3>
+        <p class="text-sm text-slate-500">Gerencie as combinações de SKU utilizadas no resumo mensal.</p>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">SKU base</th>
+              <th class="px-4 py-3 text-left font-semibold">SKUs associados</th>
+              <th class="px-4 py-3 text-left font-semibold">Atualizado em</th>
+              <th class="px-4 py-3 text-left font-semibold">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="vtsAssociacoesTabelaCorpo" class="bg-white"></tbody>
+        </table>
+      </div>
+      <div id="vtsAssociacoesVazio" class="px-4 py-6 text-center text-sm text-slate-500 hidden">
+        Nenhuma associação cadastrada até o momento.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="vtsSubtab-resumo" class="space-y-6 hidden">
+  <div class="card max-w-6xl mx-auto">
+    <div class="card-header flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-800">Resumo mensal por SKU</h3>
+        <p id="vtsResumoInfo" class="text-sm text-slate-500">Selecione um período para visualizar os resultados consolidados.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <label for="vtsResumoMes" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Mês de referência</label>
+        <input type="month" id="vtsResumoMes" class="form-control w-36" />
+        <button type="button" id="vtsResumoAtualizar" class="btn btn-secondary whitespace-nowrap">
+          <i class="fas fa-sync-alt mr-2"></i>
+          Mês atual
+        </button>
+      </div>
+    </div>
+    <div class="card-body space-y-4">
+      <p id="vtsResumoTotais" class="text-sm text-slate-600">Carregando dados...</p>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">SKU base</th>
+              <th class="px-4 py-3 text-left font-semibold">SKUs considerados</th>
+              <th class="px-4 py-3 text-left font-semibold">Pedidos no mês</th>
+              <th class="px-4 py-3 text-left font-semibold">Vendidos</th>
+              <th class="px-4 py-3 text-left font-semibold">Cancelados</th>
+            </tr>
+          </thead>
+          <tbody id="vtsResumoTabelaCorpo" class="bg-white"></tbody>
+        </table>
+      </div>
+      <div id="vtsResumoVazio" class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500 hidden">
+        Nenhum pedido importado para o período selecionado.
+      </div>
     </div>
   </div>
 </div>
