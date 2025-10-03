@@ -2508,6 +2508,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             loja: data.loja || '',
             dataEtiqueta: data.dataEtiqueta || '',
             dataEtiquetaTexto: data.dataEtiquetaTexto || '',
+            datacolocada: data.datacolocada || '',
+            datacolocadaTexto: data.datacolocadaTexto || '',
             buyerUsername: data.buyerUsername || '',
             importadoEm: data.importadoEm?.toDate?.() || null,
             origemArquivo: data.origemArquivo || '',
@@ -2601,7 +2603,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!registros.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 9;
+        coluna.colSpan = 10;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhum registro encontrado.';
         linha.appendChild(coluna);
@@ -2664,6 +2666,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           { valor: item.rastreio || '-', html: false },
           { valor: item.loja || '-', html: false },
           { valor: formatarDataVts(item.dataEtiqueta, item.dataEtiquetaTexto), html: false },
+          { valor: formatarDataVts(item.datacolocada, item.datacolocadaTexto), html: false },
           { valor: item.origemArquivo || '-', html: false },
           {
             valor: estaCancelado
@@ -2755,6 +2758,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         loja: registro.loja || '',
         dataEtiqueta: registro.dataEtiqueta || '',
         dataEtiquetaTexto: registro.dataEtiquetaTexto || '',
+        datacolocada: registro.datacolocada || '',
+        datacolocadaTexto: registro.datacolocadaTexto || '',
         origemArquivo: registro.origemArquivo || '',
         buyerUsername: registro.buyerUsername || '',
       };
@@ -2791,6 +2796,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
                   Data original
                   <input id="vtsEditDataEtiquetaTexto" class="swal2-input" style="margin:0" placeholder="Ex: 10/05/2024" />
                 </label>
+                <label class="flex flex-col text-sm text-slate-700 gap-1">
+                  Data colocada (ISO)
+                  <input id="vtsEditDataColocada" type="date" class="swal2-input" style="margin:0" />
+                </label>
+                <label class="flex flex-col text-sm text-slate-700 gap-1">
+                  Data colocada original
+                  <input id="vtsEditDataColocadaTexto" class="swal2-input" style="margin:0" placeholder="Ex: 10/05/2024" />
+                </label>
               </div>
               <label class="flex flex-col text-sm text-slate-700 gap-1">
                 Arquivo de origem
@@ -2815,6 +2828,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             popup.querySelector('#vtsEditLoja').value = valoresIniciais.loja;
             popup.querySelector('#vtsEditDataEtiqueta').value = valoresIniciais.dataEtiqueta || '';
             popup.querySelector('#vtsEditDataEtiquetaTexto').value = valoresIniciais.dataEtiquetaTexto;
+            popup.querySelector('#vtsEditDataColocada').value = valoresIniciais.datacolocada || '';
+            popup.querySelector('#vtsEditDataColocadaTexto').value = valoresIniciais.datacolocadaTexto;
             popup.querySelector('#vtsEditOrigemArquivo').value = valoresIniciais.origemArquivo;
             popup.querySelector('#vtsEditBuyerUsername').value = valoresIniciais.buyerUsername;
           },
@@ -2829,6 +2844,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               loja: obterValor('#vtsEditLoja'),
               dataEtiqueta: popup.querySelector('#vtsEditDataEtiqueta')?.value || '',
               dataEtiquetaTexto: obterValor('#vtsEditDataEtiquetaTexto'),
+              datacolocada: popup.querySelector('#vtsEditDataColocada')?.value || '',
+              datacolocadaTexto: obterValor('#vtsEditDataColocadaTexto'),
               origemArquivo: obterValor('#vtsEditOrigemArquivo'),
               buyerUsername: obterValor('#vtsEditBuyerUsername'),
             };
@@ -2856,6 +2873,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (dataEtiqueta === null) return;
         const dataEtiquetaTexto = promptValue('data original', valoresIniciais.dataEtiquetaTexto);
         if (dataEtiquetaTexto === null) return;
+        const datacolocada = promptValue('data colocada (AAAA-MM-DD)', valoresIniciais.datacolocada);
+        if (datacolocada === null) return;
+        const datacolocadaTexto = promptValue('data colocada original', valoresIniciais.datacolocadaTexto);
+        if (datacolocadaTexto === null) return;
         const origemArquivo = promptValue('arquivo de origem', valoresIniciais.origemArquivo);
         if (origemArquivo === null) return;
         const buyerUsername = promptValue('comprador', valoresIniciais.buyerUsername);
@@ -2868,6 +2889,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           loja,
           dataEtiqueta,
           dataEtiquetaTexto,
+          datacolocada,
+          datacolocadaTexto,
           origemArquivo,
           buyerUsername,
         };
@@ -2881,6 +2904,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           loja: valoresAtualizados.loja,
           dataEtiqueta: valoresAtualizados.dataEtiqueta,
           dataEtiquetaTexto: valoresAtualizados.dataEtiquetaTexto,
+          datacolocada: valoresAtualizados.datacolocada,
+          datacolocadaTexto: valoresAtualizados.datacolocadaTexto,
           origemArquivo: valoresAtualizados.origemArquivo,
           buyerUsername: valoresAtualizados.buyerUsername,
         });
