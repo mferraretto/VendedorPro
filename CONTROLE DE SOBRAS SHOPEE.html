@@ -1968,22 +1968,39 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!db) return;
 
       try {
-        const snapshot = await db.collection('skuAssociado').get();
+        const colecaoSkuAssociado = db.collection('skuAssociado');
+        const [apenasVtsSnap, escopoVtsSnap] = await Promise.all([
+          colecaoSkuAssociado.where('apenasVts', '==', true).get(),
+          colecaoSkuAssociado.where('escopo', '==', 'vts').get(),
+        ]);
+
+        const documentosMapeados = new Map();
+        [...apenasVtsSnap.docs, ...escopoVtsSnap.docs].forEach((docSnap) => {
+          if (!documentosMapeados.has(docSnap.id)) {
+            documentosMapeados.set(docSnap.id, docSnap);
+          }
+        });
+
         const atualizacoes = [];
-        vtsSkuAssociacoes = snapshot.docs.map((docSnap) => {
+        vtsSkuAssociacoes = Array.from(documentosMapeados.values()).map((docSnap) => {
           const data = docSnap.data() || {};
           const skuPrincipal = (data.skuPrincipal || docSnap.id || '').trim();
           const sobraEsperadaNumero = parseNumber(data.sobraEsperada ?? 0);
-          const apenasVts = Boolean(data.apenasVts);
+          const apenasVts = data.apenasVts === true;
           const escopo = String(data.escopo || '').toLowerCase();
+
           if (!apenasVts || escopo !== 'vts') {
             atualizacoes.push(
-              docSnap.ref.set({
-                apenasVts: true,
-                escopo: 'vts',
-              }, { merge: true }),
+              docSnap.ref.set(
+                {
+                  apenasVts: true,
+                  escopo: 'vts',
+                },
+                { merge: true },
+              ),
             );
           }
+
           return {
             id: docSnap.id,
             skuPrincipal: skuPrincipal || docSnap.id,
