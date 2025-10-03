@@ -270,11 +270,33 @@
     </p>
   </div>
 </div>
-<div class="card max-w-6xl mx-auto mt-8">
+  <div class="card max-w-6xl mx-auto mt-8">
   <div class="card-header flex flex-wrap items-center justify-between gap-2">
     <div>
       <h3 class="text-lg font-semibold text-slate-800">Etiquetas importadas</h3>
       <p id="vtsResumo" class="text-sm text-slate-500">Carregando registros...</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        id="vtsExportarExcel"
+        type="button"
+        class="btn btn-secondary flex items-center gap-2"
+      >
+        <i class="fas fa-file-export"></i>
+        <span>Exportar Excel</span>
+      </button>
+      <label
+        class="relative btn btn-secondary flex items-center gap-2 cursor-pointer"
+      >
+        <i class="fas fa-file-import"></i>
+        <span>Importar planilha</span>
+        <input
+          id="vtsImportarExcel"
+          type="file"
+          accept=".xlsx,.xls"
+          class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </label>
     </div>
   </div>
   <div class="card-body p-0">
@@ -295,6 +317,10 @@
         <tbody id="vtsTabelaCorpo" class="bg-white"></tbody>
       </table>
     </div>
+    <p class="px-4 pb-4 pt-3 text-xs text-slate-400">
+      Utilize o botão de exportação para gerar o modelo da planilha. Somente arquivos no mesmo formato
+      são aceitos na importação.
+    </p>
   </div>
 </div>
   <div class="card max-w-6xl mx-auto mt-6">

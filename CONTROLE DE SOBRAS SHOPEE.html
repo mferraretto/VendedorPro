@@ -217,6 +217,25 @@ const VTS_MODELOS_CONFIG = Object.freeze({
   },
 });
 
+const VTS_PLANILHA_COLUNAS = Object.freeze([
+  { chave: 'sku', rotulo: 'SKU', obrigatorio: true },
+  { chave: 'pedido', rotulo: 'Número do pedido', obrigatorio: true },
+  { chave: 'rastreio', rotulo: 'Código de rastreio', obrigatorio: false },
+  { chave: 'loja', rotulo: 'Loja', obrigatorio: false },
+  { chave: 'dataEtiqueta', rotulo: 'Data da etiqueta (AAAA-MM-DD)', obrigatorio: false },
+  { chave: 'dataEtiquetaTexto', rotulo: 'Data original informada', obrigatorio: false },
+  { chave: 'origemArquivo', rotulo: 'Arquivo de origem', obrigatorio: false },
+  { chave: 'modeloEtiqueta', rotulo: 'Modelo da etiqueta', obrigatorio: false },
+  { chave: 'buyerUsername', rotulo: 'Usuário comprador', obrigatorio: false },
+]);
+
+const VTS_PLANILHA_HEADER_NORMALIZADO = Object.freeze(
+  VTS_PLANILHA_COLUNAS.reduce((acc, coluna) => {
+    acc[coluna.chave] = normalizeHeaderKey(coluna.rotulo);
+    return acc;
+  }, {}),
+);
+
 function normalizeDate(value) {
   if (!value) return '';
   if (value instanceof Date && !isNaN(value)) return value.toISOString().split('T')[0];
@@ -1442,6 +1461,215 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         botao.textContent = container.classList.contains('hidden')
           ? 'Mostrar diagnóstico'
           : 'Ocultar diagnóstico';
+      }
+    }
+
+    function construirMapaCabecalhoPlanilhaVts(cabecalho = []) {
+      const mapa = new Map();
+      if (!Array.isArray(cabecalho)) return mapa;
+
+      cabecalho.forEach((titulo, indice) => {
+        const chaveNormalizada = normalizeHeaderKey(titulo);
+        if (chaveNormalizada && !mapa.has(chaveNormalizada)) {
+          mapa.set(chaveNormalizada, indice);
+        }
+      });
+
+      return mapa;
+    }
+
+    function extrairValorCelulaPlanilhaVts(linha, indice, chaveCampo = '') {
+      if (!Array.isArray(linha) || typeof indice !== 'number') return '';
+
+      const bruto = linha[indice];
+      if (bruto === null || bruto === undefined) return '';
+
+      const ehCampoData = chaveCampo === 'dataEtiqueta' || chaveCampo === 'dataEtiquetaTexto';
+
+      if (ehCampoData && typeof bruto === 'number' && typeof XLSX !== 'undefined') {
+        const parsed = XLSX?.SSF?.parse_date_code?.(bruto);
+        if (parsed && parsed.y && parsed.m && parsed.d) {
+          const data = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+          if (!Number.isNaN(data)) {
+            return data.toISOString().split('T')[0];
+          }
+        }
+      }
+
+      if (bruto instanceof Date && !Number.isNaN(bruto)) {
+        return bruto.toISOString().split('T')[0];
+      }
+
+      return String(bruto).trim();
+    }
+
+    async function exportarEtiquetasVtsExcel() {
+      if (!Array.isArray(vtsEtiquetasRegistros) || !vtsEtiquetasRegistros.length) {
+        setVtsFeedback('Não há pedidos cadastrados para exportar.', 'warning');
+        return;
+      }
+
+      if (typeof XLSX === 'undefined') {
+        setVtsFeedback('Biblioteca de planilhas indisponível no momento.', 'error');
+        return;
+      }
+
+      try {
+        const cabecalho = VTS_PLANILHA_COLUNAS.map((coluna) => coluna.rotulo);
+        const linhas = vtsEtiquetasRegistros.map((registro) => {
+          const linha = {};
+          VTS_PLANILHA_COLUNAS.forEach((coluna) => {
+            let valor = '';
+            switch (coluna.chave) {
+              case 'dataEtiqueta':
+                valor = registro.dataEtiqueta || '';
+                break;
+              case 'dataEtiquetaTexto':
+                valor = registro.dataEtiquetaTexto || '';
+                break;
+              case 'modeloEtiqueta':
+                valor = registro.modeloEtiqueta || registro.modelo || '';
+                break;
+              default:
+                valor = registro[coluna.chave] || '';
+            }
+            linha[coluna.rotulo] = valor ?? '';
+          });
+          return linha;
+        });
+
+        const worksheet = linhas.length
+          ? XLSX.utils.json_to_sheet(linhas, { header: cabecalho, skipHeader: false })
+          : XLSX.utils.aoa_to_sheet([cabecalho]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Pedidos VTS');
+
+        const hoje = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(workbook, `vts_pedidos_${hoje}.xlsx`);
+        setVtsFeedback('Planilha exportada com sucesso.', 'success');
+      } catch (erro) {
+        console.error('Erro ao exportar planilha de etiquetas VTS:', erro);
+        setVtsFeedback('Não foi possível exportar a planilha neste momento.', 'error');
+      }
+    }
+
+    async function importarEtiquetasVtsExcel(evento) {
+      const input = evento?.target || document.getElementById('vtsImportarExcel');
+      const arquivo = input?.files?.[0];
+
+      if (!arquivo) {
+        setVtsFeedback('Selecione um arquivo no formato exportado para importar pedidos.', 'warning');
+        return;
+      }
+
+      if (typeof XLSX === 'undefined') {
+        setVtsFeedback('Biblioteca de planilhas indisponível no momento.', 'error');
+        if (input) input.value = '';
+        return;
+      }
+
+      try {
+        setVtsFeedback('Processando planilha de pedidos, aguarde...', 'info');
+
+        const arrayBuffer = await arquivo.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const primeiraAba = workbook.SheetNames?.[0];
+        if (!primeiraAba) {
+          setVtsFeedback('A planilha informada está vazia.', 'warning');
+          return;
+        }
+
+        const sheet = workbook.Sheets[primeiraAba];
+        const linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (!Array.isArray(linhas) || !linhas.length) {
+          setVtsFeedback('A planilha informada está vazia.', 'warning');
+          return;
+        }
+
+        const cabecalho = linhas[0].map((valor) => String(valor ?? '').trim());
+        const mapaCabecalho = construirMapaCabecalhoPlanilhaVts(cabecalho);
+
+        const indicesColunas = new Map();
+        VTS_PLANILHA_COLUNAS.forEach((coluna) => {
+          const chaveNormalizada = VTS_PLANILHA_HEADER_NORMALIZADO[coluna.chave];
+          const indice = mapaCabecalho.get(chaveNormalizada);
+          if (typeof indice === 'number') {
+            indicesColunas.set(coluna.chave, indice);
+          }
+        });
+
+        const faltantes = VTS_PLANILHA_COLUNAS.filter(
+          (coluna) => coluna.obrigatorio && !indicesColunas.has(coluna.chave),
+        );
+
+        if (faltantes.length) {
+          const nomesFaltantes = faltantes.map((coluna) => coluna.rotulo).join(', ');
+          setVtsFeedback(
+            `A planilha não está no formato esperado. Colunas ausentes: ${nomesFaltantes}.`,
+            'error',
+          );
+          return;
+        }
+
+        const registros = [];
+        for (let linhaIndice = 1; linhaIndice < linhas.length; linhaIndice += 1) {
+          const linha = linhas[linhaIndice];
+          if (!Array.isArray(linha)) continue;
+
+          const possuiInformacao = linha.some((celula) => String(celula ?? '').trim());
+          if (!possuiInformacao) continue;
+
+          const dadosBrutos = {};
+          VTS_PLANILHA_COLUNAS.forEach((coluna) => {
+            const indice = indicesColunas.get(coluna.chave);
+            if (typeof indice !== 'number') return;
+            dadosBrutos[coluna.chave] = extrairValorCelulaPlanilhaVts(linha, indice, coluna.chave);
+          });
+
+          const dataNormalizada = normalizeDate(dadosBrutos.dataEtiqueta);
+          const dataTexto = dadosBrutos.dataEtiquetaTexto || dadosBrutos.dataEtiqueta || '';
+
+          const etiqueta = {
+            sku: normalizarLinhaVts(dadosBrutos.sku),
+            pedido: normalizarLinhaVts(dadosBrutos.pedido),
+            rastreio: normalizarLinhaVts(dadosBrutos.rastreio),
+            loja: normalizarLinhaVts(dadosBrutos.loja),
+            dataNormalizada,
+            dataTexto,
+            origemArquivo: dadosBrutos.origemArquivo || arquivo.name,
+            modelo: normalizarLinhaVts(dadosBrutos.modeloEtiqueta),
+            buyerUsername: normalizarLinhaVts(dadosBrutos.buyerUsername),
+          };
+
+          if (!possuiInformacoesEtiquetaVts(etiqueta)) continue;
+
+          registros.push(etiqueta);
+        }
+
+        if (!registros.length) {
+          setVtsFeedback('Nenhum pedido válido foi encontrado na planilha informada.', 'warning');
+          return;
+        }
+
+        const { salvos = 0, ignorados = 0 } = await salvarEtiquetasVts(registros, arquivo, 'planilha');
+
+        const mensagens = [];
+        if (salvos > 0) mensagens.push(`${salvos} pedido(s) importado(s) com sucesso.`);
+        if (ignorados > 0)
+          mensagens.push(`${ignorados} registro(s) ignorado(s) por já estarem cadastrados.`);
+
+        const tipoFeedback = salvos > 0 ? 'success' : ignorados > 0 ? 'warning' : 'info';
+        setVtsFeedback(mensagens.join(' ') || 'Nenhum pedido novo foi importado.', tipoFeedback);
+
+        await carregarEtiquetasVts();
+      } catch (erro) {
+        console.error('Erro ao importar planilha de etiquetas VTS:', erro);
+        setVtsFeedback(
+          'Não foi possível importar a planilha. Verifique se o arquivo segue o modelo exportado.',
+          'error',
+        );
+      } finally {
+        if (input) input.value = '';
       }
     }
 
@@ -4032,6 +4260,16 @@ containerAcoes.appendChild(botaoEditar);
             }
           });
           toggle.dataset.bound = 'true';
+        }
+        const botaoExportar = document.getElementById('vtsExportarExcel');
+        if (botaoExportar && !botaoExportar.dataset.bound) {
+          botaoExportar.addEventListener('click', exportarEtiquetasVtsExcel);
+          botaoExportar.dataset.bound = 'true';
+        }
+        const inputImportar = document.getElementById('vtsImportarExcel');
+        if (inputImportar && !inputImportar.dataset.bound) {
+          inputImportar.addEventListener('change', importarEtiquetasVtsExcel);
+          inputImportar.dataset.bound = 'true';
         }
         configurarSubtabsVts();
         configurarAssociacoesVts();
