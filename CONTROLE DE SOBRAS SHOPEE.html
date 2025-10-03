@@ -1651,6 +1651,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           console.warn('Não foi possível verificar etiqueta existente:', erro);
         }
 
+        const modeloEtiqueta = etiqueta.modelo || modelo || '';
         const payload = {
           usuarioId: usuarioLogado.uid,
           sku: etiqueta.sku || '',
@@ -1661,10 +1662,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           dataEtiquetaTexto: etiqueta.dataTexto || '',
           origemArquivo: arquivo?.name || '',
           paginaArquivo: etiqueta.pagina || indice + 1,
-          modeloEtiqueta: etiqueta.modelo || modelo || '',
+          modeloEtiqueta,
           buyerUsername: etiqueta.buyerUsername || '',
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         };
+
+        if (!payload.loja && modeloEtiqueta === 'mercadoLivre') {
+          payload.loja = 'Mercado livre';
+        }
 
         if (!existente || !existente.exists) {
           payload.importadoEm = firebase.firestore.FieldValue.serverTimestamp();
