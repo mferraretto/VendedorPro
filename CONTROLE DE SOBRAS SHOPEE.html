@@ -1655,7 +1655,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           return;
         }
 
-        const { salvos = 0, ignorados = 0 } = await salvarEtiquetasVts(registros, arquivo, 'planilha');
+        const resultadoSalvamento = await salvarEtiquetasVts(registros, arquivo, 'planilha');
+
+        if (resultadoSalvamento?.cancelado) {
+          setVtsFeedback('Importação cancelada: informe a data em que as etiquetas foram colocadas para continuar.', 'warning');
+          return;
+        }
+
+        const { salvos = 0, ignorados = 0 } = resultadoSalvamento || {};
 
         const mensagens = [];
         if (salvos > 0) mensagens.push(`${salvos} pedido(s) importado(s) com sucesso.`);
@@ -3067,7 +3074,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           modelo: 'manual',
         };
 
-        const { salvos = 0, ignorados = 0 } = await salvarEtiquetasVts([etiquetaManual], null, 'manual');
+        const resultadoSalvamento = await salvarEtiquetasVts([etiquetaManual], null, 'manual');
+
+        if (resultadoSalvamento?.cancelado) {
+          setVtsFeedback('Registro cancelado: informe a data em que a etiqueta foi colocada para concluir o cadastro.', 'warning');
+          return;
+        }
+
+        const { salvos = 0, ignorados = 0 } = resultadoSalvamento || {};
 
         if (salvos > 0) {
           setVtsFeedback('Etiqueta registrada manualmente com sucesso.', 'success');
@@ -3246,6 +3260,75 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return docId.slice(0, 180);
     }
 
+    function obterDataAtualIsoVts() {
+      try {
+        const agora = new Date();
+        if (Number.isNaN(agora.getTime())) return '';
+        return agora.toISOString().slice(0, 10);
+      } catch (erro) {
+        console.warn('Não foi possível obter a data atual para VTS:', erro);
+        return '';
+      }
+    }
+
+    async function solicitarDataColocadaVts(dataSugestao = '') {
+      const dataInicial = normalizeDate(dataSugestao) || dataSugestao || obterDataAtualIsoVts();
+
+      if (window.Swal?.fire) {
+        const resultado = await Swal.fire({
+          title: 'Informe a data em que a etiqueta foi colocada',
+          text: 'A mesma data será aplicada para todas as etiquetas deste envio.',
+          input: 'date',
+          inputValue: dataInicial || '',
+          inputAttributes: {
+            max: obterDataAtualIsoVts() || undefined,
+          },
+          showCancelButton: true,
+          confirmButtonText: 'Confirmar',
+          cancelButtonText: 'Cancelar',
+          allowOutsideClick: false,
+          preConfirm: (valor) => {
+            const normalizado = normalizeDate(valor);
+            if (!normalizado) {
+              Swal.showValidationMessage('Informe uma data válida para continuar.');
+              return false;
+            }
+            return {
+              data: normalizado,
+              texto: formatarDataVts(normalizado, valor),
+            };
+          },
+        });
+
+        if (!resultado.isConfirmed) {
+          return null;
+        }
+
+        return resultado.value || null;
+      }
+
+      let tentativas = 0;
+      while (tentativas < 3) {
+        const valor = window.prompt(
+          'Informe a data em que a etiqueta foi colocada (AAAA-MM-DD):',
+          dataInicial || '',
+        );
+        if (valor === null) {
+          return null;
+        }
+        const normalizado = normalizeDate(valor);
+        if (normalizado) {
+          return {
+            data: normalizado,
+            texto: formatarDataVts(normalizado, valor),
+          };
+        }
+        tentativas += 1;
+      }
+
+      return null;
+    }
+
     async function salvarEtiquetasVts(etiquetas, arquivo, modelo = '') {
       if (!db || !usuarioLogado?.uid || !Array.isArray(etiquetas)) {
         return { salvos: 0, ignorados: 0 };
@@ -3295,6 +3378,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       let salvos = 0;
       let ignorados = 0;
+      let dataColocadaInfo = null;
+      let canceladoPorData = false;
 
       for (let indice = 0; indice < etiquetas.length; indice += 1) {
         const etiqueta = etiquetas[indice];
@@ -3303,6 +3388,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (pedidoNormalizado && pedidosExistentesNormalizados.has(pedidoNormalizado)) {
           ignorados += 1;
           continue;
+        }
+
+        if (!dataColocadaInfo) {
+          dataColocadaInfo = await solicitarDataColocadaVts(etiqueta?.dataNormalizada || etiqueta?.dataTexto);
+          if (!dataColocadaInfo) {
+            canceladoPorData = true;
+            break;
+          }
         }
 
         const docId = construirIdEtiquetaVts(etiqueta, indice, modelo || etiqueta.modelo);
@@ -3331,6 +3424,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         };
 
+        if (dataColocadaInfo?.data) {
+          payload.datacolocada = dataColocadaInfo.data;
+          if (dataColocadaInfo.texto) {
+            payload.datacolocadaTexto = dataColocadaInfo.texto;
+          }
+        }
+
         if (pedidoNormalizado) {
           payload.pedidoNormalizado = pedidoNormalizado;
         }
@@ -3355,7 +3455,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
       }
 
-      return { salvos, ignorados };
+      if (canceladoPorData) {
+        return { salvos, ignorados, cancelado: true };
+      }
+
+      return { salvos, ignorados, cancelado: false };
     }
 
     function normalizarLinhaVts(texto) {
@@ -4482,7 +4586,18 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           return;
         }
 
-        const { salvos = 0, ignorados = 0 } = await salvarEtiquetasVts(etiquetas, arquivo, modelo);
+        const resultadoSalvamento = await salvarEtiquetasVts(etiquetas, arquivo, modelo);
+
+        if (resultadoSalvamento?.cancelado) {
+          setVtsFeedback(
+            `Importação cancelada: informe a data em que as etiquetas ${obterNomeModeloVts(modelo)} foram colocadas para continuar.`,
+            'warning',
+            modelo,
+          );
+          return;
+        }
+
+        const { salvos = 0, ignorados = 0 } = resultadoSalvamento || {};
 
         const mensagens = [];
         if (salvos > 0) {
