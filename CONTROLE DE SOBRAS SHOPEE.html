@@ -1500,6 +1500,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           skuPrincipal: principal,
           associados: (associacao.associados || []).filter(Boolean),
           principaisVinculados: (associacao.principaisVinculados || []).filter(Boolean),
+          sobraEsperada: Number.isFinite(Number(associacao.sobraEsperada))
+            ? Number(associacao.sobraEsperada)
+            : 0,
           todos: Array.from(todos).filter(Boolean),
         };
 
@@ -1521,7 +1524,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!vtsSkuAssociacoes.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 3;
+        coluna.colSpan = 4;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhuma associação cadastrada até o momento.';
         linha.appendChild(coluna);
@@ -1540,10 +1543,18 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const associados = [...new Set([...(associacao.associados || []), ...(associacao.principaisVinculados || [])])]
           .filter(Boolean)
           .join(', ');
+        const sobraEsperadaNumero = Number(associacao.sobraEsperada);
+        const sobraEsperadaValida = Number.isFinite(sobraEsperadaNumero)
+          ? sobraEsperadaNumero
+          : 0;
+        const sobraEsperadaTexto = sobraEsperadaValida
+          ? sobraEsperadaValida.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+          : '0';
 
         linha.innerHTML = `
           <td class="px-4 py-3 font-semibold text-slate-700">${associacao.skuPrincipal || '-'}</td>
           <td class="px-4 py-3 text-slate-600">${associados || '<span class="text-slate-400">-</span>'}</td>
+          <td class="px-4 py-3 text-right text-slate-700 font-semibold">${sobraEsperadaTexto}</td>
           <td class="px-4 py-3">
             <div class="flex flex-wrap gap-2">
               <button
@@ -1575,10 +1586,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     function resetFormularioAssociacaoVts() {
       const principalInput = document.getElementById('vtsSkuPrincipal');
       const associadosInput = document.getElementById('vtsSkuAssociados');
+      const sobraInput = document.getElementById('vtsSkuSobraEsperada');
       const cancelarBotao = document.getElementById('vtsSkuCancelar');
 
       if (principalInput) principalInput.value = '';
       if (associadosInput) associadosInput.value = '';
+      if (sobraInput) sobraInput.value = '';
       if (cancelarBotao) cancelarBotao.classList.add('hidden');
 
       vtsSkuEdicaoAtual = null;
@@ -1587,6 +1600,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     function preencherFormularioAssociacaoVts(associacao) {
       const principalInput = document.getElementById('vtsSkuPrincipal');
       const associadosInput = document.getElementById('vtsSkuAssociados');
+      const sobraInput = document.getElementById('vtsSkuSobraEsperada');
       const cancelarBotao = document.getElementById('vtsSkuCancelar');
 
       if (!principalInput || !associadosInput || !associacao) return;
@@ -1596,6 +1610,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         .filter(Boolean)
         .join(', ');
       associadosInput.value = associados;
+      if (sobraInput) {
+        const sobraNumero = Number(associacao.sobraEsperada);
+        sobraInput.value = Number.isFinite(sobraNumero) ? sobraNumero : '';
+      }
 
       if (cancelarBotao) cancelarBotao.classList.remove('hidden');
 
@@ -1614,6 +1632,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       const principalInput = document.getElementById('vtsSkuPrincipal');
       const associadosInput = document.getElementById('vtsSkuAssociados');
+      const sobraInput = document.getElementById('vtsSkuSobraEsperada');
       const botaoSalvar = document.getElementById('vtsSkuSalvar');
 
       if (!principalInput || !associadosInput) return;
@@ -1630,6 +1649,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const associadosFiltrados = associadosList.filter(
         (sku) => normalizarComparacaoVts(sku) && normalizarComparacaoVts(sku) !== principalNormalizado,
       );
+      const sobraValor = sobraInput ? parseNumber(sobraInput.value) : 0;
+      const sobraEsperada = Number.isFinite(sobraValor) && sobraValor >= 0 ? sobraValor : 0;
 
       const docId = skuPrincipal;
       const textoOriginal = botaoSalvar?.innerHTML;
@@ -1651,6 +1672,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             skuPrincipal,
             associados: associadosFiltrados,
             principaisVinculados: [],
+            sobraEsperada,
+            apenasVts: true,
+            escopo: 'vts',
           });
 
         aplicarFeedbackGenericoVts('vtsSkuFeedback', 'Associação salva com sucesso!', 'success');
@@ -1717,9 +1741,21 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       try {
         const snapshot = await db.collection('skuAssociado').get();
+        const atualizacoes = [];
         vtsSkuAssociacoes = snapshot.docs.map((docSnap) => {
           const data = docSnap.data() || {};
           const skuPrincipal = (data.skuPrincipal || docSnap.id || '').trim();
+          const sobraEsperadaNumero = parseNumber(data.sobraEsperada ?? 0);
+          const apenasVts = Boolean(data.apenasVts);
+          const escopo = String(data.escopo || '').toLowerCase();
+          if (!apenasVts || escopo !== 'vts') {
+            atualizacoes.push(
+              docSnap.ref.set({
+                apenasVts: true,
+                escopo: 'vts',
+              }, { merge: true }),
+            );
+          }
           return {
             id: docSnap.id,
             skuPrincipal: skuPrincipal || docSnap.id,
@@ -1727,8 +1763,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             principaisVinculados: Array.isArray(data.principaisVinculados)
               ? data.principaisVinculados.filter(Boolean)
               : [],
+            sobraEsperada: Number.isFinite(sobraEsperadaNumero) && sobraEsperadaNumero >= 0 ? sobraEsperadaNumero : 0,
           };
         });
+
+        if (atualizacoes.length) {
+          try {
+            await Promise.allSettled(atualizacoes);
+          } catch (atualizacaoErro) {
+            console.warn('Não foi possível atualizar todas as associações para o escopo VTS.', atualizacaoErro);
+          }
+        }
 
         atualizarMapaAssociacoesVts();
         renderizarAssociacoesSkuVts();
@@ -1895,7 +1940,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const tabelaCorpo = document.getElementById('vtsResumoTabelaCorpo');
       const totalVendidoEl = document.getElementById('vtsResumoTotalVendido');
       const totalCanceladoEl = document.getElementById('vtsResumoTotalCancelado');
-      if (!tabelaCorpo || !totalVendidoEl || !totalCanceladoEl) return;
+      const totalEsperadoEl = document.getElementById('vtsResumoTotalEsperado');
+      if (!tabelaCorpo || !totalVendidoEl || !totalCanceladoEl || !totalEsperadoEl) return;
 
       const seletorMes = document.getElementById('vtsResumoMes');
       const periodo = obterPeriodoMesVts(seletorMes?.value);
@@ -1922,11 +1968,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           if (associacao?.todos?.length) {
             associacao.todos.forEach((sku) => considerados.add(sku));
           }
+          const sobraEsperadaNumero = Number(associacao?.sobraEsperada ?? 0);
           resumoMapa.set(chave, {
             skuPrincipal: chave,
             considerados,
             vendido: 0,
             cancelado: 0,
+            esperado: Number.isFinite(sobraEsperadaNumero) && sobraEsperadaNumero >= 0 ? sobraEsperadaNumero : 0,
           });
         }
 
@@ -1950,7 +1998,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!linhasOrdenadas.length) {
         const linha = document.createElement('tr');
         const coluna = document.createElement('td');
-        coluna.colSpan = 4;
+        coluna.colSpan = 5;
         coluna.className = 'px-4 py-4 text-center text-sm text-slate-500';
         coluna.textContent = 'Nenhum registro encontrado para o período selecionado.';
         linha.appendChild(coluna);
@@ -1961,12 +2009,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
             .join(', ');
+          const esperadoNumero = Number(item.esperado ?? 0);
+          const esperadoTexto = Number.isFinite(esperadoNumero)
+            ? esperadoNumero.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+            : '0';
 
           const linha = document.createElement('tr');
           linha.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
           linha.innerHTML = `
             <td class="px-4 py-3 font-semibold text-slate-700">${item.skuPrincipal}</td>
             <td class="px-4 py-3 text-slate-600">${considerados}</td>
+            <td class="px-4 py-3 text-right text-slate-700 font-semibold">${esperadoTexto}</td>
             <td class="px-4 py-3 text-right text-slate-700 font-semibold">${item.vendido}</td>
             <td class="px-4 py-3 text-right text-slate-700 font-semibold">${item.cancelado}</td>
           `;
@@ -1976,6 +2029,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       totalVendidoEl.textContent = totalVendido.toString();
       totalCanceladoEl.textContent = totalCancelado.toString();
+      const totalEsperado = linhasOrdenadas.reduce(
+        (acc, item) => acc + (Number.isFinite(Number(item.esperado)) ? Number(item.esperado) : 0),
+        0,
+      );
+      totalEsperadoEl.textContent = Number(totalEsperado).toLocaleString('pt-BR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      });
 
       const possuiResultados = linhasOrdenadas.length > 0;
       aplicarFeedbackGenericoVts(
@@ -6514,6 +6575,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           const associadosSnap = await db.collection('skuAssociado').get();
           associadosSnap.forEach((doc) => {
             const dados = doc.data() || {};
+            const escopo = String(dados.escopo || '').toLowerCase();
+            if (dados.apenasVts === true || escopo === 'vts') {
+              return;
+            }
             const skuPrincipal = String(
               dados.skuPrincipal || doc.id || '',
             ).trim();

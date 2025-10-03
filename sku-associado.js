@@ -71,6 +71,10 @@ async function carregarSkus() {
   skuCache = new Map();
   snap.forEach((docSnap) => {
     const data = docSnap.data();
+    const escopo = String(data?.escopo || '').toLowerCase();
+    if (data?.apenasVts === true || escopo === 'vts') {
+      return;
+    }
     const skuPrincipal = data.skuPrincipal || docSnap.id;
     skuCache.set(docSnap.id, {
       ...data,
