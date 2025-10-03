@@ -2083,6 +2083,47 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       };
     }
 
+    function extrairRastreioSegmentadoMercadoLivreVts(texto, pedidoAtual) {
+      if (!texto) return '';
+
+      const pedidoNumerico = (pedidoAtual || '').replace(/\D/g, '');
+      const normalizado = texto.replace(/\s+/g, ' ');
+      const regex = /(\d{5,6})\s+(\d{5,6})/g;
+      let match;
+
+      while ((match = regex.exec(normalizado))) {
+        const [_, parteA, parteB] = match;
+        const combinado = `${parteA}${parteB}`;
+        if (pedidoNumerico && (combinado === pedidoNumerico || pedidoNumerico.includes(combinado))) {
+          continue;
+        }
+        return `${parteA} ${parteB}`.trim();
+      }
+
+      return '';
+    }
+
+    function formatarRastreioMercadoLivreVts(texto, rastreioAtual) {
+      if (!texto || !rastreioAtual) return '';
+
+      const alvo = rastreioAtual.replace(/\D/g, '');
+      if (!alvo) return '';
+
+      const normalizado = texto.replace(/\s+/g, ' ');
+      const regex = /(\d{5,6})\s+(\d{5,6})/g;
+      let match;
+
+      while ((match = regex.exec(normalizado))) {
+        const [_, parteA, parteB] = match;
+        const combinado = `${parteA}${parteB}`;
+        if (combinado === alvo) {
+          return `${parteA} ${parteB}`.trim();
+        }
+      }
+
+      return '';
+    }
+
     function interpretarEtiquetaMercadoLivre(linhas, pagina) {
       const dados = {
         pagina,
@@ -2218,7 +2259,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const awb = extrairAwbMercadoLivreVts(textoCompleto);
       if (awb) {
         dados.pedido = awb;
-        dados.rastreio = awb;
+        if (!dados.rastreio) dados.rastreio = awb;
       }
 
       const skuHeuristico = extrairSkuMercadoLivreVts(textoCompleto);
@@ -2240,6 +2281,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (dataHeuristica.texto) {
         dados.dataTexto = dataHeuristica.texto;
         dados.dataNormalizada = dataHeuristica.normalizada;
+      }
+
+      const rastreioSegmentado = extrairRastreioSegmentadoMercadoLivreVts(textoCompleto, dados.pedido);
+      if (rastreioSegmentado) {
+        dados.rastreio = rastreioSegmentado;
+      } else if (dados.rastreio) {
+        const rastreioFormatado = formatarRastreioMercadoLivreVts(textoCompleto, dados.rastreio);
+        if (rastreioFormatado) dados.rastreio = rastreioFormatado;
       }
 
       if (!ehSkuValidoVts(dados.sku)) dados.sku = '';
