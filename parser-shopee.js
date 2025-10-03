@@ -11,50 +11,67 @@ export function parseShopeePage({ text = '', pagina } = {}) {
   const upCode = only(/\b(UP[0-9A-Z]+)\b/) || only(/#(UP[0-9A-Z]+)/);
 
   const loja = (() => {
-    const [, afterRemetente = ''] = normalizedText.split(/REMETENTE/i);
-    const candidatos = afterRemetente
-      .split(/\n/)
-      .slice(0, 8)
+    const afterRemetente = (normalizedText.split(/REMETENTE/i)[1] || '')
+      .split('\n')
+      .slice(0, 10)
       .map((linha) => linha.trim())
       .filter(
         (linha) =>
           linha &&
-          !/CEP|Envio previsto|AG[ÊE]NCIA|Rua|R\b|Avenida|Av\.|[0-9]{5}-[0-9]{3}/i.test(
+          !/CEP|Envio previsto|AG[ÊE]NCIA|Rua|Avenida|R\s|Av\.|[0-9]{5}-[0-9]{3}/i.test(
             linha,
           ),
       );
 
-    const prioridade = candidatos.find((linha) =>
-      /LTDA|EIRELI|ME|STORE|COM|IND|LTDA\.?/i.test(linha),
+    const prioridade = afterRemetente.find((linha) =>
+      /LTDA|EIRELI|STORE|COM[EÉ]RCIO|IND(?:[ÚU]STRIA)?/i.test(linha),
     );
 
     if (prioridade) return prioridade.replace(/\s{2,}/g, ' ').trim();
 
-    const fallback = candidatos.find((linha) => /\b\w+\s+\w+/.test(linha));
+    const fallback = afterRemetente.find((linha) => /\b\w+\s+\w+/.test(linha));
     return (fallback || '').replace(/\s{2,}/g, ' ').trim();
   })();
 
-  const dataPrevistaEnvioBR = only(/Envio previsto:\s*(\d{2}\/\d{2}\/\d{4})/i);
-  const emissaoNFeBR = only(
-    /Emiss[aã]o:\s*(\d{2})-(\d{2})-(\d{4})\s+(\d{2}:\d{2}:\d{2})/i,
+  const mPrevista = normalizedText.match(
+    /Envio previsto:[^\d]{0,80}(\d{2}\/\d{2}\/\d{4})/i,
   );
-
-  const toISO_BR = (value) =>
-    value ? value.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1') : '';
-
-  const emissaoNFeISO = emissaoNFeBR
-    ? emissaoNFeBR.replace(
-        /(\d{2})-(\d{2})-(\d{4})\s+(\d{2}:\d{2}:\d{2})/,
-        '$3-$2-$1T$4',
-      )
+  const dataPrevistaEnvioBR = mPrevista ? mPrevista[1] : '';
+  const dataPrevistaEnvioISO = dataPrevistaEnvioBR
+    ? dataPrevistaEnvioBR.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1')
     : '';
 
-  const itemLine = (normalizedText.match(/^\s*\d+\.\s+.+$/m) || [''])[0];
-  const produto = itemLine
-    .replace(/^\s*\d+\.\s+/, '')
-    .replace(/\s+\*[0-9]+$/, '')
-    .trim();
-  const qtd = (itemLine.match(/\*(\d+)\s*$/) || [])[1] || '1';
+  const mEmissao = normalizedText.match(
+    /Emiss[aã]o:\s*(?:\d+\s+){0,2}(\d{2}-\d{2}-\d{4})\s+(\d{2}:\d{2}:\d{2})/i,
+  );
+  const emissaoNFe = mEmissao ? `${mEmissao[1]} ${mEmissao[2]}` : '';
+  const emissaoNFeISO = mEmissao
+    ? mEmissao[1].replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1') +
+      'T' +
+      mEmissao[2]
+    : '';
+
+  const itemStart = normalizedText.search(/^\s*\d+\s*[.\-–]\s+/m);
+  let produto = '';
+  let qtd = '1';
+
+  if (itemStart !== -1) {
+    const tail = normalizedText.slice(itemStart);
+    const firstLineMatch = tail.match(/^\s*\d+\s*[.\-–]\s+(.+)$/m);
+    const firstLine = (firstLineMatch && firstLineMatch[1]) || '';
+    const nextLines = tail
+      .split('\n')
+      .slice(1, 3)
+      .map((linha) => linha.trim());
+    const joined = [firstLine, ...nextLines]
+      .join(' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    const qtdMatch = joined.match(/\*(\d+)\s*$/);
+    qtd = (qtdMatch && qtdMatch[1]) || '1';
+    produto = joined.replace(/\s*\*\d+\s*$/, '').trim();
+  }
 
   const skuHeader = only(/SKU:\s*([^\n]+)/i);
   const skuInterno =
@@ -73,8 +90,8 @@ export function parseShopeePage({ text = '', pagina } = {}) {
     produto,
     qtd,
     dataPrevistaEnvio: dataPrevistaEnvioBR,
-    dataPrevistaEnvioISO: toISO_BR(dataPrevistaEnvioBR),
-    emissaoNFe: emissaoNFeBR,
+    dataPrevistaEnvioISO,
+    emissaoNFe,
     emissaoNFeISO,
   };
 }
