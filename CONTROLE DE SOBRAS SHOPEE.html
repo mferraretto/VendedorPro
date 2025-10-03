@@ -242,6 +242,21 @@ const VTS_PLANILHA_HEADER_NORMALIZADO = Object.freeze(
   }, {}),
 );
 
+const VTS_DEVOLUCAO_HEADER_CHAVES = Object.freeze(
+  [
+    'Rastreio',
+    'Código de rastreio',
+    'Codigo de rastreio',
+    'Codigo rastreio',
+    'Tracking',
+    'Tracking code',
+    'Codigo objeto',
+    'Código objeto',
+    'Código devolução',
+    'Codigo devolucao',
+  ].map((titulo) => normalizeHeaderKey(titulo)),
+);
+
 function normalizeDate(value) {
   if (!value) return '';
   if (value instanceof Date && !isNaN(value)) return value.toISOString().split('T')[0];
@@ -3237,6 +3252,49 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
     }
 
+    async function marcarEtiquetasComoCanceladasVts(registros = [], motivo = 'devolucao') {
+      if (!db) {
+        throw new Error('Serviço indisponível');
+      }
+
+      const pendentesValidos = Array.isArray(registros)
+        ? registros.filter((item) => item && item.id)
+        : [];
+
+      if (!pendentesValidos.length) {
+        return { atualizados: 0 };
+      }
+
+      await Promise.all(
+        pendentesValidos.map((item) =>
+          db
+            .collection('vtsEtiquetas')
+            .doc(item.id)
+            .set(
+              {
+                status: 'cancelado',
+                canceladoEm: firebase.firestore.FieldValue.serverTimestamp(),
+                canceladoPor: usuarioLogado?.uid || '',
+                canceladoMotivo: motivo || 'devolucao',
+              },
+              { merge: true },
+            ),
+        ),
+      );
+
+      const agora = new Date();
+      pendentesValidos.forEach((item) => {
+        item.status = 'cancelado';
+        item.canceladoEm = agora;
+        item.canceladoPor = usuarioLogado?.uid || '';
+        item.canceladoMotivo = motivo || 'devolucao';
+      });
+
+      aplicarFiltrosEtiquetasVts();
+
+      return { atualizados: pendentesValidos.length, data: agora };
+    }
+
     async function registrarDevolucaoVts(event) {
       if (event?.preventDefault) {
         event.preventDefault();
@@ -3307,29 +3365,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       try {
-        await Promise.all(
-          pendentes.map((item) =>
-            db.collection('vtsEtiquetas').doc(item.id).set(
-              {
-                status: 'cancelado',
-                canceladoEm: firebase.firestore.FieldValue.serverTimestamp(),
-                canceladoPor: usuarioLogado?.uid || '',
-                canceladoMotivo: 'devolucao',
-              },
-              { merge: true },
-            ),
-          ),
-        );
-
-        const agora = new Date();
-        pendentes.forEach((item) => {
-          item.status = 'cancelado';
-          item.canceladoEm = agora;
-          item.canceladoPor = usuarioLogado?.uid || '';
-          item.canceladoMotivo = 'devolucao';
-        });
-
-        aplicarFiltrosEtiquetasVts();
+        await marcarEtiquetasComoCanceladasVts(pendentes, 'devolucao');
 
         if (formulario) {
           formulario.reset();
@@ -3363,6 +3399,161 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           botao.innerHTML = textoOriginalBotao || 'Registrar devolução';
           botao.classList.remove('opacity-70');
         }
+      }
+    }
+
+    async function importarDevolucoesVtsExcel(evento) {
+      const input = evento?.target || document.getElementById('vtsDevolucaoPlanilha');
+      const arquivo = input?.files?.[0];
+
+      if (!arquivo) {
+        setVtsFeedback('Selecione um arquivo de planilha para importar os códigos de devolução.', 'warning');
+        return;
+      }
+
+      if (!db) {
+        setVtsFeedback('Serviço indisponível para registrar devoluções no momento.', 'error');
+        if (input) input.value = '';
+        return;
+      }
+
+      if (typeof XLSX === 'undefined') {
+        setVtsFeedback('Biblioteca de planilhas indisponível. Recarregue a página e tente novamente.', 'error');
+        if (input) input.value = '';
+        return;
+      }
+
+      try {
+        setVtsFeedback('Processando planilha de devoluções, aguarde...', 'info');
+
+        const arrayBuffer = await arquivo.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const primeiraAba = workbook.SheetNames?.[0];
+        if (!primeiraAba) {
+          setVtsFeedback('A planilha informada está vazia.', 'warning');
+          return;
+        }
+
+        const sheet = workbook.Sheets[primeiraAba];
+        const linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (!Array.isArray(linhas) || !linhas.length) {
+          setVtsFeedback('A planilha informada está vazia.', 'warning');
+          return;
+        }
+
+        const cabecalho = linhas[0].map((valor) => String(valor ?? '').trim());
+        const mapaCabecalho = construirMapaCabecalhoPlanilhaVts(cabecalho);
+
+        let indiceRastreio = -1;
+        for (const chave of VTS_DEVOLUCAO_HEADER_CHAVES) {
+          const indice = mapaCabecalho.get(chave);
+          if (typeof indice === 'number') {
+            indiceRastreio = indice;
+            break;
+          }
+        }
+
+        const possuiCabecalhoValido = indiceRastreio >= 0;
+        if (!possuiCabecalhoValido) {
+          if (cabecalho.length === 1) {
+            indiceRastreio = 0;
+          } else {
+            setVtsFeedback(
+              'Não foi possível identificar a coluna de rastreio. Utilize um cabeçalho como "Rastreio" na planilha.',
+              'error',
+            );
+            return;
+          }
+        }
+
+        const inicioDados = possuiCabecalhoValido ? 1 : 0;
+        const rastreiosMap = new Map();
+        const invalidos = [];
+
+        for (let linhaIndice = inicioDados; linhaIndice < linhas.length; linhaIndice += 1) {
+          const linha = linhas[linhaIndice];
+          if (!Array.isArray(linha)) continue;
+
+          const valorBruto = linha[indiceRastreio];
+          const textoOriginal = normalizarLinhaVts(valorBruto);
+          const normalizado = normalizarComparacaoVts(textoOriginal);
+
+          if (normalizado) {
+            if (!rastreiosMap.has(normalizado)) {
+              rastreiosMap.set(normalizado, { original: textoOriginal || String(valorBruto ?? '').trim() });
+            }
+          } else if (String(valorBruto ?? '').trim()) {
+            invalidos.push(String(valorBruto ?? '').trim());
+          }
+        }
+
+        if (!rastreiosMap.size) {
+          setVtsFeedback('Nenhum código de rastreio válido foi encontrado na planilha informada.', 'warning');
+          return;
+        }
+
+        const rastreiosEncontrados = new Set();
+        const correspondencias = vtsEtiquetasRegistros.filter((item) => {
+          const normalizado = normalizarComparacaoVts(item.rastreio);
+          if (normalizado && rastreiosMap.has(normalizado)) {
+            rastreiosEncontrados.add(normalizado);
+            return true;
+          }
+          return false;
+        });
+
+        if (!correspondencias.length) {
+          setVtsFeedback(
+            `${rastreiosMap.size} código(s) de rastreio não foram encontrados entre as etiquetas importadas.`,
+            'warning',
+          );
+          return;
+        }
+
+        const pendentes = correspondencias.filter((item) => (item.status || '').toLowerCase() !== 'cancelado');
+        const jaCancelados = correspondencias.length - pendentes.length;
+        const naoCorrespondidos = Array.from(rastreiosMap.keys()).filter((codigo) => !rastreiosEncontrados.has(codigo));
+
+        if (!pendentes.length) {
+          const mensagens = [];
+          mensagens.push('Todos os pedidos associados aos rastreios informados já estavam cancelados.');
+          if (naoCorrespondidos.length) {
+            mensagens.push(`${naoCorrespondidos.length} código(s) não foram localizados nas etiquetas importadas.`);
+          }
+          if (invalidos.length) {
+            mensagens.push(`${invalidos.length} linha(s) foram ignoradas por não conter um rastreio válido.`);
+          }
+          setVtsFeedback(mensagens.join(' '), 'info');
+          return;
+        }
+
+        await marcarEtiquetasComoCanceladasVts(pendentes, 'devolucaoPlanilha');
+
+        const mensagens = [];
+        mensagens.push(
+          pendentes.length === 1
+            ? '1 pedido foi marcado como cancelado a partir da planilha.'
+            : `${pendentes.length} pedidos foram marcados como cancelados a partir da planilha.`,
+        );
+        if (jaCancelados > 0) {
+          mensagens.push(`${jaCancelados} registro(s) já estavam cancelados anteriormente.`);
+        }
+        if (naoCorrespondidos.length > 0) {
+          mensagens.push(`${naoCorrespondidos.length} código(s) não foram localizados nas etiquetas importadas.`);
+        }
+        if (invalidos.length > 0) {
+          mensagens.push(`${invalidos.length} linha(s) foram ignoradas por não conter um rastreio válido.`);
+        }
+
+        setVtsFeedback(mensagens.join(' '), 'warning');
+      } catch (erro) {
+        console.error('Erro ao importar planilha de devoluções VTS:', erro);
+        setVtsFeedback(
+          'Não foi possível processar a planilha de devoluções. Verifique o arquivo e tente novamente.',
+          'error',
+        );
+      } finally {
+        if (input) input.value = '';
       }
     }
 
@@ -4860,6 +5051,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (inputImportar && !inputImportar.dataset.bound) {
           inputImportar.addEventListener('change', importarEtiquetasVtsExcel);
           inputImportar.dataset.bound = 'true';
+        }
+        const inputDevolucaoPlanilha = document.getElementById('vtsDevolucaoPlanilha');
+        if (inputDevolucaoPlanilha && !inputDevolucaoPlanilha.dataset.bound) {
+          inputDevolucaoPlanilha.addEventListener('change', importarDevolucoesVtsExcel);
+          inputDevolucaoPlanilha.dataset.bound = 'true';
         }
         const selecionarTodos = document.getElementById('vtsSelecionarTodos');
         if (selecionarTodos && !selecionarTodos.dataset.bound) {
