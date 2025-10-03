@@ -200,6 +200,8 @@ let vtsSkuMapa = new Map();
 let vtsSkuEdicaoAtual = null;
 let vtsFiltroDataInicio = '';
 let vtsFiltroDataFim = '';
+let vtsFiltroDataColocadaInicio = '';
+let vtsFiltroDataColocadaFim = '';
 let vtsFiltroLoja = '';
 let vtsEtiquetasSelecionadas = new Set();
 
@@ -2157,6 +2159,30 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
       });
 
+      const dataColocadaInicioInputs = [
+        document.getElementById('vtsFiltroDataColocadaInicio'),
+        document.getElementById('vtsResumoFiltroDataColocadaInicio'),
+      ];
+      dataColocadaInicioInputs.forEach((input) => {
+        if (!input) return;
+        const valor = vtsFiltroDataColocadaInicio || '';
+        if (input.value !== valor) {
+          input.value = valor;
+        }
+      });
+
+      const dataColocadaFimInputs = [
+        document.getElementById('vtsFiltroDataColocadaFim'),
+        document.getElementById('vtsResumoFiltroDataColocadaFim'),
+      ];
+      dataColocadaFimInputs.forEach((input) => {
+        if (!input) return;
+        const valor = vtsFiltroDataColocadaFim || '';
+        if (input.value !== valor) {
+          input.value = valor;
+        }
+      });
+
       const seletoresLoja = [document.getElementById('vtsFiltroLoja'), document.getElementById('vtsResumoFiltroLoja')];
       seletoresLoja.forEach((select) => {
         if (!select) return;
@@ -2168,7 +2194,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     }
 
     function filtrosVtsAtivos() {
-      return Boolean(vtsFiltroDataInicio || vtsFiltroDataFim || vtsFiltroLoja);
+      return Boolean(
+        vtsFiltroDataInicio ||
+          vtsFiltroDataFim ||
+          vtsFiltroDataColocadaInicio ||
+          vtsFiltroDataColocadaFim ||
+          vtsFiltroLoja,
+      );
     }
 
     function formatarDataBrSimplesVts(iso) {
@@ -2183,14 +2215,28 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       if (vtsFiltroDataInicio && vtsFiltroDataFim) {
         partes.push(
-          `Período: ${formatarDataBrSimplesVts(vtsFiltroDataInicio)} a ${formatarDataBrSimplesVts(vtsFiltroDataFim)}`,
+          `Etiqueta: ${formatarDataBrSimplesVts(vtsFiltroDataInicio)} a ${formatarDataBrSimplesVts(vtsFiltroDataFim)}`,
         );
       } else if (vtsFiltroDataInicio) {
-        partes.push(`Período a partir de ${formatarDataBrSimplesVts(vtsFiltroDataInicio)}`);
+        partes.push(`Etiqueta a partir de ${formatarDataBrSimplesVts(vtsFiltroDataInicio)}`);
       } else if (vtsFiltroDataFim) {
-        partes.push(`Período até ${formatarDataBrSimplesVts(vtsFiltroDataFim)}`);
+        partes.push(`Etiqueta até ${formatarDataBrSimplesVts(vtsFiltroDataFim)}`);
       } else {
-        partes.push('Período completo');
+        partes.push('Etiqueta: período completo');
+      }
+
+      if (vtsFiltroDataColocadaInicio && vtsFiltroDataColocadaFim) {
+        partes.push(
+          `Data colocada: ${formatarDataBrSimplesVts(vtsFiltroDataColocadaInicio)} a ${formatarDataBrSimplesVts(
+            vtsFiltroDataColocadaFim,
+          )}`,
+        );
+      } else if (vtsFiltroDataColocadaInicio) {
+        partes.push(`Data colocada a partir de ${formatarDataBrSimplesVts(vtsFiltroDataColocadaInicio)}`);
+      } else if (vtsFiltroDataColocadaFim) {
+        partes.push(`Data colocada até ${formatarDataBrSimplesVts(vtsFiltroDataColocadaFim)}`);
+      } else {
+        partes.push('Data colocada: todas');
       }
 
       if (vtsFiltroLoja) {
@@ -2205,6 +2251,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     function obterIntervaloFiltroDatasVts() {
       const inicioNormalizado = normalizeDate(vtsFiltroDataInicio) || '';
       const fimNormalizado = normalizeDate(vtsFiltroDataFim) || '';
+
+      const inicio = inicioNormalizado ? new Date(`${inicioNormalizado}T00:00:00`) : null;
+      const fim = fimNormalizado ? new Date(`${fimNormalizado}T23:59:59.999`) : null;
+
+      return { inicio, fim };
+    }
+
+    function obterIntervaloFiltroDataColocadaVts() {
+      const inicioNormalizado = normalizeDate(vtsFiltroDataColocadaInicio) || '';
+      const fimNormalizado = normalizeDate(vtsFiltroDataColocadaFim) || '';
 
       const inicio = inicioNormalizado ? new Date(`${inicioNormalizado}T00:00:00`) : null;
       const fim = fimNormalizado ? new Date(`${fimNormalizado}T23:59:59.999`) : null;
@@ -2258,6 +2314,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
     function obterEtiquetasFiltradasVts() {
       const { inicio, fim } = obterIntervaloFiltroDatasVts();
+      const { inicio: inicioColocada, fim: fimColocada } = obterIntervaloFiltroDataColocadaVts();
       const lojaNormalizada = normalizarComparacaoVts(vtsFiltroLoja);
 
       return vtsEtiquetasRegistros.filter((registro) => {
@@ -2270,6 +2327,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (inicio && (!dataRegistro || dataRegistro < inicio)) return false;
         if (fim && (!dataRegistro || dataRegistro > fim)) return false;
 
+        const dataColocada = obterDataColocadaRegistroVts(registro);
+        if (inicioColocada && (!dataColocada || dataColocada < inicioColocada)) return false;
+        if (fimColocada && (!dataColocada || dataColocada > fimColocada)) return false;
+
         return true;
       });
     }
@@ -2280,6 +2341,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         { id: 'vtsResumoFiltroDataInicio', tipo: 'dataInicio' },
         { id: 'vtsFiltroDataFim', tipo: 'dataFim' },
         { id: 'vtsResumoFiltroDataFim', tipo: 'dataFim' },
+        { id: 'vtsFiltroDataColocadaInicio', tipo: 'dataColocadaInicio' },
+        { id: 'vtsResumoFiltroDataColocadaInicio', tipo: 'dataColocadaInicio' },
+        { id: 'vtsFiltroDataColocadaFim', tipo: 'dataColocadaFim' },
+        { id: 'vtsResumoFiltroDataColocadaFim', tipo: 'dataColocadaFim' },
         { id: 'vtsFiltroLoja', tipo: 'loja' },
         { id: 'vtsResumoFiltroLoja', tipo: 'loja' },
       ];
@@ -2297,6 +2362,18 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         } else if (tipo === 'dataFim') {
           elemento.addEventListener('change', (evento) => {
             vtsFiltroDataFim = normalizeDate(evento.target.value) || '';
+            sincronizarFiltrosVts();
+            aplicarFiltrosEtiquetasVts();
+          });
+        } else if (tipo === 'dataColocadaInicio') {
+          elemento.addEventListener('change', (evento) => {
+            vtsFiltroDataColocadaInicio = normalizeDate(evento.target.value) || '';
+            sincronizarFiltrosVts();
+            aplicarFiltrosEtiquetasVts();
+          });
+        } else if (tipo === 'dataColocadaFim') {
+          elemento.addEventListener('change', (evento) => {
+            vtsFiltroDataColocadaFim = normalizeDate(evento.target.value) || '';
             sincronizarFiltrosVts();
             aplicarFiltrosEtiquetasVts();
           });
@@ -2318,6 +2395,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         botao.addEventListener('click', () => {
           vtsFiltroDataInicio = '';
           vtsFiltroDataFim = '';
+          vtsFiltroDataColocadaInicio = '';
+          vtsFiltroDataColocadaFim = '';
           vtsFiltroLoja = '';
           sincronizarFiltrosVts();
           aplicarFiltrosEtiquetasVts();
@@ -2327,6 +2406,31 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       });
 
       sincronizarFiltrosVts();
+    }
+
+    function obterDataColocadaRegistroVts(registro) {
+      if (!registro) return null;
+
+      if (registro.datacolocada instanceof Date && !Number.isNaN(registro.datacolocada.getTime())) {
+        return new Date(
+          registro.datacolocada.getFullYear(),
+          registro.datacolocada.getMonth(),
+          registro.datacolocada.getDate(),
+        );
+      }
+
+      const normalizados = [registro.datacolocada, registro.datacolocadaTexto]
+        .map((valor) => normalizeDate(valor))
+        .filter(Boolean);
+
+      for (const valor of normalizados) {
+        const data = new Date(`${valor}T00:00:00`);
+        if (!Number.isNaN(data)) {
+          return data;
+        }
+      }
+
+      return null;
     }
 
     function obterDataRegistroVts(registro) {
@@ -2508,7 +2612,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             loja: data.loja || '',
             dataEtiqueta: data.dataEtiqueta || '',
             dataEtiquetaTexto: data.dataEtiquetaTexto || '',
-            datacolocada: data.datacolocada || '',
+            datacolocada: data.datacolocada?.toDate?.() || data.datacolocada || '',
             datacolocadaTexto: data.datacolocadaTexto || '',
             buyerUsername: data.buyerUsername || '',
             importadoEm: data.importadoEm?.toDate?.() || null,
