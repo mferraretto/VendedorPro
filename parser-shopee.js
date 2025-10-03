@@ -14,28 +14,7 @@ export function parseShopeePage({ text = '', pagina } = {}) {
 
   const upCode = only(/\b(UP[0-9A-Z]+)\b/) || only(/#(UP[0-9A-Z]+)/);
 
-  const loja = (() => {
-    const afterRemetente = (normalizedText.split(/REMETENTE/i)[1] || '')
-      .split('\n')
-      .slice(0, 10)
-      .map((linha) => linha.trim())
-      .filter(
-        (linha) =>
-          linha &&
-          !/CEP|Envio previsto|AG[ÊE]NCIA|Rua|Avenida|R\s|Av\.|[0-9]{5}-[0-9]{3}/i.test(
-            linha,
-          ),
-      );
-
-    const prioridade = afterRemetente.find((linha) =>
-      /LTDA|EIRELI|STORE|COM[EÉ]RCIO|IND(?:[ÚU]STRIA)?/i.test(linha),
-    );
-
-    if (prioridade) return prioridade.replace(/\s{2,}/g, ' ').trim();
-
-    const fallback = afterRemetente.find((linha) => /\b\w+\s+\w+/.test(linha));
-    return (fallback || '').replace(/\s{2,}/g, ' ').trim();
-  })();
+  const loja = 'Shopee';
 
   const mPrevista = normalizedText.match(
     /Envio previsto:[^\d]{0,80}(\d{2}\/\d{2}\/\d{4})/i,
@@ -92,11 +71,29 @@ export function parseShopeePage({ text = '', pagina } = {}) {
   })();
 
   const pedidoAntesCep = (() => {
-    const indiceCep = linhasLimpa.findIndex((linha) =>
-      /\b\d{5}-\d{3}\b/.test(linha),
+    const inlineMatch = normalizedText.match(
+      /([A-Z0-9-]{6,})\s*(?:\r?\n)?\s*\b\d{5}-\d{3}\b/,
     );
-    if (indiceCep <= 0) return '';
-    return linhasLimpa[indiceCep - 1] || '';
+    if (inlineMatch) {
+      return inlineMatch[1];
+    }
+
+    for (let indice = 0; indice < linhasLimpa.length; indice += 1) {
+      const linha = linhasLimpa[indice];
+      const cepMatch = linha.match(/\b\d{5}-\d{3}\b/);
+      if (!cepMatch) continue;
+
+      const antesCep = linha.slice(0, cepMatch.index).trim();
+      const candidatoInline = (antesCep.match(/([A-Z0-9-]{6,})\s*$/) || [])[1];
+      if (candidatoInline) return candidatoInline;
+
+      const anterior = linhasLimpa[indice - 1] || '';
+      const candidatoAnterior = (anterior.match(/([A-Z0-9-]{6,})\s*$/) ||
+        [])[1];
+      if (candidatoAnterior) return candidatoAnterior;
+    }
+
+    return '';
   })();
 
   const pedido = pedidoAntesCep.replace(/\s+/g, '') || upCode || rastreio || '';
