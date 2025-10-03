@@ -3525,20 +3525,6 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return codigo;
     }
 
-    function ehSequenciaPackIdVts(texto, sequencia) {
-      const linha = normalizarLinhaVts(texto);
-      const codigo = sanitizarCodigoVts(sequencia);
-      if (!linha || !codigo) return false;
-
-      const codigoComEspacos = codigo.split('').join('\\s*');
-      const padroes = [
-        new RegExp(`(?:pack|venda)\\s*id[:\\s-]*${codigo}`, 'i'),
-        new RegExp(`(?:pack|venda)\\s*id[:\\s-]*${codigoComEspacos}`, 'i'),
-      ];
-
-      return padroes.some((regex) => regex.test(linha));
-    }
-
     function extrairRastreioVts(texto, pedidoAtual) {
       const normalizado = normalizarLinhaVts(texto);
       if (!normalizado) return '';
@@ -3566,7 +3552,6 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         for (const candidato of candidatosNumericos) {
           const digitos = candidato.replace(/\D/g, '');
           if (digitos.length >= 10 && digitos.length <= 15) {
-            if (ehSequenciaPackIdVts(texto, candidato)) continue;
             const ehSubsequenciaPedido = pedidoNumerico && pedidoNumerico.length > digitos.length && pedidoNumerico.includes(digitos);
             if (!pedidoNumerico || (!ehSubsequenciaPedido && digitos !== pedidoNumerico)) {
               return digitos;
@@ -3579,7 +3564,6 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       for (const parte of partes) {
         const digitos = parte.replace(/\D/g, '');
         if (digitos.length >= 10 && digitos.length <= 15) {
-          if (ehSequenciaPackIdVts(texto, parte)) continue;
           const ehSubsequenciaPedido = pedidoNumerico && pedidoNumerico.length > digitos.length && pedidoNumerico.includes(digitos);
           if (!pedidoNumerico || (!ehSubsequenciaPedido && digitos !== pedidoNumerico)) {
             return digitos;
