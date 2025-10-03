@@ -2515,145 +2515,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     }
 
     function interpretarEtiquetaShopee(linhas, pagina) {
-      const textoCompleto = (linhas || [])
-        .map((valor) => (valor == null ? '' : String(valor)))
-        .join('\n');
-
-      const resultadoShopeeEspecifico = (() => {
-        const base = {
-          pagina,
-          sku: '',
-          pedido: '',
-          rastreio: '',
-          loja: '',
-          dataTexto: '',
-          dataNormalizada: '',
-          nfeChave: '',
-          produto: '',
-          qtd: '',
-          skuInterno: '',
-          dataPrevistaEnvio: '',
-          dataPrevistaEnvioISO: '',
-          emissaoNFe: '',
-          emissaoNFeISO: '',
-        };
-
-        if (!textoCompleto.trim()) return base;
-
-        const only = (re, indice = 1) => {
-          const match = textoCompleto.match(re);
-          return (match && match[indice]) || '';
-        };
-
-        const nfeChave = only(/\b(\d{44})\b/);
-
-        const rastreioMatch = textoCompleto.match(/\b(BR[0-9A-Z]{8,})\b/i);
-        const rastreio = rastreioMatch ? rastreioMatch[1].toUpperCase() : '';
-
-        const upCodeRaw = only(/\b(UP[0-9A-Z]+)\b/);
-        const upCodeHash = only(/#(UP[0-9A-Z]+)/);
-        const upCode = (upCodeRaw || upCodeHash || '').toUpperCase();
-
-        const loja = (() => {
-          const blocoRemetente = textoCompleto.split(/REMETENTE/i)[1];
-          if (!blocoRemetente) return '';
-
-          const candidatos = blocoRemetente
-            .split(/\n/)
-            .slice(0, 8)
-            .map((linha) => linha.replace(/^[:\-\s]+/, '').trim())
-            .filter((linha) =>
-              linha &&
-              !/(DESTINAT[ÁA]RIO|COMERCIAL|RESIDENCIAL|CEP|Envio previsto|AG[ÊE]NCIA|Rua|Avenida|Travessa|Tv\.|R\.|Av\.|[0-9]{5}-[0-9]{3})/i.test(linha)
-            );
-
-          const heuristicaNome =
-            candidatos.find((linha) => /LTDA|EIRELI|ME|STORE|COM|IND|LTDA\.?/i.test(linha)) ||
-            candidatos.find((linha) => /\b\w+\s+\w+/.test(linha));
-
-          return heuristicaNome ? heuristicaNome.replace(/\s{2,}/g, ' ').trim() : '';
-        })();
-
-        const itemMatch = textoCompleto.match(/^\s*\d+\.\s+.+$/m);
-        let produto = '';
-        let qtd = '';
-        let skuDoItem = '';
-        if (itemMatch) {
-          const itemLinha = itemMatch[0].trim();
-          const detalhes = itemLinha.match(/^\s*\d+\.\s+(.*?)(?:\s+\*([0-9]+))?\s*$/);
-          if (detalhes) {
-            const conteudoProduto = detalhes[1].trim();
-            const skuInline = (conteudoProduto.match(/#(UP[0-9A-Z]+)/) || [])[1] || '';
-            skuDoItem = skuInline.toUpperCase();
-            const produtoSemSku = conteudoProduto.replace(/#(UP[0-9A-Z]+)/, '').trim();
-            produto = (produtoSemSku || conteudoProduto).replace(/\s{2,}/g, ' ').trim();
-            qtd = detalhes[2] || '1';
-          }
-        }
-
-        const skuHeader = only(/SKU:\s*([^\n]+)/i);
-        const skuHeaderUp = (skuHeader.match(/#(UP[0-9A-Z]+)/) || [])[1] || '';
-
-        const skuInterno = (skuHeaderUp || skuDoItem || upCode || '').toUpperCase();
-        const skuValido = ehSkuValidoVts(skuInterno) ? skuInterno : '';
-
-        const dataPrevistaEnvio = only(/Envio previsto:\s*(\d{2}\/\d{2}\/\d{4})/i);
-        const dataPrevistaEnvioISO = dataPrevistaEnvio
-          ? dataPrevistaEnvio.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1')
-          : '';
-
-        const emissaoMatch = textoCompleto.match(/Emiss[aã]o:\s*(\d{2})-(\d{2})-(\d{4})\s+(\d{2}:\d{2}:\d{2})/i);
-        const emissaoNFe = emissaoMatch
-          ? `${emissaoMatch[1]}-${emissaoMatch[2]}-${emissaoMatch[3]} ${emissaoMatch[4]}`
-          : '';
-        const emissaoNFeISO = emissaoMatch
-          ? `${emissaoMatch[3]}-${emissaoMatch[2]}-${emissaoMatch[1]}T${emissaoMatch[4]}`
-          : '';
-
-        const pedido = upCode || rastreio || '';
-
-        const dados = {
-          ...base,
-          sku: skuValido,
-          pedido,
-          rastreio,
-          loja,
-          nfeChave,
-          produto,
-          qtd,
-          skuInterno: skuValido,
-          dataPrevistaEnvio,
-          dataPrevistaEnvioISO,
-          emissaoNFe,
-          emissaoNFeISO,
-        };
-
-        if (dataPrevistaEnvio) {
-          dados.dataTexto = dataPrevistaEnvio;
-          dados.dataNormalizada = dataPrevistaEnvioISO;
-        } else if (emissaoNFe) {
-          dados.dataTexto = emissaoNFe;
-          dados.dataNormalizada = emissaoNFeISO ? emissaoNFeISO.split('T')[0] : '';
-        }
-
-        if (!ehLojaValidaVts(dados.loja)) dados.loja = '';
-
-        return dados;
-      })();
-
-      const complementarShopee = (dados) => {
-        if (!dados) return dados;
-        const combinado = { ...dados };
-        Object.entries(resultadoShopeeEspecifico).forEach(([chave, valor]) => {
-          if (valor && !combinado[chave]) {
-            combinado[chave] = valor;
-          }
-        });
-        return combinado;
-      };
-
-      if (possuiInformacoesEtiquetaVts(resultadoShopeeEspecifico)) {
-        return resultadoShopeeEspecifico;
+      const resultadoMercadoLivre = interpretarEtiquetaMercadoLivre(linhas, pagina);
+      if (possuiInformacoesEtiquetaVts(resultadoMercadoLivre)) {
+        return resultadoMercadoLivre;
       }
 
       const resultadoGenerico = interpretarEtiquetaGenerica(linhas, pagina, {
@@ -2675,10 +2539,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       });
 
       if (possuiInformacoesEtiquetaVts(resultadoGenerico)) {
-        return complementarShopee(resultadoGenerico);
+        return resultadoGenerico;
       }
 
-      return complementarShopee(interpretarEtiquetaMercadoLivre(linhas, pagina));
+      return interpretarEtiquetaMercadoLivre(linhas, pagina);
     }
 
     function interpretarEtiquetaMagalu(linhas, pagina) {
