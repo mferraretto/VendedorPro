@@ -34,8 +34,8 @@ export function parseMagalu(pages = []) {
     const linhaItem = linhas.find((linha) => /^\d+\s+\S+/.test(linha)) || '';
 
     let sku =
-      (p2.match(/QTD\s*1\s*([A-Za-z0-9]{12})/) || [])[1] ||
-      (p2.match(/QTD\s*1[^A-Za-z0-9]*([A-Za-z0-9]{12})/) || [])[1] ||
+      (p2.match(/QTD\s*1\s*([A-Za-z0-9]{20})/) || [])[1] ||
+      (p2.match(/QTD\s*1[^A-Za-z0-9]*([A-Za-z0-9]{20})/) || [])[1] ||
       '';
     let variacao = '';
     if (linhaItem) {
