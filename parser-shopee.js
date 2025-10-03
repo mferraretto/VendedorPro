@@ -1,5 +1,9 @@
 export function parseShopeePage({ text = '', pagina } = {}) {
   const normalizedText = (text || '').replace(/\r\n?/g, '\n');
+  const linhasLimpa = normalizedText
+    .split('\n')
+    .map((linha) => linha.trim())
+    .filter((linha) => linha);
   const only = (re, i = 1) => {
     const match = normalizedText.match(re);
     return (match || [])[i] || '';
@@ -77,7 +81,25 @@ export function parseShopeePage({ text = '', pagina } = {}) {
   const skuInterno =
     (skuHeader.match(/#(UP[0-9A-Z]+)/) || [])[1] || upCode || '';
 
-  const pedido = upCode || rastreio || '';
+  const skuDeadline = (() => {
+    const regex = /Deadline:\s*\d{2}\/\d{2}\/\d{4}\s*1\.\s*/i;
+    const match = normalizedText.match(regex);
+    if (!match) return '';
+    const inicioSku = match.index + match[0].length;
+    if (inicioSku == null || Number.isNaN(inicioSku)) return '';
+    const resto = normalizedText.slice(inicioSku).split('\n')[0] || '';
+    return resto.trim();
+  })();
+
+  const pedidoAntesCep = (() => {
+    const indiceCep = linhasLimpa.findIndex((linha) =>
+      /\b\d{5}-\d{3}\b/.test(linha),
+    );
+    if (indiceCep <= 0) return '';
+    return linhasLimpa[indiceCep - 1] || '';
+  })();
+
+  const pedido = pedidoAntesCep.replace(/\s+/g, '') || upCode || rastreio || '';
 
   return {
     modelo: 'shopee',
@@ -86,7 +108,7 @@ export function parseShopeePage({ text = '', pagina } = {}) {
     pedido,
     rastreio,
     loja,
-    sku: skuInterno,
+    sku: skuDeadline || skuInterno,
     produto,
     qtd,
     dataPrevistaEnvio: dataPrevistaEnvioBR,
