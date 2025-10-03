@@ -303,6 +303,15 @@
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <button
+          id="vtsExcluirSelecionados"
+          type="button"
+          class="btn btn-danger flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled
+        >
+          <i class="fas fa-trash-alt"></i>
+          <span>Excluir selecionados</span>
+        </button>
+        <button
           id="vtsExportarExcel"
           type="button"
           class="btn btn-secondary flex items-center gap-2"
@@ -330,6 +339,14 @@
       <table class="min-w-full text-sm">
         <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
           <tr>
+            <th class="px-4 py-3">
+              <input
+                id="vtsSelecionarTodos"
+                type="checkbox"
+                class="form-checkbox h-4 w-4 text-indigo-600"
+                aria-label="Selecionar todos os pedidos"
+              />
+            </th>
             <th class="px-4 py-3 text-left font-semibold">SKU</th>
             <th class="px-4 py-3 text-left font-semibold">Número do pedido</th>
             <th class="px-4 py-3 text-left font-semibold">Rastreio</th>
