@@ -281,6 +281,20 @@
             Utilize esta lista para adicionar códigos que representam o mesmo produto (por exemplo, variações de cor ou embalagem).
           </p>
         </div>
+        <div>
+          <label for="vtsSkuSobraEsperada" class="block text-xs font-medium text-slate-600">Sobra esperada</label>
+          <input
+            type="number"
+            id="vtsSkuSobraEsperada"
+            class="form-control"
+            placeholder="Quantidade prevista"
+            step="0.01"
+            min="0"
+          />
+          <p class="mt-1 text-[11px] leading-relaxed text-slate-500">
+            Informe a quantidade prevista de sobra para o SKU principal. Este valor será exibido no resumo mensal.
+          </p>
+        </div>
         <div class="flex items-center gap-3 md:col-span-2">
           <button type="submit" class="btn btn-primary" id="vtsSkuSalvar">
             <i class="fas fa-save mr-2"></i>
@@ -310,6 +324,7 @@
             <tr>
               <th class="px-4 py-3 text-left font-semibold">SKU principal</th>
               <th class="px-4 py-3 text-left font-semibold">Associados</th>
+              <th class="px-4 py-3 text-right font-semibold">Sobra esperada</th>
               <th class="px-4 py-3 text-left font-semibold">Ações</th>
             </tr>
           </thead>
@@ -346,6 +361,7 @@
             <tr>
               <th class="px-4 py-3 text-left font-semibold">SKU principal</th>
               <th class="px-4 py-3 text-left font-semibold">SKUs considerados</th>
+              <th class="px-4 py-3 text-right font-semibold">Sobra esperada</th>
               <th class="px-4 py-3 text-right font-semibold">Total vendido</th>
               <th class="px-4 py-3 text-right font-semibold">Total cancelado</th>
             </tr>
@@ -361,6 +377,10 @@
         <p class="mt-1">
           <strong>Total cancelado no período:</strong>
           <span id="vtsResumoTotalCancelado" class="font-semibold text-slate-800">0</span>
+        </p>
+        <p class="mt-1">
+          <strong>Total esperado sinalizado:</strong>
+          <span id="vtsResumoTotalEsperado" class="font-semibold text-slate-800">0</span>
         </p>
       </div>
     </div>
