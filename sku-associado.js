@@ -9,12 +9,15 @@ import {
   setDoc,
   getDocs,
   deleteDoc,
+  query,
+  where,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getAuth,
   onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
+import { carregarUsuariosFinanceiros } from './responsavel-financeiro.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -22,6 +25,151 @@ const auth = getAuth(app);
 
 let editId = null;
 let skuCache = new Map();
+let eventosRegistrados = false;
+
+const CONTEXT_ESCOPOS_PADRAO = [
+  'publico',
+  'geral',
+  'todos',
+  'default',
+  'padrao',
+];
+let contextoUsuario = {
+  perfil: 'cliente',
+  isAdm: false,
+  isGestor: false,
+  isResponsavelFinanceiro: false,
+  escoposPermitidos: [...CONTEXT_ESCOPOS_PADRAO],
+};
+
+function normalizarTexto(valor) {
+  return String(valor || '')
+    .toLowerCase()
+    .trim();
+}
+
+async function prepararContextoUsuario(user) {
+  contextoUsuario = {
+    perfil: 'cliente',
+    isAdm: false,
+    isGestor: false,
+    isResponsavelFinanceiro: false,
+    escoposPermitidos: [...CONTEXT_ESCOPOS_PADRAO],
+  };
+
+  try {
+    const dadosFinanceiro = await carregarUsuariosFinanceiros(db, user);
+    const perfilNormalizado = normalizarTexto(dadosFinanceiro?.perfil || '');
+
+    contextoUsuario.perfil = perfilNormalizado || 'cliente';
+    contextoUsuario.isAdm = contextoUsuario.perfil === 'adm';
+    contextoUsuario.isGestor =
+      contextoUsuario.perfil === 'gestor' || dadosFinanceiro?.isGestor;
+    contextoUsuario.isResponsavelFinanceiro = Boolean(
+      dadosFinanceiro?.isResponsavelFinanceiro,
+    );
+
+    if (contextoUsuario.isAdm) {
+      contextoUsuario.escoposPermitidos = null;
+      return;
+    }
+
+    const escopos = new Set(CONTEXT_ESCOPOS_PADRAO);
+
+    if (
+      contextoUsuario.isGestor ||
+      contextoUsuario.isResponsavelFinanceiro ||
+      contextoUsuario.perfil === 'gestor'
+    ) {
+      [
+        'gestor',
+        'financeiro',
+        'responsavel',
+        'gestor financeiro',
+        'responsavel financeiro',
+      ].forEach((valor) => escopos.add(normalizarTexto(valor)));
+    }
+
+    if (
+      contextoUsuario.perfil === 'usuario' ||
+      contextoUsuario.perfil === 'cliente'
+    ) {
+      ['usuario', 'cliente'].forEach((valor) =>
+        escopos.add(normalizarTexto(valor)),
+      );
+    }
+
+    contextoUsuario.escoposPermitidos = Array.from(escopos)
+      .map((escopo) => normalizarTexto(escopo))
+      .filter(
+        (escopo, index, arr) =>
+          escopo && escopo !== 'vts' && arr.indexOf(escopo) === index,
+      );
+  } catch (error) {
+    console.error('Erro ao preparar contexto do usuário:', error);
+    contextoUsuario.escoposPermitidos = CONTEXT_ESCOPOS_PADRAO.map((escopo) =>
+      normalizarTexto(escopo),
+    );
+  }
+}
+
+async function obterDocumentosSku() {
+  const docs = [];
+  const idsProcessados = new Set();
+
+  try {
+    const snapCompleto = await getDocs(collection(db, 'skuAssociado'));
+    snapCompleto.forEach((docSnap) => {
+      idsProcessados.add(docSnap.id);
+      docs.push(docSnap);
+    });
+    return docs;
+  } catch (error) {
+    if (error?.code !== 'permission-denied') {
+      throw error;
+    }
+
+    if (!contextoUsuario?.escoposPermitidos || contextoUsuario.isAdm) {
+      console.warn('Permissões insuficientes para listar todos os SKUs.');
+      return docs;
+    }
+  }
+
+  const escoposPermitidos = Array.from(
+    new Set(
+      (contextoUsuario.escoposPermitidos || [])
+        .map((escopo) => normalizarTexto(escopo))
+        .filter((escopo) => escopo && escopo !== 'vts'),
+    ),
+  );
+
+  if (!escoposPermitidos.length) {
+    return docs;
+  }
+
+  for (let i = 0; i < escoposPermitidos.length; i += 10) {
+    const chunk = escoposPermitidos.slice(i, i + 10);
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'skuAssociado'), where('escopo', 'in', chunk)),
+      );
+      snap.forEach((docSnap) => {
+        if (!idsProcessados.has(docSnap.id)) {
+          idsProcessados.add(docSnap.id);
+          docs.push(docSnap);
+        }
+      });
+    } catch (erroChunk) {
+      if (erroChunk?.code === 'permission-denied') {
+        console.warn('Permissões insuficientes para os escopos:', chunk);
+        continue;
+      }
+      throw erroChunk;
+    }
+  }
+
+  return docs;
+}
 
 function parseAssociados(value) {
   return value
@@ -51,6 +199,13 @@ function renderTabela() {
   const linhas = Array.from(skuCache.values()).sort((a, b) =>
     a.skuPrincipal.localeCompare(b.skuPrincipal),
   );
+  if (!linhas.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td colspan="4" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
+    tbody.appendChild(tr);
+    return;
+  }
   linhas.forEach((data) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -67,9 +222,19 @@ function renderTabela() {
 }
 
 async function carregarSkus() {
-  const snap = await getDocs(collection(db, 'skuAssociado'));
+  let documentos;
+  try {
+    documentos = await obterDocumentosSku();
+  } catch (error) {
+    console.error('Erro ao carregar SKUs associados:', error);
+    alert(
+      'Não foi possível carregar os SKUs associados. Verifique suas permissões ou tente novamente mais tarde.',
+    );
+    return;
+  }
+
   skuCache = new Map();
-  snap.forEach((docSnap) => {
+  documentos.forEach((docSnap) => {
     const data = docSnap.data();
     const escopo = String(data?.escopo || '').toLowerCase();
     if (data?.apenasVts === true || escopo === 'vts') {
@@ -153,6 +318,7 @@ function preencherFormulario(id, data) {
 }
 
 function registrarEventos() {
+  if (eventosRegistrados) return;
   document.getElementById('skuPrincipal').addEventListener('input', (e) => {
     const selecionados = obterPrincipaisSelecionados();
     const excluirSku = e.target.value.trim() || editId || null;
@@ -177,11 +343,16 @@ function registrarEventos() {
         }
       }
     });
+  eventosRegistrados = true;
 }
 
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    carregarSkus();
-    registrarEventos();
+onAuthStateChanged(auth, async (user) => {
+  if (!user) return;
+  try {
+    await prepararContextoUsuario(user);
+    await carregarSkus();
+  } catch (error) {
+    console.error('Erro ao iniciar a página de SKU associado:', error);
   }
+  registrarEventos();
 });
