@@ -24,26 +24,10 @@ let editId = null;
 let skuCache = new Map();
 
 function parseAssociados(value) {
-  return String(value || '')
+  return value
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-function normalizarListaSku(value) {
-  if (Array.isArray(value)) {
-    return value.map((s) => String(s || '').trim()).filter(Boolean);
-  }
-  if (typeof value === 'string') {
-    return parseAssociados(value);
-  }
-  if (value && typeof value === 'object') {
-    return Object.entries(value)
-      .filter(([, ativo]) => ativo !== false && ativo != null)
-      .map(([sku]) => String(sku || '').trim())
-      .filter(Boolean);
-  }
-  return [];
 }
 
 function popularSelectOptions(excluirSku = null, selecionados = []) {
@@ -92,15 +76,12 @@ async function carregarSkus() {
       return;
     }
     const skuPrincipal = data.skuPrincipal || docSnap.id;
-    const associados = normalizarListaSku(data.associados);
-    const principaisVinculados = normalizarListaSku(data.principaisVinculados);
-
     skuCache.set(docSnap.id, {
       ...data,
       id: docSnap.id,
       skuPrincipal,
-      associados,
-      principaisVinculados,
+      associados: data.associados || [],
+      principaisVinculados: data.principaisVinculados || [],
     });
   });
   renderTabela();
@@ -122,10 +103,9 @@ async function carregarSkus() {
 
 function obterPrincipaisSelecionados() {
   const select = document.getElementById('skusPrincipaisVinculados');
-  const valores = Array.from(select.selectedOptions)
+  return Array.from(select.selectedOptions)
     .map((opt) => opt.value)
     .filter(Boolean);
-  return Array.from(new Set(valores));
 }
 
 function limparFormulario() {
@@ -144,7 +124,7 @@ async function salvarSku() {
     alert('Informe o SKU principal');
     return;
   }
-  const associados = Array.from(new Set(parseAssociados(associadosEl.value)));
+  const associados = parseAssociados(associadosEl.value);
   const id = editId && editId !== skuPrincipal ? editId : skuPrincipal;
   if (editId && editId !== skuPrincipal) {
     await deleteDoc(doc(db, 'skuAssociado', editId));
@@ -162,12 +142,12 @@ async function salvarSku() {
 
 function preencherFormulario(id, data) {
   document.getElementById('skuPrincipal').value = data.skuPrincipal || id;
-  document.getElementById('skuAssociados').value = normalizarListaSku(
-    data.associados,
-  ).join(', ');
+  document.getElementById('skuAssociados').value = (data.associados || []).join(
+    ', ',
+  );
   popularSelectOptions(
     data.skuPrincipal || id,
-    normalizarListaSku(data.principaisVinculados),
+    data.principaisVinculados || [],
   );
   editId = id;
 }
