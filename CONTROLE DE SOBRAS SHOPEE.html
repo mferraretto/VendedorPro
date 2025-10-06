@@ -2256,7 +2256,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         atualizarMapaAssociacoesVts();
         renderizarAssociacoesSkuVts();
         aplicarFeedbackGenericoVts('vtsSkuFeedback', '', 'info');
-        atualizarResumoMensalVts();
+        aplicarFiltrosEtiquetasVts();
       } catch (erro) {
         console.error('Erro ao carregar associações de SKU VTS:', erro);
         aplicarFeedbackGenericoVts(
@@ -3166,6 +3166,62 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         totalVisiveis > 0 && totalSelecionadosVisiveis > 0 && totalSelecionadosVisiveis < totalVisiveis;
     }
 
+    function obterHtmlSkuAssociadoVts(registro) {
+      const skuOriginal = (registro?.sku || '').trim();
+      if (!skuOriginal) {
+        return '<span class="text-slate-400">-</span>';
+      }
+
+      const chaveMapa = normalizarComparacaoVts(skuOriginal);
+      if (!chaveMapa) {
+        return `<span class="font-semibold text-slate-700">${escapeHtml(skuOriginal)}</span>`;
+      }
+
+      const associacao = vtsSkuMapa.get(chaveMapa);
+      if (!associacao) {
+        return `<span class="font-semibold text-slate-700">${escapeHtml(skuOriginal)}</span>`;
+      }
+
+      const principal = (associacao.skuPrincipal || skuOriginal).trim() || skuOriginal;
+      const principalNormalizado = normalizarComparacaoVts(principal);
+      const originalNormalizado = normalizarComparacaoVts(skuOriginal);
+
+      const conjuntoAssociados = new Set();
+      const associados = [];
+      const todos = Array.isArray(associacao.todos) && associacao.todos.length
+        ? associacao.todos
+        : [associacao.skuPrincipal, ...(associacao.associados || []), ...(associacao.principaisVinculados || [])];
+
+      todos
+        .map((valor) => (valor || '').trim())
+        .filter(Boolean)
+        .forEach((valor) => {
+          const normalizado = normalizarComparacaoVts(valor);
+          if (
+            normalizado &&
+            normalizado !== principalNormalizado &&
+            normalizado !== originalNormalizado &&
+            !conjuntoAssociados.has(normalizado)
+          ) {
+            conjuntoAssociados.add(normalizado);
+            associados.push(valor);
+          }
+        });
+
+      let html = `<div class="font-semibold text-slate-700">${escapeHtml(principal)}</div>`;
+
+      if (originalNormalizado && originalNormalizado !== principalNormalizado) {
+        html += `<div class="text-xs text-slate-500">Etiqueta: ${escapeHtml(skuOriginal)}</div>`;
+      }
+
+      if (associados.length) {
+        const listaAssociados = associados.map((sku) => escapeHtml(sku)).join(', ');
+        html += `<div class="text-xs text-slate-500">Associados: ${listaAssociados}</div>`;
+      }
+
+      return html;
+    }
+
     function renderizarEtiquetasVts(registros = []) {
       const corpoTabela = document.getElementById('vtsTabelaCorpo');
       if (!corpoTabela) return;
@@ -3234,7 +3290,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         linha.appendChild(colunaSelecao);
 
         const campos = [
-          { valor: item.sku || '-', html: false },
+          { valor: obterHtmlSkuAssociadoVts(item), html: true, classeExtra: 'min-w-[200px]' },
           { valor: item.pedido || '-', html: false },
           { valor: item.rastreio || '-', html: false },
           { valor: item.loja || '-', html: false },
