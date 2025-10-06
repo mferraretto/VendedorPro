@@ -1555,9 +1555,55 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return String(bruto).trim();
     }
 
+    function obterStatusExportacaoVts(registro = {}) {
+      const statusTexto = (registro.status || '').toString().trim();
+      const estaCancelado = statusTexto.toLowerCase() === 'cancelado';
+      if (estaCancelado) {
+        const dataCancelamento =
+          registro.canceladoEm instanceof Date && !Number.isNaN(registro.canceladoEm.getTime())
+            ? registro.canceladoEm
+            : null;
+        const descricaoData = dataCancelamento
+          ? ` em ${dataCancelamento.toLocaleDateString('pt-BR')} às ${dataCancelamento.toLocaleTimeString('pt-BR')}`
+          : '';
+        const motivo = (registro.canceladoMotivo || '').toString().trim();
+        return `Pedido cancelado${descricaoData}${motivo ? ` (${motivo})` : ''}`;
+      }
+
+      return statusTexto || '-';
+    }
+
+    function mapearEtiquetasParaExportacaoVts(registros = []) {
+      if (!Array.isArray(registros)) return [];
+
+      return registros.map((registro) => {
+        const dataEtiquetaIso = normalizeDate(registro?.dataEtiqueta) || '';
+        const dataColocadaIso = normalizeDate(registro?.datacolocada) || '';
+
+        const pedido = registro?.pedido;
+        const rastreio = registro?.rastreio;
+        const loja = registro?.loja;
+        const arquivo = registro?.origemArquivo;
+
+        return {
+          sku: obterSkuAssociadoTextoVts(registro) || '-',
+          pedido: pedido !== undefined && pedido !== null && String(pedido).trim() ? String(pedido).trim() : '-',
+          rastreio:
+            rastreio !== undefined && rastreio !== null && String(rastreio).trim() ? String(rastreio).trim() : '-',
+          loja: loja !== undefined && loja !== null && String(loja).trim() ? String(loja).trim() : '-',
+          data: formatarDataVts(dataEtiquetaIso, registro?.dataEtiquetaTexto),
+          dataColocada: formatarDataVts(dataColocadaIso, registro?.datacolocadaTexto),
+          arquivo:
+            arquivo !== undefined && arquivo !== null && String(arquivo).trim() ? String(arquivo).trim() : '-',
+          status: obterStatusExportacaoVts(registro),
+        };
+      });
+    }
+
     async function exportarEtiquetasVtsExcel() {
-      if (!Array.isArray(vtsEtiquetasRegistros) || !vtsEtiquetasRegistros.length) {
-        setVtsFeedback('Não há pedidos cadastrados para exportar.', 'warning');
+      const registrosFiltrados = obterEtiquetasFiltradasVts();
+      if (!Array.isArray(registrosFiltrados) || !registrosFiltrados.length) {
+        setVtsFeedback('Não há pedidos cadastrados para exportar com os filtros aplicados.', 'warning');
         return;
       }
 
@@ -1567,28 +1613,27 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       try {
-        const cabecalho = VTS_PLANILHA_COLUNAS.map((coluna) => coluna.rotulo);
-        const linhas = vtsEtiquetasRegistros.map((registro) => {
-          const linha = {};
-          VTS_PLANILHA_COLUNAS.forEach((coluna) => {
-            let valor = '';
-            switch (coluna.chave) {
-              case 'dataEtiqueta':
-                valor = registro.dataEtiqueta || '';
-                break;
-              case 'dataEtiquetaTexto':
-                valor = registro.dataEtiquetaTexto || '';
-                break;
-              case 'modeloEtiqueta':
-                valor = registro.modeloEtiqueta || registro.modelo || '';
-                break;
-              default:
-                valor = registro[coluna.chave] || '';
-            }
-            linha[coluna.rotulo] = valor ?? '';
-          });
-          return linha;
-        });
+        const cabecalho = [
+          'SKU',
+          'Número do pedido',
+          'Rastreio',
+          'Loja',
+          'Data',
+          'Data colocada',
+          'Arquivo',
+          'Status',
+        ];
+        const dadosExportacao = mapearEtiquetasParaExportacaoVts(registrosFiltrados);
+        const linhas = dadosExportacao.map((item) => ({
+          SKU: item.sku,
+          'Número do pedido': item.pedido,
+          Rastreio: item.rastreio,
+          Loja: item.loja,
+          Data: item.data,
+          'Data colocada': item.dataColocada,
+          Arquivo: item.arquivo,
+          Status: item.status,
+        }));
 
         const worksheet = linhas.length
           ? XLSX.utils.json_to_sheet(linhas, { header: cabecalho, skipHeader: false })
@@ -1596,12 +1641,117 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Pedidos VTS');
 
-        const hoje = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(workbook, `vts_pedidos_${hoje}.xlsx`);
+        XLSX.writeFile(workbook, `vts-etiquetas-${gerarTimestampArquivoVts()}.xlsx`);
         setVtsFeedback('Planilha exportada com sucesso.', 'success');
       } catch (erro) {
         console.error('Erro ao exportar planilha de etiquetas VTS:', erro);
         setVtsFeedback('Não foi possível exportar a planilha neste momento.', 'error');
+      }
+    }
+
+    async function exportarEtiquetasVtsPdf() {
+      const registrosFiltrados = obterEtiquetasFiltradasVts();
+      if (!Array.isArray(registrosFiltrados) || !registrosFiltrados.length) {
+        setVtsFeedback('Não há pedidos cadastrados para exportar com os filtros aplicados.', 'warning');
+        return;
+      }
+
+      if (typeof html2pdf === 'undefined') {
+        setVtsFeedback('Ferramenta de exportação em PDF indisponível no momento.', 'error');
+        return;
+      }
+
+      const dadosExportacao = mapearEtiquetasParaExportacaoVts(registrosFiltrados);
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.padding = '24px';
+      container.style.fontFamily = 'Inter, sans-serif';
+      container.style.color = '#1f2937';
+      container.style.maxWidth = '1100px';
+
+      const titulo = document.createElement('h2');
+      titulo.textContent = 'Etiquetas VTS';
+      titulo.style.marginBottom = '8px';
+      titulo.style.fontSize = '18px';
+      titulo.style.fontWeight = '600';
+      container.appendChild(titulo);
+
+      const descricao = document.createElement('p');
+      descricao.textContent = `${construirDescricaoFiltrosVts()} • Registros exportados: ${dadosExportacao.length}`;
+      descricao.style.marginBottom = '16px';
+      descricao.style.fontSize = '12px';
+      container.appendChild(descricao);
+
+      const tabela = document.createElement('table');
+      tabela.style.width = '100%';
+      tabela.style.borderCollapse = 'collapse';
+      tabela.style.fontSize = '11px';
+
+      const colunas = [
+        { chave: 'sku', titulo: 'SKU', alinhamento: 'left' },
+        { chave: 'pedido', titulo: 'Número do pedido', alinhamento: 'left' },
+        { chave: 'rastreio', titulo: 'Rastreio', alinhamento: 'left' },
+        { chave: 'loja', titulo: 'Loja', alinhamento: 'left' },
+        { chave: 'data', titulo: 'Data', alinhamento: 'center' },
+        { chave: 'dataColocada', titulo: 'Data colocada', alinhamento: 'center' },
+        { chave: 'arquivo', titulo: 'Arquivo', alinhamento: 'left' },
+        { chave: 'status', titulo: 'Status', alinhamento: 'left' },
+      ];
+
+      const cabecalho = document.createElement('thead');
+      const cabecalhoLinha = document.createElement('tr');
+      colunas.forEach((coluna) => {
+        const th = document.createElement('th');
+        th.textContent = coluna.titulo;
+        th.style.border = '1px solid #e2e8f0';
+        th.style.backgroundColor = '#f1f5f9';
+        th.style.padding = '8px';
+        th.style.fontWeight = '600';
+        th.style.textAlign = coluna.alinhamento;
+        cabecalhoLinha.appendChild(th);
+      });
+      cabecalho.appendChild(cabecalhoLinha);
+      tabela.appendChild(cabecalho);
+
+      const corpo = document.createElement('tbody');
+      dadosExportacao.forEach((item) => {
+        const linha = document.createElement('tr');
+        linha.style.borderBottom = '1px solid #e2e8f0';
+
+        colunas.forEach((coluna) => {
+          const td = document.createElement('td');
+          td.textContent = item[coluna.chave] || '-';
+          td.style.padding = '8px';
+          td.style.border = '1px solid #e2e8f0';
+          td.style.textAlign = coluna.alinhamento;
+          linha.appendChild(td);
+        });
+
+        corpo.appendChild(linha);
+      });
+      tabela.appendChild(corpo);
+      container.appendChild(tabela);
+
+      document.body.appendChild(container);
+
+      try {
+        await html2pdf()
+          .set({
+            margin: 10,
+            filename: `vts-etiquetas-${gerarTimestampArquivoVts()}.pdf`,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+          })
+          .from(container)
+          .save();
+        setVtsFeedback('PDF exportado com sucesso.', 'success');
+      } catch (erro) {
+        console.error('Erro ao exportar etiquetas VTS em PDF:', erro);
+        setVtsFeedback('Não foi possível exportar o PDF neste momento.', 'error');
+      } finally {
+        container.remove();
       }
     }
 
@@ -3166,21 +3316,30 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         totalVisiveis > 0 && totalSelecionadosVisiveis > 0 && totalSelecionadosVisiveis < totalVisiveis;
     }
 
-    function obterHtmlSkuAssociadoVts(registro) {
+    function obterSkuAssociadoTextoVts(registro) {
       const skuOriginal = (registro?.sku || '').trim();
       if (!skuOriginal) {
-        return '<span class="text-slate-400">-</span>';
+        return '';
       }
 
       const chaveMapa = normalizarComparacaoVts(skuOriginal);
       if (!chaveMapa) {
-        return `<span class="font-semibold text-slate-700">${escapeHtml(skuOriginal)}</span>`;
+        return skuOriginal;
       }
 
       const associacao = vtsSkuMapa.get(chaveMapa);
       const principal = ((associacao?.skuPrincipal || '').trim()) || skuOriginal;
 
-      return `<span class="font-semibold text-slate-700">${escapeHtml(principal)}</span>`;
+      return principal;
+    }
+
+    function obterHtmlSkuAssociadoVts(registro) {
+      const skuTexto = obterSkuAssociadoTextoVts(registro);
+      if (!skuTexto) {
+        return '<span class="text-slate-400">-</span>';
+      }
+
+      return `<span class="font-semibold text-slate-700">${escapeHtml(skuTexto)}</span>`;
     }
 
     function renderizarEtiquetasVts(registros = []) {
@@ -5630,6 +5789,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (botaoExportar && !botaoExportar.dataset.bound) {
           botaoExportar.addEventListener('click', exportarEtiquetasVtsExcel);
           botaoExportar.dataset.bound = 'true';
+        }
+        const botaoExportarPdf = document.getElementById('vtsExportarPdf');
+        if (botaoExportarPdf && !botaoExportarPdf.dataset.bound) {
+          botaoExportarPdf.addEventListener('click', exportarEtiquetasVtsPdf);
+          botaoExportarPdf.dataset.bound = 'true';
         }
         const botaoExcluirSelecionados = document.getElementById('vtsExcluirSelecionados');
         if (botaoExcluirSelecionados && !botaoExcluirSelecionados.dataset.bound) {
