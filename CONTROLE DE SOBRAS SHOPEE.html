@@ -3178,48 +3178,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       const associacao = vtsSkuMapa.get(chaveMapa);
-      if (!associacao) {
-        return `<span class="font-semibold text-slate-700">${escapeHtml(skuOriginal)}</span>`;
-      }
+      const principal = ((associacao?.skuPrincipal || '').trim()) || skuOriginal;
 
-      const principal = (associacao.skuPrincipal || skuOriginal).trim() || skuOriginal;
-      const principalNormalizado = normalizarComparacaoVts(principal);
-      const originalNormalizado = normalizarComparacaoVts(skuOriginal);
-
-      const conjuntoAssociados = new Set();
-      const associados = [];
-      const todos = Array.isArray(associacao.todos) && associacao.todos.length
-        ? associacao.todos
-        : [associacao.skuPrincipal, ...(associacao.associados || []), ...(associacao.principaisVinculados || [])];
-
-      todos
-        .map((valor) => (valor || '').trim())
-        .filter(Boolean)
-        .forEach((valor) => {
-          const normalizado = normalizarComparacaoVts(valor);
-          if (
-            normalizado &&
-            normalizado !== principalNormalizado &&
-            normalizado !== originalNormalizado &&
-            !conjuntoAssociados.has(normalizado)
-          ) {
-            conjuntoAssociados.add(normalizado);
-            associados.push(valor);
-          }
-        });
-
-      let html = `<div class="font-semibold text-slate-700">${escapeHtml(principal)}</div>`;
-
-      if (originalNormalizado && originalNormalizado !== principalNormalizado) {
-        html += `<div class="text-xs text-slate-500">Etiqueta: ${escapeHtml(skuOriginal)}</div>`;
-      }
-
-      if (associados.length) {
-        const listaAssociados = associados.map((sku) => escapeHtml(sku)).join(', ');
-        html += `<div class="text-xs text-slate-500">Associados: ${listaAssociados}</div>`;
-      }
-
-      return html;
+      return `<span class="font-semibold text-slate-700">${escapeHtml(principal)}</span>`;
     }
 
     function renderizarEtiquetasVts(registros = []) {
