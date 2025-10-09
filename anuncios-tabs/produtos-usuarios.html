@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VendedorPro - Produtos de Usuários</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/styles.css?v=20240826">
+  <link rel="stylesheet" href="../css/tabs-mobile.css?v=20240826">
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="app-container">
+    <div id="sidebar-container"></div>
+    <div id="navbar-container"></div>
+    <div class="main-content">
+      <div id="tab-content">
+        <div class="card">
+          <div class="card-header">
+            <div class="flex items-center">
+              <i class="fas fa-box-open text-2xl text-green-600 mr-3"></i>
+              <h2 class="text-2xl font-bold">Produtos cadastrados pelos usuários</h2>
+            </div>
+          </div>
+          <div class="card-body">
+            <p class="text-gray-600 mb-6">
+              Registre manualmente informações de produtos para os usuários. Os cadastros são salvos no Firebase com o SKU como identificador principal.
+            </p>
+            <form id="produtoUsuarioForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="lg:col-span-1">
+                <label for="nomeProdutoUsuario" class="block text-sm font-medium text-gray-700 mb-2">Nome do produto *</label>
+                <input
+                  id="nomeProdutoUsuario"
+                  name="nome"
+                  type="text"
+                  required
+                  placeholder="Ex: Camiseta Minimalista"
+                  class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+              <div class="lg:col-span-1">
+                <label for="skuProdutoUsuario" class="block text-sm font-medium text-gray-700 mb-2">SKU *</label>
+                <input
+                  id="skuProdutoUsuario"
+                  name="sku"
+                  type="text"
+                  required
+                  placeholder="Ex: CAMI-001"
+                  class="w-full border border-gray-300 rounded-lg px-4 py-2 uppercase focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+              <div class="lg:col-span-1">
+                <label for="precoProdutoUsuario" class="block text-sm font-medium text-gray-700 mb-2">Preço (R$) *</label>
+                <input
+                  id="precoProdutoUsuario"
+                  name="preco"
+                  type="text"
+                  required
+                  inputmode="decimal"
+                  placeholder="Ex: 129,90"
+                  class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+              <div class="lg:col-span-1">
+                <label for="imagemProdutoUsuario" class="block text-sm font-medium text-gray-700 mb-2">Imagem do produto (opcional)</label>
+                <input
+                  id="imagemProdutoUsuario"
+                  name="imagem"
+                  type="file"
+                  accept="image/*"
+                  class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                <div id="previewImagemProdutoUsuario" class="mt-3 hidden">
+                  <p class="text-xs text-gray-500 mb-2">Pré-visualização:</p>
+                  <img src="" alt="Pré-visualização do produto" class="h-32 w-32 object-cover rounded-lg shadow" />
+                </div>
+              </div>
+              <div class="lg:col-span-2">
+                <label for="descricaoProdutoUsuario" class="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
+                <textarea
+                  id="descricaoProdutoUsuario"
+                  name="descricao"
+                  rows="4"
+                  required
+                  placeholder="Adicione os principais detalhes do produto..."
+                  class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                ></textarea>
+              </div>
+              <div class="lg:col-span-2 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div id="feedbackProdutosUsuarios" class="text-sm"></div>
+                <button
+                  type="submit"
+                  class="btn btn-primary bg-green-600 hover:bg-green-700 border border-green-600 px-6 py-2 text-white font-semibold rounded-lg flex items-center justify-center"
+                >
+                  <i class="fas fa-save mr-2"></i>Salvar produto
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card mt-8">
+          <div class="card-header">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center">
+                <i class="fas fa-layer-group text-2xl text-green-600 mr-3"></i>
+                <h2 class="text-2xl font-bold">Produtos cadastrados</h2>
+              </div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div class="md:col-span-2">
+                <label for="filtroSkuUsuarios" class="block text-sm font-medium text-gray-700 mb-2">Filtrar por SKU</label>
+                <div class="relative">
+                  <i class="fas fa-filter absolute left-3 top-3 text-gray-400"></i>
+                  <input
+                    id="filtroSkuUsuarios"
+                    type="text"
+                    placeholder="Digite o SKU para filtrar"
+                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full shadow-sm focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+              <div class="md:col-span-1 flex items-end">
+                <button
+                  id="recarregarProdutosUsuarios"
+                  type="button"
+                  class="btn btn-secondary w-full md:w-auto px-4 py-2 flex items-center justify-center"
+                >
+                  <i class="fas fa-sync-alt mr-2"></i>Recarregar lista
+                </button>
+              </div>
+            </div>
+            <div id="carregandoProdutosUsuarios" class="hidden text-sm text-gray-500 flex items-center">
+              <i class="fas fa-spinner fa-spin mr-2"></i>Carregando produtos...
+            </div>
+            <div id="estadoVazioProdutosUsuarios" class="hidden text-sm text-gray-500">
+              Nenhum produto cadastrado até o momento.
+            </div>
+            <div id="cardsProdutosUsuarios" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="../firebase-config.js"></script>
+  <script type="module" src="../anuncios-usuarios.js"></script>
+  <script src="../shared.js"></script>
+</body>
+</html>
