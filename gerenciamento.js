@@ -26,14 +26,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 
 const BASE_PATH = new URL('.', import.meta.url);
-const tabs = [
-  'cadastro',
-  'anuncios',
-  'analise',
-  'evolucao',
-  'planilha-shopee',
-  'produtos-usuarios',
-];
+const tabs = ['cadastro', 'anuncios', 'analise', 'evolucao', 'planilha-shopee'];
 for (const t of tabs) {
   const container = document.getElementById(t);
   if (container) {
