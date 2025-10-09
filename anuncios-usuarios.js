@@ -21,7 +21,9 @@ import { firebaseConfig } from './firebase-config.js';
 const form = document.getElementById('produtoUsuarioForm');
 if (!form) {
   // Página não carregada, encerra o script.
-  console.debug('[anuncios-usuarios] Formulário não encontrado na página atual.');
+  console.debug(
+    '[anuncios-usuarios] Formulário não encontrado na página atual.',
+  );
 } else {
   const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   const db = getFirestore(app);
@@ -32,11 +34,15 @@ if (!form) {
   const precoInput = document.getElementById('precoProdutoUsuario');
   const descricaoInput = document.getElementById('descricaoProdutoUsuario');
   const imagemInput = document.getElementById('imagemProdutoUsuario');
-  const imagemPreviewWrapper = document.getElementById('previewImagemProdutoUsuario');
+  const imagemPreviewWrapper = document.getElementById(
+    'previewImagemProdutoUsuario',
+  );
   const imagemPreview = imagemPreviewWrapper?.querySelector('img');
   const feedback = document.getElementById('feedbackProdutosUsuarios');
   const filtroSkuInput = document.getElementById('filtroSkuUsuarios');
-  const recarregarButton = document.getElementById('recarregarProdutosUsuarios');
+  const recarregarButton = document.getElementById(
+    'recarregarProdutosUsuarios',
+  );
   const cardsContainer = document.getElementById('cardsProdutosUsuarios');
   const vazioState = document.getElementById('estadoVazioProdutosUsuarios');
   const loadingState = document.getElementById('carregandoProdutosUsuarios');
@@ -182,7 +188,10 @@ if (!form) {
       }
     } catch (error) {
       console.error('Erro ao carregar produtos de usuários:', error);
-      setFeedback('Não foi possível carregar os produtos. Tente novamente.', 'error');
+      setFeedback(
+        'Não foi possível carregar os produtos. Tente novamente.',
+        'error',
+      );
       atualizarEstadosLista(false);
     } finally {
       mostrarLoading(false);
@@ -202,8 +211,67 @@ if (!form) {
     });
   }
 
+  function carregarImagem(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const imagem = new Image();
+      imagem.onload = () => resolve(imagem);
+      imagem.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
+      imagem.src = dataUrl;
+    });
+  }
+
+  async function gerarImagemReduzida(arquivo) {
+    if (!arquivo) return null;
+    if (!arquivo.type?.startsWith('image/')) {
+      throw new Error('Arquivo selecionado não é uma imagem.');
+    }
+
+    const dataUrlOriginal = await lerArquivoComoDataUrl(arquivo);
+    if (!dataUrlOriginal) return null;
+
+    try {
+      const imagem = await carregarImagem(dataUrlOriginal);
+      const maxLargura = 800;
+      const maxAltura = 800;
+      const escala = Math.min(
+        1,
+        maxLargura / imagem.width,
+        maxAltura / imagem.height,
+      );
+      const larguraFinal = Math.max(1, Math.round(imagem.width * escala));
+      const alturaFinal = Math.max(1, Math.round(imagem.height * escala));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = larguraFinal;
+      canvas.height = alturaFinal;
+      const contexto = canvas.getContext('2d');
+      contexto.drawImage(imagem, 0, 0, larguraFinal, alturaFinal);
+
+      const tipoPreferencial =
+        arquivo.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      const qualidadeBase = 0.8;
+
+      let dataUrlReduzido = canvas.toDataURL(tipoPreferencial, qualidadeBase);
+      if (dataUrlReduzido.length >= dataUrlOriginal.length) {
+        dataUrlReduzido = canvas.toDataURL('image/jpeg', 0.7);
+      }
+
+      if (dataUrlReduzido.length >= dataUrlOriginal.length) {
+        return dataUrlOriginal;
+      }
+
+      return dataUrlReduzido;
+    } catch (error) {
+      console.warn('Falha ao reduzir a imagem, utilizando original.', error);
+      return dataUrlOriginal;
+    }
+  }
+
+  let imagemProcessadaDataUrl = null;
+
   imagemInput?.addEventListener('change', async () => {
     if (!imagemPreviewWrapper || !imagemPreview) return;
+    imagemProcessadaDataUrl = null;
     const arquivo = imagemInput.files?.[0];
     if (!arquivo) {
       imagemPreviewWrapper.classList.add('hidden');
@@ -211,8 +279,9 @@ if (!form) {
       return;
     }
     try {
-      const dataUrl = await lerArquivoComoDataUrl(arquivo);
+      const dataUrl = await gerarImagemReduzida(arquivo);
       if (dataUrl) {
+        imagemProcessadaDataUrl = dataUrl;
         imagemPreview.src = dataUrl;
         imagemPreviewWrapper.classList.remove('hidden');
       }
@@ -260,12 +329,18 @@ if (!form) {
 
     const arquivoImagem = imagemInput?.files?.[0];
     let imagemDataUrl = null;
-    try {
-      imagemDataUrl = await lerArquivoComoDataUrl(arquivoImagem);
-    } catch (error) {
-      console.error('Erro ao converter imagem para base64:', error);
-      setFeedback('Não foi possível processar a imagem selecionada.', 'error');
-      return;
+    if (arquivoImagem) {
+      try {
+        imagemDataUrl =
+          imagemProcessadaDataUrl || (await gerarImagemReduzida(arquivoImagem));
+      } catch (error) {
+        console.error('Erro ao converter imagem para base64:', error);
+        setFeedback(
+          'Não foi possível processar a imagem selecionada.',
+          'error',
+        );
+        return;
+      }
     }
 
     const skuNormalizado = normalizarSku(sku);
@@ -296,10 +371,14 @@ if (!form) {
         imagemPreviewWrapper.classList.add('hidden');
         imagemPreview.src = '';
       }
+      imagemProcessadaDataUrl = null;
       await carregarProdutos();
     } catch (error) {
       console.error('Erro ao salvar produto do usuário:', error);
-      setFeedback('Não foi possível salvar o produto. Tente novamente.', 'error');
+      setFeedback(
+        'Não foi possível salvar o produto. Tente novamente.',
+        'error',
+      );
     } finally {
       submitButton?.removeAttribute('disabled');
       submitButton?.classList.remove('opacity-60');
