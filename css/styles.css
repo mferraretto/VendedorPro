@@ -1557,3 +1557,14 @@ input:checked + .toggle-slider:before {
     padding: 0.5rem;
   }
 }
+
+#cardsProdutosUsuarios {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+}
+
+@media (min-width: 768px) {
+  #cardsProdutosUsuarios {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
