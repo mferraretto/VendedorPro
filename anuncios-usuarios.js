@@ -99,49 +99,122 @@ if (!form) {
 
   function criarCard(produto) {
     const card = document.createElement('div');
-    card.className = 'bg-white rounded-xl shadow p-5 flex flex-col';
+    card.className =
+      'bg-white border-2 border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col gap-4 h-full';
+
+    const conteudoPrincipal = document.createElement('div');
+    conteudoPrincipal.className =
+      'flex flex-col md:flex-row md:items-start gap-4 md:gap-6';
+
+    const imagemWrapper = document.createElement('div');
+    imagemWrapper.className =
+      'relative flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl w-full md:w-40 h-40 shrink-0 mx-auto md:mx-0';
+
+    const pinoEsquerdo = document.createElement('span');
+    pinoEsquerdo.className =
+      'hidden md:block absolute -top-1 left-5 h-4 w-4 rounded-full bg-green-400 shadow-md';
+    imagemWrapper.appendChild(pinoEsquerdo);
+
+    const pinoDireito = document.createElement('span');
+    pinoDireito.className =
+      'hidden md:block absolute -top-1 right-5 h-4 w-4 rounded-full bg-green-400 shadow-md';
+    imagemWrapper.appendChild(pinoDireito);
 
     if (produto.imagem) {
       const img = document.createElement('img');
       img.src = produto.imagem;
       img.alt = `Imagem do produto ${produto.nome}`;
-      img.className = 'h-40 w-full object-cover rounded-lg mb-4';
-      card.appendChild(img);
+      img.className = 'max-h-full max-w-full object-contain rounded-xl';
+      imagemWrapper.appendChild(img);
+    } else {
+      const placeholder = document.createElement('span');
+      placeholder.className =
+        'text-gray-400 font-semibold text-lg tracking-widest';
+      placeholder.textContent = 'FOTO';
+      imagemWrapper.appendChild(placeholder);
     }
 
+    conteudoPrincipal.appendChild(imagemWrapper);
+
+    const informacoesWrapper = document.createElement('div');
+    informacoesWrapper.className = 'flex-1 text-center md:text-left';
+
     const titulo = document.createElement('h3');
-    titulo.className = 'text-lg font-semibold text-gray-800';
+    titulo.className = 'text-xl font-bold text-gray-800';
     titulo.textContent = produto.nome;
-    card.appendChild(titulo);
+    informacoesWrapper.appendChild(titulo);
 
     const sku = document.createElement('p');
-    sku.className = 'text-sm text-gray-500 mt-1';
+    sku.className = 'text-sm text-gray-500 mt-2';
     sku.innerHTML = `<span class="font-semibold">SKU:</span> ${produto.sku}`;
-    card.appendChild(sku);
+    informacoesWrapper.appendChild(sku);
 
     const preco = document.createElement('p');
     preco.className = 'text-sm text-gray-500 mt-1';
     preco.innerHTML = `<span class="font-semibold">Preço:</span> ${formatarPreco(
       produto.preco,
     )}`;
-    card.appendChild(preco);
-
-    const descricao = document.createElement('p');
-    descricao.className = 'text-sm text-gray-600 mt-3 whitespace-pre-line';
-    descricao.textContent = produto.descricao;
-    card.appendChild(descricao);
+    informacoesWrapper.appendChild(preco);
 
     if (produto.atualizadoEm) {
       const atualizado = document.createElement('p');
-      atualizado.className = 'text-xs text-gray-400 mt-4';
+      atualizado.className = 'text-xs text-gray-400 mt-3';
       const data = produto.atualizadoEm.toDate
         ? produto.atualizadoEm.toDate()
         : produto.atualizadoEm;
       if (data instanceof Date && !Number.isNaN(data.getTime())) {
         atualizado.textContent = `Atualizado em ${data.toLocaleString('pt-BR')}`;
-        card.appendChild(atualizado);
+        informacoesWrapper.appendChild(atualizado);
       }
     }
+
+    conteudoPrincipal.appendChild(informacoesWrapper);
+
+    card.appendChild(conteudoPrincipal);
+
+    const descricaoWrapper = document.createElement('div');
+    descricaoWrapper.className =
+      'hidden text-sm text-gray-600 whitespace-pre-line bg-gray-50 border border-gray-200 rounded-xl p-3';
+    const descricaoNormalizada = produto.descricao?.trim();
+    if (descricaoNormalizada) {
+      descricaoWrapper.textContent = descricaoNormalizada;
+    }
+    card.appendChild(descricaoWrapper);
+
+    const botoesWrapper = document.createElement('div');
+    botoesWrapper.className =
+      'flex flex-wrap items-center justify-center md:justify-start gap-2 mt-auto';
+
+    const botaoVerMais = document.createElement('button');
+    botaoVerMais.type = 'button';
+    botaoVerMais.className =
+      'px-4 py-2 rounded-full bg-green-500 text-white text-sm font-semibold shadow hover:bg-green-600 transition';
+    botaoVerMais.textContent = 'Ver mais';
+    if (descricaoNormalizada) {
+      botaoVerMais.addEventListener('click', () => {
+        const descricaoOculta = descricaoWrapper.classList.toggle('hidden');
+        botaoVerMais.textContent = descricaoOculta ? 'Ver mais' : 'Ver menos';
+      });
+    } else {
+      botaoVerMais.classList.add('hidden');
+    }
+    botoesWrapper.appendChild(botaoVerMais);
+
+    const botaoExcluir = document.createElement('button');
+    botaoExcluir.type = 'button';
+    botaoExcluir.className =
+      'px-4 py-2 rounded-full bg-red-500 text-white text-sm font-semibold shadow hover:bg-red-600 transition';
+    botaoExcluir.textContent = 'Excluir';
+    botoesWrapper.appendChild(botaoExcluir);
+
+    const botaoEditar = document.createElement('button');
+    botaoEditar.type = 'button';
+    botaoEditar.className =
+      'px-4 py-2 rounded-full bg-yellow-400 text-white text-sm font-semibold shadow hover:bg-yellow-500 transition';
+    botaoEditar.textContent = 'Editar';
+    botoesWrapper.appendChild(botaoEditar);
+
+    card.appendChild(botoesWrapper);
 
     return card;
   }
