@@ -1572,7 +1572,7 @@
           </div>
           <div class="expedicao-pdf-actions">
             <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
-            <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
+            <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}', '${doc.id}')">Baixar</button>
             <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
           </div>
         </div>
@@ -1604,6 +1604,8 @@
       const name = data.name || 'PDF';
       const url = data.url;
       const owner = ownerName || 'Desconhecido';
+      const safeUrl = encodeURIComponent(url || '');
+      const safeName = encodeURIComponent(name || 'Etiqueta');
       const createdAt = data.createdAt && data.createdAt.toDate
         ? data.createdAt.toDate().toLocaleString('pt-BR')
         : 'Data desconhecida';
@@ -1622,7 +1624,7 @@
             <div class="expedicao-pdf-list-toolbar">
               <button class="expedicao-icon-btn" onclick="visualizar('${url}')" title="Visualizar"><i class="fas fa-eye"></i></button>
               <button class="expedicao-icon-btn" onclick="imprimir('${url}')" title="Imprimir"><i class="fas fa-print"></i></button>
-              <a class="expedicao-icon-btn" href="${url}" download="${name}" title="Baixar"><i class="fas fa-download"></i></a>
+              <button class="expedicao-icon-btn" type="button" onclick="baixarArquivo('${safeUrl}', '${safeName}', '${doc.id}')" title="Baixar"><i class="fas fa-download"></i></button>
               <button class="expedicao-icon-btn expedicao-icon-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))" title="Excluir"><i class="fas fa-trash"></i></button>
             </div>
           </div>
@@ -1733,7 +1735,7 @@
     }
     window.imprimir = imprimir;
 
-    async function baixarArquivo(urlEncoded, nomeEncoded) {
+    async function baixarArquivo(urlEncoded, nomeEncoded, docId = null) {
       const url = decodeURIComponent(urlEncoded || '');
       const nomeDecodificado = decodeURIComponent(nomeEncoded || 'Etiqueta');
       const nomeArquivoBase =
@@ -1756,7 +1758,6 @@
       const nomeArquivoFinal = nomeArquivoBase.toLowerCase().endsWith('.pdf')
         ? nomeArquivoBase
         : `${nomeArquivoBase}.pdf`;
-      const isSameOrigin = parsedUrl.origin === window.location.origin;
 
       const abrirEmNovaAba = () => {
         const fallbackLink = document.createElement('a');
@@ -1769,17 +1770,39 @@
         document.body.removeChild(fallbackLink);
       };
 
-      if (!isSameOrigin) {
+      let arrayBuffer;
+      let contentType = 'application/pdf';
+      try {
+        const resultadoDownload = await fetchPdfArrayBuffer(parsedUrl.href);
+        arrayBuffer = resultadoDownload.arrayBuffer;
+        contentType = resultadoDownload.contentType || 'application/pdf';
+      } catch (error) {
+        console.error('Erro ao obter arquivo para download:', error);
         abrirEmNovaAba();
         return;
       }
 
-      try {
-        const response = await fetch(parsedUrl.href);
-        if (!response.ok) {
-          throw new Error(`Falha ao baixar arquivo: ${response.status}`);
+      if (docId && arrayBuffer) {
+        try {
+          const codigos = await extractTrackingCodesFromPdfBuffer(arrayBuffer);
+          if (codigos.length) {
+            const infoEtiqueta = await obterInfoEtiqueta(docId);
+            await registrarRastreiosDownload({
+              docId,
+              arquivoNome: nomeArquivoFinal,
+              rastreios: codigos,
+              infoEtiqueta
+            });
+            showToast('Códigos de rastreio registrados.');
+          }
+        } catch (error) {
+          console.error('Erro ao registrar rastreios da etiqueta:', error);
+          showToast('Arquivo baixado, mas não foi possível registrar os rastreios.');
         }
-        const blob = await response.blob();
+      }
+
+      try {
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -1794,6 +1817,160 @@
       }
     }
     window.baixarArquivo = baixarArquivo;
+
+    async function fetchPdfArrayBuffer(url) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Falha ao baixar arquivo: ${response.status}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const contentType = response.headers.get('content-type') || 'application/pdf';
+      return { arrayBuffer, contentType };
+    }
+
+    function extractTrackingCodesFromText(text) {
+      if (!text) return [];
+      const normalized = text
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .toUpperCase();
+      const tokens = normalized.split(/\s+/).filter(Boolean);
+      const codes = new Set();
+      tokens.forEach(token => {
+        const candidate = token.replace(/[^A-Z0-9]/g, '');
+        if (!candidate) return;
+        if (candidate.length < 10 || candidate.length > 24) return;
+        if (!/\d/.test(candidate)) return;
+        if (/^[A-Z]+$/.test(candidate)) return;
+        if (/^\d+$/.test(candidate) && candidate.length < 12) return;
+        codes.add(candidate);
+      });
+      return Array.from(codes);
+    }
+
+    async function extractTrackingCodesFromPdfBuffer(arrayBuffer) {
+      if (!arrayBuffer) return [];
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const encontrados = new Set();
+      try {
+        for (let pagina = 1; pagina <= pdf.numPages; pagina++) {
+          const page = await pdf.getPage(pagina);
+          const textContent = await page.getTextContent();
+          const textoPagina = textContent.items.map(item => item.str).join(' ');
+          extractTrackingCodesFromText(textoPagina).forEach(codigo => encontrados.add(codigo));
+        }
+      } finally {
+        if (pdf && typeof pdf.destroy === 'function') pdf.destroy();
+      }
+      return Array.from(encontrados);
+    }
+
+    async function obterInfoEtiqueta(docId) {
+      if (!docId) return null;
+      try {
+        const snap = await db.collection('pdfDocs').doc(docId).get();
+        if (!snap.exists) return null;
+        const data = snap.data() || {};
+        const ownerUids = Array.isArray(data.ownerUid)
+          ? data.ownerUid.filter(Boolean)
+          : data.ownerUid
+          ? [data.ownerUid]
+          : [];
+        const ownerEmails = Array.isArray(data.ownerEmail)
+          ? data.ownerEmail.filter(Boolean)
+          : data.ownerEmail
+          ? [data.ownerEmail]
+          : [];
+        const ownerNames = Array.isArray(data.ownerName)
+          ? data.ownerName.filter(Boolean)
+          : data.ownerName
+          ? [data.ownerName]
+          : [];
+
+        const maxLen = Math.max(ownerUids.length, ownerEmails.length, ownerNames.length, 1);
+        const owners = [];
+        for (let i = 0; i < maxLen; i++) {
+          const uid = ownerUids[i] || ownerUids[0] || '';
+          const email = ownerEmails[i] || ownerEmails[0] || '';
+          let nome = ownerNames[i] || '';
+          if (!nome && uid) {
+            nome = await getOwnerName(uid, email);
+          }
+          if (!nome) nome = email || 'Desconhecido';
+          if (!uid && !email && !nome) continue;
+          owners.push({ uid, email, nome });
+        }
+
+        const ownersMap = new Map();
+        owners.forEach(owner => {
+          const key = owner.uid || owner.email || owner.nome;
+          if (!key || ownersMap.has(key)) return;
+          ownersMap.set(key, owner);
+        });
+
+        return {
+          owners: Array.from(ownersMap.values()),
+          data
+        };
+      } catch (error) {
+        console.error('Erro ao obter dados da etiqueta para rastreio:', error);
+        return null;
+      }
+    }
+
+    async function registrarRastreiosDownload({ docId, arquivoNome, rastreios, infoEtiqueta }) {
+      if (!currentUser) return;
+      if (!Array.isArray(rastreios) || !rastreios.length) return;
+      const codigosUnicos = Array.from(new Set(rastreios.filter(Boolean)));
+      if (!codigosUnicos.length) return;
+
+      const responsaveis = Array.isArray(infoEtiqueta?.owners) ? infoEtiqueta.owners : [];
+      const responsavelPrincipal = responsaveis.find(owner => owner?.uid) || responsaveis[0] || null;
+
+      const batch = db.batch();
+      const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+      let totalOperacoes = 0;
+
+      codigosUnicos.forEach(codigo => {
+        const baseData = {
+          codigo,
+          arquivoId: docId || null,
+          arquivoNome: arquivoNome || '',
+          usuarioUid: currentUser.uid,
+          usuarioEmail: currentUser.email || '',
+          usuarioNome: currentUserName || currentUser.displayName || currentUser.email || '',
+          responsavelPrincipalUid: responsavelPrincipal?.uid || null,
+          responsavelPrincipalEmail: responsavelPrincipal?.email || '',
+          responsavelPrincipalNome: responsavelPrincipal?.nome || '',
+          responsaveis: responsaveis.map(owner => ({
+            uid: owner?.uid || null,
+            email: owner?.email || '',
+            nome: owner?.nome || ''
+          })),
+          registradoEm: timestamp,
+          origem: 'download_etiqueta'
+        };
+
+        const globalRef = db.collection('expedicaoRastreios').doc();
+        batch.set(globalRef, baseData);
+        totalOperacoes++;
+
+        const userRef = db.collection('uid').doc(currentUser.uid).collection('expedicaoRastreios').doc();
+        batch.set(userRef, baseData);
+        totalOperacoes++;
+
+        responsaveis.forEach(owner => {
+          if (!owner?.uid || owner.uid === currentUser.uid) return;
+          const ownerRef = db.collection('uid').doc(owner.uid).collection('expedicaoRastreios').doc();
+          batch.set(ownerRef, baseData);
+          totalOperacoes++;
+        });
+      });
+
+      if (!totalOperacoes) return;
+
+      await batch.commit();
+    }
 
 
     async function toggleImpresso(id, checkbox, card) {
