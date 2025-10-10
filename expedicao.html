@@ -37,18 +37,54 @@
         <button id="sobrasBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"><i class="fas fa-box-open"></i><span>Sobras</span></button>
         <button id="checklistBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"><i class="fas fa-clipboard-list"></i><span>Checklist</span></button>
       </div>
-      <div id="totalsContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="expedicao-card expedicao-summary-card">
-          <div class="expedicao-summary-title">A enviar hoje</div>
+      <div id="totalsContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="expedicao-card expedicao-summary-card" data-variant="primary">
+          <div class="expedicao-summary-header">
+            <div class="expedicao-summary-title">A enviar hoje</div>
+            <span class="expedicao-summary-chip">Total</span>
+          </div>
           <div id="totalAEnviar" class="expedicao-summary-value">0</div>
+          <div class="expedicao-summary-progress">
+            <div class="expedicao-summary-bar">
+              <div id="progressAEnviar" class="expedicao-summary-bar-fill"></div>
+            </div>
+            <div class="expedicao-summary-foot">
+              <span class="expedicao-summary-foot-label">Participação</span>
+              <span id="percentAEnviar" class="expedicao-summary-foot-value">0%</span>
+            </div>
+          </div>
         </div>
-        <div class="expedicao-card expedicao-summary-card">
-          <div class="expedicao-summary-title">Enviado</div>
+        <div class="expedicao-card expedicao-summary-card" data-variant="success">
+          <div class="expedicao-summary-header">
+            <div class="expedicao-summary-title">Enviado</div>
+            <span class="expedicao-summary-chip">Dentro do horário</span>
+          </div>
           <div id="totalEnviado" class="expedicao-summary-value">0</div>
+          <div class="expedicao-summary-progress">
+            <div class="expedicao-summary-bar">
+              <div id="progressEnviado" class="expedicao-summary-bar-fill"></div>
+            </div>
+            <div class="expedicao-summary-foot">
+              <span class="expedicao-summary-foot-label">Participação</span>
+              <span id="percentEnviado" class="expedicao-summary-foot-value">0%</span>
+            </div>
+          </div>
         </div>
-        <div class="expedicao-card expedicao-summary-card">
-          <div class="expedicao-summary-title">Não enviado</div>
+        <div class="expedicao-card expedicao-summary-card" data-variant="warning">
+          <div class="expedicao-summary-header">
+            <div class="expedicao-summary-title">Não enviado</div>
+            <span class="expedicao-summary-chip">Fora do horário</span>
+          </div>
           <div id="totalNaoEnviado" class="expedicao-summary-value">0</div>
+          <div class="expedicao-summary-progress">
+            <div class="expedicao-summary-bar">
+              <div id="progressNaoEnviado" class="expedicao-summary-bar-fill"></div>
+            </div>
+            <div class="expedicao-summary-foot">
+              <span class="expedicao-summary-foot-label">Participação</span>
+              <span id="percentNaoEnviado" class="expedicao-summary-foot-value">0%</span>
+            </div>
+          </div>
         </div>
       </div>
       <div id="statusFilters" class="flex flex-wrap gap-2">
@@ -861,6 +897,22 @@
       const totalAEnviarEl = document.getElementById('totalAEnviar');
       const totalEnviadoEl = document.getElementById('totalEnviado');
       const totalNaoEnviadoEl = document.getElementById('totalNaoEnviado');
+      const percentAEnviarEl = document.getElementById('percentAEnviar');
+      const percentEnviadoEl = document.getElementById('percentEnviado');
+      const percentNaoEnviadoEl = document.getElementById('percentNaoEnviado');
+      const progressAEnviarEl = document.getElementById('progressAEnviar');
+      const progressEnviadoEl = document.getElementById('progressEnviado');
+      const progressNaoEnviadoEl = document.getElementById('progressNaoEnviado');
+
+      const setSummary = (valueEl, value, percentEl, progressEl, percent) => {
+        const safeValue = Number.isFinite(value) ? value : 0;
+        const safePercent = Number.isFinite(percent)
+          ? Math.min(100, Math.max(0, percent))
+          : 0;
+        if (valueEl) valueEl.textContent = safeValue;
+        if (percentEl) percentEl.textContent = `${safePercent}%`;
+        if (progressEl) progressEl.style.width = `${safePercent}%`;
+      };
 
       const { start, end } = getResumoTimeWindow();
 
@@ -877,9 +929,9 @@
           if (checklistEnvioTotals) {
             checklistEnvioTotals.textContent = 'Total etiquetas: 0 | Dentro do horário: 0 | Fora do horário: 0';
           }
-          if (totalAEnviarEl) totalAEnviarEl.textContent = 0;
-          if (totalEnviadoEl) totalEnviadoEl.textContent = 0;
-          if (totalNaoEnviadoEl) totalNaoEnviadoEl.textContent = 0;
+          setSummary(totalAEnviarEl, 0, percentAEnviarEl, progressAEnviarEl, 0);
+          setSummary(totalEnviadoEl, 0, percentEnviadoEl, progressEnviadoEl, 0);
+          setSummary(totalNaoEnviadoEl, 0, percentNaoEnviadoEl, progressNaoEnviadoEl, 0);
           return;
         }
 
@@ -982,9 +1034,14 @@
         checklistRows = rows;
 
         const totalEnviar = totalDentro + totalFora;
-        if (totalAEnviarEl) totalAEnviarEl.textContent = totalEnviar;
-        if (totalEnviadoEl) totalEnviadoEl.textContent = totalDentro;
-        if (totalNaoEnviadoEl) totalNaoEnviadoEl.textContent = totalFora;
+        const baseTotal = totalEnviar > 0 ? totalEnviar : 0;
+        const percentEnviar = baseTotal ? Math.min(100, Math.max(0, Math.round((totalEnviar / baseTotal) * 100))) : 0;
+        const percentDentro = baseTotal ? Math.min(100, Math.max(0, Math.round((totalDentro / baseTotal) * 100))) : 0;
+        const percentFora = baseTotal ? Math.min(100, Math.max(0, Math.round((totalFora / baseTotal) * 100))) : 0;
+
+        setSummary(totalAEnviarEl, totalEnviar, percentAEnviarEl, progressAEnviarEl, percentEnviar);
+        setSummary(totalEnviadoEl, totalDentro, percentEnviadoEl, progressEnviadoEl, percentDentro);
+        setSummary(totalNaoEnviadoEl, totalFora, percentNaoEnviadoEl, progressNaoEnviadoEl, percentFora);
 
         if (checklistEnvioTotals) {
           checklistEnvioTotals.textContent = `Total etiquetas: ${totalEnviar} | Dentro do horário: ${totalDentro} | Fora do horário: ${totalFora}`;
@@ -1004,9 +1061,9 @@
         checklistBody.innerHTML = '<tr><td class="p-2 text-center text-red-500" colspan="6">Erro ao carregar</td></tr>';
         if (checklistTotals) checklistTotals.textContent = 'Erro ao carregar';
         if (checklistEnvioTotals) checklistEnvioTotals.textContent = 'Erro ao carregar';
-        if (totalAEnviarEl) totalAEnviarEl.textContent = 0;
-        if (totalEnviadoEl) totalEnviadoEl.textContent = 0;
-        if (totalNaoEnviadoEl) totalNaoEnviadoEl.textContent = 0;
+        setSummary(totalAEnviarEl, 0, percentAEnviarEl, progressAEnviarEl, 0);
+        setSummary(totalEnviadoEl, 0, percentEnviadoEl, progressEnviadoEl, 0);
+        setSummary(totalNaoEnviadoEl, 0, percentNaoEnviadoEl, progressNaoEnviadoEl, 0);
         await calcularTotalPedidosDia();
       }
     }
