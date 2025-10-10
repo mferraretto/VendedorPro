@@ -1,13 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Expedição</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=20240826">
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
@@ -18,1539 +27,2122 @@
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   </head>
   <body class="bg-gray-100">
-  <div class="app-container">
-  <div id="sidebar-container"></div>
-  <div id="navbar-container"></div>
-  <div id="gestorUsersCard" class="hidden fixed top-24 right-4 w-72 bg-white rounded shadow-lg p-4">
-    <h2 class="text-lg font-semibold mb-2">Equipe de Expedição</h2>
-    <ul id="gestorUsersList" class="space-y-1 text-sm"></ul>
-  </div>
-  <div class="main-content p-4">
-    <h1 class="text-2xl font-bold mb-4">Expedição</h1>
-    <div class="card mb-4 space-y-4">
-      <div id="actionBar" class="flex flex-wrap items-center gap-2">
-        <button id="startDayBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white"><i class="fas fa-play"></i><span>Iniciar Dia</span></button>
-        <button id="closeDayBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hidden"><i class="fas fa-check"></i><span>Concluir</span></button>
-        <input type="file" id="manualPdfInput" accept="application/pdf" class="hidden" />
-        <button id="uploadManualBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"><i class="fas fa-plus"></i><span>Adicionar Etiqueta</span></button>
-        <button id="gestorUsersBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"><i class="fas fa-users"></i><span>Equipe</span></button>
-        <button id="sobrasBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"><i class="fas fa-box-open"></i><span>Sobras</span></button>
-        <button id="checklistBtn" class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"><i class="fas fa-clipboard-list"></i><span>Checklist</span></button>
+    <div class="app-container">
+      <div id="sidebar-container"></div>
+      <div id="navbar-container"></div>
+      <div
+        id="gestorUsersCard"
+        class="hidden fixed top-24 right-4 w-72 bg-white rounded shadow-lg p-4"
+      >
+        <h2 class="text-lg font-semibold mb-2">Equipe de Expedição</h2>
+        <ul id="gestorUsersList" class="space-y-1 text-sm"></ul>
       </div>
-      <div id="totalsContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="expedicao-card expedicao-summary-card">
-          <div class="expedicao-summary-title">A enviar hoje</div>
-          <div id="totalAEnviar" class="expedicao-summary-value">0</div>
+      <div class="main-content p-4">
+        <h1 class="text-2xl font-bold mb-4">Expedição</h1>
+        <div class="card mb-4 space-y-4">
+          <div id="actionBar" class="flex flex-wrap items-center gap-2">
+            <button
+              id="startDayBtn"
+              class="btn flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white"
+            >
+              <i class="fas fa-play"></i><span>Iniciar Dia</span>
+            </button>
+            <button
+              id="closeDayBtn"
+              class="btn flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hidden"
+            >
+              <i class="fas fa-check"></i><span>Concluir</span>
+            </button>
+            <input
+              type="file"
+              id="manualPdfInput"
+              accept="application/pdf"
+              class="hidden"
+            />
+            <button
+              id="uploadManualBtn"
+              class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"
+            >
+              <i class="fas fa-plus"></i><span>Adicionar Etiqueta</span>
+            </button>
+            <button
+              id="gestorUsersBtn"
+              class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"
+            >
+              <i class="fas fa-users"></i><span>Equipe</span>
+            </button>
+            <button
+              id="sobrasBtn"
+              class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"
+            >
+              <i class="fas fa-box-open"></i><span>Sobras</span>
+            </button>
+            <button
+              id="checklistBtn"
+              class="btn flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700"
+            >
+              <i class="fas fa-clipboard-list"></i><span>Checklist</span>
+            </button>
+          </div>
+          <div id="totalsContainer" class="expedicao-highlight-grid">
+            <div class="expedicao-card expedicao-highlight-card">
+              <div class="expedicao-highlight-header">
+                <div class="expedicao-highlight-header-text">
+                  <span class="expedicao-highlight-eyebrow">Planejamento</span>
+                  <h2 class="expedicao-highlight-title">Etiquetas do dia</h2>
+                </div>
+                <span id="expedicaoTotalResumo" class="expedicao-highlight-chip"
+                  >Total: 0</span
+                >
+              </div>
+              <div id="totalPlanejadoHoje" class="expedicao-highlight-number">
+                0
+              </div>
+              <div class="expedicao-highlight-meta">
+                <div class="expedicao-highlight-meta-item">
+                  <span class="expedicao-highlight-meta-label">Enviadas</span>
+                  <span
+                    id="totalEnviadoResumo"
+                    class="expedicao-highlight-meta-value"
+                    >0</span
+                  >
+                </div>
+                <div class="expedicao-highlight-meta-item">
+                  <span class="expedicao-highlight-meta-label">Pendentes</span>
+                  <span
+                    id="totalNaoEnviadoResumo"
+                    class="expedicao-highlight-meta-value"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="expedicao-card expedicao-highlight-card">
+              <div class="expedicao-highlight-header">
+                <div class="expedicao-highlight-header-text">
+                  <span class="expedicao-highlight-eyebrow">Situação atual</span>
+                  <h2 class="expedicao-highlight-title">Progresso do envio</h2>
+                </div>
+                <span
+                  id="totalEnviadoPercentText"
+                  class="expedicao-highlight-chip"
+                  >0%</span
+                >
+              </div>
+              <div class="expedicao-highlight-progress">
+                <div class="expedicao-highlight-progress-track">
+                  <div
+                    id="totalEnviadoBar"
+                    class="expedicao-highlight-progress-fill"
+                  ></div>
+                </div>
+              </div>
+              <div class="expedicao-highlight-foot">
+                <div class="expedicao-highlight-foot-item">
+                  <span class="expedicao-highlight-foot-label">Enviadas</span>
+                  <span
+                    id="expedicaoResumoEnviado"
+                    class="expedicao-highlight-foot-value"
+                    >0</span
+                  >
+                </div>
+                <div class="expedicao-highlight-foot-item">
+                  <span class="expedicao-highlight-foot-label">Pendentes</span>
+                  <span
+                    id="expedicaoResumoPendente"
+                    class="expedicao-highlight-foot-value"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="statusFilters" class="flex flex-wrap gap-2">
+            <button
+              class="filter-btn px-4 py-2 rounded-full border border-indigo-600 bg-indigo-600 text-white text-sm font-medium"
+              data-status="all"
+            >
+              Todas
+            </button>
+            <button
+              class="filter-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-medium"
+              data-status="nao_impresso"
+            >
+              Não impresso (0)
+            </button>
+            <button
+              class="filter-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-medium"
+              data-status="impresso"
+            >
+              Impresso (0)
+            </button>
+            <button
+              class="filter-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-medium"
+              data-status="concluido"
+            >
+              Concluído (0)
+            </button>
+          </div>
+          <div id="searchBar" class="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <input
+              id="searchInput"
+              type="text"
+              class="form-control w-full"
+              placeholder="Buscar por nome, ID, e-mail, data"
+            />
+            <select id="sortSelect" class="form-control w-full">
+              <option value="createdAt">Ordenar por data</option>
+              <option value="owner">Ordenar por responsável</option>
+              <option value="status">Ordenar por status</option>
+            </select>
+            <button
+              id="advancedToggle"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700"
+            >
+              Filtros Avançados
+            </button>
+          </div>
+          <div id="advancedFilters" class="flex flex-wrap gap-2 hidden">
+            <input type="date" id="startDate" class="form-control" />
+            <input type="date" id="endDate" class="form-control" />
+            <input
+              type="text"
+              id="responsavelFilter"
+              class="form-control w-48"
+              placeholder="Responsável"
+            />
+            <label class="flex items-center gap-1 text-sm">
+              <input type="checkbox" id="attentionOnly" class="mr-1" />
+              <span>Somente Atenção</span>
+            </label>
+          </div>
+          <div
+            id="userCards"
+            class="grid grid-cols-2 sm:grid-cols-4 gap-4"
+          ></div>
         </div>
-        <div class="expedicao-card expedicao-summary-card">
-          <div class="expedicao-summary-title">Enviado</div>
-          <div id="totalEnviado" class="expedicao-summary-value">0</div>
+        <div id="viewToggle" class="flex gap-2 mb-4">
+          <button
+            class="view-btn px-4 py-2 rounded-full bg-indigo-600 text-white text-sm font-medium"
+            data-view="cards"
+            title="Exibição em cartões"
+          >
+            <i class="fas fa-th"></i>
+          </button>
+          <button
+            class="view-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition"
+            data-view="list"
+            title="Exibição em lista"
+          >
+            <i class="fas fa-list"></i>
+          </button>
         </div>
-        <div class="expedicao-card expedicao-summary-card">
-          <div class="expedicao-summary-title">Não enviado</div>
-          <div id="totalNaoEnviado" class="expedicao-summary-value">0</div>
+        <div
+          id="labelsList"
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+        ></div>
+      </div>
+
+      <div
+        id="pdfModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+      >
+        <div class="bg-white w-11/12 md:w-3/4 h-5/6 rounded shadow-lg relative">
+          <button id="closeModal" class="absolute top-2 right-2 text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+          <iframe id="pdfFrame" src="" class="w-full h-full rounded-b"></iframe>
         </div>
       </div>
-      <div id="statusFilters" class="flex flex-wrap gap-2">
-        <button class="filter-btn px-4 py-2 rounded-full border border-indigo-600 bg-indigo-600 text-white text-sm font-medium" data-status="all">Todas</button>
-        <button class="filter-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-medium" data-status="nao_impresso">Não impresso (0)</button>
-        <button class="filter-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-medium" data-status="impresso">Impresso (0)</button>
-        <button class="filter-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-medium" data-status="concluido">Concluído (0)</button>
-      </div>
-      <div id="searchBar" class="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <input id="searchInput" type="text" class="form-control w-full" placeholder="Buscar por nome, ID, e-mail, data" />
-        <select id="sortSelect" class="form-control w-full">
-          <option value="createdAt">Ordenar por data</option>
-          <option value="owner">Ordenar por responsável</option>
-          <option value="status">Ordenar por status</option>
-        </select>
-        <button id="advancedToggle" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700">Filtros Avançados</button>
-      </div>
-      <div id="advancedFilters" class="flex flex-wrap gap-2 hidden">
-        <input type="date" id="startDate" class="form-control" />
-        <input type="date" id="endDate" class="form-control" />
-        <input type="text" id="responsavelFilter" class="form-control w-48" placeholder="Responsável" />
-        <label class="flex items-center gap-1 text-sm">
-          <input type="checkbox" id="attentionOnly" class="mr-1" />
-          <span>Somente Atenção</span>
-        </label>
-      </div>
-      <div id="userCards" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
-    </div>
-    <div id="viewToggle" class="flex gap-2 mb-4">
-      <button class="view-btn px-4 py-2 rounded-full bg-indigo-600 text-white text-sm font-medium" data-view="cards" title="Exibição em cartões"><i class="fas fa-th"></i></button>
-      <button class="view-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition" data-view="list" title="Exibição em lista"><i class="fas fa-list"></i></button>
-    </div>
-    <div id="labelsList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-  </div>
 
-  <div id="pdfModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white w-11/12 md:w-3/4 h-5/6 rounded shadow-lg relative">
-      <button id="closeModal" class="absolute top-2 right-2 text-gray-600"><i class="fas fa-times"></i></button>
-      <iframe id="pdfFrame" src="" class="w-full h-full rounded-b"></iframe>
-    </div>
-  </div>
-
-  <div id="storeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md p-6 rounded shadow-lg relative">
-      <h2 class="text-lg font-semibold mb-3">Informações da etiqueta</h2>
-      <label for="storeNameInput" class="block text-sm font-medium text-gray-700 mb-2">Nome da loja</label>
-      <input
-        type="text"
-        id="storeNameInput"
-        class="form-control w-full"
-        placeholder="Informe a loja"
-      />
-      <div id="storeModalProgress" class="mt-4 hidden">
-        <div class="w-full bg-gray-200 rounded-full h-2.5">
-          <div id="storeModalProgressBar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+      <div
+        id="storeModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+      >
+        <div class="bg-white w-full max-w-md p-6 rounded shadow-lg relative">
+          <h2 class="text-lg font-semibold mb-3">Informações da etiqueta</h2>
+          <label
+            for="storeNameInput"
+            class="block text-sm font-medium text-gray-700 mb-2"
+            >Nome da loja</label
+          >
+          <input
+            type="text"
+            id="storeNameInput"
+            class="form-control w-full"
+            placeholder="Informe a loja"
+          />
+          <div id="storeModalProgress" class="mt-4 hidden">
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                id="storeModalProgressBar"
+                class="bg-indigo-600 h-2.5 rounded-full"
+                style="width: 0%"
+              ></div>
+            </div>
+            <p
+              id="storeModalProgressText"
+              class="mt-2 text-sm text-gray-600 text-center"
+            ></p>
+          </div>
+          <div class="flex justify-end gap-2 mt-6">
+            <button id="storeModalCancel" class="btn btn-secondary">
+              Cancelar
+            </button>
+            <button id="storeModalConfirm" class="btn btn-primary">
+              Salvar
+            </button>
+          </div>
         </div>
-        <p id="storeModalProgressText" class="mt-2 text-sm text-gray-600 text-center"></p>
       </div>
-      <div class="flex justify-end gap-2 mt-6">
-        <button id="storeModalCancel" class="btn btn-secondary">Cancelar</button>
-        <button id="storeModalConfirm" class="btn btn-primary">Salvar</button>
+
+      <div
+        id="sobrasModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+      >
+        <div class="bg-white w-full max-w-md p-4 rounded shadow-lg relative">
+          <button
+            id="closeSobrasModal"
+            class="absolute top-2 right-2 text-gray-600"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+          <div id="sobrasFields" class="flex flex-col gap-2">
+            <input
+              type="number"
+              id="sobrasQuantidade"
+              class="form-control"
+              placeholder="Qtd não expedida"
+            />
+            <input
+              type="text"
+              id="sobrasMotivo"
+              class="form-control"
+              placeholder="Motivo"
+            />
+            <select id="sobrasResponsavel" class="form-control">
+              <option value="">Selecione responsável</option>
+            </select>
+            <button id="enviarSobrasBtn" class="btn btn-primary">Enviar</button>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <div id="sobrasModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md p-4 rounded shadow-lg relative">
-      <button id="closeSobrasModal" class="absolute top-2 right-2 text-gray-600"><i class="fas fa-times"></i></button>
-      <div id="sobrasFields" class="flex flex-col gap-2">
-        <input type="number" id="sobrasQuantidade" class="form-control" placeholder="Qtd não expedida" />
-        <input type="text" id="sobrasMotivo" class="form-control" placeholder="Motivo" />
-        <select id="sobrasResponsavel" class="form-control">
-          <option value="">Selecione responsável</option>
-        </select>
-        <button id="enviarSobrasBtn" class="btn btn-primary">Enviar</button>
+      <div
+        id="checklistModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+      >
+        <div class="bg-white w-full max-w-2xl p-4 rounded shadow-lg relative">
+          <button
+            id="closeChecklistModal"
+            class="absolute top-2 right-2 text-gray-600"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+          <h2 class="text-lg font-semibold mb-2">Checklist do dia</h2>
+          <div id="checklistEnvioTotals" class="mb-2 text-sm font-medium"></div>
+          <div id="checklistTotals" class="mb-2 text-sm font-medium"></div>
+          <div class="flex justify-end mb-2">
+            <button id="exportChecklistBtn" class="btn btn-primary">
+              Exportar
+            </button>
+          </div>
+          <div class="overflow-y-auto max-h-96">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="p-2 border">Intervalo</th>
+                  <th class="p-2 border">SKU</th>
+                  <th class="p-2 border">Quantidade</th>
+                  <th class="p-2 border">Arquivo</th>
+                  <th class="p-2 border">Data</th>
+                  <th class="p-2 border">Usuário</th>
+                </tr>
+              </thead>
+              <tbody id="checklistBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <div id="checklistModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-2xl p-4 rounded shadow-lg relative">
-      <button id="closeChecklistModal" class="absolute top-2 right-2 text-gray-600"><i class="fas fa-times"></i></button>
-      <h2 class="text-lg font-semibold mb-2">Checklist do dia</h2>
-      <div id="checklistEnvioTotals" class="mb-2 text-sm font-medium"></div>
-      <div id="checklistTotals" class="mb-2 text-sm font-medium"></div>
-      <div class="flex justify-end mb-2">
-        <button id="exportChecklistBtn" class="btn btn-primary">Exportar</button>
+      <div
+        id="gestorModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+      >
+        <div class="bg-white w-full max-w-md p-4 rounded shadow-lg">
+          <h2 class="text-lg font-semibold mb-2">
+            Enviar arquivo para qual gestor?
+          </h2>
+          <select id="gestorSelect" class="form-control mb-4"></select>
+          <div class="flex justify-end gap-2">
+            <button id="gestorCancel" class="btn btn-secondary">
+              Cancelar
+            </button>
+            <button id="gestorConfirm" class="btn btn-primary">
+              Confirmar
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="overflow-y-auto max-h-96">
-          <table class="min-w-full text-sm">
-            <thead>
-              <tr>
-                <th class="p-2 border">Intervalo</th>
-                <th class="p-2 border">SKU</th>
-                <th class="p-2 border">Quantidade</th>
-                <th class="p-2 border">Arquivo</th>
-                <th class="p-2 border">Data</th>
-                <th class="p-2 border">Usuário</th>
-              </tr>
-            </thead>
-            <tbody id="checklistBody"></tbody>
-          </table>
-      </div>
-    </div>
-  </div>
 
-  <div id="gestorModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white w-full max-w-md p-4 rounded shadow-lg">
-      <h2 class="text-lg font-semibold mb-2">Enviar arquivo para qual gestor?</h2>
-      <select id="gestorSelect" class="form-control mb-4"></select>
-      <div class="flex justify-end gap-2">
-        <button id="gestorCancel" class="btn btn-secondary">Cancelar</button>
-        <button id="gestorConfirm" class="btn btn-primary">Confirmar</button>
-      </div>
-    </div>
-  </div>
+      <script type="module">
+        import { firebaseConfig, getPassphrase } from './firebase-config.js';
+        import { decryptString } from './crypto.js';
 
- <script type="module">
-    import { firebaseConfig, getPassphrase } from './firebase-config.js';
-    import { decryptString } from './crypto.js';
-
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
-    const app = firebase.app();
-    const db = firebase.firestore();
-    const storage = firebase.storage();
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    let currentUser = null;
-    let currentFilter = 'all';
-    let viewMode = 'cards';
-    let diaDocRef = null;
-    let isResponsavel = false;
-    const userNameCache = {};
-    let gestoresEmails = [];
-    let currentUserName = '';
-    let responsavelExpedicaoUid = null;
-    let horariosEtiquetas = [];
-    let searchTerm = '';
-    let sortOption = 'createdAt';
-    let startDateFilter = '';
-    let endDateFilter = '';
-    let responsavelFiltro = '';
-    let attentionOnly = false;
-    const equipeUsuarios = new Map();
-    let checklistRows = [];
-    const collapsedOwners = new Set();
-    let pendingManualFile = null;
-
-    const CARD_STATUS_CLASS_MAP = {
-      nao_impresso: 'expedicao-pdf-card--pending',
-      impresso: 'expedicao-pdf-card--printed',
-      concluido: 'expedicao-pdf-card--done'
-    };
-    const CARD_STATUS_CLASSES = Object.values(CARD_STATUS_CLASS_MAP);
-
-    const STATUS_UI_CONFIG = {
-      nao_impresso: {
-        text: 'Não impresso',
-        icon: 'fa-circle-exclamation',
-        buttonClass: 'expedicao-status-button--nao-impresso',
-        badgeClass: 'expedicao-status-badge--nao-impresso',
-        buttonIcon: 'fa-circle-xmark'
-      },
-      impresso: {
-        text: 'Impresso',
-        icon: 'fa-circle-check',
-        buttonClass: 'expedicao-status-button--impresso',
-        badgeClass: 'expedicao-status-badge--impresso',
-        buttonIcon: 'fa-circle-check'
-      },
-      concluido: {
-        text: 'Concluído',
-        icon: 'fa-flag-checkered',
-        buttonClass: 'expedicao-status-button--concluido',
-        badgeClass: 'expedicao-status-badge--concluido',
-        buttonIcon: 'fa-flag-checkered'
-      }
-    };
-
-    function getStatusUiConfig(status) {
-      return STATUS_UI_CONFIG[status] || STATUS_UI_CONFIG.nao_impresso;
-    }
-
-    function buildStatusButtonContent(statusUi) {
-      const iconClass = statusUi.buttonIcon || 'fa-circle';
-      const label = (statusUi.text || '').toUpperCase();
-      return `<span class="expedicao-status-button__icon"><i class="fas ${iconClass}"></i></span><span>${label}</span>`;
-    }
-
-    function applyPdfCardStatus(card, status) {
-      if (!card) return;
-      card.classList.remove(...CARD_STATUS_CLASSES);
-      card.classList.add(CARD_STATUS_CLASS_MAP[status] || CARD_STATUS_CLASS_MAP.nao_impresso);
-    }
-
-    function getResumoTimeWindow() {
-      const now = new Date();
-      const end = new Date(now);
-      end.setHours(15, 20, 0, 0);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 1);
-      start.setHours(15, 30, 0, 0);
-      return { start, end };
-    }
-
-    async function getAllowedUserUids() {
-      if (!currentUser) return [];
-      const allowed = new Set([currentUser.uid]);
-      if (!isResponsavel) return Array.from(allowed);
-      try {
-        const [snap1, snap2] = await Promise.all([
-          db
-            .collection('uid')
-            .where('gestoresExpedicaoEmails', 'array-contains', currentUser.email)
-            .get(),
-          db
-            .collection('uid')
-            .where('responsavelExpedicaoEmail', '==', currentUser.email)
-            .get()
-        ]);
-        snap1.forEach(docu => allowed.add(docu.id));
-        snap2.forEach(docu => allowed.add(docu.id));
-      } catch (err) {
-        console.error('Erro ao buscar usuários permitidos:', err);
-      }
-      return Array.from(allowed);
-    }
-
-    async function fetchResumoDocsForUsers(uids, start, end) {
-      if (!uids || !uids.length) return [];
-      const queries = uids.map(uid =>
-        db
-          .collection('users')
-          .doc(uid)
-          .collection('etiquetasResumo')
-          .orderBy('createdAt', 'asc')
-          .where('createdAt', '>=', start)
-          .get()
-          .then(snap => ({ uid, snap }))
-          .catch(err => {
-            console.error(`Erro ao carregar resumo de etiquetas do usuário ${uid}:`, err);
-            return null;
-          })
-      );
-      const snapshots = await Promise.all(queries);
-      const docs = [];
-      snapshots.forEach(result => {
-        if (!result || !result.snap) return;
-        result.snap.forEach(docSnap => {
-          const data = docSnap.data() || {};
-          const ownerUid = data.ownerUid || result.uid;
-          if (ownerUid !== result.uid) return;
-          let createdAt = null;
-          if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-            createdAt = data.createdAt.toDate();
-          } else if (docSnap.createTime && typeof docSnap.createTime.toDate === 'function') {
-            createdAt = docSnap.createTime.toDate();
-          }
-          if (createdAt && createdAt > end) return;
-          docs.push({ ownerUid, data, docId: docSnap.id, createdAt });
-        });
-      });
-      return docs;
-    }
-
-    function escapeHtml(value) {
-      if (value == null) return '';
-      return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
-
-    function getResumoQuantidade(data) {
-      if (!data) return 0;
-      const totais = Array.isArray(data.totaisPorSku) ? data.totaisPorSku : [];
-      let somaTotais = 0;
-      for (const item of totais) {
-        const valor = Number(item?.quantidade);
-        if (Number.isFinite(valor)) somaTotais += valor;
-      }
-      if (somaTotais > 0) return somaTotais;
-      const paginas = Array.isArray(data.paginas) ? data.paginas : [];
-      let somaPaginas = 0;
-      for (const pag of paginas) {
-        const valor = Number(pag?.quantidade);
-        if (Number.isFinite(valor)) somaPaginas += valor;
-      }
-      if (somaPaginas > 0) return somaPaginas;
-      if (Number.isFinite(data.totalPaginas)) return Number(data.totalPaginas);
-      if (paginas.length) return paginas.length;
-      return 0;
-    }
-
-    function getPdfPageCount(data) {
-      if (!data) return 0;
-      if (Number.isFinite(data.pageCount)) return Number(data.pageCount);
-      if (Number.isFinite(data.totalPaginas)) return Number(data.totalPaginas);
-      const paginas = Array.isArray(data.paginas) ? data.paginas : [];
-      if (!paginas.length) return 0;
-      let soma = 0;
-      paginas.forEach(pagina => {
-        const quantidade = Number(pagina?.quantidade);
-        if (Number.isFinite(quantidade)) soma += quantidade;
-      });
-      if (soma > 0) return soma;
-      return paginas.length;
-    }
-
-    function formatResumoRangeLabel(data, paginas, docId) {
-      const inicio = Number.isFinite(data?.contadorInicial) ? Number(data.contadorInicial) : null;
-      const fim = Number.isFinite(data?.contadorFinal) ? Number(data.contadorFinal) : null;
-      if (inicio != null && fim != null) {
-        return inicio === fim ? `${inicio}` : `${inicio} - ${fim}`;
-      }
-      if (inicio != null) return `${inicio}`;
-      if (fim != null) return `${fim}`;
-      if (Array.isArray(paginas) && paginas.length === 1) {
-        const numero = paginas[0]?.numero;
-        if (Number.isFinite(numero)) return `${numero}`;
-      }
-      return data?.arquivo || data?.fileName || data?.pdfDocId || docId || '';
-    }
-
-    function escolherGestorEmail(emails) {
-      return new Promise(resolve => {
-        if (!emails || !emails.length) return resolve([]);
-        if (emails.length === 1) return resolve([emails[0]]);
-
-        const modal = document.getElementById('gestorModal');
-        const select = document.getElementById('gestorSelect');
-        const confirmBtn = document.getElementById('gestorConfirm');
-        const cancelBtn = document.getElementById('gestorCancel');
-
-        select.innerHTML = '';
-        emails.forEach(email => {
-          const opt = document.createElement('option');
-          opt.value = email;
-          opt.textContent = email;
-          select.appendChild(opt);
-        });
-
-        function close(value) {
-          modal.classList.add('hidden');
-          confirmBtn.removeEventListener('click', onConfirm);
-          cancelBtn.removeEventListener('click', onCancel);
-          modal.removeEventListener('click', onBackdrop);
-          resolve([value]);
+        if (!firebase.apps.length) {
+          firebase.initializeApp(firebaseConfig);
         }
+        const app = firebase.app();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        let currentUser = null;
+        let currentFilter = 'all';
+        let viewMode = 'cards';
+        let diaDocRef = null;
+        let isResponsavel = false;
+        const userNameCache = {};
+        let gestoresEmails = [];
+        let currentUserName = '';
+        let responsavelExpedicaoUid = null;
+        let horariosEtiquetas = [];
+        let searchTerm = '';
+        let sortOption = 'createdAt';
+        let startDateFilter = '';
+        let endDateFilter = '';
+        let responsavelFiltro = '';
+        let attentionOnly = false;
+        const equipeUsuarios = new Map();
+        let checklistRows = [];
+        const collapsedOwners = new Set();
+        let pendingManualFile = null;
 
-        function onConfirm() { close(select.value || emails[0]); }
-        function onCancel() { close(emails[0]); }
-        function onBackdrop(e) { if (e.target === modal) close(emails[0]); }
-
-        confirmBtn.addEventListener('click', onConfirm);
-        cancelBtn.addEventListener('click', onCancel);
-        modal.addEventListener('click', onBackdrop);
-
-        modal.classList.remove('hidden');
-      });
-    }
-
-    const startBtn = document.getElementById('startDayBtn');
-    const closeBtn = document.getElementById('closeDayBtn');
-    startBtn.addEventListener('click', iniciarDia);
-    closeBtn.addEventListener('click', fecharDia);
-    const sobrasBtn = document.getElementById('sobrasBtn');
-    const sobrasModal = document.getElementById('sobrasModal');
-    const closeSobrasModal = document.getElementById('closeSobrasModal');
-    const sobrasQtdInput = document.getElementById('sobrasQuantidade');
-    const sobrasMotivoInput = document.getElementById('sobrasMotivo');
-    const sobrasResponsavelSelect = document.getElementById('sobrasResponsavel');
-    const manualPdfInput = document.getElementById('manualPdfInput');
-    const uploadManualBtn = document.getElementById('uploadManualBtn');
-    const storeModal = document.getElementById('storeModal');
-    const storeNameInput = document.getElementById('storeNameInput');
-    const storeModalConfirm = document.getElementById('storeModalConfirm');
-    const storeModalCancel = document.getElementById('storeModalCancel');
-    const storeModalProgress = document.getElementById('storeModalProgress');
-    const storeModalProgressBar = document.getElementById('storeModalProgressBar');
-    const storeModalProgressText = document.getElementById('storeModalProgressText');
-    const checklistBtn = document.getElementById('checklistBtn');
-    const checklistModal = document.getElementById('checklistModal');
-    const closeChecklistModal = document.getElementById('closeChecklistModal');
-    const checklistBody = document.getElementById('checklistBody');
-    const exportChecklistBtn = document.getElementById('exportChecklistBtn');
-    const checklistTotals = document.getElementById('checklistTotals');
-    const checklistEnvioTotals = document.getElementById('checklistEnvioTotals');
-
-    function resetStoreModalState() {
-      if (storeNameInput) storeNameInput.value = '';
-      if (storeModalProgress) storeModalProgress.classList.add('hidden');
-      if (storeModalProgressBar) storeModalProgressBar.style.width = '0%';
-      if (storeModalProgressText) storeModalProgressText.textContent = '';
-      if (storeModalConfirm) storeModalConfirm.disabled = false;
-      if (storeModalCancel) storeModalCancel.disabled = false;
-    }
-
-    function closeStoreModal(resetInput = true) {
-      if (resetInput && manualPdfInput) manualPdfInput.value = '';
-      pendingManualFile = null;
-      if (storeModal) storeModal.classList.add('hidden');
-      resetStoreModalState();
-    }
-
-    function openStoreModalWithFile(file) {
-      pendingManualFile = file;
-      resetStoreModalState();
-      if (storeModal) {
-        storeModal.classList.remove('hidden');
-        setTimeout(() => {
-          if (storeNameInput) storeNameInput.focus();
-        }, 50);
-      }
-    }
-
-    function setStoreModalLoading(isLoading) {
-      if (storeModalConfirm) storeModalConfirm.disabled = isLoading;
-      if (storeModalCancel) storeModalCancel.disabled = isLoading;
-    }
-
-    function showStoreModalProgress(text, percent) {
-      if (!storeModalProgress) return;
-      storeModalProgress.classList.remove('hidden');
-      if (typeof percent === 'number' && storeModalProgressBar) {
-        const clamped = Math.max(0, Math.min(100, percent));
-        storeModalProgressBar.style.width = `${clamped}%`;
-      }
-      if (storeModalProgressText && typeof text === 'string') {
-        storeModalProgressText.textContent = text;
-      }
-    }
-
-    function openManualUploadModal() {
-      if (manualPdfInput && manualPdfInput.files && manualPdfInput.files.length) {
-        openStoreModalWithFile(manualPdfInput.files[0]);
-      }
-    }
-
-    if (uploadManualBtn) {
-      uploadManualBtn.addEventListener('click', () => {
-        if (manualPdfInput && manualPdfInput.files && manualPdfInput.files.length) {
-          openStoreModalWithFile(manualPdfInput.files[0]);
-        } else if (manualPdfInput) {
-          manualPdfInput.click();
-        }
-      });
-    }
-    if (manualPdfInput) {
-      manualPdfInput.addEventListener('change', () => {
-        openManualUploadModal();
-      });
-    }
-    const gestorUsersBtn = document.getElementById('gestorUsersBtn');
-    if (gestorUsersBtn) {
-      gestorUsersBtn.addEventListener('click', () => {
-        const card = document.getElementById('gestorUsersCard');
-        if (card.classList.contains('hidden')) {
-          carregarEquipeGestor();
-          card.classList.remove('hidden');
-        } else {
-          card.classList.add('hidden');
-        }
-      });
-    }
-    if (sobrasBtn && sobrasModal) {
-      sobrasBtn.addEventListener('click', () => {
-        sobrasModal.classList.remove('hidden');
-      });
-    }
-
-    async function handleStoreModalConfirm() {
-      if (!pendingManualFile) {
-        alert('Selecione um arquivo PDF.');
-        return;
-      }
-      const lojaNome = (storeNameInput?.value || '').trim();
-      if (!lojaNome) {
-        alert('Informe o nome da loja.');
-        return;
-      }
-      setStoreModalLoading(true);
-      let gestoresSelecionados = [];
-      try {
-        gestoresSelecionados = await escolherGestorEmail(gestoresEmails);
-      } catch (error) {
-        setStoreModalLoading(false);
-        return;
-      }
-      showStoreModalProgress('Contando páginas...', 5);
-      try {
-        await uploadManualLabel(pendingManualFile, lojaNome, {
-          gestoresSelecionados,
-          onProgress: ({ text, percent }) => showStoreModalProgress(text, percent)
-        });
-        closeStoreModal();
-      } catch (e) {
-        setStoreModalLoading(false);
-        showStoreModalProgress('Erro ao salvar arquivo. Tente novamente.', 0);
-      }
-    }
-
-    if (storeModalConfirm) {
-      storeModalConfirm.addEventListener('click', () => {
-        if (storeModalConfirm.disabled) return;
-        handleStoreModalConfirm();
-      });
-    }
-    if (storeModalCancel) {
-      storeModalCancel.addEventListener('click', () => {
-        if (storeModalCancel.disabled) return;
-        closeStoreModal();
-      });
-    }
-    if (storeModal) {
-      storeModal.addEventListener('click', e => {
-        if (e.target === storeModal && (!storeModalConfirm || !storeModalConfirm.disabled)) {
-          closeStoreModal();
-        }
-      });
-    }
-    if (storeNameInput) {
-      storeNameInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && storeModalConfirm && !storeModalConfirm.disabled) {
-          e.preventDefault();
-          handleStoreModalConfirm();
-        }
-      });
-    }
-    if (checklistBtn && checklistModal) {
-      checklistBtn.addEventListener('click', async () => {
-        await carregarChecklist();
-        checklistModal.classList.remove('hidden');
-      });
-    }
-    if (exportChecklistBtn) exportChecklistBtn.addEventListener('click', exportarChecklist);
-    if (closeChecklistModal && checklistModal) {
-      closeChecklistModal.addEventListener('click', () => checklistModal.classList.add('hidden'));
-      checklistModal.addEventListener('click', e => { if (e.target === checklistModal) checklistModal.classList.add('hidden'); });
-    }
-    if (closeSobrasModal && sobrasModal) {
-      closeSobrasModal.addEventListener('click', () => sobrasModal.classList.add('hidden'));
-      sobrasModal.addEventListener('click', e => {
-        if (e.target === sobrasModal) sobrasModal.classList.add('hidden');
-      });
-    }
-    const enviarSobrasBtn = document.getElementById('enviarSobrasBtn');
-    if (enviarSobrasBtn) enviarSobrasBtn.addEventListener('click', enviarSobras);
-
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) searchInput.addEventListener('input', () => {
-      searchTerm = searchInput.value.toLowerCase();
-      carregarEtiquetas();
-    });
-    const sortSelect = document.getElementById('sortSelect');
-    if (sortSelect) sortSelect.addEventListener('change', () => {
-      sortOption = sortSelect.value;
-      carregarEtiquetas();
-    });
-    const advancedToggle = document.getElementById('advancedToggle');
-    const advancedFiltersDiv = document.getElementById('advancedFilters');
-    if (advancedToggle && advancedFiltersDiv) {
-      advancedToggle.addEventListener('click', () => {
-        advancedFiltersDiv.classList.toggle('hidden');
-      });
-    }
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
-    const responsavelInput = document.getElementById('responsavelFilter');
-    const attentionOnlyInput = document.getElementById('attentionOnly');
-    if (startDateInput) startDateInput.addEventListener('change', () => {
-      startDateFilter = startDateInput.value;
-      carregarEtiquetas();
-    });
-    if (endDateInput) endDateInput.addEventListener('change', () => {
-      endDateFilter = endDateInput.value;
-      carregarEtiquetas();
-    });
-    if (responsavelInput) responsavelInput.addEventListener('input', () => {
-      responsavelFiltro = responsavelInput.value.toLowerCase();
-      carregarEtiquetas();
-    });
-    if (attentionOnlyInput) attentionOnlyInput.addEventListener('change', () => {
-      attentionOnly = attentionOnlyInput.checked;
-      carregarEtiquetas();
-    });
-
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-btn').forEach(b => {
-          b.classList.remove('bg-indigo-600','text-white','border-indigo-600');
-          b.classList.add('bg-white','text-gray-700','border-gray-300');
-        });
-        btn.classList.remove('bg-white','text-gray-700','border-gray-300');
-        btn.classList.add('bg-indigo-600','text-white','border-indigo-600');
-        currentFilter = btn.dataset.status;
-        carregarEtiquetas();
-      });
-    });
-
-    document.querySelectorAll('.view-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.view-btn').forEach(b => {
-          b.classList.remove('bg-indigo-600','text-white');
-          b.classList.add('bg-gray-100','text-gray-700');
-        });
-        btn.classList.remove('bg-gray-100','text-gray-700');
-        btn.classList.add('bg-indigo-600','text-white');
-        viewMode = btn.dataset.view;
-        carregarEtiquetas();
-      });
-    });
-
-    firebase.auth().onAuthStateChanged(async user => {
-      if (user) {
-        currentUser = user;
-        await carregarDadosUsuario();
-        await verificarResponsavel();
-        await carregarHorarios();
-        carregarEtiquetas();
-        await carregarChecklist();
-        if (isResponsavel) {
-          verificarDia();
-          await carregarEquipeGestor();
-          calcularTotalPedidosDia();
-        } else {
-          startBtn.classList.add('hidden');
-          closeBtn.classList.add('hidden');
-        }
-      }
-    });
-
-    async function verificarResponsavel() {
-      try {
-        const q1 = await db.collection('uid').where('responsavelExpedicaoEmail', '==', currentUser.email).limit(1).get();
-        const q2 = await db.collection('uid').where('gestoresExpedicaoEmails', 'array-contains', currentUser.email).limit(1).get();
-        isResponsavel = !q1.empty || !q2.empty;
-      } catch (e) {
-        console.error('Erro ao verificar responsável:', e);
-        isResponsavel = false;
-      }
-    }
-
-    async function getOwnerName(uid, email) {
-      if (uid && userNameCache[uid]) return userNameCache[uid];
-      try {
-        if (uid) {
-          const snap = await db.collection('uid').doc(uid).get();
-          if (snap.exists) {
-            const data = snap.data();
-            let nome = data.nome;
-            if (!nome && data.encrypted) {
-              try {
-                const pass = getPassphrase() || `chave-${uid}`;
-                const dec = await decryptString(data.encrypted, pass);
-                nome = JSON.parse(dec).nome;
-              } catch (_) {}
-            }
-            if (nome) {
-              userNameCache[uid] = nome;
-              return nome;
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Erro ao obter nome do usuário:', e);
-      }
-      return email || 'Desconhecido';
-    }
-
-    async function carregarDadosUsuario() {
-      try {
-        currentUserName = await getOwnerName(currentUser.uid, currentUser.email);
-        const snap = await db.collection('uid').doc(currentUser.uid).get();
-        const data = snap.data() || {};
-        const emails = data.gestoresExpedicaoEmails || data.responsavelExpedicaoEmail || [];
-        gestoresEmails = Array.isArray(emails) ? emails : [emails];
-        const respEmail = Array.isArray(data.gestoresExpedicaoEmails)
-          ? data.gestoresExpedicaoEmails[0]
-          : data.responsavelExpedicaoEmail;
-        if (respEmail) {
-          try {
-            const respSnap = await db.collection('uid').where('email', '==', respEmail).limit(1).get();
-            if (!respSnap.empty) responsavelExpedicaoUid = respSnap.docs[0].id;
-          } catch (err) {
-            console.error('Erro ao obter UID do responsável:', err);
-          }
-        }
-      } catch (e) {
-        console.error('Erro ao carregar dados do usuário:', e);
-        gestoresEmails = [];
-        currentUserName = currentUser.email;
-      }
-    }
-
-    async function carregarHorarios() {
-      if (!responsavelExpedicaoUid) return;
-      try {
-        const doc = await db.collection('uid').doc(responsavelExpedicaoUid).get();
-        const data = doc.data() || {};
-        horariosEtiquetas = data.horariosEtiquetas || [];
-      } catch (e) {
-        console.error('Erro ao carregar horários:', e);
-      }
-    }
-
-    function foraDoHorario() {
-      if (!horariosEtiquetas.length) return false;
-      const now = new Date();
-      return !horariosEtiquetas.some(h => {
-        if (!h.inicio || !h.fim) return false;
-        const [ih, im] = h.inicio.split(':').map(Number);
-        const [fh, fm] = h.fim.split(':').map(Number);
-        const start = new Date(now);
-        start.setHours(ih, im, 0, 0);
-        const end = new Date(now);
-        end.setHours(fh, fm, 0, 0);
-        return now >= start && now <= end;
-      });
-    }
-
-    async function carregarEquipeGestor() {
-      const card = document.getElementById('gestorUsersCard');
-      const listEl = document.getElementById('gestorUsersList');
-      const selectEl = sobrasResponsavelSelect;
-      if (!currentUser || !card || !listEl) return;
-      try {
-        const usuarios = new Map();
-        const snap1 = await db.collection('uid').where('gestoresExpedicaoEmails', 'array-contains', currentUser.email).get();
-        snap1.forEach(docu => {
-          if (docu.id !== currentUser.uid) usuarios.set(docu.id, docu.data());
-        });
-        const snap2 = await db.collection('uid').where('responsavelExpedicaoEmail', '==', currentUser.email).get();
-        snap2.forEach(docu => {
-          if (docu.id !== currentUser.uid) usuarios.set(docu.id, docu.data());
-        });
-        listEl.innerHTML = '';
-        equipeUsuarios.clear();
-        if (selectEl) selectEl.innerHTML = '<option value="">Selecione responsável</option>';
-        for (const [uid, data] of usuarios) {
-          const nome = await getOwnerName(uid, data.email);
-          equipeUsuarios.set(uid, { email: data.email, nome });
-          const li = document.createElement('li');
-          li.textContent = `${nome} (${data.email || ''})`;
-          listEl.appendChild(li);
-          if (selectEl) {
-            const opt = document.createElement('option');
-            opt.value = uid;
-            opt.textContent = nome;
-            selectEl.appendChild(opt);
-          }
-        }
-      } catch (e) {
-        console.error('Erro ao carregar equipe de expedição:', e);
-      }
-    }
-
-    function updateStatusCounts(counts) {
-      const naoBtn = document.querySelector('[data-status="nao_impresso"]');
-      const impBtn = document.querySelector('[data-status="impresso"]');
-      const concBtn = document.querySelector('[data-status="concluido"]');
-      if (naoBtn) naoBtn.textContent = `Não impresso (${counts.nao_impresso || 0})`;
-      if (impBtn) impBtn.textContent = `Impresso (${counts.impresso || 0})`;
-      if (concBtn) concBtn.textContent = `Concluído (${counts.concluido || 0})`;
-    }
-
-    function renderUserCards(counts) {
-      const container = document.getElementById('userCards');
-      if (!container) return;
-      container.innerHTML = '';
-      if (!equipeUsuarios.size) return;
-      for (const [uid, info] of equipeUsuarios) {
-        const count = counts[uid] || counts[info.email] || 0;
-        const card = document.createElement('div');
-        card.className = 'expedicao-card expedicao-team-card';
-        card.innerHTML = `<div class="expedicao-team-name">${info.nome}</div><div class="expedicao-team-count">QTN. DIA ${count}</div>`;
-        container.appendChild(card);
-      }
-    }
-
-    async function calcularTotalPedidosDia(preloadedDocs = null) {
-      if (!currentUser) return;
-      let docs = preloadedDocs;
-      if (!docs) {
-        const { start, end } = getResumoTimeWindow();
-        const allowedUsers = await getAllowedUserUids();
-        docs = await fetchResumoDocsForUsers(allowedUsers, start, end);
-      }
-      const perUser = {};
-      if (Array.isArray(docs)) {
-        for (const item of docs) {
-          if (!item || !item.ownerUid) continue;
-          const quantidade = getResumoQuantidade(item.data);
-          perUser[item.ownerUid] = (perUser[item.ownerUid] || 0) + quantidade;
-        }
-      }
-      renderUserCards(perUser);
-    }
-
-    async function carregarChecklist() {
-      if (!checklistBody || !currentUser) return;
-      checklistBody.innerHTML = '';
-      checklistRows = [];
-      if (checklistTotals) checklistTotals.textContent = '';
-      if (checklistEnvioTotals) checklistEnvioTotals.textContent = '';
-
-      const totalAEnviarEl = document.getElementById('totalAEnviar');
-      const totalEnviadoEl = document.getElementById('totalEnviado');
-      const totalNaoEnviadoEl = document.getElementById('totalNaoEnviado');
-
-      const { start, end } = getResumoTimeWindow();
-
-      try {
-        const allowedUsers = await getAllowedUserUids();
-        const docs = await fetchResumoDocsForUsers(allowedUsers, start, end);
-        await calcularTotalPedidosDia(docs);
-
-        if (!docs.length) {
-          if (checklistBody) {
-            checklistBody.innerHTML = '<tr><td class="p-2 text-center text-gray-500" colspan="6">Nenhum registro</td></tr>';
-          }
-          if (checklistTotals) checklistTotals.textContent = 'Nenhum SKU encontrado';
-          if (checklistEnvioTotals) {
-            checklistEnvioTotals.textContent = 'Total etiquetas: 0 | Dentro do horário: 0 | Fora do horário: 0';
-          }
-          if (totalAEnviarEl) totalAEnviarEl.textContent = 0;
-          if (totalEnviadoEl) totalEnviadoEl.textContent = 0;
-          if (totalNaoEnviadoEl) totalNaoEnviadoEl.textContent = 0;
-          return;
-        }
-
-        const nomeCache = new Map();
-        async function getNome(uid) {
-          if (!uid) return 'Desconhecido';
-          if (!nomeCache.has(uid)) {
-            nomeCache.set(uid, await getOwnerName(uid, ''));
-          }
-          return nomeCache.get(uid) || 'Desconhecido';
-        }
-
-        const rows = [];
-        const skuTotals = new Map();
-        let totalDentro = 0;
-        let totalFora = 0;
-
-        for (const item of docs) {
-          if (!item) continue;
-          const data = item.data || {};
-          const ownerUid = item.ownerUid || data.ownerUid || currentUser.uid;
-          const ownerName = await getNome(ownerUid);
-          const createdAt = item.createdAt || new Date();
-          const paginas = Array.isArray(data.paginas) ? data.paginas : [];
-          const totaisPorSku = Array.isArray(data.totaisPorSku) ? data.totaisPorSku : [];
-          const arquivo = data.arquivo || data.fileName || data.pdfDocId || item.docId || '';
-          const rangeLabel = formatResumoRangeLabel(data, paginas, item.docId);
-          const quantidadeDoc = getResumoQuantidade(data);
-
-          if (data.foraHorario) totalFora += quantidadeDoc;
-          else totalDentro += quantidadeDoc;
-
-          if (totaisPorSku.length) {
-            totaisPorSku.forEach(entry => {
-              const skuRaw = (entry?.sku || '').toString().trim();
-              const quantidade = Number(entry?.quantidade);
-              const qty = Number.isFinite(quantidade) ? quantidade : 0;
-              const skuKey = skuRaw || 'Sem SKU';
-              skuTotals.set(skuKey, (skuTotals.get(skuKey) || 0) + qty);
-              rows.push({
-                etiqueta: rangeLabel,
-                sku: skuRaw,
-                quantidade: qty,
-                data: createdAt,
-                usuario: ownerName,
-                arquivo
-              });
-            });
-          } else if (paginas.length) {
-            paginas.forEach(pagina => {
-              const skuRaw = (pagina?.sku || '').toString().trim();
-              const quantidade = Number(pagina?.quantidade);
-              const qty = Number.isFinite(quantidade) ? quantidade : 0;
-              const skuKey = skuRaw || 'Sem SKU';
-              skuTotals.set(skuKey, (skuTotals.get(skuKey) || 0) + qty);
-              const etiqueta = Number.isFinite(pagina?.numero) ? `${pagina.numero}` : rangeLabel;
-              rows.push({
-                etiqueta,
-                sku: skuRaw,
-                quantidade: qty,
-                data: createdAt,
-                usuario: ownerName,
-                arquivo
-              });
-            });
-          } else {
-            const skuKey = 'Sem SKU';
-            skuTotals.set(skuKey, (skuTotals.get(skuKey) || 0) + quantidadeDoc);
-            rows.push({
-              etiqueta: rangeLabel,
-              sku: '',
-              quantidade: quantidadeDoc,
-              data: createdAt,
-              usuario: ownerName,
-              arquivo
-            });
-          }
-        }
-
-        rows.sort((a, b) => (b.data?.getTime() || 0) - (a.data?.getTime() || 0));
-
-        if (!rows.length) {
-          checklistBody.innerHTML = '<tr><td class="p-2 text-center text-gray-500" colspan="6">Nenhum registro</td></tr>';
-        } else {
-          rows.forEach(row => {
-            const dataStr = row.data ? row.data.toLocaleString('pt-BR') : '-';
-            const quantidadeStr = Number.isFinite(row.quantidade) ? row.quantidade : '-';
-            const tr = document.createElement('tr');
-            tr.innerHTML =
-              `<td class="p-2 border">${row.etiqueta || '-'}</td>` +
-              `<td class="p-2 border">${row.sku || '-'}</td>` +
-              `<td class="p-2 border text-right">${quantidadeStr}</td>` +
-              `<td class="p-2 border">${row.arquivo || '-'}</td>` +
-              `<td class="p-2 border">${dataStr}</td>` +
-              `<td class="p-2 border">${row.usuario || '-'}</td>`;
-            checklistBody.appendChild(tr);
-          });
-        }
-
-        checklistRows = rows;
-
-        const totalEnviar = totalDentro + totalFora;
-        if (totalAEnviarEl) totalAEnviarEl.textContent = totalEnviar;
-        if (totalEnviadoEl) totalEnviadoEl.textContent = totalDentro;
-        if (totalNaoEnviadoEl) totalNaoEnviadoEl.textContent = totalFora;
-
-        if (checklistEnvioTotals) {
-          checklistEnvioTotals.textContent = `Total etiquetas: ${totalEnviar} | Dentro do horário: ${totalDentro} | Fora do horário: ${totalFora}`;
-        }
-
-        if (checklistTotals) {
-          const skuEntries = Array.from(skuTotals.entries())
-            .filter(([, qty]) => Number.isFinite(qty) && qty > 0)
-            .sort((a, b) => b[1] - a[1]);
-          checklistTotals.textContent = skuEntries.length
-            ? skuEntries.map(([sku, qty]) => `${sku}: ${qty}`).join(' | ')
-            : 'Nenhum SKU encontrado';
-        }
-      } catch (e) {
-        console.error('Erro ao carregar checklist:', e);
-        checklistRows = [];
-        checklistBody.innerHTML = '<tr><td class="p-2 text-center text-red-500" colspan="6">Erro ao carregar</td></tr>';
-        if (checklistTotals) checklistTotals.textContent = 'Erro ao carregar';
-        if (checklistEnvioTotals) checklistEnvioTotals.textContent = 'Erro ao carregar';
-        if (totalAEnviarEl) totalAEnviarEl.textContent = 0;
-        if (totalEnviadoEl) totalEnviadoEl.textContent = 0;
-        if (totalNaoEnviadoEl) totalNaoEnviadoEl.textContent = 0;
-        await calcularTotalPedidosDia();
-      }
-    }
-
-      function exportarChecklist() {
-        if (!checklistRows.length) return;
-        const wsData = checklistRows.map(r => ({
-          Intervalo: r.etiqueta || '',
-          SKU: r.sku || '',
-          Quantidade: Number.isFinite(r.quantidade) ? r.quantidade : '',
-          Arquivo: r.arquivo || '',
-          Data: r.data && typeof r.data.toISOString === 'function' ? r.data.toISOString() : '',
-          Usuario: r.usuario || ''
-        }));
-        const ws = XLSX.utils.json_to_sheet(wsData, { header: ['Intervalo', 'SKU', 'Quantidade', 'Arquivo', 'Data', 'Usuario'] });
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Checklist');
-        XLSX.writeFile(wb, 'checklist_expedicao.xlsx');
-      }
-
-    async function carregarEtiquetas() {
-      const list = document.getElementById('labelsList');
-      list.innerHTML = '';
-      const filter = currentFilter;
-      const snap = await db
-        .collection('pdfDocs')
-        .orderBy('createdAt', 'desc')
-        .get();
-      const seen = new Set();
-      const results = [];
-      const counts = { nao_impresso: 0, impresso: 0, concluido: 0 };
-      for (const doc of snap.docs) {
-        const data = doc.data();
-        const allowed =
-          data.ownerEmail === currentUser.email ||
-          (data.gestoresExpedicaoEmails || []).includes(currentUser.email);
-        if (!allowed || !data.url) continue;
-        const key = data.storagePath || data.url;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const status = data.status || 'nao_impresso';
-        const ownerName = data.ownerName || await getOwnerName(data.ownerUid, data.ownerEmail);
-        const createdAt = data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null;
-        const name = (data.name || '').toLowerCase();
-        const ownerEmail = (data.ownerEmail || '').toLowerCase();
-        const docId = doc.id.toLowerCase();
-        const dateStr = createdAt ? createdAt.toISOString().split('T')[0] : '';
-        const searchMatch = !searchTerm ||
-          name.includes(searchTerm) ||
-          docId.includes(searchTerm) ||
-          ownerEmail.includes(searchTerm) ||
-          dateStr.includes(searchTerm);
-        if (!searchMatch) continue;
-        const startOk = !startDateFilter || (createdAt && createdAt >= new Date(startDateFilter));
-        const endOk = !endDateFilter || (createdAt && createdAt <= new Date(endDateFilter + 'T23:59:59'));
-        if (!startOk || !endOk) continue;
-        const respMatch = !responsavelFiltro ||
-          ownerName.toLowerCase().includes(responsavelFiltro) ||
-          ownerEmail.includes(responsavelFiltro);
-        if (!respMatch) continue;
-        if (attentionOnly && !data.attention) continue;
-        counts[status] = (counts[status] || 0) + 1;
-        if (filter === 'all') {
-          if (status === 'concluido') continue;
-        } else if (status !== filter) {
-          continue;
-        }
-        results.push({ doc, data, ownerName, createdAt });
-      }
-      updateStatusCounts(counts);
-      results.sort((a,b) => {
-        if (sortOption === 'owner') return (a.ownerName || '').localeCompare(b.ownerName || '');
-        if (sortOption === 'status') return (a.data.status || '').localeCompare(b.data.status || '');
-        return (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0);
-      });
-
-      if (isResponsavel && viewMode === 'cards') {
-        const grouped = {};
-        for (const r of results) {
-          const owner = r.ownerName || 'Desconhecido';
-          if (!grouped[owner]) grouped[owner] = [];
-          grouped[owner].push(r);
-        }
-        list.className = 'flex flex-col gap-6';
-        const owners = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
-        owners.forEach(owner => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'flex flex-col gap-2';
-          const header = document.createElement('button');
-          header.type = 'button';
-          header.className = 'font-semibold text-gray-700 flex items-center justify-between cursor-pointer select-none focus:outline-none';
-          header.style.background = 'transparent';
-          header.style.border = 'none';
-          header.style.padding = '0';
-          const nameSpan = document.createElement('span');
-          nameSpan.textContent = owner;
-          const icon = document.createElement('i');
-          icon.className = 'fas fa-chevron-up text-sm transition-transform duration-200';
-          const cardsCount = document.createElement('span');
-          cardsCount.className = 'text-xs font-medium text-gray-500 ml-2';
-          cardsCount.textContent = `(${grouped[owner].length})`;
-          const titleWrapper = document.createElement('div');
-          titleWrapper.className = 'flex items-center gap-2';
-          titleWrapper.appendChild(nameSpan);
-          titleWrapper.appendChild(cardsCount);
-          header.appendChild(titleWrapper);
-          header.appendChild(icon);
-          const row = document.createElement('div');
-          row.className = 'expedicao-owner-row flex flex-row gap-4 flex-wrap';
-          grouped[owner].forEach(r => {
-            row.appendChild(createPdfCard(r.doc, r.ownerName));
-          });
-          const isCollapsed = collapsedOwners.has(owner);
-          if (isCollapsed) {
-            row.classList.add('hidden');
-            icon.style.transform = 'rotate(180deg)';
-          } else {
-            icon.style.transform = 'rotate(0deg)';
-          }
-          header.setAttribute('aria-expanded', (!isCollapsed).toString());
-          header.addEventListener('click', () => {
-            const currentlyCollapsed = collapsedOwners.has(owner);
-            if (currentlyCollapsed) {
-              collapsedOwners.delete(owner);
-              row.classList.remove('hidden');
-              icon.style.transform = 'rotate(0deg)';
-              header.setAttribute('aria-expanded', 'true');
-            } else {
-              collapsedOwners.add(owner);
-              row.classList.add('hidden');
-              icon.style.transform = 'rotate(180deg)';
-              header.setAttribute('aria-expanded', 'false');
-            }
-          });
-          wrapper.appendChild(header);
-          wrapper.appendChild(row);
-          list.appendChild(wrapper);
-        });
-      } else {
-        list.className = viewMode === 'cards'
-          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-          : 'flex flex-col gap-4';
-        for (const r of results) {
-          const item = viewMode === 'cards' ? createPdfCard(r.doc, r.ownerName) : createPdfListItem(r.doc, r.ownerName);
-          list.appendChild(item);
-        }
-      }
-      if (!list.hasChildNodes()) {
-        list.innerHTML = '<p class="text-gray-500">Nenhuma etiqueta encontrada.</p>';
-      }
-      await calcularTotalPedidosDia();
-    }
-
-    async function verificarDia() {
-      const uid = currentUser.uid;
-      const hoje = new Date().toISOString().split('T')[0];
-      diaDocRef = db.collection('uid').doc(uid).collection('diasExpedicao').doc(hoje);
-      const doc = await diaDocRef.get();
-      if (doc.exists && doc.data().fim) {
-        startBtn.classList.remove('hidden');
-        closeBtn.classList.add('hidden');
-        sobrasBtn.classList.add('hidden');
-        sobrasModal.classList.add('hidden');
-      } else if (doc.exists) {
-        startBtn.classList.add('hidden');
-        closeBtn.classList.remove('hidden');
-        sobrasBtn.classList.remove('hidden');
-      } else {
-        startBtn.classList.remove('hidden');
-        closeBtn.classList.add('hidden');
-        sobrasBtn.classList.add('hidden');
-        sobrasModal.classList.add('hidden');
-      }
-    }
-
-    async function iniciarDia() {
-      if (!currentUser) return;
-      const uid = currentUser.uid;
-      const hoje = new Date().toISOString().split('T')[0];
-      diaDocRef = db.collection('uid').doc(uid).collection('diasExpedicao').doc(hoje);
-      await diaDocRef.set({ inicio: firebase.firestore.FieldValue.serverTimestamp() });
-      startBtn.classList.add('hidden');
-      closeBtn.classList.remove('hidden');
-      sobrasBtn.classList.remove('hidden');
-      showToast('Dia iniciado');
-      calcularTotalPedidosDia();
-    }
-
-    async function fecharDia() {
-      if (!currentUser || !diaDocRef) return;
-      const fim = new Date();
-      const sobrasQtd = parseInt(sobrasQtdInput.value) || 0;
-      const sobrasMotivo = sobrasMotivoInput.value.trim();
-      const updateData = { fim: firebase.firestore.FieldValue.serverTimestamp() };
-      if (sobrasQtd || sobrasMotivo) {
-        updateData.sobrasQuantidade = sobrasQtd;
-        updateData.sobrasMotivo = sobrasMotivo;
-      }
-      await diaDocRef.update(updateData);
-      const doc = await diaDocRef.get();
-      const dados = doc.data();
-      const inicio = dados.inicio && dados.inicio.toDate ? dados.inicio.toDate() : new Date();
-      if (sobrasQtd || sobrasMotivo) {
-        await notificarUsuariosSobras(sobrasQtd, sobrasMotivo, sobrasResponsavelSelect.value);
-      }
-      await gerarRelatorioDia(inicio, fim, dados);
-      await gerarRelatorioDiaPorUsuario(inicio, fim, dados);
-      closeBtn.classList.add('hidden');
-      sobrasBtn.classList.add('hidden');
-      sobrasModal.classList.add('hidden');
-      sobrasQtdInput.value = '';
-      sobrasMotivoInput.value = '';
-      if (sobrasResponsavelSelect) sobrasResponsavelSelect.value = '';
-      showToast('Dia encerrado');
-      verificarDia();
-      calcularTotalPedidosDia();
-    }
-
-    async function enviarSobras() {
-      if (!currentUser) return;
-      const sobrasQtd = parseInt(sobrasQtdInput.value) || 0;
-      const sobrasMotivo = sobrasMotivoInput.value.trim();
-      if (!sobrasQtd && !sobrasMotivo) {
-        showToast('Informe quantidade e motivo');
-        return;
-      }
-      await notificarUsuariosSobras(sobrasQtd, sobrasMotivo, sobrasResponsavelSelect.value);
-      sobrasQtdInput.value = '';
-      sobrasMotivoInput.value = '';
-      if (sobrasResponsavelSelect) sobrasResponsavelSelect.value = '';
-      showToast('Atualização enviada');
-      if (sobrasModal) sobrasModal.classList.add('hidden');
-    }
-
-    async function notificarUsuariosSobras(qtd, motivo, responsavelUid) {
-      try {
-        let destinatarios = [];
-        if (responsavelUid) {
-          destinatarios = [responsavelUid];
-        } else {
-          const usuarios = [];
-          const snap1 = await db.collection('uid').where('gestoresExpedicaoEmails', 'array-contains', currentUser.email).get();
-          snap1.forEach(d => usuarios.push(d.id));
-          const snap2 = await db.collection('uid').where('responsavelExpedicaoEmail', '==', currentUser.email).get();
-          snap2.forEach(d => { if (!usuarios.includes(d.id)) usuarios.push(d.id); });
-          destinatarios = usuarios;
-        }
-        if (!destinatarios.length) return;
-        await db.collection('expedicaoMensagens').add({
-          gestorUid: currentUser.uid,
-          gestorEmail: currentUser.email,
-          quantidade: qtd,
-          motivo,
-          destinatarios,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      } catch (e) {
-        console.error('Erro ao notificar usuários de sobras:', e);
-      }
-    }
-
-    function extractStoreFromText(text) {
-      const match = text.match(/(?:Remetente|Loja)[:\s]+([^\n]+)/i);
-      if (match) return match[1].trim();
-      const lines = text.split(/\n/);
-      for (const line of lines) {
-        const m = line.match(/(?:Remetente|Loja)\s*[:\-]?\s*(.+)/i);
-        if (m) return m[1].trim();
-      }
-      return '';
-    }
-
-    function extractSkuQuantitiesFromText(text) {
-      const items = [];
-      const regex = /SKU\s*[:\-]?\s*([\w\.\-\/]+).*?(?:QTD|QUANTIDADE)\s*[:\-]?\s*(\d+)/gis;
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        items.push({ sku: match[1], quantidade: parseInt(match[2], 10) || 0 });
-      }
-      if (items.length === 0) {
-        const lines = text.split(/\n/).map(l => l.trim());
-        for (let i = 0; i < lines.length; i++) {
-          const skuMatch = lines[i].match(/SKU\s*[:\-]?\s*([\w\.\-\/]+)/i);
-          if (skuMatch) {
-            const next = lines[i + 1] || '';
-            const qtdMatch = next.match(/(QTD|QUANTIDADE)\s*[:\-]?\s*(\d+)/i);
-            items.push({ sku: skuMatch[1], quantidade: qtdMatch ? parseInt(qtdMatch[2], 10) || 0 : 0 });
-          }
-        }
-      }
-      return items;
-    }
-
-    async function extractDataFromPdf(file) {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      let itens = [];
-      let loja = '';
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const page = await pdf.getPage(p);
-        const viewport = page.getViewport({ scale: 2 });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        const { data: { text } } = await Tesseract.recognize(canvas, 'por+eng');
-        if (!loja) loja = extractStoreFromText(text);
-        itens.push(...extractSkuQuantitiesFromText(text));
-      }
-      return { loja, itens };
-    }
-
-    async function savePrintedSkuQuantities(items, loja) {
-      if (!currentUser || !items || items.length === 0) return;
-      const batch = db.batch();
-      const userDoc = db.collection('uid').doc(currentUser.uid);
-      const respDoc = responsavelExpedicaoUid ? db.collection('uid').doc(responsavelExpedicaoUid) : null;
-      items.forEach(item => {
-        const data = {
-          sku: item.sku,
-          quantidade: item.quantidade,
-          loja: loja || '',
-          userUid: currentUser.uid,
-          userEmail: currentUser.email,
-          data: firebase.firestore.FieldValue.serverTimestamp()
+        const CARD_STATUS_CLASS_MAP = {
+          nao_impresso: 'expedicao-pdf-card--pending',
+          impresso: 'expedicao-pdf-card--printed',
+          concluido: 'expedicao-pdf-card--done',
         };
-        batch.set(userDoc.collection('etiquetasimpressas').doc(), data);
-        if (respDoc) batch.set(respDoc.collection('etiquetasimpressas').doc(), data);
-      });
-      await batch.commit();
-    }
+        const CARD_STATUS_CLASSES = Object.values(CARD_STATUS_CLASS_MAP);
 
-    async function processManualLabel(file) {
-      try {
-        const { loja, itens } = await extractDataFromPdf(file);
-        if (itens.length) {
-          await savePrintedSkuQuantities(itens, loja);
+        const STATUS_UI_CONFIG = {
+          nao_impresso: {
+            text: 'Não impresso',
+            icon: 'fa-circle-exclamation',
+            buttonClass: 'expedicao-status-button--nao-impresso',
+            badgeClass: 'expedicao-status-badge--nao-impresso',
+            buttonIcon: 'fa-circle-xmark',
+          },
+          impresso: {
+            text: 'Impresso',
+            icon: 'fa-circle-check',
+            buttonClass: 'expedicao-status-button--impresso',
+            badgeClass: 'expedicao-status-badge--impresso',
+            buttonIcon: 'fa-circle-check',
+          },
+          concluido: {
+            text: 'Concluído',
+            icon: 'fa-flag-checkered',
+            buttonClass: 'expedicao-status-button--concluido',
+            badgeClass: 'expedicao-status-badge--concluido',
+            buttonIcon: 'fa-flag-checkered',
+          },
+        };
+
+        function getStatusUiConfig(status) {
+          return STATUS_UI_CONFIG[status] || STATUS_UI_CONFIG.nao_impresso;
         }
-      } catch (e) {
-        console.error('Erro ao processar OCR da etiqueta:', e);
-      }
-    }
 
-    async function contarPaginasPdf(file) {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const total = pdf?.numPages || 0;
-        if (pdf && typeof pdf.destroy === 'function') pdf.destroy();
-        return total;
-      } catch (error) {
-        console.error('Erro ao contar páginas do PDF:', error);
-        return 0;
-      }
-    }
+        function buildStatusButtonContent(statusUi) {
+          const iconClass = statusUi.buttonIcon || 'fa-circle';
+          const label = (statusUi.text || '').toUpperCase();
+          return `<span class="expedicao-status-button__icon"><i class="fas ${iconClass}"></i></span><span>${label}</span>`;
+        }
 
-    async function uploadManualLabel(file, lojaNome, options = {}) {
-      if (!currentUser || !file) {
-        alert('Selecione um arquivo PDF.');
-        throw new Error('Arquivo PDF não selecionado.');
-      }
-      const { onProgress, gestoresSelecionados } = options;
-      try {
-        if (typeof onProgress === 'function') onProgress({ text: 'Contando páginas...', percent: 5 });
-        const pageCount = await contarPaginasPdf(file);
-        if (typeof onProgress === 'function') onProgress({ text: 'Preparando envio...', percent: 15 });
-        const selecionado = Array.isArray(gestoresSelecionados)
-          ? gestoresSelecionados
-          : await escolherGestorEmail(gestoresEmails);
-        const foraHorarioAtual = foraDoHorario();
-        const docRef = await db.collection('pdfDocs').add({
-          ownerUid: currentUser.uid,
-          ownerEmail: currentUser.email,
-          ownerName: currentUserName,
-          gestoresExpedicaoEmails: selecionado,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          name: file.name,
-          status: 'nao_impresso',
-          foraHorario: foraHorarioAtual,
-          loja: lojaNome || '',
-          totalPaginas: pageCount,
-          pageCount
-        });
-        const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
-        if (typeof onProgress === 'function') onProgress({ text: 'Enviando arquivo...', percent: 25 });
-        await new Promise((resolve, reject) => {
-          const uploadTask = fileRef.put(file);
-          uploadTask.on(
-            'state_changed',
-            snapshot => {
-              if (!snapshot || !snapshot.totalBytes || typeof onProgress !== 'function') return;
-              const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-              const adjusted = Math.max(25, Math.min(95, percent));
-              onProgress({ text: `Enviando arquivo... ${percent}%`, percent: adjusted });
-            },
-            error => reject(error),
-            () => resolve()
+        function applyPdfCardStatus(card, status) {
+          if (!card) return;
+          card.classList.remove(...CARD_STATUS_CLASSES);
+          card.classList.add(
+            CARD_STATUS_CLASS_MAP[status] || CARD_STATUS_CLASS_MAP.nao_impresso,
           );
-        });
-        const url = await fileRef.getDownloadURL();
-        await docRef.update({
-          url: url,
-          storagePath: fileRef.fullPath,
-          loja: lojaNome || '',
-          totalPaginas: pageCount,
-          pageCount
-        });
-        if (typeof onProgress === 'function') onProgress({ text: 'Finalizando...', percent: 98 });
-        if (
-          window.ExpedicaoNotifier &&
-          typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
-        ) {
-          await window.ExpedicaoNotifier.notifyNovaEtiqueta({
-            db,
-            firebase,
-            currentUser,
-            destinatarioEmails: selecionado,
-            destinatarioUids: responsavelExpedicaoUid
-              ? [responsavelExpedicaoUid]
-              : [],
-            arquivoNome: file.name,
-            foraHorario: foraHorarioAtual,
-            origem: 'Expedição - Upload manual',
-            pdfDocId: docRef.id,
+        }
+
+        function getResumoTimeWindow() {
+          const now = new Date();
+          const end = new Date(now);
+          end.setHours(15, 20, 0, 0);
+          const start = new Date(end);
+          start.setDate(start.getDate() - 1);
+          start.setHours(15, 30, 0, 0);
+          return { start, end };
+        }
+
+        async function getAllowedUserUids() {
+          if (!currentUser) return [];
+          const allowed = new Set([currentUser.uid]);
+          if (!isResponsavel) return Array.from(allowed);
+          try {
+            const [snap1, snap2] = await Promise.all([
+              db
+                .collection('uid')
+                .where(
+                  'gestoresExpedicaoEmails',
+                  'array-contains',
+                  currentUser.email,
+                )
+                .get(),
+              db
+                .collection('uid')
+                .where('responsavelExpedicaoEmail', '==', currentUser.email)
+                .get(),
+            ]);
+            snap1.forEach((docu) => allowed.add(docu.id));
+            snap2.forEach((docu) => allowed.add(docu.id));
+          } catch (err) {
+            console.error('Erro ao buscar usuários permitidos:', err);
+          }
+          return Array.from(allowed);
+        }
+
+        async function fetchResumoDocsForUsers(uids, start, end) {
+          if (!uids || !uids.length) return [];
+          const queries = uids.map((uid) =>
+            db
+              .collection('users')
+              .doc(uid)
+              .collection('etiquetasResumo')
+              .orderBy('createdAt', 'asc')
+              .where('createdAt', '>=', start)
+              .get()
+              .then((snap) => ({ uid, snap }))
+              .catch((err) => {
+                console.error(
+                  `Erro ao carregar resumo de etiquetas do usuário ${uid}:`,
+                  err,
+                );
+                return null;
+              }),
+          );
+          const snapshots = await Promise.all(queries);
+          const docs = [];
+          snapshots.forEach((result) => {
+            if (!result || !result.snap) return;
+            result.snap.forEach((docSnap) => {
+              const data = docSnap.data() || {};
+              const ownerUid = data.ownerUid || result.uid;
+              if (ownerUid !== result.uid) return;
+              let createdAt = null;
+              if (
+                data.createdAt &&
+                typeof data.createdAt.toDate === 'function'
+              ) {
+                createdAt = data.createdAt.toDate();
+              } else if (
+                docSnap.createTime &&
+                typeof docSnap.createTime.toDate === 'function'
+              ) {
+                createdAt = docSnap.createTime.toDate();
+              }
+              if (createdAt && createdAt > end) return;
+              docs.push({ ownerUid, data, docId: docSnap.id, createdAt });
+            });
+          });
+          return docs;
+        }
+
+        function escapeHtml(value) {
+          if (value == null) return '';
+          return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        function getResumoQuantidade(data) {
+          if (!data) return 0;
+          const totais = Array.isArray(data.totaisPorSku)
+            ? data.totaisPorSku
+            : [];
+          let somaTotais = 0;
+          for (const item of totais) {
+            const valor = Number(item?.quantidade);
+            if (Number.isFinite(valor)) somaTotais += valor;
+          }
+          if (somaTotais > 0) return somaTotais;
+          const paginas = Array.isArray(data.paginas) ? data.paginas : [];
+          let somaPaginas = 0;
+          for (const pag of paginas) {
+            const valor = Number(pag?.quantidade);
+            if (Number.isFinite(valor)) somaPaginas += valor;
+          }
+          if (somaPaginas > 0) return somaPaginas;
+          if (Number.isFinite(data.totalPaginas))
+            return Number(data.totalPaginas);
+          if (paginas.length) return paginas.length;
+          return 0;
+        }
+
+        function getPdfPageCount(data) {
+          if (!data) return 0;
+          if (Number.isFinite(data.pageCount)) return Number(data.pageCount);
+          if (Number.isFinite(data.totalPaginas))
+            return Number(data.totalPaginas);
+          const paginas = Array.isArray(data.paginas) ? data.paginas : [];
+          if (!paginas.length) return 0;
+          let soma = 0;
+          paginas.forEach((pagina) => {
+            const quantidade = Number(pagina?.quantidade);
+            if (Number.isFinite(quantidade)) soma += quantidade;
+          });
+          if (soma > 0) return soma;
+          return paginas.length;
+        }
+
+        function formatResumoRangeLabel(data, paginas, docId) {
+          const inicio = Number.isFinite(data?.contadorInicial)
+            ? Number(data.contadorInicial)
+            : null;
+          const fim = Number.isFinite(data?.contadorFinal)
+            ? Number(data.contadorFinal)
+            : null;
+          if (inicio != null && fim != null) {
+            return inicio === fim ? `${inicio}` : `${inicio} - ${fim}`;
+          }
+          if (inicio != null) return `${inicio}`;
+          if (fim != null) return `${fim}`;
+          if (Array.isArray(paginas) && paginas.length === 1) {
+            const numero = paginas[0]?.numero;
+            if (Number.isFinite(numero)) return `${numero}`;
+          }
+          return (
+            data?.arquivo || data?.fileName || data?.pdfDocId || docId || ''
+          );
+        }
+
+        function escolherGestorEmail(emails) {
+          return new Promise((resolve) => {
+            if (!emails || !emails.length) return resolve([]);
+            if (emails.length === 1) return resolve([emails[0]]);
+
+            const modal = document.getElementById('gestorModal');
+            const select = document.getElementById('gestorSelect');
+            const confirmBtn = document.getElementById('gestorConfirm');
+            const cancelBtn = document.getElementById('gestorCancel');
+
+            select.innerHTML = '';
+            emails.forEach((email) => {
+              const opt = document.createElement('option');
+              opt.value = email;
+              opt.textContent = email;
+              select.appendChild(opt);
+            });
+
+            function close(value) {
+              modal.classList.add('hidden');
+              confirmBtn.removeEventListener('click', onConfirm);
+              cancelBtn.removeEventListener('click', onCancel);
+              modal.removeEventListener('click', onBackdrop);
+              resolve([value]);
+            }
+
+            function onConfirm() {
+              close(select.value || emails[0]);
+            }
+            function onCancel() {
+              close(emails[0]);
+            }
+            function onBackdrop(e) {
+              if (e.target === modal) close(emails[0]);
+            }
+
+            confirmBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+            modal.addEventListener('click', onBackdrop);
+
+            modal.classList.remove('hidden');
           });
         }
-        await processManualLabel(file);
-        if (manualPdfInput) manualPdfInput.value = '';
-        if (typeof onProgress === 'function') onProgress({ text: 'Concluído!', percent: 100 });
-        showToast('Etiqueta salva');
-        await carregarEtiquetas();
-      } catch (e) {
-        console.error('Erro ao enviar etiqueta:', e);
-        alert('Erro ao enviar etiqueta');
-        throw e;
-      }
-    }
 
-    async function gerarRelatorioDia(inicio, fim, diaDados) {
-      const uid = currentUser.uid;
-      const userDoc = db.collection('uid').doc(uid);
-      const snap = await userDoc
-        .collection('etiquetasimpressas')
-        .where('data', '>=', firebase.firestore.Timestamp.fromDate(inicio))
-        .where('data', '<', firebase.firestore.Timestamp.fromDate(fim))
-        .get();
-      const resumo = {};
-      snap.forEach(d => {
-        const data = d.data();
-        const loja = data.loja || 'sem-loja';
-        const sku = data.sku || 'sem-sku';
-        const qtd = data.quantidade || 0;
-        const key = `${loja}||${sku}`;
-        resumo[key] = (resumo[key] || 0) + qtd;
-      });
-      const linhas = Object.entries(resumo).map(([chave, qtd]) => {
-        const [loja, sku] = chave.split('||');
-        return { Loja: loja, SKU: sku, Quantidade: qtd };
-      });
-      if (!linhas.length) {
-        alert('Nenhum SKU impresso no período.');
-        return;
-      }
-      const ws = XLSX.utils.json_to_sheet(linhas);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Resumo');
-      if (diaDados && (diaDados.sobrasQuantidade || diaDados.sobrasMotivo)) {
-        const wsSobras = XLSX.utils.json_to_sheet([
-          { Quantidade: diaDados.sobrasQuantidade || 0, Motivo: diaDados.sobrasMotivo || '' }
-        ]);
-        XLSX.utils.book_append_sheet(wb, wsSobras, 'Sobras');
-      }
-      const diaStr = inicio.toISOString().split('T')[0];
-      XLSX.writeFile(wb, `resumo_expedicao_${diaStr}.xlsx`);
-    }
+        const startBtn = document.getElementById('startDayBtn');
+        const closeBtn = document.getElementById('closeDayBtn');
+        startBtn.addEventListener('click', iniciarDia);
+        closeBtn.addEventListener('click', fecharDia);
+        const sobrasBtn = document.getElementById('sobrasBtn');
+        const sobrasModal = document.getElementById('sobrasModal');
+        const closeSobrasModal = document.getElementById('closeSobrasModal');
+        const sobrasQtdInput = document.getElementById('sobrasQuantidade');
+        const sobrasMotivoInput = document.getElementById('sobrasMotivo');
+        const sobrasResponsavelSelect =
+          document.getElementById('sobrasResponsavel');
+        const manualPdfInput = document.getElementById('manualPdfInput');
+        const uploadManualBtn = document.getElementById('uploadManualBtn');
+        const storeModal = document.getElementById('storeModal');
+        const storeNameInput = document.getElementById('storeNameInput');
+        const storeModalConfirm = document.getElementById('storeModalConfirm');
+        const storeModalCancel = document.getElementById('storeModalCancel');
+        const storeModalProgress =
+          document.getElementById('storeModalProgress');
+        const storeModalProgressBar = document.getElementById(
+          'storeModalProgressBar',
+        );
+        const storeModalProgressText = document.getElementById(
+          'storeModalProgressText',
+        );
+        const checklistBtn = document.getElementById('checklistBtn');
+        const checklistModal = document.getElementById('checklistModal');
+        const closeChecklistModal = document.getElementById(
+          'closeChecklistModal',
+        );
+        const checklistBody = document.getElementById('checklistBody');
+        const exportChecklistBtn =
+          document.getElementById('exportChecklistBtn');
+        const checklistTotals = document.getElementById('checklistTotals');
+        const checklistEnvioTotals = document.getElementById(
+          'checklistEnvioTotals',
+        );
+        const summaryElements = {
+          planned: document.getElementById('totalPlanejadoHoje'),
+          totalBadge: document.getElementById('expedicaoTotalResumo'),
+          sent: [
+            document.getElementById('totalEnviadoResumo'),
+            document.getElementById('expedicaoResumoEnviado'),
+          ].filter(Boolean),
+          pending: [
+            document.getElementById('totalNaoEnviadoResumo'),
+            document.getElementById('expedicaoResumoPendente'),
+          ].filter(Boolean),
+          progressPercent: document.getElementById('totalEnviadoPercentText'),
+          progressFill: document.getElementById('totalEnviadoBar'),
+        };
 
-    async function gerarRelatorioDiaPorUsuario(inicio, fim, diaDados) {
-      const snap = await db
-        .collectionGroup('etiquetasimpressas')
-        .where('data', '>=', firebase.firestore.Timestamp.fromDate(inicio))
-        .where('data', '<', firebase.firestore.Timestamp.fromDate(fim))
-        .get();
-      const resumo = {};
-      snap.forEach(d => {
-        const data = d.data();
-        const usuario = data.userEmail || 'Desconhecido';
-        const loja = data.loja || 'sem-loja';
-        const sku = data.sku || 'sem-sku';
-        const qtd = data.quantidade || 0;
-        if (!resumo[usuario]) resumo[usuario] = {};
-        if (!resumo[usuario][loja]) resumo[usuario][loja] = {};
-        resumo[usuario][loja][sku] = (resumo[usuario][loja][sku] || 0) + qtd;
-      });
-      const linhas = [];
-      Object.entries(resumo).forEach(([usuario, lojas]) => {
-        Object.entries(lojas).forEach(([loja, skus]) => {
-          Object.entries(skus).forEach(([sku, qtd]) => {
-            linhas.push({ Usuario: usuario, Loja: loja, SKU: sku, Quantidade: qtd });
+        const summaryNumberFormatter = new Intl.NumberFormat('pt-BR', {
+          maximumFractionDigits: 0,
+        });
+
+        function clampPercent(value) {
+          return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+        }
+
+        function updateExpedicaoSummaryCards({
+          totalEnviar = 0,
+          totalEnviado = 0,
+          totalNaoEnviado = 0,
+        } = {}) {
+          const enviarRaw = Number(totalEnviar);
+          const enviadoRaw = Number(totalEnviado);
+          const naoEnviadoRaw = Number(totalNaoEnviado);
+          const enviar = Number.isFinite(enviarRaw) ? enviarRaw : 0;
+          const enviado = Number.isFinite(enviadoRaw) ? enviadoRaw : 0;
+          const naoEnviado = Number.isFinite(naoEnviadoRaw) ? naoEnviadoRaw : 0;
+          const base = enviado + naoEnviado;
+          const totalDia = enviar + base;
+          const percentEnviado = base > 0 ? (enviado / base) * 100 : 0;
+
+          if (summaryElements.planned) {
+            summaryElements.planned.textContent = summaryNumberFormatter.format(
+              Math.max(0, Math.round(enviar)),
+            );
+          }
+
+          if (summaryElements.totalBadge) {
+            summaryElements.totalBadge.textContent = `Total: ${summaryNumberFormatter.format(
+              Math.max(0, Math.round(totalDia)),
+            )}`;
+          }
+
+          summaryElements.sent.forEach((el) => {
+            el.textContent = summaryNumberFormatter.format(
+              Math.max(0, Math.round(enviado)),
+            );
+          });
+
+          summaryElements.pending.forEach((el) => {
+            el.textContent = summaryNumberFormatter.format(
+              Math.max(0, Math.round(naoEnviado)),
+            );
+          });
+
+          const safePercent = clampPercent(percentEnviado);
+          const formattedPercent = `${Math.round(safePercent)}%`;
+          if (summaryElements.progressPercent)
+            summaryElements.progressPercent.textContent = formattedPercent;
+          if (summaryElements.progressFill)
+            summaryElements.progressFill.style.width = `${safePercent}%`;
+        }
+
+        updateExpedicaoSummaryCards({
+          totalEnviar: 0,
+          totalEnviado: 0,
+          totalNaoEnviado: 0,
+        });
+
+        function resetStoreModalState() {
+          if (storeNameInput) storeNameInput.value = '';
+          if (storeModalProgress) storeModalProgress.classList.add('hidden');
+          if (storeModalProgressBar) storeModalProgressBar.style.width = '0%';
+          if (storeModalProgressText) storeModalProgressText.textContent = '';
+          if (storeModalConfirm) storeModalConfirm.disabled = false;
+          if (storeModalCancel) storeModalCancel.disabled = false;
+        }
+
+        function closeStoreModal(resetInput = true) {
+          if (resetInput && manualPdfInput) manualPdfInput.value = '';
+          pendingManualFile = null;
+          if (storeModal) storeModal.classList.add('hidden');
+          resetStoreModalState();
+        }
+
+        function openStoreModalWithFile(file) {
+          pendingManualFile = file;
+          resetStoreModalState();
+          if (storeModal) {
+            storeModal.classList.remove('hidden');
+            setTimeout(() => {
+              if (storeNameInput) storeNameInput.focus();
+            }, 50);
+          }
+        }
+
+        function setStoreModalLoading(isLoading) {
+          if (storeModalConfirm) storeModalConfirm.disabled = isLoading;
+          if (storeModalCancel) storeModalCancel.disabled = isLoading;
+        }
+
+        function showStoreModalProgress(text, percent) {
+          if (!storeModalProgress) return;
+          storeModalProgress.classList.remove('hidden');
+          if (typeof percent === 'number' && storeModalProgressBar) {
+            const clamped = Math.max(0, Math.min(100, percent));
+            storeModalProgressBar.style.width = `${clamped}%`;
+          }
+          if (storeModalProgressText && typeof text === 'string') {
+            storeModalProgressText.textContent = text;
+          }
+        }
+
+        function openManualUploadModal() {
+          if (
+            manualPdfInput &&
+            manualPdfInput.files &&
+            manualPdfInput.files.length
+          ) {
+            openStoreModalWithFile(manualPdfInput.files[0]);
+          }
+        }
+
+        if (uploadManualBtn) {
+          uploadManualBtn.addEventListener('click', () => {
+            if (
+              manualPdfInput &&
+              manualPdfInput.files &&
+              manualPdfInput.files.length
+            ) {
+              openStoreModalWithFile(manualPdfInput.files[0]);
+            } else if (manualPdfInput) {
+              manualPdfInput.click();
+            }
+          });
+        }
+        if (manualPdfInput) {
+          manualPdfInput.addEventListener('change', () => {
+            openManualUploadModal();
+          });
+        }
+        const gestorUsersBtn = document.getElementById('gestorUsersBtn');
+        if (gestorUsersBtn) {
+          gestorUsersBtn.addEventListener('click', () => {
+            const card = document.getElementById('gestorUsersCard');
+            if (card.classList.contains('hidden')) {
+              carregarEquipeGestor();
+              card.classList.remove('hidden');
+            } else {
+              card.classList.add('hidden');
+            }
+          });
+        }
+        if (sobrasBtn && sobrasModal) {
+          sobrasBtn.addEventListener('click', () => {
+            sobrasModal.classList.remove('hidden');
+          });
+        }
+
+        async function handleStoreModalConfirm() {
+          if (!pendingManualFile) {
+            alert('Selecione um arquivo PDF.');
+            return;
+          }
+          const lojaNome = (storeNameInput?.value || '').trim();
+          if (!lojaNome) {
+            alert('Informe o nome da loja.');
+            return;
+          }
+          setStoreModalLoading(true);
+          let gestoresSelecionados = [];
+          try {
+            gestoresSelecionados = await escolherGestorEmail(gestoresEmails);
+          } catch (error) {
+            setStoreModalLoading(false);
+            return;
+          }
+          showStoreModalProgress('Contando páginas...', 5);
+          try {
+            await uploadManualLabel(pendingManualFile, lojaNome, {
+              gestoresSelecionados,
+              onProgress: ({ text, percent }) =>
+                showStoreModalProgress(text, percent),
+            });
+            closeStoreModal();
+          } catch (e) {
+            setStoreModalLoading(false);
+            showStoreModalProgress(
+              'Erro ao salvar arquivo. Tente novamente.',
+              0,
+            );
+          }
+        }
+
+        if (storeModalConfirm) {
+          storeModalConfirm.addEventListener('click', () => {
+            if (storeModalConfirm.disabled) return;
+            handleStoreModalConfirm();
+          });
+        }
+        if (storeModalCancel) {
+          storeModalCancel.addEventListener('click', () => {
+            if (storeModalCancel.disabled) return;
+            closeStoreModal();
+          });
+        }
+        if (storeModal) {
+          storeModal.addEventListener('click', (e) => {
+            if (
+              e.target === storeModal &&
+              (!storeModalConfirm || !storeModalConfirm.disabled)
+            ) {
+              closeStoreModal();
+            }
+          });
+        }
+        if (storeNameInput) {
+          storeNameInput.addEventListener('keydown', (e) => {
+            if (
+              e.key === 'Enter' &&
+              storeModalConfirm &&
+              !storeModalConfirm.disabled
+            ) {
+              e.preventDefault();
+              handleStoreModalConfirm();
+            }
+          });
+        }
+        if (checklistBtn && checklistModal) {
+          checklistBtn.addEventListener('click', async () => {
+            await carregarChecklist();
+            checklistModal.classList.remove('hidden');
+          });
+        }
+        if (exportChecklistBtn)
+          exportChecklistBtn.addEventListener('click', exportarChecklist);
+        if (closeChecklistModal && checklistModal) {
+          closeChecklistModal.addEventListener('click', () =>
+            checklistModal.classList.add('hidden'),
+          );
+          checklistModal.addEventListener('click', (e) => {
+            if (e.target === checklistModal)
+              checklistModal.classList.add('hidden');
+          });
+        }
+        if (closeSobrasModal && sobrasModal) {
+          closeSobrasModal.addEventListener('click', () =>
+            sobrasModal.classList.add('hidden'),
+          );
+          sobrasModal.addEventListener('click', (e) => {
+            if (e.target === sobrasModal) sobrasModal.classList.add('hidden');
+          });
+        }
+        const enviarSobrasBtn = document.getElementById('enviarSobrasBtn');
+        if (enviarSobrasBtn)
+          enviarSobrasBtn.addEventListener('click', enviarSobras);
+
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput)
+          searchInput.addEventListener('input', () => {
+            searchTerm = searchInput.value.toLowerCase();
+            carregarEtiquetas();
+          });
+        const sortSelect = document.getElementById('sortSelect');
+        if (sortSelect)
+          sortSelect.addEventListener('change', () => {
+            sortOption = sortSelect.value;
+            carregarEtiquetas();
+          });
+        const advancedToggle = document.getElementById('advancedToggle');
+        const advancedFiltersDiv = document.getElementById('advancedFilters');
+        if (advancedToggle && advancedFiltersDiv) {
+          advancedToggle.addEventListener('click', () => {
+            advancedFiltersDiv.classList.toggle('hidden');
+          });
+        }
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const responsavelInput = document.getElementById('responsavelFilter');
+        const attentionOnlyInput = document.getElementById('attentionOnly');
+        if (startDateInput)
+          startDateInput.addEventListener('change', () => {
+            startDateFilter = startDateInput.value;
+            carregarEtiquetas();
+          });
+        if (endDateInput)
+          endDateInput.addEventListener('change', () => {
+            endDateFilter = endDateInput.value;
+            carregarEtiquetas();
+          });
+        if (responsavelInput)
+          responsavelInput.addEventListener('input', () => {
+            responsavelFiltro = responsavelInput.value.toLowerCase();
+            carregarEtiquetas();
+          });
+        if (attentionOnlyInput)
+          attentionOnlyInput.addEventListener('change', () => {
+            attentionOnly = attentionOnlyInput.checked;
+            carregarEtiquetas();
+          });
+
+        document.querySelectorAll('.filter-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-btn').forEach((b) => {
+              b.classList.remove(
+                'bg-indigo-600',
+                'text-white',
+                'border-indigo-600',
+              );
+              b.classList.add('bg-white', 'text-gray-700', 'border-gray-300');
+            });
+            btn.classList.remove(
+              'bg-white',
+              'text-gray-700',
+              'border-gray-300',
+            );
+            btn.classList.add(
+              'bg-indigo-600',
+              'text-white',
+              'border-indigo-600',
+            );
+            currentFilter = btn.dataset.status;
+            carregarEtiquetas();
           });
         });
-      });
-      if (!linhas.length) {
-        alert('Nenhum SKU encontrado para o dia.');
-        return;
-      }
-      const ws = XLSX.utils.json_to_sheet(linhas);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Relatorio');
-      if (diaDados && (diaDados.sobrasQuantidade || diaDados.sobrasMotivo)) {
-        const wsSobras = XLSX.utils.json_to_sheet([
-          { Quantidade: diaDados.sobrasQuantidade || 0, Motivo: diaDados.sobrasMotivo || '' }
-        ]);
-        XLSX.utils.book_append_sheet(wb, wsSobras, 'Sobras');
-      }
-      const diaStr = inicio.toISOString().split('T')[0];
-      XLSX.writeFile(wb, `relatorio_sku_usuarios_${diaStr}.xlsx`);
-    }
 
-    function createPdfCard(doc, ownerName) {
-      const data = doc.data();
-      const rawStatus = data.status || 'nao_impresso';
-      const statusKey = STATUS_UI_CONFIG[rawStatus] ? rawStatus : 'nao_impresso';
-      const statusData = getStatusUiConfig(statusKey);
-      const attention = data.attention || false;
-      const foraHorario = data.foraHorario || false;
-      const name = data.name || 'PDF';
-      const url = data.url;
-      const owner = ownerName || 'Desconhecido';
-      const safeUrl = encodeURIComponent(url || '');
-      const safeName = encodeURIComponent(name || 'Etiqueta');
-      const createdDate = data.createdAt && data.createdAt.toDate
-        ? data.createdAt.toDate()
-        : null;
-      const createdDateStr = createdDate
-        ? createdDate.toLocaleString('pt-BR')
-        : 'Data desconhecida';
-      const quantidadeEtiquetas = getResumoQuantidade(data);
-      const lojaDisplay = data.loja ? escapeHtml(data.loja) : 'Loja não informada';
-      const totalPaginas = getPdfPageCount(data);
-      const paginasLabel = totalPaginas > 0 ? totalPaginas : 'Não informado';
-      const div = document.createElement('div');
-      div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
-      div.innerHTML = `
+        document.querySelectorAll('.view-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.view-btn').forEach((b) => {
+              b.classList.remove('bg-indigo-600', 'text-white');
+              b.classList.add('bg-gray-100', 'text-gray-700');
+            });
+            btn.classList.remove('bg-gray-100', 'text-gray-700');
+            btn.classList.add('bg-indigo-600', 'text-white');
+            viewMode = btn.dataset.view;
+            carregarEtiquetas();
+          });
+        });
+
+        firebase.auth().onAuthStateChanged(async (user) => {
+          if (user) {
+            currentUser = user;
+            await carregarDadosUsuario();
+            await verificarResponsavel();
+            await carregarHorarios();
+            carregarEtiquetas();
+            await carregarChecklist();
+            if (isResponsavel) {
+              verificarDia();
+              await carregarEquipeGestor();
+              calcularTotalPedidosDia();
+            } else {
+              startBtn.classList.add('hidden');
+              closeBtn.classList.add('hidden');
+            }
+          }
+        });
+
+        async function verificarResponsavel() {
+          try {
+            const q1 = await db
+              .collection('uid')
+              .where('responsavelExpedicaoEmail', '==', currentUser.email)
+              .limit(1)
+              .get();
+            const q2 = await db
+              .collection('uid')
+              .where(
+                'gestoresExpedicaoEmails',
+                'array-contains',
+                currentUser.email,
+              )
+              .limit(1)
+              .get();
+            isResponsavel = !q1.empty || !q2.empty;
+          } catch (e) {
+            console.error('Erro ao verificar responsável:', e);
+            isResponsavel = false;
+          }
+        }
+
+        async function getOwnerName(uid, email) {
+          if (uid && userNameCache[uid]) return userNameCache[uid];
+          try {
+            if (uid) {
+              const snap = await db.collection('uid').doc(uid).get();
+              if (snap.exists) {
+                const data = snap.data();
+                let nome = data.nome;
+                if (!nome && data.encrypted) {
+                  try {
+                    const pass = getPassphrase() || `chave-${uid}`;
+                    const dec = await decryptString(data.encrypted, pass);
+                    nome = JSON.parse(dec).nome;
+                  } catch (_) {}
+                }
+                if (nome) {
+                  userNameCache[uid] = nome;
+                  return nome;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao obter nome do usuário:', e);
+          }
+          return email || 'Desconhecido';
+        }
+
+        async function carregarDadosUsuario() {
+          try {
+            currentUserName = await getOwnerName(
+              currentUser.uid,
+              currentUser.email,
+            );
+            const snap = await db.collection('uid').doc(currentUser.uid).get();
+            const data = snap.data() || {};
+            const emails =
+              data.gestoresExpedicaoEmails ||
+              data.responsavelExpedicaoEmail ||
+              [];
+            gestoresEmails = Array.isArray(emails) ? emails : [emails];
+            const respEmail = Array.isArray(data.gestoresExpedicaoEmails)
+              ? data.gestoresExpedicaoEmails[0]
+              : data.responsavelExpedicaoEmail;
+            if (respEmail) {
+              try {
+                const respSnap = await db
+                  .collection('uid')
+                  .where('email', '==', respEmail)
+                  .limit(1)
+                  .get();
+                if (!respSnap.empty)
+                  responsavelExpedicaoUid = respSnap.docs[0].id;
+              } catch (err) {
+                console.error('Erro ao obter UID do responsável:', err);
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao carregar dados do usuário:', e);
+            gestoresEmails = [];
+            currentUserName = currentUser.email;
+          }
+        }
+
+        async function carregarHorarios() {
+          if (!responsavelExpedicaoUid) return;
+          try {
+            const doc = await db
+              .collection('uid')
+              .doc(responsavelExpedicaoUid)
+              .get();
+            const data = doc.data() || {};
+            horariosEtiquetas = data.horariosEtiquetas || [];
+          } catch (e) {
+            console.error('Erro ao carregar horários:', e);
+          }
+        }
+
+        function foraDoHorario() {
+          if (!horariosEtiquetas.length) return false;
+          const now = new Date();
+          return !horariosEtiquetas.some((h) => {
+            if (!h.inicio || !h.fim) return false;
+            const [ih, im] = h.inicio.split(':').map(Number);
+            const [fh, fm] = h.fim.split(':').map(Number);
+            const start = new Date(now);
+            start.setHours(ih, im, 0, 0);
+            const end = new Date(now);
+            end.setHours(fh, fm, 0, 0);
+            return now >= start && now <= end;
+          });
+        }
+
+        async function carregarEquipeGestor() {
+          const card = document.getElementById('gestorUsersCard');
+          const listEl = document.getElementById('gestorUsersList');
+          const selectEl = sobrasResponsavelSelect;
+          if (!currentUser || !card || !listEl) return;
+          try {
+            const usuarios = new Map();
+            const snap1 = await db
+              .collection('uid')
+              .where(
+                'gestoresExpedicaoEmails',
+                'array-contains',
+                currentUser.email,
+              )
+              .get();
+            snap1.forEach((docu) => {
+              if (docu.id !== currentUser.uid)
+                usuarios.set(docu.id, docu.data());
+            });
+            const snap2 = await db
+              .collection('uid')
+              .where('responsavelExpedicaoEmail', '==', currentUser.email)
+              .get();
+            snap2.forEach((docu) => {
+              if (docu.id !== currentUser.uid)
+                usuarios.set(docu.id, docu.data());
+            });
+            listEl.innerHTML = '';
+            equipeUsuarios.clear();
+            if (selectEl)
+              selectEl.innerHTML =
+                '<option value="">Selecione responsável</option>';
+            for (const [uid, data] of usuarios) {
+              const nome = await getOwnerName(uid, data.email);
+              equipeUsuarios.set(uid, { email: data.email, nome });
+              const li = document.createElement('li');
+              li.textContent = `${nome} (${data.email || ''})`;
+              listEl.appendChild(li);
+              if (selectEl) {
+                const opt = document.createElement('option');
+                opt.value = uid;
+                opt.textContent = nome;
+                selectEl.appendChild(opt);
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao carregar equipe de expedição:', e);
+          }
+        }
+
+        function updateStatusCounts(counts) {
+          const naoBtn = document.querySelector('[data-status="nao_impresso"]');
+          const impBtn = document.querySelector('[data-status="impresso"]');
+          const concBtn = document.querySelector('[data-status="concluido"]');
+          if (naoBtn)
+            naoBtn.textContent = `Não impresso (${counts.nao_impresso || 0})`;
+          if (impBtn) impBtn.textContent = `Impresso (${counts.impresso || 0})`;
+          if (concBtn)
+            concBtn.textContent = `Concluído (${counts.concluido || 0})`;
+        }
+
+        function renderUserCards(counts) {
+          const container = document.getElementById('userCards');
+          if (!container) return;
+          container.innerHTML = '';
+          if (!equipeUsuarios.size) return;
+          for (const [uid, info] of equipeUsuarios) {
+            const count = counts[uid] || counts[info.email] || 0;
+            const card = document.createElement('div');
+            card.className = 'expedicao-card expedicao-team-card';
+            card.innerHTML = `<div class="expedicao-team-name">${info.nome}</div><div class="expedicao-team-count">QTN. DIA ${count}</div>`;
+            container.appendChild(card);
+          }
+        }
+
+        async function calcularTotalPedidosDia(preloadedDocs = null) {
+          if (!currentUser) return;
+          let docs = preloadedDocs;
+          if (!docs) {
+            const { start, end } = getResumoTimeWindow();
+            const allowedUsers = await getAllowedUserUids();
+            docs = await fetchResumoDocsForUsers(allowedUsers, start, end);
+          }
+          const perUser = {};
+          if (Array.isArray(docs)) {
+            for (const item of docs) {
+              if (!item || !item.ownerUid) continue;
+              const quantidade = getResumoQuantidade(item.data);
+              perUser[item.ownerUid] =
+                (perUser[item.ownerUid] || 0) + quantidade;
+            }
+          }
+          renderUserCards(perUser);
+        }
+
+        async function carregarChecklist() {
+          if (!checklistBody || !currentUser) return;
+          checklistBody.innerHTML = '';
+          checklistRows = [];
+          if (checklistTotals) checklistTotals.textContent = '';
+          if (checklistEnvioTotals) checklistEnvioTotals.textContent = '';
+
+          const { start, end } = getResumoTimeWindow();
+
+          try {
+            const allowedUsers = await getAllowedUserUids();
+            const docs = await fetchResumoDocsForUsers(
+              allowedUsers,
+              start,
+              end,
+            );
+            await calcularTotalPedidosDia(docs);
+
+            if (!docs.length) {
+              if (checklistBody) {
+                checklistBody.innerHTML =
+                  '<tr><td class="p-2 text-center text-gray-500" colspan="6">Nenhum registro</td></tr>';
+              }
+              if (checklistTotals)
+                checklistTotals.textContent = 'Nenhum SKU encontrado';
+              if (checklistEnvioTotals) {
+                checklistEnvioTotals.textContent =
+                  'Total etiquetas: 0 | Dentro do horário: 0 | Fora do horário: 0';
+              }
+              updateExpedicaoSummaryCards({
+                totalEnviar: 0,
+                totalEnviado: 0,
+                totalNaoEnviado: 0,
+              });
+              return;
+            }
+
+            const nomeCache = new Map();
+            async function getNome(uid) {
+              if (!uid) return 'Desconhecido';
+              if (!nomeCache.has(uid)) {
+                nomeCache.set(uid, await getOwnerName(uid, ''));
+              }
+              return nomeCache.get(uid) || 'Desconhecido';
+            }
+
+            const rows = [];
+            const skuTotals = new Map();
+            let totalDentro = 0;
+            let totalFora = 0;
+
+            for (const item of docs) {
+              if (!item) continue;
+              const data = item.data || {};
+              const ownerUid =
+                item.ownerUid || data.ownerUid || currentUser.uid;
+              const ownerName = await getNome(ownerUid);
+              const createdAt = item.createdAt || new Date();
+              const paginas = Array.isArray(data.paginas) ? data.paginas : [];
+              const totaisPorSku = Array.isArray(data.totaisPorSku)
+                ? data.totaisPorSku
+                : [];
+              const arquivo =
+                data.arquivo ||
+                data.fileName ||
+                data.pdfDocId ||
+                item.docId ||
+                '';
+              const rangeLabel = formatResumoRangeLabel(
+                data,
+                paginas,
+                item.docId,
+              );
+              const quantidadeDoc = getResumoQuantidade(data);
+
+              if (data.foraHorario) totalFora += quantidadeDoc;
+              else totalDentro += quantidadeDoc;
+
+              if (totaisPorSku.length) {
+                totaisPorSku.forEach((entry) => {
+                  const skuRaw = (entry?.sku || '').toString().trim();
+                  const quantidade = Number(entry?.quantidade);
+                  const qty = Number.isFinite(quantidade) ? quantidade : 0;
+                  const skuKey = skuRaw || 'Sem SKU';
+                  skuTotals.set(skuKey, (skuTotals.get(skuKey) || 0) + qty);
+                  rows.push({
+                    etiqueta: rangeLabel,
+                    sku: skuRaw,
+                    quantidade: qty,
+                    data: createdAt,
+                    usuario: ownerName,
+                    arquivo,
+                  });
+                });
+              } else if (paginas.length) {
+                paginas.forEach((pagina) => {
+                  const skuRaw = (pagina?.sku || '').toString().trim();
+                  const quantidade = Number(pagina?.quantidade);
+                  const qty = Number.isFinite(quantidade) ? quantidade : 0;
+                  const skuKey = skuRaw || 'Sem SKU';
+                  skuTotals.set(skuKey, (skuTotals.get(skuKey) || 0) + qty);
+                  const etiqueta = Number.isFinite(pagina?.numero)
+                    ? `${pagina.numero}`
+                    : rangeLabel;
+                  rows.push({
+                    etiqueta,
+                    sku: skuRaw,
+                    quantidade: qty,
+                    data: createdAt,
+                    usuario: ownerName,
+                    arquivo,
+                  });
+                });
+              } else {
+                const skuKey = 'Sem SKU';
+                skuTotals.set(
+                  skuKey,
+                  (skuTotals.get(skuKey) || 0) + quantidadeDoc,
+                );
+                rows.push({
+                  etiqueta: rangeLabel,
+                  sku: '',
+                  quantidade: quantidadeDoc,
+                  data: createdAt,
+                  usuario: ownerName,
+                  arquivo,
+                });
+              }
+            }
+
+            rows.sort(
+              (a, b) => (b.data?.getTime() || 0) - (a.data?.getTime() || 0),
+            );
+
+            if (!rows.length) {
+              checklistBody.innerHTML =
+                '<tr><td class="p-2 text-center text-gray-500" colspan="6">Nenhum registro</td></tr>';
+            } else {
+              rows.forEach((row) => {
+                const dataStr = row.data
+                  ? row.data.toLocaleString('pt-BR')
+                  : '-';
+                const quantidadeStr = Number.isFinite(row.quantidade)
+                  ? row.quantidade
+                  : '-';
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                  `<td class="p-2 border">${row.etiqueta || '-'}</td>` +
+                  `<td class="p-2 border">${row.sku || '-'}</td>` +
+                  `<td class="p-2 border text-right">${quantidadeStr}</td>` +
+                  `<td class="p-2 border">${row.arquivo || '-'}</td>` +
+                  `<td class="p-2 border">${dataStr}</td>` +
+                  `<td class="p-2 border">${row.usuario || '-'}</td>`;
+                checklistBody.appendChild(tr);
+              });
+            }
+
+            checklistRows = rows;
+
+            const totalEnviar = totalDentro + totalFora;
+            updateExpedicaoSummaryCards({
+              totalEnviar,
+              totalEnviado: totalDentro,
+              totalNaoEnviado: totalFora,
+            });
+
+            if (checklistEnvioTotals) {
+              checklistEnvioTotals.textContent = `Total etiquetas: ${totalEnviar} | Dentro do horário: ${totalDentro} | Fora do horário: ${totalFora}`;
+            }
+
+            if (checklistTotals) {
+              const skuEntries = Array.from(skuTotals.entries())
+                .filter(([, qty]) => Number.isFinite(qty) && qty > 0)
+                .sort((a, b) => b[1] - a[1]);
+              checklistTotals.textContent = skuEntries.length
+                ? skuEntries.map(([sku, qty]) => `${sku}: ${qty}`).join(' | ')
+                : 'Nenhum SKU encontrado';
+            }
+          } catch (e) {
+            console.error('Erro ao carregar checklist:', e);
+            checklistRows = [];
+            checklistBody.innerHTML =
+              '<tr><td class="p-2 text-center text-red-500" colspan="6">Erro ao carregar</td></tr>';
+            if (checklistTotals)
+              checklistTotals.textContent = 'Erro ao carregar';
+            if (checklistEnvioTotals)
+              checklistEnvioTotals.textContent = 'Erro ao carregar';
+            updateExpedicaoSummaryCards({
+              totalEnviar: 0,
+              totalEnviado: 0,
+              totalNaoEnviado: 0,
+            });
+            await calcularTotalPedidosDia();
+          }
+        }
+
+        function exportarChecklist() {
+          if (!checklistRows.length) return;
+          const wsData = checklistRows.map((r) => ({
+            Intervalo: r.etiqueta || '',
+            SKU: r.sku || '',
+            Quantidade: Number.isFinite(r.quantidade) ? r.quantidade : '',
+            Arquivo: r.arquivo || '',
+            Data:
+              r.data && typeof r.data.toISOString === 'function'
+                ? r.data.toISOString()
+                : '',
+            Usuario: r.usuario || '',
+          }));
+          const ws = XLSX.utils.json_to_sheet(wsData, {
+            header: [
+              'Intervalo',
+              'SKU',
+              'Quantidade',
+              'Arquivo',
+              'Data',
+              'Usuario',
+            ],
+          });
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Checklist');
+          XLSX.writeFile(wb, 'checklist_expedicao.xlsx');
+        }
+
+        async function carregarEtiquetas() {
+          const list = document.getElementById('labelsList');
+          list.innerHTML = '';
+          const filter = currentFilter;
+          const snap = await db
+            .collection('pdfDocs')
+            .orderBy('createdAt', 'desc')
+            .get();
+          const seen = new Set();
+          const results = [];
+          const counts = { nao_impresso: 0, impresso: 0, concluido: 0 };
+          for (const doc of snap.docs) {
+            const data = doc.data();
+            const allowed =
+              data.ownerEmail === currentUser.email ||
+              (data.gestoresExpedicaoEmails || []).includes(currentUser.email);
+            if (!allowed || !data.url) continue;
+            const key = data.storagePath || data.url;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const status = data.status || 'nao_impresso';
+            const ownerName =
+              data.ownerName ||
+              (await getOwnerName(data.ownerUid, data.ownerEmail));
+            const createdAt =
+              data.createdAt && data.createdAt.toDate
+                ? data.createdAt.toDate()
+                : null;
+            const name = (data.name || '').toLowerCase();
+            const ownerEmail = (data.ownerEmail || '').toLowerCase();
+            const docId = doc.id.toLowerCase();
+            const dateStr = createdAt
+              ? createdAt.toISOString().split('T')[0]
+              : '';
+            const searchMatch =
+              !searchTerm ||
+              name.includes(searchTerm) ||
+              docId.includes(searchTerm) ||
+              ownerEmail.includes(searchTerm) ||
+              dateStr.includes(searchTerm);
+            if (!searchMatch) continue;
+            const startOk =
+              !startDateFilter ||
+              (createdAt && createdAt >= new Date(startDateFilter));
+            const endOk =
+              !endDateFilter ||
+              (createdAt && createdAt <= new Date(endDateFilter + 'T23:59:59'));
+            if (!startOk || !endOk) continue;
+            const respMatch =
+              !responsavelFiltro ||
+              ownerName.toLowerCase().includes(responsavelFiltro) ||
+              ownerEmail.includes(responsavelFiltro);
+            if (!respMatch) continue;
+            if (attentionOnly && !data.attention) continue;
+            counts[status] = (counts[status] || 0) + 1;
+            if (filter === 'all') {
+              if (status === 'concluido') continue;
+            } else if (status !== filter) {
+              continue;
+            }
+            results.push({ doc, data, ownerName, createdAt });
+          }
+          updateStatusCounts(counts);
+          results.sort((a, b) => {
+            if (sortOption === 'owner')
+              return (a.ownerName || '').localeCompare(b.ownerName || '');
+            if (sortOption === 'status')
+              return (a.data.status || '').localeCompare(b.data.status || '');
+            return (
+              (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
+            );
+          });
+
+          if (isResponsavel && viewMode === 'cards') {
+            const grouped = {};
+            for (const r of results) {
+              const owner = r.ownerName || 'Desconhecido';
+              if (!grouped[owner]) grouped[owner] = [];
+              grouped[owner].push(r);
+            }
+            list.className = 'flex flex-col gap-6';
+            const owners = Object.keys(grouped).sort((a, b) =>
+              a.localeCompare(b),
+            );
+            owners.forEach((owner) => {
+              const wrapper = document.createElement('div');
+              wrapper.className = 'flex flex-col gap-2';
+              const header = document.createElement('button');
+              header.type = 'button';
+              header.className =
+                'font-semibold text-gray-700 flex items-center justify-between cursor-pointer select-none focus:outline-none';
+              header.style.background = 'transparent';
+              header.style.border = 'none';
+              header.style.padding = '0';
+              const nameSpan = document.createElement('span');
+              nameSpan.textContent = owner;
+              const icon = document.createElement('i');
+              icon.className =
+                'fas fa-chevron-up text-sm transition-transform duration-200';
+              const cardsCount = document.createElement('span');
+              cardsCount.className = 'text-xs font-medium text-gray-500 ml-2';
+              cardsCount.textContent = `(${grouped[owner].length})`;
+              const titleWrapper = document.createElement('div');
+              titleWrapper.className = 'flex items-center gap-2';
+              titleWrapper.appendChild(nameSpan);
+              titleWrapper.appendChild(cardsCount);
+              header.appendChild(titleWrapper);
+              header.appendChild(icon);
+              const row = document.createElement('div');
+              row.className =
+                'expedicao-owner-row flex flex-row gap-4 flex-wrap';
+              grouped[owner].forEach((r) => {
+                row.appendChild(createPdfCard(r.doc, r.ownerName));
+              });
+              const isCollapsed = collapsedOwners.has(owner);
+              if (isCollapsed) {
+                row.classList.add('hidden');
+                icon.style.transform = 'rotate(180deg)';
+              } else {
+                icon.style.transform = 'rotate(0deg)';
+              }
+              header.setAttribute('aria-expanded', (!isCollapsed).toString());
+              header.addEventListener('click', () => {
+                const currentlyCollapsed = collapsedOwners.has(owner);
+                if (currentlyCollapsed) {
+                  collapsedOwners.delete(owner);
+                  row.classList.remove('hidden');
+                  icon.style.transform = 'rotate(0deg)';
+                  header.setAttribute('aria-expanded', 'true');
+                } else {
+                  collapsedOwners.add(owner);
+                  row.classList.add('hidden');
+                  icon.style.transform = 'rotate(180deg)';
+                  header.setAttribute('aria-expanded', 'false');
+                }
+              });
+              wrapper.appendChild(header);
+              wrapper.appendChild(row);
+              list.appendChild(wrapper);
+            });
+          } else {
+            list.className =
+              viewMode === 'cards'
+                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+                : 'flex flex-col gap-4';
+            for (const r of results) {
+              const item =
+                viewMode === 'cards'
+                  ? createPdfCard(r.doc, r.ownerName)
+                  : createPdfListItem(r.doc, r.ownerName);
+              list.appendChild(item);
+            }
+          }
+          if (!list.hasChildNodes()) {
+            list.innerHTML =
+              '<p class="text-gray-500">Nenhuma etiqueta encontrada.</p>';
+          }
+          await calcularTotalPedidosDia();
+        }
+
+        async function verificarDia() {
+          const uid = currentUser.uid;
+          const hoje = new Date().toISOString().split('T')[0];
+          diaDocRef = db
+            .collection('uid')
+            .doc(uid)
+            .collection('diasExpedicao')
+            .doc(hoje);
+          const doc = await diaDocRef.get();
+          if (doc.exists && doc.data().fim) {
+            startBtn.classList.remove('hidden');
+            closeBtn.classList.add('hidden');
+            sobrasBtn.classList.add('hidden');
+            sobrasModal.classList.add('hidden');
+          } else if (doc.exists) {
+            startBtn.classList.add('hidden');
+            closeBtn.classList.remove('hidden');
+            sobrasBtn.classList.remove('hidden');
+          } else {
+            startBtn.classList.remove('hidden');
+            closeBtn.classList.add('hidden');
+            sobrasBtn.classList.add('hidden');
+            sobrasModal.classList.add('hidden');
+          }
+        }
+
+        async function iniciarDia() {
+          if (!currentUser) return;
+          const uid = currentUser.uid;
+          const hoje = new Date().toISOString().split('T')[0];
+          diaDocRef = db
+            .collection('uid')
+            .doc(uid)
+            .collection('diasExpedicao')
+            .doc(hoje);
+          await diaDocRef.set({
+            inicio: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          startBtn.classList.add('hidden');
+          closeBtn.classList.remove('hidden');
+          sobrasBtn.classList.remove('hidden');
+          showToast('Dia iniciado');
+          calcularTotalPedidosDia();
+        }
+
+        async function fecharDia() {
+          if (!currentUser || !diaDocRef) return;
+          const fim = new Date();
+          const sobrasQtd = parseInt(sobrasQtdInput.value) || 0;
+          const sobrasMotivo = sobrasMotivoInput.value.trim();
+          const updateData = {
+            fim: firebase.firestore.FieldValue.serverTimestamp(),
+          };
+          if (sobrasQtd || sobrasMotivo) {
+            updateData.sobrasQuantidade = sobrasQtd;
+            updateData.sobrasMotivo = sobrasMotivo;
+          }
+          await diaDocRef.update(updateData);
+          const doc = await diaDocRef.get();
+          const dados = doc.data();
+          const inicio =
+            dados.inicio && dados.inicio.toDate
+              ? dados.inicio.toDate()
+              : new Date();
+          if (sobrasQtd || sobrasMotivo) {
+            await notificarUsuariosSobras(
+              sobrasQtd,
+              sobrasMotivo,
+              sobrasResponsavelSelect.value,
+            );
+          }
+          await gerarRelatorioDia(inicio, fim, dados);
+          await gerarRelatorioDiaPorUsuario(inicio, fim, dados);
+          closeBtn.classList.add('hidden');
+          sobrasBtn.classList.add('hidden');
+          sobrasModal.classList.add('hidden');
+          sobrasQtdInput.value = '';
+          sobrasMotivoInput.value = '';
+          if (sobrasResponsavelSelect) sobrasResponsavelSelect.value = '';
+          showToast('Dia encerrado');
+          verificarDia();
+          calcularTotalPedidosDia();
+        }
+
+        async function enviarSobras() {
+          if (!currentUser) return;
+          const sobrasQtd = parseInt(sobrasQtdInput.value) || 0;
+          const sobrasMotivo = sobrasMotivoInput.value.trim();
+          if (!sobrasQtd && !sobrasMotivo) {
+            showToast('Informe quantidade e motivo');
+            return;
+          }
+          await notificarUsuariosSobras(
+            sobrasQtd,
+            sobrasMotivo,
+            sobrasResponsavelSelect.value,
+          );
+          sobrasQtdInput.value = '';
+          sobrasMotivoInput.value = '';
+          if (sobrasResponsavelSelect) sobrasResponsavelSelect.value = '';
+          showToast('Atualização enviada');
+          if (sobrasModal) sobrasModal.classList.add('hidden');
+        }
+
+        async function notificarUsuariosSobras(qtd, motivo, responsavelUid) {
+          try {
+            let destinatarios = [];
+            if (responsavelUid) {
+              destinatarios = [responsavelUid];
+            } else {
+              const usuarios = [];
+              const snap1 = await db
+                .collection('uid')
+                .where(
+                  'gestoresExpedicaoEmails',
+                  'array-contains',
+                  currentUser.email,
+                )
+                .get();
+              snap1.forEach((d) => usuarios.push(d.id));
+              const snap2 = await db
+                .collection('uid')
+                .where('responsavelExpedicaoEmail', '==', currentUser.email)
+                .get();
+              snap2.forEach((d) => {
+                if (!usuarios.includes(d.id)) usuarios.push(d.id);
+              });
+              destinatarios = usuarios;
+            }
+            if (!destinatarios.length) return;
+            await db.collection('expedicaoMensagens').add({
+              gestorUid: currentUser.uid,
+              gestorEmail: currentUser.email,
+              quantidade: qtd,
+              motivo,
+              destinatarios,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            console.error('Erro ao notificar usuários de sobras:', e);
+          }
+        }
+
+        function extractStoreFromText(text) {
+          const match = text.match(/(?:Remetente|Loja)[:\s]+([^\n]+)/i);
+          if (match) return match[1].trim();
+          const lines = text.split(/\n/);
+          for (const line of lines) {
+            const m = line.match(/(?:Remetente|Loja)\s*[:\-]?\s*(.+)/i);
+            if (m) return m[1].trim();
+          }
+          return '';
+        }
+
+        function extractSkuQuantitiesFromText(text) {
+          const items = [];
+          const regex =
+            /SKU\s*[:\-]?\s*([\w\.\-\/]+).*?(?:QTD|QUANTIDADE)\s*[:\-]?\s*(\d+)/gis;
+          let match;
+          while ((match = regex.exec(text)) !== null) {
+            items.push({
+              sku: match[1],
+              quantidade: parseInt(match[2], 10) || 0,
+            });
+          }
+          if (items.length === 0) {
+            const lines = text.split(/\n/).map((l) => l.trim());
+            for (let i = 0; i < lines.length; i++) {
+              const skuMatch = lines[i].match(/SKU\s*[:\-]?\s*([\w\.\-\/]+)/i);
+              if (skuMatch) {
+                const next = lines[i + 1] || '';
+                const qtdMatch = next.match(
+                  /(QTD|QUANTIDADE)\s*[:\-]?\s*(\d+)/i,
+                );
+                items.push({
+                  sku: skuMatch[1],
+                  quantidade: qtdMatch ? parseInt(qtdMatch[2], 10) || 0 : 0,
+                });
+              }
+            }
+          }
+          return items;
+        }
+
+        async function extractDataFromPdf(file) {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          let itens = [];
+          let loja = '';
+          for (let p = 1; p <= pdf.numPages; p++) {
+            const page = await pdf.getPage(p);
+            const viewport = page.getViewport({ scale: 2 });
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            const {
+              data: { text },
+            } = await Tesseract.recognize(canvas, 'por+eng');
+            if (!loja) loja = extractStoreFromText(text);
+            itens.push(...extractSkuQuantitiesFromText(text));
+          }
+          return { loja, itens };
+        }
+
+        async function savePrintedSkuQuantities(items, loja) {
+          if (!currentUser || !items || items.length === 0) return;
+          const batch = db.batch();
+          const userDoc = db.collection('uid').doc(currentUser.uid);
+          const respDoc = responsavelExpedicaoUid
+            ? db.collection('uid').doc(responsavelExpedicaoUid)
+            : null;
+          items.forEach((item) => {
+            const data = {
+              sku: item.sku,
+              quantidade: item.quantidade,
+              loja: loja || '',
+              userUid: currentUser.uid,
+              userEmail: currentUser.email,
+              data: firebase.firestore.FieldValue.serverTimestamp(),
+            };
+            batch.set(userDoc.collection('etiquetasimpressas').doc(), data);
+            if (respDoc)
+              batch.set(respDoc.collection('etiquetasimpressas').doc(), data);
+          });
+          await batch.commit();
+        }
+
+        async function processManualLabel(file) {
+          try {
+            const { loja, itens } = await extractDataFromPdf(file);
+            if (itens.length) {
+              await savePrintedSkuQuantities(itens, loja);
+            }
+          } catch (e) {
+            console.error('Erro ao processar OCR da etiqueta:', e);
+          }
+        }
+
+        async function contarPaginasPdf(file) {
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer })
+              .promise;
+            const total = pdf?.numPages || 0;
+            if (pdf && typeof pdf.destroy === 'function') pdf.destroy();
+            return total;
+          } catch (error) {
+            console.error('Erro ao contar páginas do PDF:', error);
+            return 0;
+          }
+        }
+
+        async function uploadManualLabel(file, lojaNome, options = {}) {
+          if (!currentUser || !file) {
+            alert('Selecione um arquivo PDF.');
+            throw new Error('Arquivo PDF não selecionado.');
+          }
+          const { onProgress, gestoresSelecionados } = options;
+          try {
+            if (typeof onProgress === 'function')
+              onProgress({ text: 'Contando páginas...', percent: 5 });
+            const pageCount = await contarPaginasPdf(file);
+            if (typeof onProgress === 'function')
+              onProgress({ text: 'Preparando envio...', percent: 15 });
+            const selecionado = Array.isArray(gestoresSelecionados)
+              ? gestoresSelecionados
+              : await escolherGestorEmail(gestoresEmails);
+            const foraHorarioAtual = foraDoHorario();
+            const docRef = await db.collection('pdfDocs').add({
+              ownerUid: currentUser.uid,
+              ownerEmail: currentUser.email,
+              ownerName: currentUserName,
+              gestoresExpedicaoEmails: selecionado,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              name: file.name,
+              status: 'nao_impresso',
+              foraHorario: foraHorarioAtual,
+              loja: lojaNome || '',
+              totalPaginas: pageCount,
+              pageCount,
+            });
+            const fileRef = storage
+              .ref()
+              .child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
+            if (typeof onProgress === 'function')
+              onProgress({ text: 'Enviando arquivo...', percent: 25 });
+            await new Promise((resolve, reject) => {
+              const uploadTask = fileRef.put(file);
+              uploadTask.on(
+                'state_changed',
+                (snapshot) => {
+                  if (
+                    !snapshot ||
+                    !snapshot.totalBytes ||
+                    typeof onProgress !== 'function'
+                  )
+                    return;
+                  const percent = Math.round(
+                    (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
+                  );
+                  const adjusted = Math.max(25, Math.min(95, percent));
+                  onProgress({
+                    text: `Enviando arquivo... ${percent}%`,
+                    percent: adjusted,
+                  });
+                },
+                (error) => reject(error),
+                () => resolve(),
+              );
+            });
+            const url = await fileRef.getDownloadURL();
+            await docRef.update({
+              url: url,
+              storagePath: fileRef.fullPath,
+              loja: lojaNome || '',
+              totalPaginas: pageCount,
+              pageCount,
+            });
+            if (typeof onProgress === 'function')
+              onProgress({ text: 'Finalizando...', percent: 98 });
+            if (
+              window.ExpedicaoNotifier &&
+              typeof window.ExpedicaoNotifier.notifyNovaEtiqueta === 'function'
+            ) {
+              await window.ExpedicaoNotifier.notifyNovaEtiqueta({
+                db,
+                firebase,
+                currentUser,
+                destinatarioEmails: selecionado,
+                destinatarioUids: responsavelExpedicaoUid
+                  ? [responsavelExpedicaoUid]
+                  : [],
+                arquivoNome: file.name,
+                foraHorario: foraHorarioAtual,
+                origem: 'Expedição - Upload manual',
+                pdfDocId: docRef.id,
+              });
+            }
+            await processManualLabel(file);
+            if (manualPdfInput) manualPdfInput.value = '';
+            if (typeof onProgress === 'function')
+              onProgress({ text: 'Concluído!', percent: 100 });
+            showToast('Etiqueta salva');
+            await carregarEtiquetas();
+          } catch (e) {
+            console.error('Erro ao enviar etiqueta:', e);
+            alert('Erro ao enviar etiqueta');
+            throw e;
+          }
+        }
+
+        async function gerarRelatorioDia(inicio, fim, diaDados) {
+          const uid = currentUser.uid;
+          const userDoc = db.collection('uid').doc(uid);
+          const snap = await userDoc
+            .collection('etiquetasimpressas')
+            .where('data', '>=', firebase.firestore.Timestamp.fromDate(inicio))
+            .where('data', '<', firebase.firestore.Timestamp.fromDate(fim))
+            .get();
+          const resumo = {};
+          snap.forEach((d) => {
+            const data = d.data();
+            const loja = data.loja || 'sem-loja';
+            const sku = data.sku || 'sem-sku';
+            const qtd = data.quantidade || 0;
+            const key = `${loja}||${sku}`;
+            resumo[key] = (resumo[key] || 0) + qtd;
+          });
+          const linhas = Object.entries(resumo).map(([chave, qtd]) => {
+            const [loja, sku] = chave.split('||');
+            return { Loja: loja, SKU: sku, Quantidade: qtd };
+          });
+          if (!linhas.length) {
+            alert('Nenhum SKU impresso no período.');
+            return;
+          }
+          const ws = XLSX.utils.json_to_sheet(linhas);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Resumo');
+          if (
+            diaDados &&
+            (diaDados.sobrasQuantidade || diaDados.sobrasMotivo)
+          ) {
+            const wsSobras = XLSX.utils.json_to_sheet([
+              {
+                Quantidade: diaDados.sobrasQuantidade || 0,
+                Motivo: diaDados.sobrasMotivo || '',
+              },
+            ]);
+            XLSX.utils.book_append_sheet(wb, wsSobras, 'Sobras');
+          }
+          const diaStr = inicio.toISOString().split('T')[0];
+          XLSX.writeFile(wb, `resumo_expedicao_${diaStr}.xlsx`);
+        }
+
+        async function gerarRelatorioDiaPorUsuario(inicio, fim, diaDados) {
+          const snap = await db
+            .collectionGroup('etiquetasimpressas')
+            .where('data', '>=', firebase.firestore.Timestamp.fromDate(inicio))
+            .where('data', '<', firebase.firestore.Timestamp.fromDate(fim))
+            .get();
+          const resumo = {};
+          snap.forEach((d) => {
+            const data = d.data();
+            const usuario = data.userEmail || 'Desconhecido';
+            const loja = data.loja || 'sem-loja';
+            const sku = data.sku || 'sem-sku';
+            const qtd = data.quantidade || 0;
+            if (!resumo[usuario]) resumo[usuario] = {};
+            if (!resumo[usuario][loja]) resumo[usuario][loja] = {};
+            resumo[usuario][loja][sku] =
+              (resumo[usuario][loja][sku] || 0) + qtd;
+          });
+          const linhas = [];
+          Object.entries(resumo).forEach(([usuario, lojas]) => {
+            Object.entries(lojas).forEach(([loja, skus]) => {
+              Object.entries(skus).forEach(([sku, qtd]) => {
+                linhas.push({
+                  Usuario: usuario,
+                  Loja: loja,
+                  SKU: sku,
+                  Quantidade: qtd,
+                });
+              });
+            });
+          });
+          if (!linhas.length) {
+            alert('Nenhum SKU encontrado para o dia.');
+            return;
+          }
+          const ws = XLSX.utils.json_to_sheet(linhas);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Relatorio');
+          if (
+            diaDados &&
+            (diaDados.sobrasQuantidade || diaDados.sobrasMotivo)
+          ) {
+            const wsSobras = XLSX.utils.json_to_sheet([
+              {
+                Quantidade: diaDados.sobrasQuantidade || 0,
+                Motivo: diaDados.sobrasMotivo || '',
+              },
+            ]);
+            XLSX.utils.book_append_sheet(wb, wsSobras, 'Sobras');
+          }
+          const diaStr = inicio.toISOString().split('T')[0];
+          XLSX.writeFile(wb, `relatorio_sku_usuarios_${diaStr}.xlsx`);
+        }
+
+        function createPdfCard(doc, ownerName) {
+          const data = doc.data();
+          const rawStatus = data.status || 'nao_impresso';
+          const statusKey = STATUS_UI_CONFIG[rawStatus]
+            ? rawStatus
+            : 'nao_impresso';
+          const statusData = getStatusUiConfig(statusKey);
+          const attention = data.attention || false;
+          const foraHorario = data.foraHorario || false;
+          const name = data.name || 'PDF';
+          const url = data.url;
+          const owner = ownerName || 'Desconhecido';
+          const safeUrl = encodeURIComponent(url || '');
+          const safeName = encodeURIComponent(name || 'Etiqueta');
+          const createdDate =
+            data.createdAt && data.createdAt.toDate
+              ? data.createdAt.toDate()
+              : null;
+          const createdDateStr = createdDate
+            ? createdDate.toLocaleString('pt-BR')
+            : 'Data desconhecida';
+          const quantidadeEtiquetas = getResumoQuantidade(data);
+          const lojaDisplay = data.loja
+            ? escapeHtml(data.loja)
+            : 'Loja não informada';
+          const totalPaginas = getPdfPageCount(data);
+          const paginasLabel =
+            totalPaginas > 0 ? totalPaginas : 'Não informado';
+          const div = document.createElement('div');
+          div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
+          div.innerHTML = `
         <div class="expedicao-pdf-header">
           <div class="expedicao-pdf-header-content">
             <span class="expedicao-pdf-owner">${owner}</span>
@@ -1582,37 +2174,43 @@
           <p class="expedicao-pdf-quantity">Loja: ${lojaDisplay}</p>
           <p class="expedicao-pdf-quantity">Páginas: ${paginasLabel}</p>
         </div>`;
-      div.dataset.ownerUid = data.ownerUid || '';
-      div.dataset.ownerEmail = data.ownerEmail || '';
-      div.dataset.fileName = name;
-      div.dataset.status = statusKey;
-      return div;
-    }
+          div.dataset.ownerUid = data.ownerUid || '';
+          div.dataset.ownerEmail = data.ownerEmail || '';
+          div.dataset.fileName = name;
+          div.dataset.status = statusKey;
+          return div;
+        }
 
-    function createPdfListItem(doc, ownerName) {
-      const data = doc.data();
-      const rawStatus = data.status || 'nao_impresso';
-      const statusStyles = {
-        nao_impresso: { cardClass: 'expedicao-pdf-card--pending' },
-        impresso: { cardClass: 'expedicao-pdf-card--printed' },
-        concluido: { cardClass: 'expedicao-pdf-card--done' }
-      };
-      const statusKey = statusStyles[rawStatus] ? rawStatus : 'nao_impresso';
-      const attention = data.attention || false;
-      const observacao = data.observacao || '';
-      const foraHorario = data.foraHorario || false;
-      const name = data.name || 'PDF';
-      const url = data.url;
-      const owner = ownerName || 'Desconhecido';
-      const createdAt = data.createdAt && data.createdAt.toDate
-        ? data.createdAt.toDate().toLocaleString('pt-BR')
-        : 'Data desconhecida';
-      const lojaDisplay = data.loja ? escapeHtml(data.loja) : 'Loja não informada';
-      const totalPaginas = getPdfPageCount(data);
-      const paginasLabel = totalPaginas > 0 ? totalPaginas : 'Não informado';
-      const div = document.createElement('div');
-      div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
-      div.innerHTML = `
+        function createPdfListItem(doc, ownerName) {
+          const data = doc.data();
+          const rawStatus = data.status || 'nao_impresso';
+          const statusStyles = {
+            nao_impresso: { cardClass: 'expedicao-pdf-card--pending' },
+            impresso: { cardClass: 'expedicao-pdf-card--printed' },
+            concluido: { cardClass: 'expedicao-pdf-card--done' },
+          };
+          const statusKey = statusStyles[rawStatus]
+            ? rawStatus
+            : 'nao_impresso';
+          const attention = data.attention || false;
+          const observacao = data.observacao || '';
+          const foraHorario = data.foraHorario || false;
+          const name = data.name || 'PDF';
+          const url = data.url;
+          const owner = ownerName || 'Desconhecido';
+          const createdAt =
+            data.createdAt && data.createdAt.toDate
+              ? data.createdAt.toDate().toLocaleString('pt-BR')
+              : 'Data desconhecida';
+          const lojaDisplay = data.loja
+            ? escapeHtml(data.loja)
+            : 'Loja não informada';
+          const totalPaginas = getPdfPageCount(data);
+          const paginasLabel =
+            totalPaginas > 0 ? totalPaginas : 'Não informado';
+          const div = document.createElement('div');
+          div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
+          div.innerHTML = `
         <div class="expedicao-pdf-list-content">
           <div class="expedicao-pdf-list-info">
             <p class="expedicao-pdf-name">${name}</p>
@@ -1639,375 +2237,426 @@
             <button class="expedicao-card-btn expedicao-card-btn--success" onclick="marcarConcluido('${doc.id}', this.closest('.pdf-card'))">Concluir</button>
           </div>
         </div>`;
-      div.dataset.ownerUid = data.ownerUid || '';
-      div.dataset.ownerEmail = data.ownerEmail || '';
-      div.dataset.fileName = name;
-      div.dataset.status = statusKey;
-      return div;
-    }
-
-    async function notifyEtiquetaStatusChange({ id, newStatus, card, docData }) {
-      try {
-        if (!currentUser) return;
-        const perfilAtual = (window.userPerfil || '').toLowerCase();
-        if (perfilAtual !== 'expedicao') return;
-        if (!['impresso', 'concluido'].includes(newStatus)) return;
-
-        let ownerUids = [];
-        const docOwner = docData?.ownerUid;
-        if (Array.isArray(docOwner)) {
-          ownerUids = docOwner.filter(Boolean);
-        } else if (docOwner) {
-          ownerUids = [docOwner];
+          div.dataset.ownerUid = data.ownerUid || '';
+          div.dataset.ownerEmail = data.ownerEmail || '';
+          div.dataset.fileName = name;
+          div.dataset.status = statusKey;
+          return div;
         }
 
-        if (!ownerUids.length && card?.dataset?.ownerUid) {
-          ownerUids = card.dataset.ownerUid
-            .split(',')
-            .map(uid => uid.trim())
-            .filter(Boolean);
+        async function notifyEtiquetaStatusChange({
+          id,
+          newStatus,
+          card,
+          docData,
+        }) {
+          try {
+            if (!currentUser) return;
+            const perfilAtual = (window.userPerfil || '').toLowerCase();
+            if (perfilAtual !== 'expedicao') return;
+            if (!['impresso', 'concluido'].includes(newStatus)) return;
+
+            let ownerUids = [];
+            const docOwner = docData?.ownerUid;
+            if (Array.isArray(docOwner)) {
+              ownerUids = docOwner.filter(Boolean);
+            } else if (docOwner) {
+              ownerUids = [docOwner];
+            }
+
+            if (!ownerUids.length && card?.dataset?.ownerUid) {
+              ownerUids = card.dataset.ownerUid
+                .split(',')
+                .map((uid) => uid.trim())
+                .filter(Boolean);
+            }
+
+            ownerUids = Array.from(
+              new Set(
+                ownerUids.filter((uid) => uid && uid !== currentUser.uid),
+              ),
+            );
+            if (!ownerUids.length) return;
+
+            const arquivoNome =
+              docData?.name ||
+              docData?.arquivoNome ||
+              card?.dataset?.fileName ||
+              'Etiqueta';
+            const statusLabel =
+              docData?.statusLabel ||
+              (newStatus === 'impresso'
+                ? 'Impresso'
+                : newStatus === 'concluido'
+                  ? 'Concluído'
+                  : newStatus);
+
+            await db.collection('expedicaoMensagens').add({
+              tipo: 'status_etiqueta',
+              arquivoId: id,
+              arquivoNome,
+              status: newStatus,
+              statusLabel,
+              gestorUid: currentUser.uid,
+              gestorEmail: currentUser.email || '',
+              gestorNome:
+                currentUserName ||
+                currentUser.displayName ||
+                currentUser.email ||
+                '',
+              destinatarios: ownerUids,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            console.error('Erro ao notificar status da etiqueta:', e);
+          }
         }
 
-        ownerUids = Array.from(
-          new Set(ownerUids.filter(uid => uid && uid !== currentUser.uid))
-        );
-        if (!ownerUids.length) return;
+        const pdfModal = document.getElementById('pdfModal');
+        const pdfFrame = document.getElementById('pdfFrame');
+        const closeModal = document.getElementById('closeModal');
 
-        const arquivoNome =
-          docData?.name ||
-          docData?.arquivoNome ||
-          (card?.dataset?.fileName || 'Etiqueta');
-        const statusLabel =
-          docData?.statusLabel ||
-          (newStatus === 'impresso'
-            ? 'Impresso'
-            : newStatus === 'concluido'
-            ? 'Concluído'
-            : newStatus);
+        function visualizar(url) {
+          pdfFrame.src = url;
+          pdfModal.classList.remove('hidden');
+        }
+        window.visualizar = visualizar;
 
-        await db.collection('expedicaoMensagens').add({
-          tipo: 'status_etiqueta',
-          arquivoId: id,
-          arquivoNome,
-          status: newStatus,
-          statusLabel,
-          gestorUid: currentUser.uid,
-          gestorEmail: currentUser.email || '',
-          gestorNome: currentUserName || currentUser.displayName || currentUser.email || '',
-          destinatarios: ownerUids,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        closeModal.addEventListener('click', () => {
+          pdfModal.classList.add('hidden');
+          pdfFrame.src = '';
         });
-      } catch (e) {
-        console.error('Erro ao notificar status da etiqueta:', e);
-      }
-    }
 
-    const pdfModal = document.getElementById('pdfModal');
-    const pdfFrame = document.getElementById('pdfFrame');
-    const closeModal = document.getElementById('closeModal');
+        pdfModal.addEventListener('click', (e) => {
+          if (e.target === pdfModal) {
+            pdfModal.classList.add('hidden');
+            pdfFrame.src = '';
+          }
+        });
 
-    function visualizar(url) {
-      pdfFrame.src = url;
-      pdfModal.classList.remove('hidden');
-    }
-    window.visualizar = visualizar;
-
-    closeModal.addEventListener('click', () => {
-      pdfModal.classList.add('hidden');
-      pdfFrame.src = '';
-    });
-
-    pdfModal.addEventListener('click', e => {
-      if (e.target === pdfModal) {
-        pdfModal.classList.add('hidden');
-        pdfFrame.src = '';
-      }
-    });
-
-    function imprimir(url) {
-      const win = window.open('', '_blank');
-      win.document.write('<iframe id="printFrame" width="100%" height="100%" src="' + url + '"></iframe>');
-      win.document.close();
-      win.focus();
-      win.onload = () => win.document.getElementById('printFrame').contentWindow.print();
-    }
-    window.imprimir = imprimir;
-
-    async function baixarArquivo(urlEncoded, nomeEncoded) {
-      const url = decodeURIComponent(urlEncoded || '');
-      const nomeDecodificado = decodeURIComponent(nomeEncoded || 'Etiqueta');
-      const nomeArquivoBase =
-        nomeDecodificado && nomeDecodificado.trim() ? nomeDecodificado.trim() : 'Etiqueta';
-
-      if (!url) {
-        showToast('Arquivo indisponível para download.');
-        return;
-      }
-
-      let parsedUrl;
-      try {
-        parsedUrl = new URL(url, window.location.href);
-      } catch (error) {
-        console.error('URL de download inválida:', error);
-        showToast('Arquivo indisponível para download.');
-        return;
-      }
-
-      const nomeArquivoFinal = nomeArquivoBase.toLowerCase().endsWith('.pdf')
-        ? nomeArquivoBase
-        : `${nomeArquivoBase}.pdf`;
-      const isSameOrigin = parsedUrl.origin === window.location.origin;
-
-      const abrirEmNovaAba = () => {
-        const fallbackLink = document.createElement('a');
-        fallbackLink.href = parsedUrl.href;
-        fallbackLink.download = nomeArquivoFinal;
-        fallbackLink.target = '_blank';
-        fallbackLink.rel = 'noopener';
-        document.body.appendChild(fallbackLink);
-        fallbackLink.click();
-        document.body.removeChild(fallbackLink);
-      };
-
-      if (!isSameOrigin) {
-        abrirEmNovaAba();
-        return;
-      }
-
-      try {
-        const response = await fetch(parsedUrl.href);
-        if (!response.ok) {
-          throw new Error(`Falha ao baixar arquivo: ${response.status}`);
-        }
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = nomeArquivoFinal;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
-      } catch (error) {
-        console.error('Erro ao baixar arquivo:', error);
-        abrirEmNovaAba();
-      }
-    }
-    window.baixarArquivo = baixarArquivo;
-
-
-    async function toggleImpresso(id, checkbox, card) {
-      const checked = checkbox.checked;
-      const previousStatus = card?.dataset?.status || (checked ? 'nao_impresso' : 'impresso');
-      const confirmMsg = `Deseja ${checked ? 'marcar como impresso' : 'marcar como não impresso'}?`;
-      if (!confirm(confirmMsg)) {
-        checkbox.checked = !checked;
-        return;
-      }
-      await db.collection('pdfDocs').doc(id).update({ status: checked ? 'impresso' : 'nao_impresso' });
-      if (card) {
-        applyPdfCardStatus(card, checked ? 'impresso' : 'nao_impresso');
-        card.dataset.status = checked ? 'impresso' : 'nao_impresso';
-      }
-      showToast('Status atualizado');
-      if (checked && previousStatus !== 'impresso') {
-        await notifyEtiquetaStatusChange({ id, newStatus: 'impresso', card });
-      }
-    }
-    window.toggleImpresso = toggleImpresso;
-
-    async function toggleImpressoCard(id, button, card) {
-      const current = button.dataset.status || 'nao_impresso';
-      const newStatus = current === 'impresso' ? 'nao_impresso' : 'impresso';
-      const previousStatus = current;
-      const confirmMsg = `Deseja marcar como ${newStatus === 'impresso' ? 'impresso' : 'não impresso'}?`;
-      if (!confirm(confirmMsg)) return;
-
-      await db.collection('pdfDocs').doc(id).update({ status: newStatus });
-
-      button.dataset.status = newStatus;
-      const mapItem = getStatusUiConfig(newStatus);
-
-      button.innerHTML = buildStatusButtonContent(mapItem);
-      button.classList.remove(
-        'expedicao-status-button--nao-impresso',
-        'expedicao-status-button--impresso',
-        'expedicao-status-button--concluido'
-      );
-      button.classList.add(mapItem.buttonClass);
-
-      const iconContainer = card ? card.querySelector('.expedicao-pdf-icon') : button.closest('.pdf-card')?.querySelector('.expedicao-pdf-icon');
-      if (iconContainer) {
-        const badge = iconContainer.querySelector('.expedicao-status-badge');
-        const icon = badge ? badge.querySelector('i') : null;
-        if (badge && icon) {
-          badge.classList.remove(
-            'expedicao-status-badge--nao-impresso',
-            'expedicao-status-badge--impresso',
-            'expedicao-status-badge--concluido'
+        function imprimir(url) {
+          const win = window.open('', '_blank');
+          win.document.write(
+            '<iframe id="printFrame" width="100%" height="100%" src="' +
+              url +
+              '"></iframe>',
           );
-          badge.classList.add(mapItem.badgeClass);
-          icon.className = `fas ${mapItem.icon}`;
+          win.document.close();
+          win.focus();
+          win.onload = () =>
+            win.document.getElementById('printFrame').contentWindow.print();
         }
-      }
+        window.imprimir = imprimir;
 
-      showToast('Status atualizado');
-      if (card) {
-        applyPdfCardStatus(card, newStatus);
-        card.dataset.status = newStatus;
-      }
-      if (newStatus === 'impresso' && previousStatus !== 'impresso') {
-        await notifyEtiquetaStatusChange({ id, newStatus: 'impresso', card });
-      }
-    }
-    window.toggleImpressoCard = toggleImpressoCard;
+        async function baixarArquivo(urlEncoded, nomeEncoded) {
+          const url = decodeURIComponent(urlEncoded || '');
+          const nomeDecodificado = decodeURIComponent(
+            nomeEncoded || 'Etiqueta',
+          );
+          const nomeArquivoBase =
+            nomeDecodificado && nomeDecodificado.trim()
+              ? nomeDecodificado.trim()
+              : 'Etiqueta';
 
-    async function updateStatus(id, select, card) {
-      const newStatus = select.value;
-      const previousStatus = card?.dataset?.status || '';
-      await db.collection('pdfDocs').doc(id).update({ status: newStatus });
-      const badge = card.querySelector('.status-badge');
-      const statusInfo = {
-        nao_impresso: { text: 'Não impresso', color: 'bg-yellow-500' },
-        impresso: { text: 'Impresso', color: 'bg-green-500' },
-        concluido: { text: 'Concluído', color: 'bg-blue-500' }
-      };
-      if (badge) {
-        badge.textContent = statusInfo[newStatus].text;
-        badge.className = `status-badge text-xs text-white px-2 py-0.5 rounded-full ${statusInfo[newStatus].color}`;
-      }
-      if (card) {
-        applyPdfCardStatus(card, newStatus);
-        card.dataset.status = newStatus;
-      }
-      if (newStatus === 'concluido' && currentFilter === 'all') {
-        card.remove();
-      }
-      showToast('Status atualizado');
-      if (['impresso', 'concluido'].includes(newStatus) && previousStatus !== newStatus) {
-        await notifyEtiquetaStatusChange({ id, newStatus, card });
-      }
-      carregarEtiquetas();
-    }
-    window.updateStatus = updateStatus;
+          if (!url) {
+            showToast('Arquivo indisponível para download.');
+            return;
+          }
 
-    async function marcarConcluido(id, card) {
-      try {
-        const docRef = db.collection('pdfDocs').doc(id);
-        const snap = await docRef.get();
-        const data = snap.data() || {};
-        const previousStatus = data.status || 'nao_impresso';
-
-        if (data.status !== 'impresso') {
-          const items = (data.skus || data.skuList || []).map(s => ({ sku: s, quantidade: 1 }));
-          if (items.length) await savePrintedSkuQuantities(items, data.loja || '');
-          await docRef.update({ status: 'impresso' });
-        }
-
-        if (data.url) {
-          const link = document.createElement('a');
-          link.href = data.url;
-          link.download = data.name || 'etiqueta.pdf';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
-
-        const skus = data.skus || data.skuList || [];
-        for (const sku of skus) {
-          await db.collection('pedidosconcluidos').add({
-            sku: sku,
-            pdfDocId: id,
-            ownerUid: data.ownerUid || null,
-            ownerEmail: data.ownerEmail || null,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-        }
-
-        if (data.storagePath) {
+          let parsedUrl;
           try {
-            await storage.ref(data.storagePath).delete();
-          } catch (e) {
-            console.error('Erro ao excluir do Storage:', e);
+            parsedUrl = new URL(url, window.location.href);
+          } catch (error) {
+            console.error('URL de download inválida:', error);
+            showToast('Arquivo indisponível para download.');
+            return;
+          }
+
+          const nomeArquivoFinal = nomeArquivoBase
+            .toLowerCase()
+            .endsWith('.pdf')
+            ? nomeArquivoBase
+            : `${nomeArquivoBase}.pdf`;
+          const isSameOrigin = parsedUrl.origin === window.location.origin;
+
+          const abrirEmNovaAba = () => {
+            const fallbackLink = document.createElement('a');
+            fallbackLink.href = parsedUrl.href;
+            fallbackLink.download = nomeArquivoFinal;
+            fallbackLink.target = '_blank';
+            fallbackLink.rel = 'noopener';
+            document.body.appendChild(fallbackLink);
+            fallbackLink.click();
+            document.body.removeChild(fallbackLink);
+          };
+
+          if (!isSameOrigin) {
+            abrirEmNovaAba();
+            return;
+          }
+
+          try {
+            const response = await fetch(parsedUrl.href);
+            if (!response.ok) {
+              throw new Error(`Falha ao baixar arquivo: ${response.status}`);
+            }
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = nomeArquivoFinal;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+          } catch (error) {
+            console.error('Erro ao baixar arquivo:', error);
+            abrirEmNovaAba();
           }
         }
+        window.baixarArquivo = baixarArquivo;
 
-        await docRef.update({ status: 'concluido' });
-        if (previousStatus !== 'concluido') {
-          await notifyEtiquetaStatusChange({ id, newStatus: 'concluido', card, docData: data });
-        }
-        if (card) {
-          card.dataset.status = 'concluido';
-          card.remove();
-        }
-        showToast('Marcado como concluído');
-      } catch (e) {
-        console.error('Erro ao concluir etiqueta:', e);
-        alert('Erro ao concluir etiqueta');
-      }
-    }
-    window.marcarConcluido = marcarConcluido;
-
-    async function excluirEtiqueta(id, card) {
-      if (!confirm('Deseja excluir esta etiqueta?')) return;
-      try {
-        const docRef = db.collection('pdfDocs').doc(id);
-        const snap = await docRef.get();
-        const data = snap.data() || {};
-        if (data.storagePath) {
-          try {
-            await storage.ref(data.storagePath).delete();
-          } catch (e) {
-            console.error('Erro ao excluir do Storage:', e);
+        async function toggleImpresso(id, checkbox, card) {
+          const checked = checkbox.checked;
+          const previousStatus =
+            card?.dataset?.status || (checked ? 'nao_impresso' : 'impresso');
+          const confirmMsg = `Deseja ${checked ? 'marcar como impresso' : 'marcar como não impresso'}?`;
+          if (!confirm(confirmMsg)) {
+            checkbox.checked = !checked;
+            return;
+          }
+          await db
+            .collection('pdfDocs')
+            .doc(id)
+            .update({ status: checked ? 'impresso' : 'nao_impresso' });
+          if (card) {
+            applyPdfCardStatus(card, checked ? 'impresso' : 'nao_impresso');
+            card.dataset.status = checked ? 'impresso' : 'nao_impresso';
+          }
+          showToast('Status atualizado');
+          if (checked && previousStatus !== 'impresso') {
+            await notifyEtiquetaStatusChange({
+              id,
+              newStatus: 'impresso',
+              card,
+            });
           }
         }
-        await docRef.delete();
-        if (card) card.remove();
-        showToast('Etiqueta excluída');
-      } catch (e) {
-        console.error('Erro ao excluir etiqueta:', e);
-        alert('Erro ao excluir etiqueta');
-      }
-    }
-    window.excluirEtiqueta = excluirEtiqueta;
+        window.toggleImpresso = toggleImpresso;
 
-    async function toggleAtencao(id, checkbox, card) {
-      const checked = checkbox.checked;
-      const confirmMsg = `Deseja ${checked ? 'marcar com atenção' : 'remover atenção'}?`;
-      if (!confirm(confirmMsg)) {
-        checkbox.checked = !checked;
-        return;
-      }
-      await db.collection('pdfDocs').doc(id).update({ attention: checked });
-      if (card) {
-        if (checked) {
-          card.classList.add('expedicao-card--attention');
-        } else {
-          card.classList.remove('expedicao-card--attention');
+        async function toggleImpressoCard(id, button, card) {
+          const current = button.dataset.status || 'nao_impresso';
+          const newStatus =
+            current === 'impresso' ? 'nao_impresso' : 'impresso';
+          const previousStatus = current;
+          const confirmMsg = `Deseja marcar como ${newStatus === 'impresso' ? 'impresso' : 'não impresso'}?`;
+          if (!confirm(confirmMsg)) return;
+
+          await db.collection('pdfDocs').doc(id).update({ status: newStatus });
+
+          button.dataset.status = newStatus;
+          const mapItem = getStatusUiConfig(newStatus);
+
+          button.innerHTML = buildStatusButtonContent(mapItem);
+          button.classList.remove(
+            'expedicao-status-button--nao-impresso',
+            'expedicao-status-button--impresso',
+            'expedicao-status-button--concluido',
+          );
+          button.classList.add(mapItem.buttonClass);
+
+          const iconContainer = card
+            ? card.querySelector('.expedicao-pdf-icon')
+            : button.closest('.pdf-card')?.querySelector('.expedicao-pdf-icon');
+          if (iconContainer) {
+            const badge = iconContainer.querySelector(
+              '.expedicao-status-badge',
+            );
+            const icon = badge ? badge.querySelector('i') : null;
+            if (badge && icon) {
+              badge.classList.remove(
+                'expedicao-status-badge--nao-impresso',
+                'expedicao-status-badge--impresso',
+                'expedicao-status-badge--concluido',
+              );
+              badge.classList.add(mapItem.badgeClass);
+              icon.className = `fas ${mapItem.icon}`;
+            }
+          }
+
+          showToast('Status atualizado');
+          if (card) {
+            applyPdfCardStatus(card, newStatus);
+            card.dataset.status = newStatus;
+          }
+          if (newStatus === 'impresso' && previousStatus !== 'impresso') {
+            await notifyEtiquetaStatusChange({
+              id,
+              newStatus: 'impresso',
+              card,
+            });
+          }
         }
-      }
-      showToast('Atualizado');
-    }
-    window.toggleAtencao = toggleAtencao;
+        window.toggleImpressoCard = toggleImpressoCard;
 
-    async function salvarObservacao(id, texto) {
-      await db.collection('pdfDocs').doc(id).update({ observacao: texto });
-      showToast('Observação salva');
-    }
-    window.salvarObservacao = salvarObservacao;
+        async function updateStatus(id, select, card) {
+          const newStatus = select.value;
+          const previousStatus = card?.dataset?.status || '';
+          await db.collection('pdfDocs').doc(id).update({ status: newStatus });
+          const badge = card.querySelector('.status-badge');
+          const statusInfo = {
+            nao_impresso: { text: 'Não impresso', color: 'bg-yellow-500' },
+            impresso: { text: 'Impresso', color: 'bg-green-500' },
+            concluido: { text: 'Concluído', color: 'bg-blue-500' },
+          };
+          if (badge) {
+            badge.textContent = statusInfo[newStatus].text;
+            badge.className = `status-badge text-xs text-white px-2 py-0.5 rounded-full ${statusInfo[newStatus].color}`;
+          }
+          if (card) {
+            applyPdfCardStatus(card, newStatus);
+            card.dataset.status = newStatus;
+          }
+          if (newStatus === 'concluido' && currentFilter === 'all') {
+            card.remove();
+          }
+          showToast('Status atualizado');
+          if (
+            ['impresso', 'concluido'].includes(newStatus) &&
+            previousStatus !== newStatus
+          ) {
+            await notifyEtiquetaStatusChange({ id, newStatus, card });
+          }
+          carregarEtiquetas();
+        }
+        window.updateStatus = updateStatus;
 
-    function showToast(msg) {
-      const toast = document.createElement('div');
-      toast.className = 'fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow transition-opacity';
-      toast.textContent = msg;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.classList.add('opacity-0'), 2000);
-      setTimeout(() => toast.remove(), 2500);
-    }
+        async function marcarConcluido(id, card) {
+          try {
+            const docRef = db.collection('pdfDocs').doc(id);
+            const snap = await docRef.get();
+            const data = snap.data() || {};
+            const previousStatus = data.status || 'nao_impresso';
 
-  </script>
-  <script type="module" src="login.js"></script>
-  <script src="shared.js"></script>
-  </div>
-</body>
+            if (data.status !== 'impresso') {
+              const items = (data.skus || data.skuList || []).map((s) => ({
+                sku: s,
+                quantidade: 1,
+              }));
+              if (items.length)
+                await savePrintedSkuQuantities(items, data.loja || '');
+              await docRef.update({ status: 'impresso' });
+            }
+
+            if (data.url) {
+              const link = document.createElement('a');
+              link.href = data.url;
+              link.download = data.name || 'etiqueta.pdf';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+
+            const skus = data.skus || data.skuList || [];
+            for (const sku of skus) {
+              await db.collection('pedidosconcluidos').add({
+                sku: sku,
+                pdfDocId: id,
+                ownerUid: data.ownerUid || null,
+                ownerEmail: data.ownerEmail || null,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+
+            if (data.storagePath) {
+              try {
+                await storage.ref(data.storagePath).delete();
+              } catch (e) {
+                console.error('Erro ao excluir do Storage:', e);
+              }
+            }
+
+            await docRef.update({ status: 'concluido' });
+            if (previousStatus !== 'concluido') {
+              await notifyEtiquetaStatusChange({
+                id,
+                newStatus: 'concluido',
+                card,
+                docData: data,
+              });
+            }
+            if (card) {
+              card.dataset.status = 'concluido';
+              card.remove();
+            }
+            showToast('Marcado como concluído');
+          } catch (e) {
+            console.error('Erro ao concluir etiqueta:', e);
+            alert('Erro ao concluir etiqueta');
+          }
+        }
+        window.marcarConcluido = marcarConcluido;
+
+        async function excluirEtiqueta(id, card) {
+          if (!confirm('Deseja excluir esta etiqueta?')) return;
+          try {
+            const docRef = db.collection('pdfDocs').doc(id);
+            const snap = await docRef.get();
+            const data = snap.data() || {};
+            if (data.storagePath) {
+              try {
+                await storage.ref(data.storagePath).delete();
+              } catch (e) {
+                console.error('Erro ao excluir do Storage:', e);
+              }
+            }
+            await docRef.delete();
+            if (card) card.remove();
+            showToast('Etiqueta excluída');
+          } catch (e) {
+            console.error('Erro ao excluir etiqueta:', e);
+            alert('Erro ao excluir etiqueta');
+          }
+        }
+        window.excluirEtiqueta = excluirEtiqueta;
+
+        async function toggleAtencao(id, checkbox, card) {
+          const checked = checkbox.checked;
+          const confirmMsg = `Deseja ${checked ? 'marcar com atenção' : 'remover atenção'}?`;
+          if (!confirm(confirmMsg)) {
+            checkbox.checked = !checked;
+            return;
+          }
+          await db.collection('pdfDocs').doc(id).update({ attention: checked });
+          if (card) {
+            if (checked) {
+              card.classList.add('expedicao-card--attention');
+            } else {
+              card.classList.remove('expedicao-card--attention');
+            }
+          }
+          showToast('Atualizado');
+        }
+        window.toggleAtencao = toggleAtencao;
+
+        async function salvarObservacao(id, texto) {
+          await db.collection('pdfDocs').doc(id).update({ observacao: texto });
+          showToast('Observação salva');
+        }
+        window.salvarObservacao = salvarObservacao;
+
+        function showToast(msg) {
+          const toast = document.createElement('div');
+          toast.className =
+            'fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow transition-opacity';
+          toast.textContent = msg;
+          document.body.appendChild(toast);
+          setTimeout(() => toast.classList.add('opacity-0'), 2000);
+          setTimeout(() => toast.remove(), 2500);
+        }
+      </script>
+      <script type="module" src="login.js"></script>
+      <script src="shared.js"></script>
+    </div>
+  </body>
 </html>
