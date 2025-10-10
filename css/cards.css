@@ -865,6 +865,229 @@
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
+.expedicao-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.expedicao-table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--white);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.expedicao-table thead th {
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  font-weight: 600;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.expedicao-table thead th:first-child {
+  border-top-left-radius: 0.75rem;
+}
+
+.expedicao-table thead th:last-child {
+  border-top-right-radius: 0.75rem;
+}
+
+.expedicao-table tbody td {
+  padding: 0.9rem 1rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  vertical-align: middle;
+}
+
+.expedicao-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.expedicao-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 0.75rem;
+}
+
+.expedicao-table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 0.75rem;
+}
+
+.expedicao-table-row {
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.expedicao-table-row:hover {
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.expedicao-table-row--nao-impresso {
+  box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.45);
+}
+
+.expedicao-table-row--impresso {
+  box-shadow: inset 3px 0 0 rgba(34, 197, 94, 0.5);
+}
+
+.expedicao-table-row--concluido {
+  box-shadow: inset 3px 0 0 rgba(59, 130, 246, 0.55);
+}
+
+.expedicao-table-row.expedicao-card--attention {
+  box-shadow: inset 3px 0 0 rgba(239, 68, 68, 0.6);
+  background: rgba(254, 242, 242, 0.6);
+}
+
+.expedicao-list-primary {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.expedicao-list-secondary {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+}
+
+.expedicao-list-warning {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #b91c1c;
+}
+
+.expedicao-list-note {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.expedicao-list-note i {
+  color: #4f46e5;
+}
+
+.expedicao-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.expedicao-status-chip--nao_impresso {
+  background: rgba(249, 115, 22, 0.15);
+  border-color: rgba(249, 115, 22, 0.3);
+  color: #b45309;
+}
+
+.expedicao-status-chip--impresso {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.32);
+  color: #15803d;
+}
+
+.expedicao-status-chip--concluido {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #1d4ed8;
+}
+
+.expedicao-status-chip--enviado {
+  background: rgba(37, 99, 235, 0.18);
+  border-color: rgba(37, 99, 235, 0.32);
+  color: #1d4ed8;
+}
+
+.expedicao-status-chip--pendente {
+  background: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.32);
+  color: #475569;
+}
+
+.expedicao-status-chip--alert {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: rgba(248, 113, 113, 0.32);
+  color: #b91c1c;
+}
+
+.expedicao-status-chip--info {
+  background: rgba(129, 140, 248, 0.18);
+  border-color: rgba(129, 140, 248, 0.34);
+  color: #4338ca;
+}
+
+.expedicao-list-status-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.expedicao-list-status-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.expedicao-list-status-toggle .expedicao-status-chip {
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.expedicao-list-status-toggle input:disabled + .expedicao-status-chip {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.expedicao-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.expedicao-icon-btn--success {
+  border-color: rgba(34, 197, 94, 0.25);
+  background: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+}
+
+.expedicao-icon-btn--success:hover {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.expedicao-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
 .expedicao-pdf-card--pending {
   --exp-card-surface: linear-gradient(
     160deg,

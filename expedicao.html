@@ -418,6 +418,36 @@
           concluido: 'expedicao-pdf-card--done',
         };
         const CARD_STATUS_CLASSES = Object.values(CARD_STATUS_CLASS_MAP);
+        const LIST_STATUS_CLASS_MAP = {
+          nao_impresso: 'expedicao-table-row--nao-impresso',
+          impresso: 'expedicao-table-row--impresso',
+          concluido: 'expedicao-table-row--concluido',
+        };
+        const LIST_STATUS_CLASSES = Object.values(LIST_STATUS_CLASS_MAP);
+
+        const LIST_ENVIO_STATUS = {
+          enviado: { label: 'Enviado', className: 'expedicao-status-chip--enviado' },
+          entregue: { label: 'Entregue', className: 'expedicao-status-chip--enviado' },
+          pendente: { label: 'Pendente', className: 'expedicao-status-chip--pendente' },
+          aguardando: {
+            label: 'Aguardando',
+            className: 'expedicao-status-chip--pendente',
+          },
+          processamento: {
+            label: 'Processando',
+            className: 'expedicao-status-chip--info',
+          },
+          cancelado: {
+            label: 'Cancelado',
+            className: 'expedicao-status-chip--alert',
+          },
+          falha: { label: 'Falha', className: 'expedicao-status-chip--alert' },
+          erro: { label: 'Erro', className: 'expedicao-status-chip--alert' },
+          retornado: {
+            label: 'Retornado',
+            className: 'expedicao-status-chip--info',
+          },
+        };
 
         const STATUS_UI_CONFIG = {
           nao_impresso: {
@@ -455,10 +485,78 @@
 
         function applyPdfCardStatus(card, status) {
           if (!card) return;
-          card.classList.remove(...CARD_STATUS_CLASSES);
-          card.classList.add(
-            CARD_STATUS_CLASS_MAP[status] || CARD_STATUS_CLASS_MAP.nao_impresso,
+          if (card.classList.contains('pdf-card')) {
+            card.classList.remove(...CARD_STATUS_CLASSES);
+            card.classList.add(
+              CARD_STATUS_CLASS_MAP[status] ||
+                CARD_STATUS_CLASS_MAP.nao_impresso,
+            );
+          }
+          if (card.classList.contains('expedicao-table-row')) {
+            card.classList.remove(...LIST_STATUS_CLASSES);
+            const targetClass =
+              LIST_STATUS_CLASS_MAP[status] ||
+              LIST_STATUS_CLASS_MAP.nao_impresso;
+            card.classList.add(targetClass);
+          }
+          updateListRowStatus(card, status);
+        }
+
+        function getListEnvioConfig(status) {
+          return LIST_ENVIO_STATUS[status] || LIST_ENVIO_STATUS.pendente;
+        }
+
+        function applyListEnvioStatus(element, status) {
+          if (!element) return;
+          const config = getListEnvioConfig(status);
+          element.textContent = (config.label || '').toUpperCase();
+          element.className = `expedicao-status-chip ${config.className}`;
+          element.dataset.status = status;
+        }
+
+        function applyListAttentionStatus(element, isAttention) {
+          if (!element) return;
+          element.textContent = isAttention ? 'ATENÇÃO' : 'PENDENTE';
+          element.className = `expedicao-status-chip ${
+            isAttention
+              ? 'expedicao-status-chip--alert'
+              : 'expedicao-status-chip--pendente'
+          }`;
+        }
+
+        function updateListRowStatus(row, status) {
+          if (!row || !row.classList.contains('expedicao-table-row')) return;
+          row.dataset.status = status;
+          const statusBadge = row.querySelector('[data-role="status-impressao"]');
+          if (statusBadge) {
+            const statusConfig = getStatusUiConfig(status);
+            statusBadge.textContent = (statusConfig.text || '').toUpperCase();
+            statusBadge.className = `expedicao-status-chip expedicao-status-chip--${status}`;
+          }
+          const impressaoToggle = row.querySelector(
+            '[data-role="impressao-toggle"]',
           );
+          if (impressaoToggle) {
+            if (status === 'concluido') {
+              impressaoToggle.checked = true;
+              impressaoToggle.disabled = true;
+            } else {
+              impressaoToggle.disabled = false;
+              impressaoToggle.checked = status !== 'nao_impresso';
+            }
+          }
+          const envioBadge = row.querySelector('[data-role="status-envio"]');
+          if (envioBadge) {
+            const defaultStatus =
+              envioBadge.dataset.defaultStatus || 'pendente';
+            const nextStatus =
+              status === 'concluido'
+                ? 'enviado'
+                : defaultStatus === 'enviado'
+                  ? 'enviado'
+                  : defaultStatus || 'pendente';
+            applyListEnvioStatus(envioBadge, nextStatus);
+          }
         }
 
         function getResumoTimeWindow() {
@@ -1620,7 +1718,11 @@
             );
           });
 
-          if (isResponsavel && viewMode === 'cards') {
+          if (!results.length) {
+            list.className = 'expedicao-list-empty';
+            list.innerHTML =
+              '<p class="text-gray-500">Nenhuma etiqueta encontrada.</p>';
+          } else if (isResponsavel && viewMode === 'cards') {
             const grouped = {};
             for (const r of results) {
               const owner = r.ownerName || 'Desconhecido';
@@ -1687,22 +1789,14 @@
               wrapper.appendChild(row);
               list.appendChild(wrapper);
             });
-          } else {
+          } else if (viewMode === 'cards') {
             list.className =
-              viewMode === 'cards'
-                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-                : 'flex flex-col gap-4';
+              'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
             for (const r of results) {
-              const item =
-                viewMode === 'cards'
-                  ? createPdfCard(r.doc, r.ownerName)
-                  : createPdfListItem(r.doc, r.ownerName);
-              list.appendChild(item);
+              list.appendChild(createPdfCard(r.doc, r.ownerName));
             }
-          }
-          if (!list.hasChildNodes()) {
-            list.innerHTML =
-              '<p class="text-gray-500">Nenhuma etiqueta encontrada.</p>';
+          } else {
+            renderListView(list, results);
           }
           await calcularTotalPedidosDia();
           const summaryPayload = { totalNaoEnviado: totalNaoImpressoLabels };
@@ -2162,6 +2256,32 @@
           XLSX.writeFile(wb, `relatorio_sku_usuarios_${diaStr}.xlsx`);
         }
 
+        function renderListView(container, results) {
+          if (!container) return;
+          container.className = 'expedicao-table-wrapper';
+          const table = document.createElement('table');
+          table.className = 'expedicao-table';
+          table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Vendedor</th>
+            <th>Data/Hr</th>
+            <th>Nome (Envio)</th>
+            <th>Baixas (Qtd.)</th>
+            <th>Status Impressão</th>
+            <th>Status Envio</th>
+            <th>Status Atenção</th>
+            <th>Ações</th>
+          </tr>
+        </thead>`;
+          const tbody = document.createElement('tbody');
+          results.forEach((item) => {
+            tbody.appendChild(createPdfListItem(item.doc, item.ownerName));
+          });
+          table.appendChild(tbody);
+          container.appendChild(table);
+        }
+
         function createPdfCard(doc, ownerName) {
           const data = doc.data();
           const rawStatus = data.status || 'nao_impresso';
@@ -2234,64 +2354,162 @@
         function createPdfListItem(doc, ownerName) {
           const data = doc.data();
           const rawStatus = data.status || 'nao_impresso';
-          const statusStyles = {
-            nao_impresso: { cardClass: 'expedicao-pdf-card--pending' },
-            impresso: { cardClass: 'expedicao-pdf-card--printed' },
-            concluido: { cardClass: 'expedicao-pdf-card--done' },
-          };
-          const statusKey = statusStyles[rawStatus]
+          const statusKey = STATUS_UI_CONFIG[rawStatus]
             ? rawStatus
             : 'nao_impresso';
-          const attention = data.attention || false;
-          const observacao = data.observacao || '';
-          const foraHorario = data.foraHorario || false;
+          const statusConfig = getStatusUiConfig(statusKey);
+          const attention = Boolean(data.attention);
           const name = data.name || 'PDF';
-          const url = data.url;
           const owner = ownerName || 'Desconhecido';
-          const createdAt =
-            data.createdAt && data.createdAt.toDate
-              ? data.createdAt.toDate().toLocaleString('pt-BR')
-              : 'Data desconhecida';
+          const ownerEmail = data.ownerEmail || '';
+          const url = data.url || '';
+          const createdDate =
+            data.createdAt && typeof data.createdAt.toDate === 'function'
+              ? data.createdAt.toDate()
+              : null;
+          const createdDateStr = createdDate
+            ? createdDate.toLocaleString('pt-BR', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })
+            : 'Data desconhecida';
           const lojaDisplay = data.loja
             ? escapeHtml(data.loja)
             : 'Loja não informada';
+          const quantidadeEtiquetas = getResumoQuantidade(data);
+          const quantidadeLabel = Number.isFinite(quantidadeEtiquetas)
+            ? Math.max(0, Math.round(quantidadeEtiquetas))
+            : 0;
           const totalPaginas = getPdfPageCount(data);
-          const paginasLabel =
-            totalPaginas > 0 ? totalPaginas : 'Não informado';
-          const div = document.createElement('div');
-          div.className = `pdf-card expedicao-card expedicao-pdf-card expedicao-pdf-card--list ${statusStyles[statusKey].cardClass}${attention ? ' expedicao-card--attention' : ''}`;
-          div.innerHTML = `
-        <div class="expedicao-pdf-list-content">
-          <div class="expedicao-pdf-list-info">
-            <p class="expedicao-pdf-name">${name}</p>
-            <p class="expedicao-pdf-meta">Criado por: ${owner} em ${createdAt}</p>
-            <p class="expedicao-pdf-meta">Loja: ${lojaDisplay} &bull; Páginas: ${paginasLabel}</p>
-            ${foraHorario ? '<p class="expedicao-alert-text">Fora do horário</p>' : ''}
-            <div class="expedicao-pdf-list-toolbar">
-              <button class="expedicao-icon-btn" onclick="visualizar('${url}')" title="Visualizar"><i class="fas fa-eye"></i></button>
-              <button class="expedicao-icon-btn" onclick="imprimir('${url}')" title="Imprimir"><i class="fas fa-print"></i></button>
-              <a class="expedicao-icon-btn" href="${url}" download="${name}" title="Baixar"><i class="fas fa-download"></i></a>
-              <button class="expedicao-icon-btn expedicao-icon-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))" title="Excluir"><i class="fas fa-trash"></i></button>
-            </div>
-          </div>
-          <div class="expedicao-pdf-list-controls">
-            <label class="expedicao-toggle expedicao-toggle--success">
-              <input type="checkbox" ${statusKey === 'impresso' ? 'checked' : ''} onchange="toggleImpresso('${doc.id}', this, this.closest('.pdf-card'))">
-              <span><i class="fas fa-check"></i>Impresso</span>
-            </label>
-            <label class="expedicao-toggle expedicao-toggle--danger">
-              <input type="checkbox" ${attention ? 'checked' : ''} onchange="toggleAtencao('${doc.id}', this, this.closest('.pdf-card'))">
-              <span><i class="fas fa-exclamation-triangle"></i>Atenção</span>
-            </label>
-            <textarea class="expedicao-control-textarea" placeholder="Observação" onblur="salvarObservacao('${doc.id}', this.value)">${observacao}</textarea>
-            <button class="expedicao-card-btn expedicao-card-btn--success" onclick="marcarConcluido('${doc.id}', this.closest('.pdf-card'))">Concluir</button>
-          </div>
-        </div>`;
-          div.dataset.ownerUid = data.ownerUid || '';
-          div.dataset.ownerEmail = data.ownerEmail || '';
-          div.dataset.fileName = name;
-          div.dataset.status = statusKey;
-          return div;
+          const paginasLabel = totalPaginas > 0 ? totalPaginas : null;
+          const observacao = data.observacao ? escapeHtml(data.observacao) : '';
+          const foraHorario = Boolean(data.foraHorario);
+          const envioDefaultRaw = (
+            data.statusEnvio ||
+            data.envioStatus ||
+            ''
+          )
+            .toString()
+            .toLowerCase()
+            .trim();
+          const envioStatus =
+            statusKey === 'concluido'
+              ? 'enviado'
+              : envioDefaultRaw || 'pendente';
+          const envioConfig = getListEnvioConfig(envioStatus);
+          const safeDocId = JSON.stringify(doc.id || '');
+          const safeUrl = JSON.stringify(url);
+          const safeDownloadUrl = encodeURIComponent(url || '');
+          const safeDownloadName = encodeURIComponent(name || 'Etiqueta');
+          const ownerUid = Array.isArray(data.ownerUid)
+            ? data.ownerUid.filter(Boolean).join(',')
+            : data.ownerUid || '';
+          const row = document.createElement('tr');
+          const rowClasses = [
+            'expedicao-table-row',
+            LIST_STATUS_CLASS_MAP[statusKey] ||
+              LIST_STATUS_CLASS_MAP.nao_impresso,
+          ];
+          if (attention) rowClasses.push('expedicao-card--attention');
+          row.className = rowClasses.join(' ');
+          row.dataset.ownerUid = ownerUid;
+          row.dataset.ownerEmail = data.ownerEmail || '';
+          row.dataset.fileName = name;
+          row.dataset.status = statusKey;
+          row.innerHTML = `
+      <td>
+        <div class="expedicao-list-primary">${escapeHtml(owner)}</div>
+        ${ownerEmail ? `<div class="expedicao-list-secondary">${escapeHtml(ownerEmail)}</div>` : ''}
+      </td>
+      <td>
+        <div class="expedicao-list-primary">${escapeHtml(createdDateStr)}</div>
+        ${foraHorario ? '<div class="expedicao-list-warning"><i class="fas fa-clock"></i> Fora do horário</div>' : ''}
+      </td>
+      <td>
+        <div class="expedicao-list-primary">${lojaDisplay}</div>
+        ${name && data.loja && data.loja !== name ? `<div class="expedicao-list-secondary">${escapeHtml(name)}</div>` : ''}
+        ${observacao ? `<div class="expedicao-list-note" title="Observação: ${observacao}"><i class="fas fa-comment-dots"></i> Observação</div>` : ''}
+      </td>
+      <td>
+        <div class="expedicao-list-primary">${quantidadeLabel}</div>
+        ${paginasLabel ? `<div class="expedicao-list-secondary">Páginas: ${paginasLabel}</div>` : ''}
+      </td>
+      <td>
+        <label class="expedicao-list-status-toggle" title="Atualizar status de impressão">
+          <input
+            type="checkbox"
+            data-role="impressao-toggle"
+            ${statusKey !== 'nao_impresso' ? 'checked' : ''}
+            ${statusKey === 'concluido' ? 'disabled' : ''}
+            onchange="toggleImpresso(${safeDocId}, this, this.closest('tr'))"
+          />
+          <span
+            class="expedicao-status-chip expedicao-status-chip--${statusKey}"
+            data-role="status-impressao"
+          >${(statusConfig.text || '').toUpperCase()}</span>
+        </label>
+      </td>
+      <td>
+        <span
+          class="expedicao-status-chip ${envioConfig.className}"
+          data-role="status-envio"
+          data-default-status="${escapeHtml(envioDefaultRaw)}"
+        >${(envioConfig.label || '').toUpperCase()}</span>
+      </td>
+      <td>
+        <label class="expedicao-list-status-toggle" title="Marcar como atenção">
+          <input
+            type="checkbox"
+            data-role="attention-toggle"
+            ${attention ? 'checked' : ''}
+            onchange="toggleAtencao(${safeDocId}, this, this.closest('tr'))"
+          />
+          <span
+            class="expedicao-status-chip ${
+              attention
+                ? 'expedicao-status-chip--alert'
+                : 'expedicao-status-chip--pendente'
+            }"
+            data-role="status-atencao"
+          >${attention ? 'ATENÇÃO' : 'PENDENTE'}</span>
+        </label>
+      </td>
+      <td>
+        <div class="expedicao-table-actions">
+          <button type="button" class="expedicao-icon-btn" title="Visualizar" onclick="visualizar(${safeUrl})">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button type="button" class="expedicao-icon-btn" title="Imprimir" onclick="imprimir(${safeUrl})">
+            <i class="fas fa-print"></i>
+          </button>
+          <button
+            type="button"
+            class="expedicao-icon-btn"
+            title="Baixar"
+            onclick="baixarArquivo('${safeDownloadUrl}', '${safeDownloadName}')"
+          >
+            <i class="fas fa-download"></i>
+          </button>
+          <button
+            type="button"
+            class="expedicao-icon-btn expedicao-icon-btn--success"
+            title="Concluir"
+            onclick="marcarConcluido(${safeDocId}, this.closest('tr'))"
+          >
+            <i class="fas fa-check"></i>
+          </button>
+          <button
+            type="button"
+            class="expedicao-icon-btn expedicao-icon-btn--danger"
+            title="Excluir"
+            onclick="excluirEtiqueta(${safeDocId}, this.closest('tr'))"
+          >
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </td>`;
+          row.dataset.defaultEnvio = envioDefaultRaw;
+          return row;
         }
 
         async function notifyEtiquetaStatusChange({
@@ -2683,6 +2901,10 @@
               card.classList.add('expedicao-card--attention');
             } else {
               card.classList.remove('expedicao-card--attention');
+            }
+            if (card.classList.contains('expedicao-table-row')) {
+              const badge = card.querySelector('[data-role="status-atencao"]');
+              applyListAttentionStatus(badge, checked);
             }
           }
           showToast('Atualizado');
