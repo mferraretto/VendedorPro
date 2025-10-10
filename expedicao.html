@@ -1535,6 +1535,9 @@
           const seen = new Set();
           const results = [];
           const counts = { nao_impresso: 0, impresso: 0, concluido: 0 };
+          const labelTotals = { nao_impresso: 0, impresso: 0, concluido: 0 };
+          const { start: resumoStart, end: resumoEnd } = getResumoTimeWindow();
+          let printedTodayTotal = 0;
           for (const doc of snap.docs) {
             const data = doc.data();
             const allowed =
@@ -1579,6 +1582,20 @@
             if (!respMatch) continue;
             if (attentionOnly && !data.attention) continue;
             counts[status] = (counts[status] || 0) + 1;
+            const etiquetasDoc = getResumoQuantidade(data);
+            if (Number.isFinite(etiquetasDoc) && etiquetasDoc > 0) {
+              const etiquetasAjustadas = Math.floor(etiquetasDoc);
+              labelTotals[status] =
+                (labelTotals[status] || 0) + etiquetasAjustadas;
+              if (
+                (status === 'impresso' || status === 'concluido') &&
+                createdAt &&
+                createdAt >= resumoStart &&
+                createdAt <= resumoEnd
+              ) {
+                printedTodayTotal += etiquetasAjustadas;
+              }
+            }
             if (filter === 'all') {
               if (status === 'concluido') continue;
             } else if (status !== filter) {
@@ -1587,9 +1604,12 @@
             results.push({ doc, data, ownerName, createdAt });
           }
           updateStatusCounts(counts);
-          updateExpedicaoSummaryCards({
-            totalNaoEnviado: counts.nao_impresso || 0,
-          });
+          const totalNaoImpressoLabels = labelTotals.nao_impresso || 0;
+          const temEtiquetasImpressas =
+            (counts.impresso || 0) + (counts.concluido || 0) > 0;
+          const deveAtualizarImpresso =
+            printedTodayTotal > 0 || !temEtiquetasImpressas;
+          const totalImpressoLabels = printedTodayTotal;
           results.sort((a, b) => {
             if (sortOption === 'owner')
               return (a.ownerName || '').localeCompare(b.ownerName || '');
@@ -1685,6 +1705,10 @@
               '<p class="text-gray-500">Nenhuma etiqueta encontrada.</p>';
           }
           await calcularTotalPedidosDia();
+          const summaryPayload = { totalNaoEnviado: totalNaoImpressoLabels };
+          if (deveAtualizarImpresso)
+            summaryPayload.totalEnviado = totalImpressoLabels;
+          updateExpedicaoSummaryCards(summaryPayload);
         }
 
         async function verificarDia() {
