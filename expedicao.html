@@ -91,16 +91,10 @@
                   <span class="expedicao-highlight-eyebrow">Planejamento</span>
                   <h2 class="expedicao-highlight-title">Etiquetas do dia</h2>
                 </div>
-                <span id="expedicaoTotalResumo" class="expedicao-highlight-chip"
-                  >Total: 0</span
-                >
-              </div>
-              <div id="totalPlanejadoHoje" class="expedicao-highlight-number">
-                0
               </div>
               <div class="expedicao-highlight-meta">
                 <div class="expedicao-highlight-meta-item">
-                  <span class="expedicao-highlight-meta-label">Enviadas</span>
+                  <span class="expedicao-highlight-meta-label">Impressas no dia</span>
                   <span
                     id="totalEnviadoResumo"
                     class="expedicao-highlight-meta-value"
@@ -108,7 +102,7 @@
                   >
                 </div>
                 <div class="expedicao-highlight-meta-item">
-                  <span class="expedicao-highlight-meta-label">Pendentes</span>
+                  <span class="expedicao-highlight-meta-label">Não impressas</span>
                   <span
                     id="totalNaoEnviadoResumo"
                     class="expedicao-highlight-meta-value"
@@ -703,13 +697,11 @@
           'checklistEnvioTotals',
         );
         const summaryElements = {
-          planned: document.getElementById('totalPlanejadoHoje'),
-          totalBadge: document.getElementById('expedicaoTotalResumo'),
-          sent: [
+          printedToday: [
             document.getElementById('totalEnviadoResumo'),
             document.getElementById('expedicaoResumoEnviado'),
           ].filter(Boolean),
-          pending: [
+          notPrinted: [
             document.getElementById('totalNaoEnviadoResumo'),
             document.getElementById('expedicaoResumoPendente'),
           ].filter(Boolean),
@@ -730,35 +722,20 @@
           totalEnviado = 0,
           totalNaoEnviado = 0,
         } = {}) {
-          const enviarRaw = Number(totalEnviar);
           const enviadoRaw = Number(totalEnviado);
           const naoEnviadoRaw = Number(totalNaoEnviado);
-          const enviar = Number.isFinite(enviarRaw) ? enviarRaw : 0;
           const enviado = Number.isFinite(enviadoRaw) ? enviadoRaw : 0;
           const naoEnviado = Number.isFinite(naoEnviadoRaw) ? naoEnviadoRaw : 0;
           const base = enviado + naoEnviado;
-          const totalDia = enviar + base;
           const percentEnviado = base > 0 ? (enviado / base) * 100 : 0;
 
-          if (summaryElements.planned) {
-            summaryElements.planned.textContent = summaryNumberFormatter.format(
-              Math.max(0, Math.round(enviar)),
-            );
-          }
-
-          if (summaryElements.totalBadge) {
-            summaryElements.totalBadge.textContent = `Total: ${summaryNumberFormatter.format(
-              Math.max(0, Math.round(totalDia)),
-            )}`;
-          }
-
-          summaryElements.sent.forEach((el) => {
+          summaryElements.printedToday.forEach((el) => {
             el.textContent = summaryNumberFormatter.format(
               Math.max(0, Math.round(enviado)),
             );
           });
 
-          summaryElements.pending.forEach((el) => {
+          summaryElements.notPrinted.forEach((el) => {
             el.textContent = summaryNumberFormatter.format(
               Math.max(0, Math.round(naoEnviado)),
             );
