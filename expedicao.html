@@ -709,6 +709,13 @@
           progressFill: document.getElementById('totalEnviadoBar'),
         };
 
+        const summaryState = {
+          totalPlanejado: 0,
+          totalEnviado: 0,
+          naoImpressoOverride: 0,
+          hasNaoImpressoOverride: false,
+        };
+
         const summaryNumberFormatter = new Intl.NumberFormat('pt-BR', {
           maximumFractionDigits: 0,
         });
@@ -718,15 +725,55 @@
         }
 
         function updateExpedicaoSummaryCards({
-          totalEnviar = 0,
-          totalEnviado = 0,
-          totalNaoEnviado = 0,
+          totalEnviar,
+          totalEnviado,
+          totalNaoEnviado,
         } = {}) {
-          const enviadoRaw = Number(totalEnviado);
-          const naoEnviadoRaw = Number(totalNaoEnviado);
-          const enviado = Number.isFinite(enviadoRaw) ? enviadoRaw : 0;
-          const naoEnviado = Number.isFinite(naoEnviadoRaw) ? naoEnviadoRaw : 0;
-          const base = enviado + naoEnviado;
+          if (totalEnviar !== undefined) {
+            const planejadoRaw = Number(totalEnviar);
+            summaryState.totalPlanejado = Number.isFinite(planejadoRaw)
+              ? planejadoRaw
+              : 0;
+          }
+
+          if (totalEnviado !== undefined) {
+            const enviadoRaw = Number(totalEnviado);
+            summaryState.totalEnviado = Number.isFinite(enviadoRaw)
+              ? enviadoRaw
+              : 0;
+          }
+
+          if (totalNaoEnviado !== undefined) {
+            if (totalNaoEnviado === null) {
+              summaryState.naoImpressoOverride = 0;
+              summaryState.hasNaoImpressoOverride = false;
+            } else {
+              const naoEnviadoRaw = Number(totalNaoEnviado);
+              if (Number.isFinite(naoEnviadoRaw)) {
+                summaryState.naoImpressoOverride = Math.max(
+                  0,
+                  naoEnviadoRaw,
+                );
+                summaryState.hasNaoImpressoOverride = true;
+              } else {
+                summaryState.naoImpressoOverride = 0;
+                summaryState.hasNaoImpressoOverride = false;
+              }
+            }
+          }
+
+          const planejado = Math.max(0, Number(summaryState.totalPlanejado) || 0);
+          const enviado = Math.max(0, Number(summaryState.totalEnviado) || 0);
+
+          let naoEnviado = summaryState.naoImpressoOverride;
+          if (!summaryState.hasNaoImpressoOverride) {
+            naoEnviado = planejado > 0 ? Math.max(planejado - enviado, 0) : 0;
+          }
+
+          const base =
+            planejado > 0 && !summaryState.hasNaoImpressoOverride
+              ? planejado
+              : enviado + naoEnviado;
           const percentEnviado = base > 0 ? (enviado / base) * 100 : 0;
 
           summaryElements.printedToday.forEach((el) => {
@@ -752,7 +799,7 @@
         updateExpedicaoSummaryCards({
           totalEnviar: 0,
           totalEnviado: 0,
-          totalNaoEnviado: 0,
+          totalNaoEnviado: null,
         });
 
         function resetStoreModalState() {
@@ -1417,7 +1464,6 @@
             updateExpedicaoSummaryCards({
               totalEnviar,
               totalEnviado: totalDentro,
-              totalNaoEnviado: totalFora,
             });
 
             if (checklistEnvioTotals) {
@@ -1541,6 +1587,9 @@
             results.push({ doc, data, ownerName, createdAt });
           }
           updateStatusCounts(counts);
+          updateExpedicaoSummaryCards({
+            totalNaoEnviado: counts.nao_impresso || 0,
+          });
           results.sort((a, b) => {
             if (sortOption === 'owner')
               return (a.ownerName || '').localeCompare(b.ownerName || '');
