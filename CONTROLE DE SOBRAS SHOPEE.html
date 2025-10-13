@@ -9203,6 +9203,17 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         0,
       );
 
+      const normalizarQuantidadeParafusos = (valor) => {
+        if (valor === undefined || valor === null) return null;
+        const numero = Number(valor);
+        return Number.isFinite(numero) ? numero : null;
+      };
+      const formatarQuantidadeParafusos = (valor) => {
+        const numero = normalizarQuantidadeParafusos(valor);
+        return numero === null ? null : numero.toLocaleString('pt-BR');
+      };
+
+      let totalParafusosGeral = 0;
       const linhas = ordenados
         .map((item) => {
           const principaisDetalhes = Array.isArray(
@@ -9213,16 +9224,101 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           let detalhesHtml = '';
           let extrasHtml = '';
 
+          const mapaParafusos = new Map(
+            Array.isArray(item.parafusosPorSku) ? item.parafusosPorSku : [],
+          );
+          const mapaParafusosNormalizado = new Map();
+          mapaParafusos.forEach((valor, chave) => {
+            mapaParafusosNormalizado.set(
+              String(chave || '').toLowerCase(),
+              valor,
+            );
+          });
+          const obterParafusosSku = (sku) => {
+            if (!sku) return null;
+            const normalizado = String(sku || '').toLowerCase();
+            if (mapaParafusosNormalizado.has(normalizado)) {
+              return normalizarQuantidadeParafusos(
+                mapaParafusosNormalizado.get(normalizado),
+              );
+            }
+            return null;
+          };
+          const principalParafusosBruto =
+            obterParafusosSku(item.sku) ??
+            normalizarQuantidadeParafusos(item.quantidadeParafusosPrincipal);
+          const principalParafusosNumero = normalizarQuantidadeParafusos(
+            principalParafusosBruto,
+          );
+          const principalParafusosFormatado = formatarQuantidadeParafusos(
+            principalParafusosNumero,
+          );
+          const principalParafusosHtml =
+            principalParafusosFormatado !== null
+              ? `<div class="sku-parafusos"><span class="icon">🔩</span><span>${principalParafusosFormatado}</span><span>parafusos/un.</span></div>`
+              : '';
+
+          let totalParafusosItem = item.vendidosPorSku.reduce(
+            (acc, [sku, qtd]) => {
+              const quantidade = Number(qtd || 0);
+              if (!Number.isFinite(quantidade) || quantidade <= 0) {
+                return acc;
+              }
+              const parafusosPorUnidade =
+                obterParafusosSku(sku) ?? principalParafusosNumero;
+              const parafusosNormalizados = normalizarQuantidadeParafusos(
+                parafusosPorUnidade,
+              );
+              if (parafusosNormalizados === null) {
+                return acc;
+              }
+              return acc + parafusosNormalizados * quantidade;
+            },
+            0,
+          );
+          if (
+            (!totalParafusosItem || totalParafusosItem <= 0) &&
+            principalParafusosNumero !== null
+          ) {
+            const quantidadeTotal = Number(item.total || 0);
+            if (Number.isFinite(quantidadeTotal) && quantidadeTotal > 0) {
+              totalParafusosItem = principalParafusosNumero * quantidadeTotal;
+            }
+          }
+          if (totalParafusosItem > 0) {
+            totalParafusosGeral += totalParafusosItem;
+          }
+          const totalParafusosFormatado =
+            totalParafusosItem > 0
+              ? totalParafusosItem.toLocaleString('pt-BR')
+              : null;
+          const totalParafusosHtml = totalParafusosFormatado
+            ? `<div class="total-parafusos"><span class="icon">🔩</span><span>${totalParafusosFormatado}</span><span>parafusos</span></div>`
+            : '';
+
           if (principaisDetalhes.length) {
             const linhasPrincipais = principaisDetalhes
-              .map(({ sku, quantidade }) => {
+              .map(({ sku, quantidade, parafusos }) => {
                 const quantidadeFormatada = Number(quantidade || 0).toLocaleString(
                   'pt-BR',
                 );
+                const parafusosNormalizado =
+                  obterParafusosSku(sku) ??
+                  normalizarQuantidadeParafusos(parafusos);
+                const parafusosFormatado = formatarQuantidadeParafusos(
+                  parafusosNormalizado,
+                );
+                const parafusosHtml =
+                  parafusosFormatado !== null
+                    ? `<div class="principal-parafusos"><span class="icon">🔩</span><span>${parafusosFormatado}</span><span>parafusos/un.</span></div>`
+                    : '';
                 return `
                   <div class="principal-item">
-                    <span class="principal-sku">${escapeHtml(sku)}</span>
-                    <span class="principal-quantidade">${quantidadeFormatada}</span>
+                    <div class="principal-header">
+                      <span class="principal-sku">${escapeHtml(sku)}</span>
+                      <span class="principal-quantidade">${quantidadeFormatada}</span>
+                    </div>
+                    ${parafusosHtml}
                   </div>
                 `.trim();
               })
@@ -9237,10 +9333,18 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             const vendidosChips = item.vendidosPorSku
               .map(([sku, qtd]) => {
                 const quantidadeFormatada = Number(qtd || 0).toLocaleString('pt-BR');
+                const parafusosFormatado = formatarQuantidadeParafusos(
+                  obterParafusosSku(sku),
+                );
+                const parafusosBadge =
+                  parafusosFormatado !== null
+                    ? `<span class="chip-parafusos"><span class="icon">🔩</span><span>${parafusosFormatado}</span></span>`
+                    : '';
                 return `
                   <span class="chip">
                     <span>${escapeHtml(sku)}</span>
                     <span class="chip-qty">${quantidadeFormatada}</span>
+                    ${parafusosBadge}
                   </span>
                 `.trim();
               })
@@ -9256,7 +9360,16 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                       skuVend.toLowerCase() === skuExtra.toLowerCase(),
                   ),
               )
-              .map((skuExtra) => escapeHtml(skuExtra));
+              .map((skuExtra) => {
+                const parafusosFormatado = formatarQuantidadeParafusos(
+                  obterParafusosSku(skuExtra),
+                );
+                const parafusosTexto =
+                  parafusosFormatado !== null
+                    ? ` (🔩 ${parafusosFormatado})`
+                    : '';
+                return `${escapeHtml(skuExtra)}${parafusosTexto}`;
+              });
             extrasHtml = extrasLista.length
               ? `<div class="extras">Associados: ${extrasLista.join(', ')}</div>`
               : '';
@@ -9280,10 +9393,16 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             <tr class="pdf-row">
               <td class="col-sku">
                 <div class="sku-title">${escapeHtml(item.sku)}</div>
+                ${principalParafusosHtml}
                 ${detalhesHtml}
                 ${extrasHtml}
               </td>
-              <td class="col-quantidade">${totalFormatado}</td>
+              <td class="col-quantidade">
+                <div class="quantidade-wrapper">
+                  <span class="quantidade-total">${totalFormatado}</span>
+                  ${totalParafusosHtml}
+                </div>
+              </td>
               <td class="col-valor">${valorLiquidoFormatado}</td>
               <td class="col-usuarios"><div class="usuarios">${usuariosHtml}</div></td>
             </tr>
@@ -9326,6 +9445,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const statusHtml = statusTexto
         ? `<p class="pdf-status">${escapeHtml(statusTexto)}</p>`
         : '';
+
+      const totalParafusosResumo = totalParafusosGeral
+        ? totalParafusosGeral.toLocaleString('pt-BR')
+        : '0';
 
       wrapper.innerHTML = `
         <div id="pdf-root">
@@ -9376,6 +9499,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             .pdf-summary span {
               font-weight: 600;
               color: #111827;
+            }
+            .pdf-summary .icon {
+              margin-right: 4px;
             }
             .pdf-filters {
               display: flex;
@@ -9447,6 +9573,14 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               color: #374151;
               font-weight: 600;
             }
+            .chip-parafusos {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              font-weight: 600;
+              color: #4338ca;
+              font-size: 10px;
+            }
             .principais-container {
               margin-top: 8px;
               font-size: 11px;
@@ -9464,21 +9598,64 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             }
             .principal-item {
               display: flex;
-              justify-content: space-between;
-              align-items: center;
+              flex-direction: column;
+              gap: 4px;
               background: #eef2ff;
               color: #4338ca;
               border-radius: 10px;
-              padding: 4px 10px;
+              padding: 6px 10px;
+            }
+            .principal-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
             }
             .principal-quantidade {
               font-weight: 600;
               color: #374151;
             }
+            .principal-parafusos {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              font-size: 10px;
+              font-weight: 600;
+              color: #4338ca;
+            }
             .extras {
               margin-top: 6px;
               font-size: 10px;
               color: #9ca3af;
+            }
+            .sku-parafusos {
+              margin-top: 4px;
+              font-size: 10px;
+              color: #4338ca;
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              font-weight: 600;
+            }
+            .quantidade-wrapper {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 4px;
+            }
+            .quantidade-total {
+              font-weight: 600;
+              color: #1f2937;
+            }
+            .total-parafusos {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              font-size: 10px;
+              font-weight: 600;
+              color: #4338ca;
+            }
+            .icon {
+              display: inline-block;
             }
             .usuarios {
               font-size: 11px;
@@ -9507,6 +9684,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               <div class="pdf-summary">
                 <div>Total vendido: <span>${totalUnidades.toLocaleString('pt-BR')}</span> unidades</div>
                 <div>Valor líquido: <span>${formatCurrency(totalLiquido)}</span></div>
+                <div><span class="icon">🔩</span>Total de parafusos: <span>${totalParafusosResumo}</span></div>
               </div>
             </div>
             ${filtrosHtml}
