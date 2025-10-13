@@ -51,6 +51,21 @@
                   placeholder="Separados por vírgula"
                 />
               </div>
+              <div>
+                <label
+                  for="quantidadeParafusos"
+                  class="block text-sm font-medium mb-1"
+                  >Quantidade de Parafusos</label
+                >
+                <input
+                  id="quantidadeParafusos"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="w-full p-2 border rounded"
+                  placeholder="Informe a quantidade por SKU"
+                />
+              </div>
               <div class="md:col-span-2">
                 <label
                   for="skusPrincipaisVinculados"
@@ -82,6 +97,7 @@
                 <tr class="text-left">
                   <th class="px-2 py-1">SKU Principal</th>
                   <th class="px-2 py-1">Associados</th>
+                  <th class="px-2 py-1">Parafusos por SKU</th>
                   <th class="px-2 py-1">Principais Vinculados</th>
                   <th class="px-2 py-1">Ações</th>
                 </tr>
