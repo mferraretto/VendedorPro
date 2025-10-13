@@ -194,6 +194,20 @@ function parseAssociados(value) {
     .filter(Boolean);
 }
 
+function sanitizarQuantidadeParafusos(valor) {
+  if (valor === undefined || valor === null) return null;
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+  const texto = String(valor).replace(',', '.').trim();
+  if (!texto) return null;
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function formatarQuantidadeParafusos(valor) {
+  const numero = sanitizarQuantidadeParafusos(valor);
+  return numero === null ? '—' : numero.toLocaleString('pt-BR');
+}
+
 function popularSelectOptions(excluirSku = null, selecionados = []) {
   const select = document.getElementById('skusPrincipaisVinculados');
   select.innerHTML = '';
@@ -226,15 +240,19 @@ function renderTabela() {
   if (!linhas.length) {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td colspan="4" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
+      '<td colspan="5" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
     tbody.appendChild(tr);
     return;
   }
   linhas.forEach((data) => {
     const tr = document.createElement('tr');
+    const quantidadeParafusos = formatarQuantidadeParafusos(
+      data.quantidadeParafusos,
+    );
     tr.innerHTML = `
       <td class="px-2 py-1">${data.skuPrincipal}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
+      <td class="px-2 py-1">${quantidadeParafusos}</td>
       <td class="px-2 py-1">${(data.principaisVinculados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
         <button class="text-blue-600" data-edit="${data.id}">Editar</button>
@@ -268,12 +286,16 @@ async function carregarSkus() {
     const skuPrincipal = (
       data.skuPrincipal || recuperarSkuDoIdDocumento(docId)
     ).trim();
+    const quantidadeParafusos = sanitizarQuantidadeParafusos(
+      data.quantidadeParafusos,
+    );
     skuCache.set(docId, {
       ...data,
       id: docId,
       skuPrincipal,
       associados: data.associados || [],
       principaisVinculados: data.principaisVinculados || [],
+      quantidadeParafusos,
     });
   });
   renderTabela();
@@ -303,6 +325,7 @@ function obterPrincipaisSelecionados() {
 function limparFormulario() {
   document.getElementById('skuPrincipal').value = '';
   document.getElementById('skuAssociados').value = '';
+  document.getElementById('quantidadeParafusos').value = '';
   editDocId = null;
   editSkuAnterior = null;
   popularSelectOptions(null, []);
@@ -311,6 +334,7 @@ function limparFormulario() {
 async function salvarSku() {
   const principalEl = document.getElementById('skuPrincipal');
   const associadosEl = document.getElementById('skuAssociados');
+  const quantidadeParafusosEl = document.getElementById('quantidadeParafusos');
   const principaisSelecionados = obterPrincipaisSelecionados();
   const skuPrincipal = principalEl.value.trim();
   if (!skuPrincipal) {
@@ -318,6 +342,9 @@ async function salvarSku() {
     return;
   }
   const associados = parseAssociados(associadosEl.value);
+  const quantidadeParafusos = sanitizarQuantidadeParafusos(
+    quantidadeParafusosEl.value,
+  );
   const docId = gerarIdDocumentoSku(skuPrincipal);
   if (editDocId && editDocId !== docId) {
     await deleteDoc(doc(db, 'skuAssociado', editDocId));
@@ -328,6 +355,7 @@ async function salvarSku() {
     principaisVinculados: principaisSelecionados.filter(
       (sku) => normalizarTexto(sku) !== normalizarTexto(skuPrincipal),
     ),
+    quantidadeParafusos,
   });
   await carregarSkus();
   limparFormulario();
@@ -339,6 +367,9 @@ function preencherFormulario(id, data) {
   document.getElementById('skuAssociados').value = (data.associados || []).join(
     ', ',
   );
+  const quantidade = sanitizarQuantidadeParafusos(data.quantidadeParafusos);
+  document.getElementById('quantidadeParafusos').value =
+    quantidade === null ? '' : quantidade;
   popularSelectOptions(
     data.skuPrincipal || recuperarSkuDoIdDocumento(id),
     data.principaisVinculados || [],

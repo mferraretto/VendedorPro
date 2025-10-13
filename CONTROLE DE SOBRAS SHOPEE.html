@@ -8300,6 +8300,15 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           style: 'currency',
           currency: 'BRL',
         });
+      const normalizarQuantidadeParafusos = (valor) => {
+        if (valor === undefined || valor === null) return null;
+        const numero = Number(valor);
+        return Number.isFinite(numero) ? numero : null;
+      };
+      const formatarQuantidadeParafusos = (valor) => {
+        const numero = normalizarQuantidadeParafusos(valor);
+        return numero === null ? null : numero.toLocaleString('pt-BR');
+      };
 
       const filtroSku = (document
         .getElementById('filtroSkuProdutosVendidos')?.value || '')
@@ -8346,19 +8355,59 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           )
             ? item.principaisVinculadosDetalhes
             : [];
+          const mapaParafusos = new Map(
+            Array.isArray(item.parafusosPorSku) ? item.parafusosPorSku : [],
+          );
+          const mapaParafusosNormalizado = new Map();
+          mapaParafusos.forEach((valor, chave) => {
+            mapaParafusosNormalizado.set(
+              String(chave || '').toLowerCase(),
+              valor,
+            );
+          });
+          const obterParafusosSku = (sku) => {
+            if (!sku) return null;
+            const normalizado = String(sku || '').toLowerCase();
+            if (mapaParafusosNormalizado.has(normalizado)) {
+              return normalizarQuantidadeParafusos(
+                mapaParafusosNormalizado.get(normalizado),
+              );
+            }
+            return null;
+          };
+          const principalParafusosNumero =
+            obterParafusosSku(item.sku) ??
+            normalizarQuantidadeParafusos(item.quantidadeParafusosPrincipal);
+          const principalParafusosFormatado = formatarQuantidadeParafusos(
+            principalParafusosNumero,
+          );
+          const principalParafusosHtml =
+            principalParafusosFormatado !== null
+              ? `<div class="mt-1 flex items-center gap-1 text-xs text-indigo-600"><span>🔩</span><span>${principalParafusosFormatado}</span><span>parafusos/un.</span></div>`
+              : '';
           const possuiPrincipais = principaisDetalhes.length > 0;
           let vendidosHtml = '';
           let extrasHtml = '';
 
           if (possuiPrincipais) {
             const linhasPrincipais = principaisDetalhes
-              .map(({ sku, quantidade }) => {
+              .map(({ sku, quantidade, parafusos }) => {
                 const quantidadeFormatada = Number(quantidade || 0).toLocaleString(
                   'pt-BR',
                 );
-                return `<div class="flex items-center justify-between gap-2 rounded-lg bg-indigo-50 px-2 py-1 text-[11px] text-indigo-700"><span class="font-medium">${escapeHtml(
+                const parafusosNormalizado =
+                  obterParafusosSku(sku) ??
+                  normalizarQuantidadeParafusos(parafusos);
+                const parafusosFormatado = formatarQuantidadeParafusos(
+                  parafusosNormalizado,
+                );
+                const parafusosHtml =
+                  parafusosFormatado !== null
+                    ? `<div class="flex items-center gap-1 text-[10px] font-medium text-indigo-600"><span>🔩</span><span>${parafusosFormatado}</span><span>parafusos/un.</span></div>`
+                    : '';
+                return `<div class="flex flex-col gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[11px] text-indigo-700"><div class="flex items-center justify-between gap-2"><span class="font-medium">${escapeHtml(
                   sku,
-                )}</span><span class="font-semibold text-gray-600">${quantidadeFormatada}</span></div>`;
+                )}</span><span class="font-semibold text-gray-600">${quantidadeFormatada}</span></div>${parafusosHtml}</div>`;
               })
               .join('');
             vendidosHtml = `
@@ -8369,14 +8418,20 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             `.trim();
           } else {
             const vendidosChips = item.vendidosPorSku
-              .map(
-                ([sku, qtd]) =>
-                  `<span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"><span>${escapeHtml(
-                    sku,
-                  )}</span><span class="font-semibold text-gray-600">${qtd.toLocaleString(
-                    'pt-BR',
-                  )}</span></span>`,
-              )
+              .map(([sku, qtd]) => {
+                const parafusosFormatado = formatarQuantidadeParafusos(
+                  obterParafusosSku(sku),
+                );
+                const parafusosBadge =
+                  parafusosFormatado !== null
+                    ? `<span class="inline-flex items-center gap-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600"><span>🔩</span><span>${parafusosFormatado}</span></span>`
+                    : '';
+                return `<span class="inline-flex flex-col gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-xs text-indigo-700"><span class="flex items-center justify-between gap-2"><span>${escapeHtml(
+                  sku,
+                )}</span><span class="font-semibold text-gray-600">${qtd.toLocaleString(
+                  'pt-BR',
+                )}</span></span>${parafusosBadge}</span>`;
+              })
               .join('');
             vendidosHtml = vendidosChips
               ? `<div class="mt-2 flex flex-wrap gap-2">${vendidosChips}</div>`
@@ -8389,7 +8444,16 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                       skuVend.toLowerCase() === skuExtra.toLowerCase(),
                   ),
               )
-              .map((skuExtra) => escapeHtml(skuExtra));
+              .map((skuExtra) => {
+                const parafusosFormatado = formatarQuantidadeParafusos(
+                  obterParafusosSku(skuExtra),
+                );
+                const parafusosTexto =
+                  parafusosFormatado !== null
+                    ? ` (🔩 ${parafusosFormatado})`
+                    : '';
+                return `${escapeHtml(skuExtra)}${parafusosTexto}`;
+              });
             extrasHtml = extrasLista.length
               ? `<div class="mt-1 text-xs text-gray-400">Associados: ${extrasLista.join(
                   ', ',
@@ -8405,6 +8469,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             <tr class="divide-x divide-gray-100">
               <td class="py-3 px-4 font-semibold text-gray-700">
                 <div>${escapeHtml(item.sku)}</div>
+                ${principalParafusosHtml}
                 ${vendidosHtml}
                 ${extrasHtml}
               </td>
@@ -8540,12 +8605,22 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           String(valor || '')
             .trim()
             .toUpperCase();
+        const sanitizarQuantidadeParafusos = (valor) => {
+          if (valor === undefined || valor === null || valor === '') return null;
+          if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+          const texto = String(valor).trim().replace(',', '.');
+          if (!texto) return null;
+          const numero = Number(texto);
+          return Number.isFinite(numero) ? numero : null;
+        };
         const principalPorSku = new Map();
         const principalOriginalPorSku = new Map();
         const grupoPorPrincipal = new Map();
         const grupoNormalizadoPorPrincipal = new Map();
         const principaisVinculadosPendentes = [];
         const principaisVinculadosPorPrincipal = new Map();
+        const parafusosPorPrincipal = new Map();
+        const parafusosPorSkuNormalizado = new Map();
         try {
           const associadosSnap = await db.collection('skuAssociado').get();
           associadosSnap.forEach((doc) => {
@@ -8559,12 +8634,22 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             ).trim();
             if (!skuPrincipal) return;
             const principalNormalizado = normalizarSku(skuPrincipal);
+            const quantidadeParafusos = sanitizarQuantidadeParafusos(
+              dados.quantidadeParafusos,
+            );
             principalPorSku.set(principalNormalizado, skuPrincipal);
             const grupoAtual = grupoPorPrincipal.get(skuPrincipal) || new Set();
             const vinculadosAtuais =
               principaisVinculadosPorPrincipal.get(skuPrincipal) || new Set();
             grupoAtual.add(skuPrincipal);
             principalOriginalPorSku.set(principalNormalizado, skuPrincipal);
+            if (quantidadeParafusos !== null) {
+              parafusosPorPrincipal.set(skuPrincipal, quantidadeParafusos);
+              parafusosPorSkuNormalizado.set(
+                principalNormalizado,
+                quantidadeParafusos,
+              );
+            }
             (dados.associados || []).forEach((skuAssoc) => {
               const associado = String(skuAssoc || '').trim();
               if (!associado) return;
@@ -8574,6 +8659,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 normalizarSku(associado),
                 skuPrincipal,
               );
+              if (quantidadeParafusos !== null) {
+                parafusosPorSkuNormalizado.set(
+                  normalizarSku(associado),
+                  quantidadeParafusos,
+                );
+              }
             });
 
             (dados.principaisVinculados || []).forEach((skuPrincipalVinc) => {
@@ -8585,6 +8676,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 normalizarSku(principalVinculado),
                 principalVinculado,
               );
+              if (quantidadeParafusos !== null) {
+                parafusosPorSkuNormalizado.set(
+                  normalizarSku(principalVinculado),
+                  quantidadeParafusos,
+                );
+              }
               principaisVinculadosPendentes.push({
                 origem: skuPrincipal,
                 vinculado: principalVinculado,
@@ -8679,6 +8776,28 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           );
         });
 
+        const obterQuantidadeParafusosDoSku = (sku) => {
+          if (!sku) return null;
+          const normalizado = normalizarSku(sku);
+          if (parafusosPorSkuNormalizado.has(normalizado)) {
+            const valor = parafusosPorSkuNormalizado.get(normalizado);
+            return Number.isFinite(valor) ? valor : null;
+          }
+          if (parafusosPorPrincipal.has(sku)) {
+            const valor = parafusosPorPrincipal.get(sku);
+            return Number.isFinite(valor) ? valor : null;
+          }
+          const principalRelacionado = principalPorSku.get(normalizado);
+          if (
+            principalRelacionado &&
+            parafusosPorPrincipal.has(principalRelacionado)
+          ) {
+            const valor = parafusosPorPrincipal.get(principalRelacionado);
+            return Number.isFinite(valor) ? valor : null;
+          }
+          return null;
+        };
+
         const agregados = new Map();
         for (const [uid, info] of usuariosMap.entries()) {
           try {
@@ -8726,6 +8845,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                       principaisVinculadosPorPrincipal.get(principal) ||
                       new Set(),
                     principaisVinculadosQuantidades: new Map(),
+                    parafusosPorSku: new Map(),
                   });
                 }
 
@@ -8741,6 +8861,18 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                   skuOriginal,
                   (registro.vendidosPorSku.get(skuOriginal) || 0) + total,
                 );
+
+                if (!(registro.parafusosPorSku instanceof Map)) {
+                  registro.parafusosPorSku = new Map(
+                    registro.parafusosPorSku || [],
+                  );
+                }
+                if (!registro.parafusosPorSku.has(skuOriginal)) {
+                  registro.parafusosPorSku.set(
+                    skuOriginal,
+                    obterQuantidadeParafusosDoSku(skuOriginal),
+                  );
+                }
 
                 const principaisDoRegistro =
                   registro.principaisVinculados instanceof Set
@@ -8814,6 +8946,29 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           }
         }
 
+        agregados.forEach((registro) => {
+          const mapaParafusos =
+            registro.parafusosPorSku instanceof Map
+              ? registro.parafusosPorSku
+              : new Map(registro.parafusosPorSku || []);
+          const grupoOficial =
+            registro.grupoOficial instanceof Set
+              ? registro.grupoOficial
+              : new Set(registro.grupoOficial || []);
+          grupoOficial.forEach((sku) => {
+            if (!mapaParafusos.has(sku)) {
+              mapaParafusos.set(sku, obterQuantidadeParafusosDoSku(sku));
+            }
+          });
+          if (!mapaParafusos.has(registro.sku)) {
+            mapaParafusos.set(
+              registro.sku,
+              obterQuantidadeParafusosDoSku(registro.sku),
+            );
+          }
+          registro.parafusosPorSku = mapaParafusos;
+        });
+
         produtosVendidosResumo = Array.from(agregados.values()).map((item) => {
           const vendidosPorSku = Array.from(item.vendidosPorSku.entries()).sort(
             (a, b) => a[0].localeCompare(b[0], 'pt-BR'),
@@ -8833,11 +8988,23 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             item.principaisVinculadosQuantidades instanceof Map
               ? item.principaisVinculadosQuantidades
               : new Map(item.principaisVinculadosQuantidades || []);
+          const mapaParafusos =
+            item.parafusosPorSku instanceof Map
+              ? item.parafusosPorSku
+              : new Map(item.parafusosPorSku || []);
+          const parafusosPorSkuEntries = Array.from(mapaParafusos.entries());
+          const quantidadeParafusosPrincipal = mapaParafusos.has(item.sku)
+            ? mapaParafusos.get(item.sku)
+            : obterQuantidadeParafusosDoSku(item.sku);
           const principaisVinculadosDetalhes = principaisVinculados.map((sku) => {
             const quantidade = mapaQuantidadesPrincipais.get(sku) || 0;
+            const parafusos = mapaParafusos.has(sku)
+              ? mapaParafusos.get(sku)
+              : obterQuantidadeParafusosDoSku(sku);
             return {
               sku,
               quantidade,
+              parafusos,
             };
           });
           const todosSkus = Array.from(
@@ -8858,6 +9025,8 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             todosSkus,
             principaisVinculados,
             principaisVinculadosDetalhes,
+            quantidadeParafusosPrincipal,
+            parafusosPorSku: parafusosPorSkuEntries,
           };
         });
 
