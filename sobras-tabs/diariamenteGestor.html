@@ -1,0 +1,49 @@
+<div class="card shadow-xl rounded-2xl border border-gray-200 bg-white max-w-6xl mx-auto mt-8">
+  <div class="card-header flex items-center gap-3 border-b border-gray-100 rounded-t-2xl">
+    <i class="fas fa-people-carry-box text-indigo-600"></i>
+    <h3 class="text-2xl font-bold text-gray-800 tracking-tight">Acompanhamento Diário - Gestão</h3>
+  </div>
+  <div class="card-body space-y-6 p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-end">
+      <div class="flex flex-col gap-2">
+        <label for="diarioGestorMes" class="text-sm font-medium text-gray-600">Filtrar por mês</label>
+        <input
+          type="month"
+          id="diarioGestorMes"
+          class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
+        />
+      </div>
+      <button
+        type="button"
+        id="diarioGestorAtualizar"
+        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow transition"
+      >
+        Atualizar visão
+      </button>
+    </div>
+
+    <div class="table-container overflow-x-auto rounded-lg shadow">
+      <table id="diarioGestorTabela" class="data-table min-w-full text-sm text-left">
+        <thead>
+          <tr class="bg-indigo-50 text-indigo-700">
+            <th class="py-3 px-4 font-bold">Usuário</th>
+            <th class="py-3 px-4 font-bold">Plataforma</th>
+            <th class="py-3 px-4 font-bold">Loja</th>
+            <th class="py-3 px-4 font-bold text-right">Pedidos não enviados</th>
+            <th class="py-3 px-4 font-bold text-right">% Reclamações</th>
+            <th class="py-3 px-4 font-bold text-right">% Cancelamento</th>
+            <th class="py-3 px-4 font-bold text-right">% Atraso</th>
+            <th class="py-3 px-4 font-bold text-right">% Mediação</th>
+            <th class="py-3 px-4 font-bold text-right">Recorridas</th>
+            <th class="py-3 px-4 font-bold text-right">Recusadas</th>
+            <th class="py-3 px-4 font-bold text-right">Abertas</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+
+    <div id="diarioGestorTotais" class="space-y-4"></div>
+    <div id="diarioGestorUsuarios" class="space-y-4"></div>
+  </div>
+</div>
