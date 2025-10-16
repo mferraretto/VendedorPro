@@ -90,8 +90,7 @@ if (!firebase.apps.length) {
       }
       db = firebase.firestore();
       auth = firebase.auth();
-      const bucketUrl = (window.firebaseConfig && window.firebaseConfig.storageBucketUrl) || window.storageBucketUrl || 'gs://matheus-35023';
-      storage = firebase.storage(bucketUrl);
+      storage = firebase.storage();
 
       auth.onAuthStateChanged(user => {
         if (!user) {

@@ -1126,8 +1126,7 @@
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                const storageBucket = firebaseConfig.storageBucketUrl || (defaultFirebaseConfig && defaultFirebaseConfig.storageBucketUrl) || window.storageBucketUrl || 'gs://matheus-35023';
-                storage = getStorage(app, storageBucket);
+                storage = getStorage(app);
 
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
