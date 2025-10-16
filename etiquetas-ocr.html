@@ -137,15 +137,16 @@
   </div>
 
       <script type="module">
-    import { firebaseConfig } from './firebase-config.js';
+    import { firebaseConfig, labelsPdfStorageBucket } from './firebase-config.js';
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
  if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
+    const app = firebase.app();
     const db = firebase.firestore();
-    const storage = firebase.storage();
+    const storage = app.storage(labelsPdfStorageBucket || firebaseConfig.storageBucket);
     let currentUser = null;
     let responsavelExpedicaoUid = null;
     let horariosEtiquetas = [];

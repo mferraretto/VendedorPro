@@ -485,14 +485,15 @@
   </div>
 
   <script type="module">
-    import { firebaseConfig } from './firebase-config.js';
+    import { firebaseConfig, labelsPdfStorageBucket } from './firebase-config.js';
 
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
 
+    const app = firebase.app();
     const db = firebase.firestore();
-    const storage = firebase.storage();
+    const storage = app.storage(labelsPdfStorageBucket || firebaseConfig.storageBucket);
 
     const fileInput = document.getElementById('file');
     const pickupFileInput = document.getElementById('pickupFile');

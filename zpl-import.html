@@ -86,7 +86,9 @@
     document.addEventListener('DOMContentLoaded', () => {
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
-        const storage = firebase.storage();
+        const app = firebase.app();
+        const storageBucket = window.labelsPdfStorageBucket || (window.firebaseConfig && window.firebaseConfig.storageBucket);
+        const storage = app.storage(storageBucket || 'gs://matheus-35023');
         let currentUser = null;
         let responsavelExpedicaoUid = null;
         let responsavelExpedicaoEmail = null;
