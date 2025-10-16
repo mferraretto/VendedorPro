@@ -1,19 +1,105 @@
 // index.js (Firebase Functions) - Versão de Produção
 
 import * as https from "firebase-functions/v2/https";
-import { initializeApp } from "firebase-admin/app";
+import {
+  initializeApp,
+  applicationDefault,
+  cert,
+  getApps,
+} from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth"; // Importar o serviço de autenticação
 import { getStorage } from "firebase-admin/storage";
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 // Seus módulos de utilidades
 import { storeUserTinyToken, getUserTinyToken, destroyUserTinyToken } from "./secret-utils.js";
 import { tinyTestToken, pesquisarPedidos, obterPedido, pesquisarProdutos } from "./tiny-client.js";
 
+function readServiceAccountFromEnv() {
+  const directJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (directJson) {
+    try {
+      return JSON.parse(directJson);
+    } catch (error) {
+      try {
+        const decoded = Buffer.from(directJson, "base64").toString("utf8");
+        return JSON.parse(decoded);
+      } catch (nestedError) {
+        console.error("FIREBASE_SERVICE_ACCOUNT_KEY inválida:", error);
+        console.error("Falha ao decodificar FIREBASE_SERVICE_ACCOUNT_KEY como base64:", nestedError);
+      }
+    }
+  }
+
+  const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_FILE;
+  if (filePath) {
+    try {
+      const fileContents = readFileSync(filePath, "utf8");
+      return JSON.parse(fileContents);
+    } catch (error) {
+      console.error("Falha ao ler FIREBASE_SERVICE_ACCOUNT_FILE:", error);
+    }
+  }
+
+  return null;
+}
+
+function buildFirebaseAdminOptions() {
+  const options = {};
+  const serviceAccount = readServiceAccountFromEnv();
+
+  if (serviceAccount) {
+    options.credential = cert(serviceAccount);
+    if (serviceAccount.project_id) {
+      options.projectId = serviceAccount.project_id;
+      options.storageBucket = `${serviceAccount.project_id}.appspot.com`;
+      options.databaseURL = `https://${serviceAccount.project_id}.firebaseio.com`;
+    }
+  }
+
+  if (process.env.FIREBASE_PROJECT_ID) {
+    options.projectId = process.env.FIREBASE_PROJECT_ID;
+  }
+  if (process.env.FIREBASE_STORAGE_BUCKET) {
+    options.storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
+  }
+  if (process.env.FIREBASE_DATABASE_URL) {
+    options.databaseURL = process.env.FIREBASE_DATABASE_URL;
+  }
+
+  if (!options.credential) {
+    try {
+      options.credential = applicationDefault();
+    } catch (error) {
+      console.warn(
+        "Não foi possível carregar as credenciais padrão da aplicação do Firebase Admin:",
+        error,
+      );
+    }
+  }
+
+  // Remove entradas indefinidas antes de inicializar.
+  Object.keys(options).forEach((key) => {
+    if (options[key] === undefined) {
+      delete options[key];
+    }
+  });
+
+  return options;
+}
+
 // Inicializar os serviços do Firebase Admin
-initializeApp();
+if (!getApps().length) {
+  const adminOptions = buildFirebaseAdminOptions();
+  if (Object.keys(adminOptions).length > 0) {
+    initializeApp(adminOptions);
+  } else {
+    initializeApp();
+  }
+}
 const db = getFirestore();
 const auth = getAuth(); // Instanciar o serviço de autenticação
 const bucket = getStorage().bucket();
