@@ -25,19 +25,18 @@ import {
 import {
   getStorage,
   ref,
+  uploadBytes,
   getDownloadURL,
   deleteObject,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
 import { firebaseConfig, getPassphrase } from './firebase-config.js';
 import { decryptString } from './crypto.js';
 import { fetchResponsavelFinanceiroUsuarios } from './responsavel-financeiro.js';
-import { configureStorageRetries, uploadWithRetry } from './storage-uploads.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
-configureStorageRetries(storage);
 
 let currentUser = null;
 let initialLoad = true;
@@ -776,8 +775,9 @@ async function enviarAtualizacao(e) {
   const anexos = [];
   for (const file of arquivos) {
     const path = `financeiroAtualizacoes/${currentUser.uid}/${docRef.id}/${file.name}`;
-    const snapshot = await uploadWithRetry(storage, path, file);
-    const url = await getDownloadURL(snapshot.ref);
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
     anexos.push({ nome: file.name, url });
   }
   if (anexos.length) {
