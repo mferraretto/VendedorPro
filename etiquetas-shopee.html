@@ -989,8 +989,21 @@
 
         return { url, storagePath: finalStoragePath, docId: docRef.id };
       } catch (error) {
-        console.error('Erro ao enviar PDF para o Firebase:', error);
-        throw error;
+        let normalizedError = error;
+        const message = error?.message || '';
+        const isFetchFailure =
+          error instanceof TypeError || message.toLowerCase().includes('failed to fetch');
+
+        if (isFetchFailure) {
+          normalizedError = new Error(
+            'Não foi possível enviar o PDF: o servidor de upload bloqueou a requisição (CORS).',
+          );
+          normalizedError.code = 'cors-blocked';
+          normalizedError.cause = error;
+        }
+
+        console.error('Erro ao enviar PDF para o Firebase:', normalizedError);
+        throw normalizedError;
       }
     }
 
@@ -1321,9 +1334,19 @@
         console.error(error);
         setStatus('Erro.');
         outEl.innerHTML = '';
-        log(`ERRO: ${error?.message || error}`);
-        alert('Erro ao processar o PDF.');
-        failProcessingModal('Não foi possível concluir o processamento. Tente novamente.');
+        const errorMessage = error?.message || error;
+        log(`ERRO: ${errorMessage}`);
+        if (error?.code === 'cors-blocked') {
+          alert(
+            'Não foi possível enviar o PDF porque o servidor bloqueou a requisição (CORS). Solicite ao suporte a liberação do domínio https://www.provendedor.com.br.',
+          );
+          failProcessingModal(
+            'Envio bloqueado pelo servidor de upload (CORS). Avise o suporte para liberar o domínio.',
+          );
+        } else {
+          alert('Erro ao processar o PDF.');
+          failProcessingModal('Não foi possível concluir o processamento. Tente novamente.');
+        }
       } finally {
         toggleProcessingState(false);
       }
@@ -1654,9 +1677,19 @@
           console.error(error);
           setStatus('Erro.', pickupStatusEl);
           outEl.innerHTML = '';
-          log(`ERRO: ${error?.message || error}`);
-          alert('Erro ao processar o PDF.');
-          failProcessingModal('Não foi possível concluir o processamento. Tente novamente.');
+          const errorMessage = error?.message || error;
+          log(`ERRO: ${errorMessage}`);
+          if (error?.code === 'cors-blocked') {
+            alert(
+              'Não foi possível enviar o PDF porque o servidor bloqueou a requisição (CORS). Solicite ao suporte a liberação do domínio https://www.provendedor.com.br.',
+            );
+            failProcessingModal(
+              'Envio bloqueado pelo servidor de upload (CORS). Avise o suporte para liberar o domínio.',
+            );
+          } else {
+            alert('Erro ao processar o PDF.');
+            failProcessingModal('Não foi possível concluir o processamento. Tente novamente.');
+          }
         } finally {
           toggleProcessingState(false);
         }
