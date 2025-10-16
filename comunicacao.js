@@ -25,17 +25,17 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getStorage,
-  ref,
-  uploadBytes,
   getDownloadURL,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
 import { firebaseConfig } from './firebase-config.js';
 import { fetchResponsavelFinanceiroUsuarios } from './responsavel-financeiro.js';
+import { configureStorageRetries, uploadWithRetry } from './storage-uploads.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+configureStorageRetries(storage);
 
 const teamListEl = document.getElementById('teamList');
 const selectEls = [
@@ -282,12 +282,9 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById('fileRecipients').selectedOptions,
     ).map((o) => o.value);
     if (!file || dest.length === 0) return;
-    const storageRef = ref(
-      storage,
-      `comunicacao/${user.uid}/${Date.now()}_${file.name}`,
-    );
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
+    const storagePath = `comunicacao/${user.uid}/${Date.now()}_${file.name}`;
+    const snapshot = await uploadWithRetry(storage, storagePath, file);
+    const url = await getDownloadURL(snapshot.ref);
     await addDoc(collection(db, 'comunicacao'), {
       tipo: 'arquivo',
       arquivoNome: file.name,

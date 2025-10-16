@@ -7,16 +7,14 @@ import {
   collection,
   addDoc,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-} from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
+import { getStorage } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
 import { firebaseConfig } from './firebase-config.js';
+import { configureStorageRetries, uploadWithRetry } from './storage-uploads.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
+configureStorageRetries(storage);
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
@@ -45,7 +43,7 @@ btnProcessar?.addEventListener('click', async () => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const storagePath = `contasfechamento/${Date.now()}-${file.name}`;
-    await uploadBytes(ref(storage, storagePath), file);
+    await uploadWithRetry(storage, storagePath, file);
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
