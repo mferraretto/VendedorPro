@@ -4,6 +4,9 @@ import * as https from "firebase-functions/v2/https";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth"; // Importar o serviço de autenticação
+import { getStorage } from "firebase-admin/storage";
+import { Buffer } from "node:buffer";
+import { randomUUID } from "node:crypto";
 
 // Seus módulos de utilidades
 import { storeUserTinyToken, getUserTinyToken, destroyUserTinyToken } from "./secret-utils.js";
@@ -13,6 +16,7 @@ import { tinyTestToken, pesquisarPedidos, obterPedido, pesquisarProdutos } from 
 initializeApp();
 const db = getFirestore();
 const auth = getAuth(); // Instanciar o serviço de autenticação
+const bucket = getStorage().bucket();
 
 /**
  * Função auxiliar para verificar o token de autenticação e retornar o UID.
@@ -164,5 +168,48 @@ export const syncTinyOrders = https.onRequest({ cors: true }, async (req, res) =
     console.error("Erro em syncTinyOrders:", error);
     const status = error.code === 'unauthenticated' ? 401 : 500;
     res.status(status).json({ ok: false, error: error.message });
+  }
+});
+
+export const uploadLabelPdf = https.onRequest({ cors: true, timeoutSeconds: 540 }, async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method Not Allowed');
+  }
+
+  try {
+    const uid = await getAuthenticatedUid(req.headers.authorization);
+    const { fileName, storagePath, fileBase64 } = req.body || {};
+
+    if (!storagePath || typeof storagePath !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Caminho de armazenamento inválido.' });
+    }
+
+    if (!fileBase64 || typeof fileBase64 !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Arquivo inválido.' });
+    }
+
+    const normalizedPath = storagePath.replace(/^\/+/, '');
+    const buffer = Buffer.from(fileBase64, 'base64');
+    const file = bucket.file(normalizedPath);
+    const downloadToken = randomUUID();
+
+    await file.save(buffer, {
+      resumable: false,
+      contentType: 'application/pdf',
+      metadata: {
+        metadata: {
+          firebaseStorageDownloadTokens: downloadToken,
+          uploadedBy: uid,
+        },
+      },
+    });
+
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(normalizedPath)}?alt=media&token=${downloadToken}`;
+
+    res.status(200).json({ ok: true, downloadUrl, storagePath: normalizedPath });
+  } catch (error) {
+    console.error('Erro em uploadLabelPdf:', error);
+    const status = error.code === 'unauthenticated' ? 401 : 500;
+    res.status(status).json({ ok: false, error: error.message || 'Erro ao enviar arquivo.' });
   }
 });
