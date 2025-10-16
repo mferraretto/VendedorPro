@@ -11,6 +11,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="expedicao-notifier.js"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
@@ -491,7 +492,7 @@
     }
 
     const db = firebase.firestore();
-    const uploadFunctionUrl = 'https://us-central1-matheus-35023.cloudfunctions.net/uploadLabelPdf';
+    const storage = firebase.storage();
 
     const fileInput = document.getElementById('file');
     const pickupFileInput = document.getElementById('pickupFile');
@@ -796,27 +797,6 @@
       }
     }
 
-    function blobToBase64(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          try {
-            const result = typeof reader.result === 'string' ? reader.result : '';
-            const base64 = result.split(',')[1];
-            if (!base64) {
-              reject(new Error('Falha ao converter o arquivo para base64.'));
-              return;
-            }
-            resolve(base64);
-          } catch (err) {
-            reject(err);
-          }
-        };
-        reader.onerror = () => reject(reader.error || new Error('Erro ao ler arquivo.'));
-        reader.readAsDataURL(blob);
-      });
-    }
-
     async function uploadPdfToFirebase(blob, fileName, meta = {}) {
       if (!currentUser) {
         throw new Error('Usuário não autenticado.');
@@ -879,46 +859,15 @@
         }
 
         const docRef = await db.collection('pdfDocs').add(docPayload);
-        const storagePath = `pdfs/${currentUser.uid}/${docRef.id}.pdf`;
-        const idToken = await currentUser.getIdToken();
-        const fileBase64 = await blobToBase64(blob);
-
-        const uploadResponse = await fetch(uploadFunctionUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            fileName,
-            storagePath,
-            fileBase64,
-          }),
-        });
-
-        if (!uploadResponse.ok) {
-          let errorMessage = 'Falha ao enviar o PDF para o servidor.';
-          try {
-            const errorPayload = await uploadResponse.json();
-            if (errorPayload && errorPayload.error) {
-              errorMessage = errorPayload.error;
-            }
-          } catch (_) {
-            // Ignora erros ao tentar ler o corpo da resposta.
-          }
-          throw new Error(errorMessage);
-        }
-
-        const { downloadUrl, storagePath: savedPath } = await uploadResponse.json();
-        const finalStoragePath = savedPath || storagePath;
-        const url = downloadUrl;
-
-        await docRef.update({ url, storagePath: finalStoragePath });
+        const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
+        await fileRef.put(blob);
+        const url = await fileRef.getDownloadURL();
+        await docRef.update({ url, storagePath: fileRef.fullPath });
 
         const resumo = {
           name: fileName,
           url,
-          path: finalStoragePath,
+          path: fileRef.fullPath,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         };
         if (lojaMeta) {
@@ -987,7 +936,7 @@
           await window.ExpedicaoNotifier.notifyNovaEtiqueta(notifyPayload);
         }
 
-        return { url, storagePath: finalStoragePath, docId: docRef.id };
+        return { url, storagePath: fileRef.fullPath, docId: docRef.id };
       } catch (error) {
         console.error('Erro ao enviar PDF para o Firebase:', error);
         throw error;
