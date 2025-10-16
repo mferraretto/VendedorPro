@@ -82,12 +82,11 @@
 </div>
 
 <script src="expedicao-notifier.js"></script>
-<script type="module">
-    import { uploadPdf } from './storage-helpers.js';
-
+<script>
     document.addEventListener('DOMContentLoaded', () => {
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
+        const storage = firebase.storage();
         let currentUser = null;
         let responsavelExpedicaoUid = null;
         let responsavelExpedicaoEmail = null;
@@ -174,15 +173,14 @@
                 name: name,
                 foraHorario: foraHorarioAtual
             });
-            const uploadResult = await uploadPdf(blob, {
-                path: `pdfs/${currentUser.uid}/${docRef.id}.pdf`,
-            });
-            const { url, path: storagePath } = uploadResult;
-            await docRef.update({ url: url, storagePath });
+            const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
+            await fileRef.put(blob);
+            const url = await fileRef.getDownloadURL();
+            await docRef.update({ url: url, storagePath: fileRef.fullPath });
             const record = {
                 name: name,
                 url: url,
-                path: storagePath,
+                path: fileRef.fullPath,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             await db.collection('users').doc(currentUser.uid).collection('etiquetaenvio').add({ ...record });
@@ -190,7 +188,7 @@
                 const respRecord = {
                     name: name,
                     url: url,
-                    path: storagePath,
+                    path: fileRef.fullPath,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 await db.collection('users').doc(responsavelExpedicaoUid).collection('etiquetaenvio').add({ ...respRecord });
