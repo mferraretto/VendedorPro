@@ -29,13 +29,13 @@ import {
   uploadBytes,
   getDownloadURL,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
-import { firebaseConfig, storageBucketUrl } from './firebase-config.js';
+import { firebaseConfig } from './firebase-config.js';
 import { fetchResponsavelFinanceiroUsuarios } from './responsavel-financeiro.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app, storageBucketUrl);
+const storage = getStorage(app);
 
 const teamListEl = document.getElementById('teamList');
 const selectEls = [

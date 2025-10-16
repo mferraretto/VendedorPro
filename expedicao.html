@@ -380,7 +380,7 @@
       </div>
 
       <script type="module">
-        import { firebaseConfig, getPassphrase, storageBucketUrl } from './firebase-config.js';
+        import { firebaseConfig, getPassphrase } from './firebase-config.js';
         import { decryptString } from './crypto.js';
 
         if (!firebase.apps.length) {
@@ -388,7 +388,7 @@
         }
         const app = firebase.app();
         const db = firebase.firestore();
-        const storage = firebase.storage(storageBucketUrl);
+        const storage = firebase.storage();
         pdfjsLib.GlobalWorkerOptions.workerSrc =
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
         let currentUser = null;

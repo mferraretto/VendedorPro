@@ -12,11 +12,11 @@ import {
   ref,
   uploadBytes,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
-import { firebaseConfig, storageBucketUrl } from './firebase-config.js';
+import { firebaseConfig } from './firebase-config.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const storage = getStorage(app, storageBucketUrl);
+const storage = getStorage(app);
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
