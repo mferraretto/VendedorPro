@@ -485,14 +485,14 @@
   </div>
 
   <script type="module">
-    import { firebaseConfig } from './firebase-config.js';
+    import { firebaseConfig, storageBucketUrl } from './firebase-config.js';
 
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
 
     const db = firebase.firestore();
-    const storage = firebase.storage();
+    const storage = firebase.storage(storageBucketUrl);
 
     const fileInput = document.getElementById('file');
     const pickupFileInput = document.getElementById('pickupFile');
