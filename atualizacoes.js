@@ -29,14 +29,18 @@ import {
   getDownloadURL,
   deleteObject,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
-import { firebaseConfig, getPassphrase } from './firebase-config.js';
+import {
+  firebaseConfig,
+  getPassphrase,
+  storageBucketUrl,
+} from './firebase-config.js';
 import { decryptString } from './crypto.js';
 import { fetchResponsavelFinanceiroUsuarios } from './responsavel-financeiro.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const storage = getStorage(app);
+const storage = getStorage(app, storageBucketUrl);
 
 let currentUser = null;
 let initialLoad = true;

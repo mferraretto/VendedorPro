@@ -10,15 +10,19 @@ import { getAuth } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth
 
 // Firebase configuration
 // Fill these values via environment variables or a protected configuration not checked into version control.
+export const storageBucketUrl = 'gs://matheus-35023';
+
 export const firebaseConfig = {
   apiKey: 'AIzaSyC78l9b2DTNj64y_0fbRKofNupO6NHDmeo',
   authDomain: 'matheus-35023.firebaseapp.com',
   projectId: 'matheus-35023',
-  storageBucket: 'matheus-35023.firebasestorage.app',
+  storageBucket: 'matheus-35023.appspot.com',
   messagingSenderId: '1011113149395',
   appId: '1:1011113149395:web:c1f449e0e974ca8ecb2526',
   databaseURL: 'https://matheus-35023.firebaseio.com',
 };
+
+firebaseConfig.storageBucketUrl = storageBucketUrl;
 
 // Initialize Firebase app once and enable offline persistence
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
@@ -54,6 +58,7 @@ if (typeof window !== 'undefined') {
   window.firebaseApp = app;
   window.db = db;
   window.auth = auth;
+  window.storageBucketUrl = storageBucketUrl;
   window.setPassphrase = setPassphrase;
   window.getPassphrase = getPassphrase;
   window.clearPassphrase = clearPassphrase;
@@ -63,6 +68,7 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined') {
   module.exports = {
     firebaseConfig,
+    storageBucketUrl,
     app,
     db,
     auth,

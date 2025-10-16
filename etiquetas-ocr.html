@@ -137,7 +137,7 @@
   </div>
 
       <script type="module">
-    import { firebaseConfig } from './firebase-config.js';
+    import { firebaseConfig, storageBucketUrl } from './firebase-config.js';
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
@@ -145,7 +145,7 @@
       firebase.initializeApp(firebaseConfig);
     }
     const db = firebase.firestore();
-    const storage = firebase.storage();
+    const storage = firebase.storage(storageBucketUrl);
     let currentUser = null;
     let responsavelExpedicaoUid = null;
     let horariosEtiquetas = [];

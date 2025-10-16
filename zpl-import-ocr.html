@@ -106,7 +106,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="expedicao-notifier.js"></script>
   <script type="module">
-  import { firebaseConfig } from './firebase-config.js';
+  import { firebaseConfig, storageBucketUrl } from './firebase-config.js';
   import { createOcrWorker } from './createWorker.js';
   // ===== Utilitários UI =====
   const $ = (sel) => document.querySelector(sel);
@@ -152,7 +152,7 @@
   }
   const auth = firebase.auth();
   const db = firebase.firestore();
-  const storage = firebase.storage();
+  const storage = firebase.storage(storageBucketUrl);
   function showOk(msg){ const n=$(el.toastOk); n.textContent=msg; n.classList.remove('hidden'); }
   function hideOk(){ $(el.toastOk).classList.add('hidden'); }
   function showErr(msg){ const n=$(el.toastErr); n.textContent=msg; n.classList.remove('hidden'); }
