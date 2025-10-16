@@ -382,6 +382,7 @@
       <script type="module">
         import { firebaseConfig, getPassphrase } from './firebase-config.js';
         import { decryptString } from './crypto.js';
+        import { uploadPdfResumable } from './storage-upload.js';
 
         if (!firebase.apps.length) {
           firebase.initializeApp(firebaseConfig);
@@ -2088,39 +2089,23 @@
               totalPaginas: pageCount,
               pageCount,
             });
-            const fileRef = storage
-              .ref()
-              .child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
+            const storagePath = `pdfs/${currentUser.uid}/${docRef.id}.pdf`;
             if (typeof onProgress === 'function')
               onProgress({ text: 'Enviando arquivo...', percent: 25 });
-            await new Promise((resolve, reject) => {
-              const uploadTask = fileRef.put(file);
-              uploadTask.on(
-                'state_changed',
-                (snapshot) => {
-                  if (
-                    !snapshot ||
-                    !snapshot.totalBytes ||
-                    typeof onProgress !== 'function'
-                  )
-                    return;
-                  const percent = Math.round(
-                    (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
-                  );
-                  const adjusted = Math.max(25, Math.min(95, percent));
-                  onProgress({
-                    text: `Enviando arquivo... ${percent}%`,
-                    percent: adjusted,
-                  });
-                },
-                (error) => reject(error),
-                () => resolve(),
-              );
+            const uploadResult = await uploadPdfResumable(file, storagePath, {
+              onProgress: ({ percent }) => {
+                if (typeof onProgress !== 'function') return;
+                const adjusted = Math.max(25, Math.min(95, percent));
+                onProgress({
+                  text: `Enviando arquivo... ${percent}%`,
+                  percent: adjusted,
+                });
+              },
             });
-            const url = await fileRef.getDownloadURL();
+            const { url, fullPath } = uploadResult;
             await docRef.update({
               url: url,
-              storagePath: fileRef.fullPath,
+              storagePath: fullPath,
               loja: lojaNome || '',
               totalPaginas: pageCount,
               pageCount,
