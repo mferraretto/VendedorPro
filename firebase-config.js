@@ -20,6 +20,8 @@ export const firebaseConfig = {
   databaseURL: 'https://matheus-35023.firebaseio.com',
 };
 
+export const labelsPdfStorageBucket = 'gs://matheus-35023';
+
 // Initialize Firebase app once and enable offline persistence
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -57,6 +59,7 @@ if (typeof window !== 'undefined') {
   window.setPassphrase = setPassphrase;
   window.getPassphrase = getPassphrase;
   window.clearPassphrase = clearPassphrase;
+  window.labelsPdfStorageBucket = labelsPdfStorageBucket;
 }
 
 // Export for module environments
@@ -66,6 +69,7 @@ if (typeof module !== 'undefined') {
     app,
     db,
     auth,
+    labelsPdfStorageBucket,
     setPassphrase,
     getPassphrase,
     clearPassphrase,
