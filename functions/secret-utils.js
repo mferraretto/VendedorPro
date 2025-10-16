@@ -5,11 +5,7 @@ const client = new SecretManagerServiceClient();
 
 function getProjectId() {
   // tenta detectar do ambiente
-  const pid =
-    process.env.GCLOUD_PROJECT ||
-    process.env.GCP_PROJECT ||
-    process.env.FIREBASE_PROJECT_ID ||
-    getApp().options.projectId;
+  const pid = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || getApp().options.projectId;
   if (!pid) throw new Error("Não foi possível detectar o projectId.");
   return pid;
 }
