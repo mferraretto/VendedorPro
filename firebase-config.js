@@ -4,7 +4,9 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
 import {
   getFirestore,
-  enableIndexedDbPersistence,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 
@@ -14,7 +16,7 @@ export const firebaseConfig = {
   apiKey: 'AIzaSyC78l9b2DTNj64y_0fbRKofNupO6NHDmeo',
   authDomain: 'matheus-35023.firebaseapp.com',
   projectId: 'matheus-35023',
-  storageBucket: 'matheus-35023.firebasestorage.app',
+  storageBucket: 'matheus-35023.appspot.com',
   messagingSenderId: '1011113149395',
   appId: '1:1011113149395:web:c1f449e0e974ca8ecb2526',
   databaseURL: 'https://matheus-35023.firebaseio.com',
@@ -22,11 +24,20 @@ export const firebaseConfig = {
 
 // Initialize Firebase app once and enable offline persistence
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-const db = getFirestore(app);
-// Best-effort enable persistence; ignore if not supported or already enabled
-enableIndexedDbPersistence(db).catch((err) => {
-  console.warn('Firestore persistence not enabled:', err.code);
-});
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentSingleTabManager(),
+    }),
+  });
+} catch (err) {
+  console.warn(
+    'Falling back to default Firestore settings:',
+    err?.code || err?.message || err,
+  );
+  db = getFirestore(app);
+}
 const auth = getAuth(app);
 
 // Utility functions for storing the passphrase securely
