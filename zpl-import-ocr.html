@@ -108,6 +108,7 @@
   <script type="module">
   import { firebaseConfig } from './firebase-config.js';
   import { createOcrWorker } from './createWorker.js';
+  import { getDownloadURL, uploadWithBackoff } from './storage-upload.js';
   // ===== Utilitários UI =====
   const $ = (sel) => document.querySelector(sel);
   const sleep = (ms) => new Promise(r=>setTimeout(r, ms));
@@ -152,7 +153,6 @@
   }
   const auth = firebase.auth();
   const db = firebase.firestore();
-  const storage = firebase.storage();
   function showOk(msg){ const n=$(el.toastOk); n.textContent=msg; n.classList.remove('hidden'); }
   function hideOk(){ $(el.toastOk).classList.add('hidden'); }
   function showErr(msg){ const n=$(el.toastErr); n.textContent=msg; n.classList.remove('hidden'); }
@@ -613,9 +613,10 @@
       const pdfBytes = await pdfDoc.save();
       const pdfBlob = new Blob([pdfBytes], { type:'application/pdf' });
 
-      const ref = storage.ref().child(pdfPath);
-      await ref.put(pdfBlob);
-      const url = await ref.getDownloadURL();
+      const snapshot = await uploadWithBackoff(pdfBlob, pdfPath, {
+        contentType: 'application/pdf',
+      });
+      const url = await getDownloadURL(snapshot.ref);
       console.log('[btnProcessar] PDF uploaded', url);
       await metaRef.update({ url, storagePath: pdfPath, finishedAt: firebase.firestore.FieldValue.serverTimestamp() });
       await savePdfRecord(url, pdfPath, name, responsavelUid, foraHorario, {

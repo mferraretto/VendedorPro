@@ -382,13 +382,17 @@
       <script type="module">
         import { firebaseConfig, getPassphrase } from './firebase-config.js';
         import { decryptString } from './crypto.js';
+        import {
+          getDownloadURL,
+          uploadWithBackoff,
+          deleteFromStorage,
+        } from './storage-upload.js';
 
         if (!firebase.apps.length) {
           firebase.initializeApp(firebaseConfig);
         }
         const app = firebase.app();
         const db = firebase.firestore();
-        const storage = firebase.storage();
         pdfjsLib.GlobalWorkerOptions.workerSrc =
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
         let currentUser = null;
@@ -2088,43 +2092,65 @@
               totalPaginas: pageCount,
               pageCount,
             });
-            const fileRef = storage
-              .ref()
-              .child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
+            const storagePath = `pdfs/${currentUser.uid}/${docRef.id}.pdf`;
+            const metadata = { contentType: file.type || 'application/pdf' };
             if (typeof onProgress === 'function')
               onProgress({ text: 'Enviando arquivo...', percent: 25 });
-            await new Promise((resolve, reject) => {
-              const uploadTask = fileRef.put(file);
-              uploadTask.on(
-                'state_changed',
-                (snapshot) => {
-                  if (
-                    !snapshot ||
-                    !snapshot.totalBytes ||
-                    typeof onProgress !== 'function'
-                  )
-                    return;
-                  const percent = Math.round(
-                    (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
-                  );
-                  const adjusted = Math.max(25, Math.min(95, percent));
-                  onProgress({
-                    text: `Enviando arquivo... ${percent}%`,
-                    percent: adjusted,
-                  });
-                },
-                (error) => reject(error),
-                () => resolve(),
-              );
+            const snapshot = await uploadWithBackoff(file, storagePath, metadata, {
+              onStateChange: (snap) => {
+                if (
+                  !snap ||
+                  !snap.totalBytes ||
+                  typeof onProgress !== 'function'
+                )
+                  return;
+                const percent = Math.round(
+                  (snap.bytesTransferred / snap.totalBytes) * 100,
+                );
+                const adjusted = Math.max(25, Math.min(95, percent));
+                onProgress({
+                  text: `Enviando arquivo... ${percent}%`,
+                  percent: adjusted,
+                });
+              },
+              onRetry: ({ attempt, maxAttempts }) => {
+                if (typeof onProgress !== 'function') return;
+                onProgress({
+                  text: `Instabilidade detectada, retomando upload (${attempt}/${maxAttempts})...`,
+                  percent: 25,
+                });
+              },
             });
-            const url = await fileRef.getDownloadURL();
+            const url = await getDownloadURL(snapshot.ref);
             await docRef.update({
               url: url,
-              storagePath: fileRef.fullPath,
+              storagePath: snapshot.ref.fullPath,
               loja: lojaNome || '',
               totalPaginas: pageCount,
               pageCount,
             });
+            const resumo = {
+              name: file.name,
+              url,
+              path: snapshot.ref.fullPath,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              status: 'nao_impresso',
+              foraHorario: foraHorarioAtual,
+              loja: lojaNome || '',
+              pageCount,
+            };
+            await db
+              .collection('users')
+              .doc(currentUser.uid)
+              .collection('etiquetaenvio')
+              .add({ ...resumo });
+            if (responsavelExpedicaoUid) {
+              await db
+                .collection('users')
+                .doc(responsavelExpedicaoUid)
+                .collection('etiquetaenvio')
+                .add({ ...resumo });
+            }
             if (typeof onProgress === 'function')
               onProgress({ text: 'Finalizando...', percent: 98 });
             if (
@@ -2838,7 +2864,7 @@
 
             if (data.storagePath) {
               try {
-                await storage.ref(data.storagePath).delete();
+                await deleteFromStorage(data.storagePath);
               } catch (e) {
                 console.error('Erro ao excluir do Storage:', e);
               }
@@ -2873,7 +2899,7 @@
             const data = snap.data() || {};
             if (data.storagePath) {
               try {
-                await storage.ref(data.storagePath).delete();
+                await deleteFromStorage(data.storagePath);
               } catch (e) {
                 console.error('Erro ao excluir do Storage:', e);
               }
