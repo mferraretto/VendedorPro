@@ -486,13 +486,13 @@
 
   <script type="module">
     import { firebaseConfig } from './firebase-config.js';
+    import { uploadPdfResumable } from './storage-upload.js';
 
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
 
     const db = firebase.firestore();
-    const storage = firebase.storage();
 
     const fileInput = document.getElementById('file');
     const pickupFileInput = document.getElementById('pickupFile');
@@ -859,15 +859,15 @@
         }
 
         const docRef = await db.collection('pdfDocs').add(docPayload);
-        const fileRef = storage.ref().child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
-        await fileRef.put(blob);
-        const url = await fileRef.getDownloadURL();
-        await docRef.update({ url, storagePath: fileRef.fullPath });
+        const storagePath = `pdfs/${currentUser.uid}/${docRef.id}.pdf`;
+        const uploadResult = await uploadPdfResumable(blob, storagePath);
+        const { url, fullPath } = uploadResult;
+        await docRef.update({ url, storagePath: fullPath });
 
         const resumo = {
           name: fileName,
           url,
-          path: fileRef.fullPath,
+          path: fullPath,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         };
         if (lojaMeta) {
@@ -936,7 +936,7 @@
           await window.ExpedicaoNotifier.notifyNovaEtiqueta(notifyPayload);
         }
 
-        return { url, storagePath: fileRef.fullPath, docId: docRef.id };
+        return { url, storagePath: fullPath, docId: docRef.id };
       } catch (error) {
         console.error('Erro ao enviar PDF para o Firebase:', error);
         throw error;
