@@ -382,6 +382,7 @@
       <script type="module">
         import { firebaseConfig, getPassphrase } from './firebase-config.js';
         import { decryptString } from './crypto.js';
+        import { uploadPdf } from './storage-helpers.js';
 
         if (!firebase.apps.length) {
           firebase.initializeApp(firebaseConfig);
@@ -2088,39 +2089,32 @@
               totalPaginas: pageCount,
               pageCount,
             });
-            const fileRef = storage
-              .ref()
-              .child(`pdfs/${currentUser.uid}/${docRef.id}.pdf`);
             if (typeof onProgress === 'function')
               onProgress({ text: 'Enviando arquivo...', percent: 25 });
-            await new Promise((resolve, reject) => {
-              const uploadTask = fileRef.put(file);
-              uploadTask.on(
-                'state_changed',
-                (snapshot) => {
-                  if (
-                    !snapshot ||
-                    !snapshot.totalBytes ||
-                    typeof onProgress !== 'function'
-                  )
-                    return;
-                  const percent = Math.round(
-                    (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
-                  );
-                  const adjusted = Math.max(25, Math.min(95, percent));
-                  onProgress({
-                    text: `Enviando arquivo... ${percent}%`,
-                    percent: adjusted,
-                  });
-                },
-                (error) => reject(error),
-                () => resolve(),
-              );
+            const uploadResult = await uploadPdf(file, {
+              path: `pdfs/${currentUser.uid}/${docRef.id}.pdf`,
+              onProgress: (snapshot) => {
+                if (
+                  !snapshot ||
+                  !snapshot.totalBytes ||
+                  typeof onProgress !== 'function'
+                ) {
+                  return;
+                }
+                const percent = Math.round(
+                  (snapshot.bytesTransferred / snapshot.totalBytes) * 100,
+                );
+                const adjusted = Math.max(25, Math.min(95, percent));
+                onProgress({
+                  text: `Enviando arquivo... ${percent}%`,
+                  percent: adjusted,
+                });
+              },
             });
-            const url = await fileRef.getDownloadURL();
+            const { url, path: storagePath } = uploadResult;
             await docRef.update({
               url: url,
-              storagePath: fileRef.fullPath,
+              storagePath,
               loja: lojaNome || '',
               totalPaginas: pageCount,
               pageCount,
