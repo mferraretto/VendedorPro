@@ -4,10 +4,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
 import {
   getFirestore,
-  initializeFirestore,
-  persistentLocalCache,
-  persistentSingleTabManager,
-  memoryLocalCache,
+  enableIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 
@@ -25,72 +22,11 @@ export const firebaseConfig = {
 
 // Initialize Firebase app once and enable offline persistence
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-
-function configureFirestore(appInstance) {
-  const hasNewPersistenceApi =
-    typeof initializeFirestore === 'function' &&
-    typeof persistentLocalCache === 'function';
-
-  if (!hasNewPersistenceApi) {
-    return getFirestore(appInstance);
-  }
-
-  const initializeWithSettings = (settings) => {
-    try {
-      return initializeFirestore(appInstance, settings);
-    } catch (error) {
-      if (error?.code === 'already-initialized') {
-        return getFirestore(appInstance);
-      }
-      throw error;
-    }
-  };
-
-  const buildPersistentCache = () => {
-    try {
-      if (typeof persistentSingleTabManager === 'function') {
-        return persistentLocalCache({ tabManager: persistentSingleTabManager() });
-      }
-      return persistentLocalCache();
-    } catch (error) {
-      console.warn('Não foi possível configurar o cache persistente do Firestore:', error);
-      return null;
-    }
-  };
-
-  try {
-    const persistentCache = buildPersistentCache();
-    if (persistentCache) {
-      return initializeWithSettings({ localCache: persistentCache });
-    }
-    if (typeof memoryLocalCache === 'function') {
-      return initializeWithSettings({ localCache: memoryLocalCache() });
-    }
-  } catch (error) {
-    if (error?.code === 'failed-precondition' || error?.code === 'unimplemented') {
-      console.warn(
-        'Cache persistente do Firestore indisponível neste navegador. Usando cache em memória.',
-        error.code,
-      );
-      if (typeof memoryLocalCache === 'function') {
-        try {
-          return initializeWithSettings({ localCache: memoryLocalCache() });
-        } catch (memoryError) {
-          console.warn('Falha ao configurar o cache em memória do Firestore:', memoryError);
-        }
-      }
-      return getFirestore(appInstance);
-    }
-
-    console.warn('Firestore persistence not enabled:', error?.code || error);
-    return getFirestore(appInstance);
-  }
-
-  // Se chegamos aqui é porque não foi possível criar o cache persistente, então usamos o padrão.
-  return getFirestore(appInstance);
-}
-
-const db = configureFirestore(app);
+const db = getFirestore(app);
+// Best-effort enable persistence; ignore if not supported or already enabled
+enableIndexedDbPersistence(db).catch((err) => {
+  console.warn('Firestore persistence not enabled:', err.code);
+});
 const auth = getAuth(app);
 
 // Utility functions for storing the passphrase securely
