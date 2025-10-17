@@ -1,4 +1,4 @@
-<div class="card shadow-xl rounded-2xl border border-gray-200 bg-white max-w-5xl mx-auto mt-8">
+<div class="card shadow-xl rounded-2xl border border-gray-200 bg-white max-w-6xl mx-auto mt-8">
   <div class="card-header flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-gray-100 rounded-t-2xl">
     <div class="flex items-center gap-3">
       <i class="fas fa-calendar-day text-indigo-600"></i>
@@ -22,130 +22,122 @@
     </div>
   </div>
 
-  <div class="card-body space-y-6 p-6">
-    <section id="diarioCadastroSection" class="space-y-6">
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="flex flex-col gap-2">
-          <label for="diarioData" class="text-sm font-medium text-gray-600">Data do registro</label>
-          <input
-            type="date"
-            id="diarioData"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
+  <div class="card-body space-y-8 p-6">
+    <section id="diarioCadastroSection" class="space-y-8">
+      <div class="space-y-6">
+        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div class="flex flex-col gap-2">
+            <label for="diarioData" class="text-sm font-medium text-gray-600">Data do registro</label>
+            <input
+              type="date"
+              id="diarioData"
+              class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
+            />
+          </div>
+          <div class="text-sm text-gray-500 max-w-md">
+            Os números abaixo representam o desempenho diário de cada loja. Atualize as informações uma vez ao dia para manter o
+            acompanhamento mensal sempre atualizado.
+          </div>
         </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioPlataforma" class="text-sm font-medium text-gray-600">Plataforma</label>
-          <select
-            id="diarioPlataforma"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
+
+        <div class="space-y-4">
+          <div class="rounded-3xl border border-gray-100 bg-gradient-to-br from-white via-white to-indigo-50/40 p-6 shadow-sm">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white text-lg font-semibold">📅</span>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500">Dia atual</p>
+                  <p class="text-base font-semibold text-gray-700">Resumo com base nos valores preenchidos hoje</p>
+                </div>
+              </div>
+              <div class="text-xs font-medium uppercase tracking-[0.3em] text-indigo-400">
+                Atualize após o fechamento do dia
+              </div>
+            </div>
+
+            <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3" id="diarioResumoStatus">
+              <article class="rounded-2xl bg-gradient-to-br from-rose-500 via-rose-500 to-rose-600 p-5 text-white shadow-lg">
+                <h4 class="text-sm font-semibold uppercase tracking-wide">Reclamações abertas hoje</h4>
+                <div class="mt-4 space-y-2 text-sm" id="diarioStatusAbertasLista"></div>
+              </article>
+              <article class="rounded-2xl bg-gradient-to-br from-amber-400 via-amber-400 to-amber-500 p-5 text-gray-900 shadow-lg">
+                <h4 class="text-sm font-semibold uppercase tracking-wide">Reclamações respondidas hoje</h4>
+                <div class="mt-4 space-y-2 text-sm" id="diarioStatusRespondidasLista"></div>
+              </article>
+              <article class="rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-400 to-emerald-500 p-5 text-white shadow-lg">
+                <h4 class="text-sm font-semibold uppercase tracking-wide">Reclamações encerradas hoje</h4>
+                <div class="mt-4 space-y-2 text-sm" id="diarioStatusEncerradasLista"></div>
+              </article>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <h4 class="text-base font-semibold text-gray-700">Reputações das lojas</h4>
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4" id="diarioResumoReputacoes">
+              <article class="rounded-2xl border border-pink-300 bg-gradient-to-br from-pink-100 via-pink-100 to-pink-200 p-4 shadow-sm">
+                <p class="text-sm font-semibold uppercase text-pink-700">Reclamação</p>
+                <div class="mt-3 space-y-2 text-sm" id="diarioReputacaoReclamacaoLista"></div>
+              </article>
+              <article class="rounded-2xl border border-purple-300 bg-gradient-to-br from-purple-100 via-purple-100 to-purple-200 p-4 shadow-sm">
+                <p class="text-sm font-semibold uppercase text-purple-700">Mediação</p>
+                <div class="mt-3 space-y-2 text-sm" id="diarioReputacaoMediacaoLista"></div>
+              </article>
+              <article class="rounded-2xl border border-sky-300 bg-gradient-to-br from-sky-100 via-sky-100 to-sky-200 p-4 shadow-sm">
+                <p class="text-sm font-semibold uppercase text-sky-700">Atraso</p>
+                <div class="mt-3 space-y-2 text-sm" id="diarioReputacaoAtrasoLista"></div>
+              </article>
+              <article class="rounded-2xl border border-fuchsia-300 bg-gradient-to-br from-fuchsia-100 via-fuchsia-100 to-fuchsia-200 p-4 shadow-sm">
+                <p class="text-sm font-semibold uppercase text-fuchsia-700">Cancelado</p>
+                <div class="mt-3 space-y-2 text-sm" id="diarioReputacaoCanceladoLista"></div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h4 class="text-lg font-semibold text-gray-800">Registrar informações do dia</h4>
+          <button
+            type="button"
+            id="diarioAdicionarLoja"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold transition"
           >
-            <option value="">Selecione...</option>
-            <option value="mercado">Mercado</option>
-            <option value="shopee">Shopee</option>
-          </select>
+            <i class="fas fa-plus"></i>
+            Adicionar loja
+          </button>
         </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioLoja" class="text-sm font-medium text-gray-600">Nome da loja</label>
-          <input
-            type="text"
-            id="diarioLoja"
-            placeholder="Informe o nome da loja"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioPedidosNaoEnviados" class="text-sm font-medium text-gray-600">Pedidos não enviados</label>
-          <input
-            type="number"
-            min="0"
-            id="diarioPedidosNaoEnviados"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
-        </div>
-      </div>
 
-      <div id="diarioCamposMercado" class="grid gap-4 md:grid-cols-2 hidden">
-        <div class="flex flex-col gap-2">
-          <label for="diarioPercentualReclamacoes" class="text-sm font-medium text-gray-600">% de reclamações</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            id="diarioPercentualReclamacoes"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
+        <div class="table-container overflow-x-auto rounded-xl border border-gray-100">
+          <table class="min-w-full text-sm" id="diarioCadastroTabela">
+            <thead class="bg-gray-50 text-gray-600">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">Loja</th>
+                <th class="px-4 py-3 text-left font-semibold">Plataforma</th>
+                <th class="px-4 py-3 text-right font-semibold">Abertas</th>
+                <th class="px-4 py-3 text-right font-semibold">Respondidas</th>
+                <th class="px-4 py-3 text-right font-semibold">Encerradas</th>
+                <th class="px-4 py-3 text-right font-semibold">% Reclamação</th>
+                <th class="px-4 py-3 text-right font-semibold">% Mediação</th>
+                <th class="px-4 py-3 text-right font-semibold">% Atraso</th>
+                <th class="px-4 py-3 text-right font-semibold">% Cancelado</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-100"></tbody>
+          </table>
         </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioPercentualCancelamento" class="text-sm font-medium text-gray-600">% de cancelamentos</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            id="diarioPercentualCancelamento"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioPercentualAtraso" class="text-sm font-medium text-gray-600">% de atraso</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            id="diarioPercentualAtraso"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioPercentualMediacao" class="text-sm font-medium text-gray-600">% de mediação</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            id="diarioPercentualMediacao"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
-        </div>
-      </div>
 
-      <div id="diarioCamposShopee" class="grid gap-4 md:grid-cols-3 hidden">
-        <div class="flex flex-col gap-2">
-          <label for="diarioReclamacoesRecorridas" class="text-sm font-medium text-gray-600">Reclamações recorridas</label>
-          <input
-            type="number"
-            min="0"
-            id="diarioReclamacoesRecorridas"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
+        <div class="flex justify-end">
+          <button
+            type="button"
+            id="diarioSalvar"
+            class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow transition"
+          >
+            <i class="fas fa-save"></i>
+            Salvar informações do dia
+          </button>
         </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioReclamacoesRecusadas" class="text-sm font-medium text-gray-600">Reclamações recusadas</label>
-          <input
-            type="number"
-            min="0"
-            id="diarioReclamacoesRecusadas"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label for="diarioReclamacoesAbertas" class="text-sm font-medium text-gray-600">Reclamações abertas</label>
-          <input
-            type="number"
-            min="0"
-            id="diarioReclamacoesAbertas"
-            class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-          />
-        </div>
-      </div>
-
-      <div class="flex justify-end">
-        <button
-          type="button"
-          id="diarioSalvar"
-          class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow transition"
-        >
-          <i class="fas fa-save"></i>
-          Salvar registro diário
-        </button>
       </div>
     </section>
 
@@ -174,14 +166,13 @@
             <tr class="bg-indigo-50 text-indigo-700">
               <th class="py-3 px-4 font-bold">Plataforma</th>
               <th class="py-3 px-4 font-bold">Loja</th>
-              <th class="py-3 px-4 font-bold text-right">Pedidos não enviados</th>
-              <th class="py-3 px-4 font-bold text-right">% Reclamações</th>
-              <th class="py-3 px-4 font-bold text-right">% Cancelamento</th>
-              <th class="py-3 px-4 font-bold text-right">% Atraso</th>
-              <th class="py-3 px-4 font-bold text-right">% Mediação</th>
-              <th class="py-3 px-4 font-bold text-right">Recorridas</th>
-              <th class="py-3 px-4 font-bold text-right">Recusadas</th>
               <th class="py-3 px-4 font-bold text-right">Abertas</th>
+              <th class="py-3 px-4 font-bold text-right">Respondidas</th>
+              <th class="py-3 px-4 font-bold text-right">Encerradas</th>
+              <th class="py-3 px-4 font-bold text-right">% Reclamação</th>
+              <th class="py-3 px-4 font-bold text-right">% Mediação</th>
+              <th class="py-3 px-4 font-bold text-right">% Atraso</th>
+              <th class="py-3 px-4 font-bold text-right">% Cancelado</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-100"></tbody>
