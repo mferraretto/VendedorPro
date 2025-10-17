@@ -8354,6 +8354,30 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         updateConnectionStatus(false);
       }
     }
+    function resetPrevisaoProdutosVendidos() {
+      const container = document.getElementById('produtosVendidosPrevisaoWrapper');
+      const tabela = document.getElementById('produtosVendidosPrevisaoTabela');
+      const resumo = document.getElementById('produtosVendidosPrevisaoResumo');
+      if (container) container.classList.add('hidden');
+      if (tabela) tabela.innerHTML = '';
+      if (resumo) resumo.textContent = '';
+    }
+
+    function obterProdutosVendidosFiltrados() {
+      const filtroSkuValor = (
+        document.getElementById('filtroSkuProdutosVendidos')?.value || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      return produtosVendidosResumo.filter((item) => {
+        if (!filtroSkuValor) return true;
+        return item.todosSkus.some((sku) =>
+          sku.toLowerCase().includes(filtroSkuValor),
+        );
+      });
+    }
+
     function renderProdutosVendidos() {
       const tabela = document.getElementById('produtosVendidosTabela');
       if (!tabela) return;
@@ -8386,12 +8410,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         'produtosVendidosTotalParafusos',
       );
 
-      const dadosFiltrados = produtosVendidosResumo.filter((item) => {
-        if (!filtroSku) return true;
-        return item.todosSkus.some((sku) =>
-          sku.toLowerCase().includes(filtroSku),
-        );
-      });
+      resetPrevisaoProdutosVendidos();
+
+      const dadosFiltrados = obterProdutosVendidosFiltrados();
 
       if (!dadosFiltrados.length) {
         tabela.innerHTML =
@@ -8409,6 +8430,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         if (totalEl) totalEl.textContent = '0';
         if (totalLiquidoEl) totalLiquidoEl.textContent = formatCurrency(0);
         if (totalParafusosEl) totalParafusosEl.textContent = '0';
+        resetPrevisaoProdutosVendidos();
         return;
       }
 
@@ -8633,6 +8655,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       );
       produtosVendidosResumo = [];
       produtosVendidosCarregado = false;
+      resetPrevisaoProdutosVendidos();
 
       if (tabela) {
         tabela.innerHTML =
@@ -12623,6 +12646,169 @@ async function atualizarResponsavelFinanceiro(btn) {
   }
 }
 
+async function gerarPrevisaoProdutosVendidos() {
+  if (!produtosVendidosResumo?.length) {
+    mostrarErro('Carregue os dados de produtos vendidos antes de gerar a previsão.');
+    return;
+  }
+
+  const dadosFiltrados = obterProdutosVendidosFiltrados();
+  if (!dadosFiltrados.length) {
+    mostrarErro('Nenhum SKU disponível para gerar previsão com os filtros atuais.');
+    return;
+  }
+
+  const inicioValor = document.getElementById('filtroProdutosVendidosInicio')?.value;
+  const fimValor = document.getElementById('filtroProdutosVendidosFim')?.value;
+  if (!inicioValor || !fimValor) {
+    mostrarErro('Informe o período de análise para gerar a previsão.');
+    return;
+  }
+
+  const inicioData = new Date(`${inicioValor}T00:00:00`);
+  const fimData = new Date(`${fimValor}T00:00:00`);
+  if (
+    Number.isNaN(inicioData.valueOf()) ||
+    Number.isNaN(fimData.valueOf()) ||
+    fimData.getTime() < inicioData.getTime()
+  ) {
+    mostrarErro('Período base inválido. Ajuste as datas e tente novamente.');
+    return;
+  }
+
+  const diferencaMs = fimData.getTime() - inicioData.getTime();
+  const diasBaseCalc = Math.floor(diferencaMs / (1000 * 60 * 60 * 24)) + 1;
+  const diasBase = Math.max(1, diasBaseCalc);
+
+  let diasFuturos = null;
+  if (window.Swal?.fire) {
+    const { value, isConfirmed } = await window.Swal.fire({
+      title: 'Gerar previsão de vendas',
+      input: 'number',
+      inputLabel: 'Quantos dias deseja prever?',
+      inputValue: 10,
+      inputAttributes: {
+        min: 1,
+        step: 1,
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Gerar',
+      cancelButtonText: 'Cancelar',
+      inputValidator: (valor) => {
+        const numero = Number(valor);
+        if (!numero || Number.isNaN(numero) || numero < 1) {
+          return 'Informe um número de dias válido (mínimo 1).';
+        }
+        if (numero > 365) {
+          return 'Utilize um horizonte máximo de 365 dias.';
+        }
+        return undefined;
+      },
+    });
+    if (!isConfirmed) {
+      return;
+    }
+    diasFuturos = Math.round(Number(value));
+  } else {
+    const resposta = window.prompt('Quantos dias deseja prever? (Ex.: 10 ou 30)', '10');
+    if (resposta === null) {
+      return;
+    }
+    const numero = Number(resposta);
+    if (!numero || Number.isNaN(numero) || numero < 1) {
+      mostrarErro('Informe um número de dias válido para gerar a previsão.');
+      return;
+    }
+    diasFuturos = Math.round(Math.min(numero, 365));
+  }
+
+  if (!diasFuturos || Number.isNaN(diasFuturos) || diasFuturos < 1) {
+    mostrarErro('Não foi possível gerar a previsão com o horizonte informado.');
+    return;
+  }
+
+  const ordenados = [...dadosFiltrados].sort((a, b) => b.total - a.total);
+  const tabela = document.getElementById('produtosVendidosPrevisaoTabela');
+  const resumo = document.getElementById('produtosVendidosPrevisaoResumo');
+  const container = document.getElementById('produtosVendidosPrevisaoWrapper');
+  if (!tabela || !resumo || !container) {
+    mostrarErro('Não foi possível exibir a previsão neste layout.');
+    return;
+  }
+
+  const moedaFormatter = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+  const formatarData = (valor) => {
+    try {
+      const data = new Date(`${valor}T00:00:00`);
+      if (Number.isNaN(data.valueOf())) return valor;
+      return new Intl.DateTimeFormat('pt-BR').format(data);
+    } catch (erro) {
+      return valor;
+    }
+  };
+
+  let totalModerado = 0;
+  let totalOtimista = 0;
+  let totalValorModerado = 0;
+  let totalValorOtimista = 0;
+
+  const linhas = ordenados.map((item) => {
+    const mediaDiaria = item.total > 0 ? item.total / diasBase : 0;
+    const moderadaQuantidade = Math.max(0, Math.round(mediaDiaria * diasFuturos));
+    const otimistaQuantidade = Math.max(
+      moderadaQuantidade,
+      Math.round(moderadaQuantidade * 1.1),
+    );
+    const valorUnitarioMedio =
+      item.total > 0 ? Number(item.valorLiquido || 0) / item.total : 0;
+    const valorModerado = moderadaQuantidade * valorUnitarioMedio;
+    const valorOtimista = otimistaQuantidade * valorUnitarioMedio;
+
+    totalModerado += moderadaQuantidade;
+    totalOtimista += otimistaQuantidade;
+    totalValorModerado += valorModerado;
+    totalValorOtimista += valorOtimista;
+
+    return `
+      <tr>
+        <td class="px-4 py-3 font-medium text-gray-700">${item.sku}</td>
+        <td class="px-4 py-3 text-right text-gray-900">${moderadaQuantidade.toLocaleString('pt-BR')}</td>
+        <td class="px-4 py-3 text-right text-gray-900">${otimistaQuantidade.toLocaleString('pt-BR')}</td>
+        <td class="px-4 py-3 text-right text-gray-900">${moedaFormatter.format(valorModerado)}</td>
+        <td class="px-4 py-3 text-right text-gray-900">${moedaFormatter.format(valorOtimista)}</td>
+      </tr>
+    `;
+  });
+
+  linhas.push(`
+    <tr class="bg-blue-50 font-semibold text-blue-900">
+      <td class="px-4 py-3">Total</td>
+      <td class="px-4 py-3 text-right">${totalModerado.toLocaleString('pt-BR')}</td>
+      <td class="px-4 py-3 text-right">${totalOtimista.toLocaleString('pt-BR')}</td>
+      <td class="px-4 py-3 text-right">${moedaFormatter.format(totalValorModerado)}</td>
+      <td class="px-4 py-3 text-right">${moedaFormatter.format(totalValorOtimista)}</td>
+    </tr>
+  `);
+
+  tabela.innerHTML = linhas.join('');
+
+  resumo.innerHTML = `
+    <div><strong>Período base:</strong> ${formatarData(inicioValor)} a ${formatarData(fimValor)} (${diasBase} dia${
+      diasBase > 1 ? 's' : ''
+    })</div>
+    <div><strong>Horizonte da previsão:</strong> ${diasFuturos} dia${
+      diasFuturos > 1 ? 's' : ''
+    }</div>
+    <div><strong>Cenários:</strong> moderado com base na média diária e otimista com crescimento de até 10%.</div>
+  `;
+
+  container.classList.remove('hidden');
+  mostrarSucesso('Previsão gerada com sucesso!');
+}
+
 window.carregarRegistrosFaturamento = carregarRegistrosFaturamento;
 window.carregarControleVendas = carregarControleVendas;
 window.carregarProdutosVendidos = carregarProdutosVendidos;
@@ -12636,6 +12822,7 @@ window.carregarAcompanhamentoGestor = carregarAcompanhamentoGestor;
 window.verificarGestorFinanceiro = verificarGestorFinanceiro;
 window.exportarProdutosVendidosExcel = exportarProdutosVendidosExcel;
 window.exportarProdutosVendidosPDF = exportarProdutosVendidosPDF;
+window.gerarPrevisaoProdutosVendidos = gerarPrevisaoProdutosVendidos;
 window.exportarAcompanhamentoExcel = exportarAcompanhamentoExcel;
 window.exportarResumoTopSkus = exportarResumoTopSkus;
 window.exportarAcompanhamentoPDF = exportarAcompanhamentoPDF;
