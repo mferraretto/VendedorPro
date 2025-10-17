@@ -8930,12 +8930,32 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               .collection('skusVendidos')
               .get();
 
-            for (const docDia of vendasSnap.docs) {
+            const docsFiltrados = vendasSnap.docs.filter((docDia) => {
               const dataDoc = docDia.id || '';
-              if (dataInicio && dataDoc && dataDoc < dataInicio) continue;
-              if (dataFim && dataDoc && dataDoc > dataFim) continue;
+              if (dataInicio && dataDoc && dataDoc < dataInicio) return false;
+              if (dataFim && dataDoc && dataDoc > dataFim) return false;
+              return true;
+            });
 
-              const listaSnap = await docDia.ref.collection('lista').get();
+            const listasResultado = await Promise.all(
+              docsFiltrados.map(async (docDia) => {
+                try {
+                  const listaSnap = await docDia.ref.collection('lista').get();
+                  return { docDia, listaSnap };
+                } catch (listaErr) {
+                  console.error(
+                    'Erro ao carregar lista de SKUs vendidos',
+                    { uid, data: docDia.id },
+                    listaErr,
+                  );
+                  return null;
+                }
+              }),
+            );
+
+            for (const resultadoLista of listasResultado) {
+              if (!resultadoLista) continue;
+              const { listaSnap } = resultadoLista;
               listaSnap.forEach((itemDoc) => {
                 const dados = itemDoc.data() || {};
                 const skuOriginal = String(
