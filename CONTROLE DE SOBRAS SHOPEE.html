@@ -183,6 +183,7 @@
     let produtos = {};
         let dadosAcompanhamento = [];
     let sobraPorSku = {};
+    let diarioEstado = { data: '', lojas: [] };
       let resumoSku = {};
       let produtosVendidosResumo = [];
       let produtosVendidosCarregado = false;
@@ -11582,6 +11583,111 @@ function normalizarPercentualDiario(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
+function formatarDataCurtaDiario(iso) {
+  if (!iso) return '--/--/----';
+  const [ano, mes, dia] = String(iso).split('-');
+  if (ano && mes && dia) {
+    return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${ano}`;
+  }
+  return iso;
+}
+
+function obterNomeLojaPadrao(indice) {
+  return `Loja ${indice + 1}`;
+}
+
+const DIARIO_STATUS_CONFIG = Object.freeze([
+  {
+    chave: 'reclamacoesAbertas',
+    titulo: 'Reclamações abertas hoje',
+    cardClasse: 'bg-rose-500 text-white',
+    textoClasse: 'text-white',
+  },
+  {
+    chave: 'reclamacoesRespondidas',
+    titulo: 'Reclamações respondidas hoje',
+    cardClasse: 'bg-lime-400 text-gray-900',
+    textoClasse: 'text-gray-900',
+  },
+  {
+    chave: 'reclamacoesEncerradas',
+    titulo: 'Reclamações encerradas hoje',
+    cardClasse: 'bg-cyan-400 text-gray-900',
+    textoClasse: 'text-gray-900',
+  },
+]);
+
+const DIARIO_REPUTACAO_CONFIG = Object.freeze([
+  {
+    chave: 'reputacaoReclamacao',
+    titulo: 'Reclamação',
+    cardClasse: 'bg-fuchsia-500 text-white',
+    textoClasse: 'text-white',
+  },
+  {
+    chave: 'reputacaoMediacao',
+    titulo: 'Mediação',
+    cardClasse: 'bg-purple-500 text-white',
+    textoClasse: 'text-white',
+  },
+  {
+    chave: 'reputacaoAtraso',
+    titulo: 'Atraso',
+    cardClasse: 'bg-amber-400 text-gray-900',
+    textoClasse: 'text-gray-900',
+  },
+  {
+    chave: 'reputacaoCancelado',
+    titulo: 'Cancelado',
+    cardClasse: 'bg-pink-400 text-white',
+    textoClasse: 'text-white',
+  },
+]);
+
+function gerarIdLojaDiario() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `loja_${Math.random().toString(36).slice(2)}${Date.now()}`;
+}
+
+function normalizarLojaEstado(dados = {}, indice = 0) {
+  const ordem = Number.isFinite(Number(dados.ordem)) ? Number(dados.ordem) : indice;
+  const nome = String(dados.nomeLoja || dados.nome || '').trim() || obterNomeLojaPadrao(ordem);
+
+  return {
+    id: dados.id || gerarIdLojaDiario(),
+    ordem,
+    nome,
+    reclamacoesAbertas: normalizarNumeroDiario(
+      dados.reclamacoesAbertas ?? dados.reclamacoesAbertasHoje ?? dados.reclamacoesAbertasDia,
+    ),
+    reclamacoesRespondidas: normalizarNumeroDiario(
+      dados.reclamacoesRespondidas ?? dados.reclamacoesRecorridas ?? dados.reclamacoesRespondidasDia,
+    ),
+    reclamacoesEncerradas: normalizarNumeroDiario(
+      dados.reclamacoesEncerradas ?? dados.reclamacoesRecusadas ?? dados.reclamacoesEncerradasDia,
+    ),
+    reputacaoReclamacao: normalizarPercentualDiario(
+      dados.reputacao?.reclamacao ?? dados.percentualReclamacao ?? dados.porcentagemReclamacoes,
+    ),
+    reputacaoMediacao: normalizarPercentualDiario(
+      dados.reputacao?.mediacao ?? dados.percentualMediacao ?? dados.porcentagemMediacao,
+    ),
+    reputacaoAtraso: normalizarPercentualDiario(
+      dados.reputacao?.atraso ?? dados.percentualAtraso ?? dados.porcentagemAtraso,
+    ),
+    reputacaoCancelado: normalizarPercentualDiario(
+      dados.reputacao?.cancelado ?? dados.percentualCancelado ?? dados.porcentagemCancelamento,
+    ),
+    plataforma: dados.plataforma || 'Shopee',
+  };
+}
+
+function valorPercentualInput(valor) {
+  return valor === null || valor === undefined ? '' : valor;
+}
+
 function criarAcumuladorPercentual() {
   return { sum: 0, count: 0 };
 }
@@ -11599,18 +11705,53 @@ function mediaPercentual(acumulador) {
   return acumulador.sum / acumulador.count;
 }
 
+function mapearRegistroDiarioBasico(dados, contexto = {}) {
+  if (!dados) return null;
+
+  const nomeLoja = String(dados.nomeLoja || dados.nome || contexto.nomeLoja || '').trim();
+  const plataforma = String(dados.plataforma || contexto.plataforma || '-');
+
+  return {
+    data: contexto.data || dados.data || '',
+    plataforma,
+    nomeLoja: nomeLoja || 'Sem loja',
+    reclamacoesAbertas: normalizarNumeroDiario(
+      dados.reclamacoesAbertas ?? dados.reclamacoesAbertasHoje ?? dados.reclamacoesAbertasDia,
+    ),
+    reclamacoesRespondidas: normalizarNumeroDiario(
+      dados.reclamacoesRespondidas ?? dados.reclamacoesRecorridas ?? dados.reclamacoesRespondidasDia,
+    ),
+    reclamacoesEncerradas: normalizarNumeroDiario(
+      dados.reclamacoesEncerradas ?? dados.reclamacoesRecusadas ?? dados.reclamacoesEncerradasDia,
+    ),
+    reputacaoReclamacao: normalizarPercentualDiario(
+      dados.reputacao?.reclamacao ?? dados.percentualReclamacao ?? dados.porcentagemReclamacoes,
+    ),
+    reputacaoMediacao: normalizarPercentualDiario(
+      dados.reputacao?.mediacao ?? dados.percentualMediacao ?? dados.porcentagemMediacao,
+    ),
+    reputacaoAtraso: normalizarPercentualDiario(
+      dados.reputacao?.atraso ?? dados.percentualAtraso ?? dados.porcentagemAtraso,
+    ),
+    reputacaoCancelado: normalizarPercentualDiario(
+      dados.reputacao?.cancelado ?? dados.percentualCancelado ?? dados.porcentagemCancelamento,
+    ),
+    usuarioUid: contexto.usuarioUid || dados.usuarioUid || null,
+    usuarioNome: contexto.usuarioNome || dados.usuarioNome || null,
+  };
+}
+
 function agruparRegistrosDiariosUsuario(registros) {
   const mapa = new Map();
   const totaisBase = {
-    pedidosNaoEnviados: 0,
-    reclamacoesRecorridas: 0,
-    reclamacoesRecusadas: 0,
     reclamacoesAbertas: 0,
+    reclamacoesRespondidas: 0,
+    reclamacoesEncerradas: 0,
     percentuais: {
-      reclamacoes: criarAcumuladorPercentual(),
-      cancelamento: criarAcumuladorPercentual(),
-      atraso: criarAcumuladorPercentual(),
+      reclamacao: criarAcumuladorPercentual(),
       mediacao: criarAcumuladorPercentual(),
+      atraso: criarAcumuladorPercentual(),
+      cancelado: criarAcumuladorPercentual(),
     },
   };
 
@@ -11623,71 +11764,68 @@ function agruparRegistrosDiariosUsuario(registros) {
       mapa.set(chave, {
         plataforma,
         nomeLoja,
-        pedidosNaoEnviados: 0,
-        reclamacoesRecorridas: 0,
-        reclamacoesRecusadas: 0,
         reclamacoesAbertas: 0,
+        reclamacoesRespondidas: 0,
+        reclamacoesEncerradas: 0,
         percentuais: {
-          reclamacoes: criarAcumuladorPercentual(),
-          cancelamento: criarAcumuladorPercentual(),
-          atraso: criarAcumuladorPercentual(),
+          reclamacao: criarAcumuladorPercentual(),
           mediacao: criarAcumuladorPercentual(),
+          atraso: criarAcumuladorPercentual(),
+          cancelado: criarAcumuladorPercentual(),
         },
       });
     }
 
     const item = mapa.get(chave);
-
-    const pedidos = normalizarNumeroDiario(registro.pedidosNaoEnviados);
-    const recorridas = normalizarNumeroDiario(registro.reclamacoesRecorridas);
-    const recusadas = normalizarNumeroDiario(registro.reclamacoesRecusadas);
     const abertas = normalizarNumeroDiario(registro.reclamacoesAbertas);
+    const respondidas = normalizarNumeroDiario(
+      registro.reclamacoesRespondidas ?? registro.reclamacoesRecorridas,
+    );
+    const encerradas = normalizarNumeroDiario(
+      registro.reclamacoesEncerradas ?? registro.reclamacoesRecusadas,
+    );
 
-    item.pedidosNaoEnviados += pedidos;
-    item.reclamacoesRecorridas += recorridas;
-    item.reclamacoesRecusadas += recusadas;
     item.reclamacoesAbertas += abertas;
+    item.reclamacoesRespondidas += respondidas;
+    item.reclamacoesEncerradas += encerradas;
 
-    totaisBase.pedidosNaoEnviados += pedidos;
-    totaisBase.reclamacoesRecorridas += recorridas;
-    totaisBase.reclamacoesRecusadas += recusadas;
     totaisBase.reclamacoesAbertas += abertas;
+    totaisBase.reclamacoesRespondidas += respondidas;
+    totaisBase.reclamacoesEncerradas += encerradas;
 
-    adicionarPercentual(item.percentuais.reclamacoes, registro.porcentagemReclamacoes);
-    adicionarPercentual(item.percentuais.cancelamento, registro.porcentagemCancelamento);
-    adicionarPercentual(item.percentuais.atraso, registro.porcentagemAtraso);
-    adicionarPercentual(item.percentuais.mediacao, registro.porcentagemMediacao);
+    adicionarPercentual(item.percentuais.reclamacao, registro.reputacaoReclamacao ?? registro.porcentagemReclamacoes);
+    adicionarPercentual(item.percentuais.mediacao, registro.reputacaoMediacao ?? registro.porcentagemMediacao);
+    adicionarPercentual(item.percentuais.atraso, registro.reputacaoAtraso ?? registro.porcentagemAtraso);
+    adicionarPercentual(item.percentuais.cancelado, registro.reputacaoCancelado ?? registro.porcentagemCancelamento);
 
-    adicionarPercentual(totaisBase.percentuais.reclamacoes, registro.porcentagemReclamacoes);
-    adicionarPercentual(totaisBase.percentuais.cancelamento, registro.porcentagemCancelamento);
-    adicionarPercentual(totaisBase.percentuais.atraso, registro.porcentagemAtraso);
-    adicionarPercentual(totaisBase.percentuais.mediacao, registro.porcentagemMediacao);
+    adicionarPercentual(totaisBase.percentuais.reclamacao, registro.reputacaoReclamacao ?? registro.porcentagemReclamacoes);
+    adicionarPercentual(totaisBase.percentuais.mediacao, registro.reputacaoMediacao ?? registro.porcentagemMediacao);
+    adicionarPercentual(totaisBase.percentuais.atraso, registro.reputacaoAtraso ?? registro.porcentagemAtraso);
+    adicionarPercentual(totaisBase.percentuais.cancelado, registro.reputacaoCancelado ?? registro.porcentagemCancelamento);
   });
 
   const linhas = Array.from(mapa.values())
     .map((item) => ({
       plataforma: item.plataforma,
       nomeLoja: item.nomeLoja,
-      pedidosNaoEnviados: item.pedidosNaoEnviados,
-      reclamacoesRecorridas: item.reclamacoesRecorridas,
-      reclamacoesRecusadas: item.reclamacoesRecusadas,
       reclamacoesAbertas: item.reclamacoesAbertas,
-      porcentagemReclamacoes: mediaPercentual(item.percentuais.reclamacoes),
-      porcentagemCancelamento: mediaPercentual(item.percentuais.cancelamento),
-      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
+      reclamacoesRespondidas: item.reclamacoesRespondidas,
+      reclamacoesEncerradas: item.reclamacoesEncerradas,
+      porcentagemReclamacao: mediaPercentual(item.percentuais.reclamacao),
       porcentagemMediacao: mediaPercentual(item.percentuais.mediacao),
+      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
+      porcentagemCancelado: mediaPercentual(item.percentuais.cancelado),
     }))
     .sort((a, b) => a.nomeLoja.localeCompare(b.nomeLoja, 'pt-BR'));
 
   const totais = {
-    pedidosNaoEnviados: totaisBase.pedidosNaoEnviados,
-    reclamacoesRecorridas: totaisBase.reclamacoesRecorridas,
-    reclamacoesRecusadas: totaisBase.reclamacoesRecusadas,
     reclamacoesAbertas: totaisBase.reclamacoesAbertas,
-    porcentagemReclamacoes: mediaPercentual(totaisBase.percentuais.reclamacoes),
-    porcentagemCancelamento: mediaPercentual(totaisBase.percentuais.cancelamento),
-    porcentagemAtraso: mediaPercentual(totaisBase.percentuais.atraso),
+    reclamacoesRespondidas: totaisBase.reclamacoesRespondidas,
+    reclamacoesEncerradas: totaisBase.reclamacoesEncerradas,
+    porcentagemReclamacao: mediaPercentual(totaisBase.percentuais.reclamacao),
     porcentagemMediacao: mediaPercentual(totaisBase.percentuais.mediacao),
+    porcentagemAtraso: mediaPercentual(totaisBase.percentuais.atraso),
+    porcentagemCancelado: mediaPercentual(totaisBase.percentuais.cancelado),
   };
 
   return { linhas, totais };
@@ -11697,23 +11835,22 @@ function agruparRegistrosDiariosGestor(registros) {
   const mapa = new Map();
   const totaisPorUsuario = new Map();
   const totaisGerais = {
-    pedidosNaoEnviados: 0,
-    reclamacoesRecorridas: 0,
-    reclamacoesRecusadas: 0,
     reclamacoesAbertas: 0,
+    reclamacoesRespondidas: 0,
+    reclamacoesEncerradas: 0,
     percentuais: {
-      reclamacoes: criarAcumuladorPercentual(),
-      cancelamento: criarAcumuladorPercentual(),
-      atraso: criarAcumuladorPercentual(),
+      reclamacao: criarAcumuladorPercentual(),
       mediacao: criarAcumuladorPercentual(),
+      atraso: criarAcumuladorPercentual(),
+      cancelado: criarAcumuladorPercentual(),
     },
   };
 
   registros.forEach((registro) => {
+    const usuarioUid = registro.usuarioUid || 'desconhecido';
+    const usuarioNome = registro.usuarioNome || 'Usuário';
     const plataforma = String(registro.plataforma || '-');
     const nomeLoja = String(registro.nomeLoja || 'Sem loja');
-    const usuarioUid = registro.usuarioUid || 'desconhecido';
-    const usuarioNome = registro.usuarioNome || registro.usuarioEmail || usuarioUid;
     const chave = `${usuarioUid}||${plataforma}||${nomeLoja}`;
 
     if (!mapa.has(chave)) {
@@ -11722,72 +11859,76 @@ function agruparRegistrosDiariosGestor(registros) {
         usuarioNome,
         plataforma,
         nomeLoja,
-        pedidosNaoEnviados: 0,
-        reclamacoesRecorridas: 0,
-        reclamacoesRecusadas: 0,
         reclamacoesAbertas: 0,
+        reclamacoesRespondidas: 0,
+        reclamacoesEncerradas: 0,
         percentuais: {
-          reclamacoes: criarAcumuladorPercentual(),
-          cancelamento: criarAcumuladorPercentual(),
-          atraso: criarAcumuladorPercentual(),
+          reclamacao: criarAcumuladorPercentual(),
           mediacao: criarAcumuladorPercentual(),
+          atraso: criarAcumuladorPercentual(),
+          cancelado: criarAcumuladorPercentual(),
         },
       });
     }
-    const item = mapa.get(chave);
 
-    if (!totaisPorUsuario.has(usuarioUid)) {
-      totaisPorUsuario.set(usuarioUid, {
+    const item = mapa.get(chave);
+    const abertas = normalizarNumeroDiario(registro.reclamacoesAbertas);
+    const respondidas = normalizarNumeroDiario(
+      registro.reclamacoesRespondidas ?? registro.reclamacoesRecorridas,
+    );
+    const encerradas = normalizarNumeroDiario(
+      registro.reclamacoesEncerradas ?? registro.reclamacoesRecusadas,
+    );
+
+    item.reclamacoesAbertas += abertas;
+    item.reclamacoesRespondidas += respondidas;
+    item.reclamacoesEncerradas += encerradas;
+
+    let totalUsuario = totaisPorUsuario.get(usuarioUid);
+    if (!totalUsuario) {
+      totalUsuario = {
         usuarioUid,
         usuarioNome,
-        pedidosNaoEnviados: 0,
-        reclamacoesRecorridas: 0,
-        reclamacoesRecusadas: 0,
         reclamacoesAbertas: 0,
+        reclamacoesRespondidas: 0,
+        reclamacoesEncerradas: 0,
         percentuais: {
-          reclamacoes: criarAcumuladorPercentual(),
-          cancelamento: criarAcumuladorPercentual(),
-          atraso: criarAcumuladorPercentual(),
+          reclamacao: criarAcumuladorPercentual(),
           mediacao: criarAcumuladorPercentual(),
+          atraso: criarAcumuladorPercentual(),
+          cancelado: criarAcumuladorPercentual(),
         },
-      });
+      };
+      totaisPorUsuario.set(usuarioUid, totalUsuario);
     }
-    const totalUsuario = totaisPorUsuario.get(usuarioUid);
 
-    const pedidos = normalizarNumeroDiario(registro.pedidosNaoEnviados);
-    const recorridas = normalizarNumeroDiario(registro.reclamacoesRecorridas);
-    const recusadas = normalizarNumeroDiario(registro.reclamacoesRecusadas);
-    const abertas = normalizarNumeroDiario(registro.reclamacoesAbertas);
-
-    item.pedidosNaoEnviados += pedidos;
-    item.reclamacoesRecorridas += recorridas;
-    item.reclamacoesRecusadas += recusadas;
-    item.reclamacoesAbertas += abertas;
-
-    totalUsuario.pedidosNaoEnviados += pedidos;
-    totalUsuario.reclamacoesRecorridas += recorridas;
-    totalUsuario.reclamacoesRecusadas += recusadas;
     totalUsuario.reclamacoesAbertas += abertas;
+    totalUsuario.reclamacoesRespondidas += respondidas;
+    totalUsuario.reclamacoesEncerradas += encerradas;
 
-    totaisGerais.pedidosNaoEnviados += pedidos;
-    totaisGerais.reclamacoesRecorridas += recorridas;
-    totaisGerais.reclamacoesRecusadas += recusadas;
     totaisGerais.reclamacoesAbertas += abertas;
+    totaisGerais.reclamacoesRespondidas += respondidas;
+    totaisGerais.reclamacoesEncerradas += encerradas;
 
-    adicionarPercentual(item.percentuais.reclamacoes, registro.porcentagemReclamacoes);
-    adicionarPercentual(item.percentuais.cancelamento, registro.porcentagemCancelamento);
-    adicionarPercentual(item.percentuais.atraso, registro.porcentagemAtraso);
-    adicionarPercentual(item.percentuais.mediacao, registro.porcentagemMediacao);
+    const percReclamacao = registro.reputacaoReclamacao ?? registro.porcentagemReclamacoes;
+    const percMediacao = registro.reputacaoMediacao ?? registro.porcentagemMediacao;
+    const percAtraso = registro.reputacaoAtraso ?? registro.porcentagemAtraso;
+    const percCancelado = registro.reputacaoCancelado ?? registro.porcentagemCancelamento;
 
-    adicionarPercentual(totalUsuario.percentuais.reclamacoes, registro.porcentagemReclamacoes);
-    adicionarPercentual(totalUsuario.percentuais.cancelamento, registro.porcentagemCancelamento);
-    adicionarPercentual(totalUsuario.percentuais.atraso, registro.porcentagemAtraso);
-    adicionarPercentual(totalUsuario.percentuais.mediacao, registro.porcentagemMediacao);
+    adicionarPercentual(item.percentuais.reclamacao, percReclamacao);
+    adicionarPercentual(item.percentuais.mediacao, percMediacao);
+    adicionarPercentual(item.percentuais.atraso, percAtraso);
+    adicionarPercentual(item.percentuais.cancelado, percCancelado);
 
-    adicionarPercentual(totaisGerais.percentuais.reclamacoes, registro.porcentagemReclamacoes);
-    adicionarPercentual(totaisGerais.percentuais.cancelamento, registro.porcentagemCancelamento);
-    adicionarPercentual(totaisGerais.percentuais.atraso, registro.porcentagemAtraso);
-    adicionarPercentual(totaisGerais.percentuais.mediacao, registro.porcentagemMediacao);
+    adicionarPercentual(totalUsuario.percentuais.reclamacao, percReclamacao);
+    adicionarPercentual(totalUsuario.percentuais.mediacao, percMediacao);
+    adicionarPercentual(totalUsuario.percentuais.atraso, percAtraso);
+    adicionarPercentual(totalUsuario.percentuais.cancelado, percCancelado);
+
+    adicionarPercentual(totaisGerais.percentuais.reclamacao, percReclamacao);
+    adicionarPercentual(totaisGerais.percentuais.mediacao, percMediacao);
+    adicionarPercentual(totaisGerais.percentuais.atraso, percAtraso);
+    adicionarPercentual(totaisGerais.percentuais.cancelado, percCancelado);
   });
 
   const linhas = Array.from(mapa.values())
@@ -11796,14 +11937,13 @@ function agruparRegistrosDiariosGestor(registros) {
       usuarioNome: item.usuarioNome,
       plataforma: item.plataforma,
       nomeLoja: item.nomeLoja,
-      pedidosNaoEnviados: item.pedidosNaoEnviados,
-      reclamacoesRecorridas: item.reclamacoesRecorridas,
-      reclamacoesRecusadas: item.reclamacoesRecusadas,
       reclamacoesAbertas: item.reclamacoesAbertas,
-      porcentagemReclamacoes: mediaPercentual(item.percentuais.reclamacoes),
-      porcentagemCancelamento: mediaPercentual(item.percentuais.cancelamento),
-      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
+      reclamacoesRespondidas: item.reclamacoesRespondidas,
+      reclamacoesEncerradas: item.reclamacoesEncerradas,
+      porcentagemReclamacao: mediaPercentual(item.percentuais.reclamacao),
       porcentagemMediacao: mediaPercentual(item.percentuais.mediacao),
+      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
+      porcentagemCancelado: mediaPercentual(item.percentuais.cancelado),
     }))
     .sort((a, b) => {
       const cmpUsuario = a.usuarioNome.localeCompare(b.usuarioNome, 'pt-BR');
@@ -11814,32 +11954,275 @@ function agruparRegistrosDiariosGestor(registros) {
     });
 
   const totais = {
-    pedidosNaoEnviados: totaisGerais.pedidosNaoEnviados,
-    reclamacoesRecorridas: totaisGerais.reclamacoesRecorridas,
-    reclamacoesRecusadas: totaisGerais.reclamacoesRecusadas,
     reclamacoesAbertas: totaisGerais.reclamacoesAbertas,
-    porcentagemReclamacoes: mediaPercentual(totaisGerais.percentuais.reclamacoes),
-    porcentagemCancelamento: mediaPercentual(totaisGerais.percentuais.cancelamento),
-    porcentagemAtraso: mediaPercentual(totaisGerais.percentuais.atraso),
+    reclamacoesRespondidas: totaisGerais.reclamacoesRespondidas,
+    reclamacoesEncerradas: totaisGerais.reclamacoesEncerradas,
+    porcentagemReclamacao: mediaPercentual(totaisGerais.percentuais.reclamacao),
     porcentagemMediacao: mediaPercentual(totaisGerais.percentuais.mediacao),
+    porcentagemAtraso: mediaPercentual(totaisGerais.percentuais.atraso),
+    porcentagemCancelado: mediaPercentual(totaisGerais.percentuais.cancelado),
   };
 
   const totaisUsuarios = Array.from(totaisPorUsuario.values())
     .map((item) => ({
       usuarioUid: item.usuarioUid,
       usuarioNome: item.usuarioNome,
-      pedidosNaoEnviados: item.pedidosNaoEnviados,
-      reclamacoesRecorridas: item.reclamacoesRecorridas,
-      reclamacoesRecusadas: item.reclamacoesRecusadas,
       reclamacoesAbertas: item.reclamacoesAbertas,
-      porcentagemReclamacoes: mediaPercentual(item.percentuais.reclamacoes),
-      porcentagemCancelamento: mediaPercentual(item.percentuais.cancelamento),
-      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
+      reclamacoesRespondidas: item.reclamacoesRespondidas,
+      reclamacoesEncerradas: item.reclamacoesEncerradas,
+      porcentagemReclamacao: mediaPercentual(item.percentuais.reclamacao),
       porcentagemMediacao: mediaPercentual(item.percentuais.mediacao),
+      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
+      porcentagemCancelado: mediaPercentual(item.percentuais.cancelado),
     }))
     .sort((a, b) => a.usuarioNome.localeCompare(b.usuarioNome, 'pt-BR'));
 
   return { linhas, totais, totaisUsuarios };
+}
+
+
+function sincronizarLabelsLojaDiario() {
+  if (!Array.isArray(diarioEstado.lojas)) return;
+  diarioEstado.lojas.forEach((loja, indice) => {
+    const nomePadrao = obterNomeLojaPadrao(indice);
+    const texto = String(loja?.nome || '').trim() || nomePadrao;
+    const seletor = '[data-loja-label="' + loja.id + '"]';
+    document.querySelectorAll(seletor).forEach((elemento) => {
+      elemento.textContent = texto;
+    });
+  });
+}
+
+function renderizarDiarioStatusCards() {
+  const container = document.getElementById('diarioStatusCards');
+  if (!container) return;
+  const lojas = Array.isArray(diarioEstado.lojas) ? diarioEstado.lojas : [];
+
+  container.innerHTML = DIARIO_STATUS_CONFIG.map((config) => {
+    const linhas = lojas.length
+      ? lojas
+          .map((loja, indice) => {
+            const nomePadrao = obterNomeLojaPadrao(indice);
+            const nomeAtual = String(loja?.nome || '').trim();
+            const nomeVisivel = nomeAtual || nomePadrao;
+            const valorNumero = Number.isFinite(Number(loja[config.chave]))
+              ? Number(loja[config.chave])
+              : 0;
+            const campoNome = config.chave === 'reclamacoesAbertas'
+              ? `<input type="text" class="flex-1 min-w-0 bg-white text-gray-800 rounded-lg px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60" data-store-id="${loja.id}" data-field="nome" value="${escapeHtml(nomeAtual)}" placeholder="${escapeHtml(nomePadrao)}" />`
+              : `<span class="font-semibold" data-loja-label="${loja.id}">${escapeHtml(nomeVisivel)}</span>`;
+            const botaoRemover = config.chave === 'reclamacoesAbertas'
+              ? `<button type="button" class="inline-flex items-center justify-center text-xs font-semibold bg-white/30 hover:bg-white/50 transition rounded-full w-7 h-7" data-action="remove-loja" data-store-id="${loja.id}" aria-label="Remover loja"><i class="fas fa-times"></i></button>`
+              : '';
+            const campoValor = `<input type="number" min="0" step="1" class="w-24 bg-white text-gray-800 rounded-lg px-3 py-2 text-right shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60" data-store-id="${loja.id}" data-field="${config.chave}" value="${valorNumero}" />`;
+            return `
+              <div class="flex items-center gap-2 bg-white/20 rounded-xl px-3 py-2" data-loja-item="${loja.id}">
+                ${campoNome}
+                ${campoValor}
+                ${botaoRemover}
+              </div>
+            `;
+          })
+          .join('')
+      : '<p class="text-sm font-semibold text-white/80">Adicione uma loja para começar.</p>';
+
+    return `
+      <div class="rounded-2xl p-4 shadow-lg ${config.cardClasse}">
+        <h5 class="text-lg font-bold">${config.titulo}</h5>
+        <div class="mt-3 space-y-2">
+          ${linhas}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderizarDiarioReputacaoCards() {
+  const container = document.getElementById('diarioReputacaoCards');
+  if (!container) return;
+  const lojas = Array.isArray(diarioEstado.lojas) ? diarioEstado.lojas : [];
+
+  container.innerHTML = DIARIO_REPUTACAO_CONFIG.map((config) => {
+    const linhas = lojas.length
+      ? lojas
+          .map((loja, indice) => {
+            const nomePadrao = obterNomeLojaPadrao(indice);
+            const nomeAtual = String(loja?.nome || '').trim();
+            const nomeVisivel = nomeAtual || nomePadrao;
+            const valorBruto = valorPercentualInput(loja[config.chave]);
+            const valorCampo = valorBruto === '' ? '' : Number(valorBruto);
+            const classePercentual = config.textoClasse.includes('text-white')
+              ? 'text-white/80'
+              : 'text-gray-700';
+            return `
+              <div class="flex items-center justify-between bg-white/20 rounded-xl px-3 py-2" data-loja-item="${loja.id}">
+                <span class="font-semibold" data-loja-label="${loja.id}">${escapeHtml(nomeVisivel)}</span>
+                <div class="flex items-center gap-1">
+                  <input type="number" min="0" max="100" step="0.01" class="w-20 bg-white text-gray-800 rounded-lg px-3 py-2 text-right shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60" data-store-id="${loja.id}" data-field="${config.chave}" value="${valorCampo}" />
+                  <span class="text-sm font-semibold ${classePercentual}">% </span>
+                </div>
+              </div>
+            `;
+          })
+          .join('')
+      : '<p class="text-sm font-semibold text-white/80">Nenhuma loja cadastrada.</p>';
+
+    return `
+      <div class="rounded-2xl p-4 shadow-lg ${config.cardClasse}">
+        <h5 class="text-lg font-bold">${config.titulo}</h5>
+        <div class="mt-3 space-y-2">
+          ${linhas}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderizarDiario() {
+  const dataAtual = diarioEstado.data || obterDataIsoHoje();
+  const inputData = document.getElementById('diarioDataAtual');
+  if (inputData && inputData.value !== dataAtual) {
+    inputData.value = dataAtual;
+  }
+  const labelData = document.getElementById('diarioDataAtualLabel');
+  if (labelData) {
+    labelData.textContent = formatarDataCurtaDiario(dataAtual);
+  }
+  renderizarDiarioStatusCards();
+  renderizarDiarioReputacaoCards();
+  sincronizarLabelsLojaDiario();
+}
+
+function adicionarLojaDiario(dados = {}) {
+  if (!Array.isArray(diarioEstado.lojas)) {
+    diarioEstado.lojas = [];
+  }
+  const indice = diarioEstado.lojas.length;
+  const lojaNormalizada = normalizarLojaEstado(dados, indice);
+  diarioEstado.lojas.push(lojaNormalizada);
+  diarioEstado.lojas = diarioEstado.lojas
+    .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+    .map((loja, idx) => ({ ...loja, ordem: idx }));
+  renderizarDiario();
+}
+
+function removerLojaDiario(id) {
+  if (!Array.isArray(diarioEstado.lojas)) return;
+  diarioEstado.lojas = diarioEstado.lojas.filter((loja) => loja.id !== id);
+  if (!diarioEstado.lojas.length) {
+    diarioEstado.lojas.push(normalizarLojaEstado({}, 0));
+  }
+  diarioEstado.lojas = diarioEstado.lojas.map((loja, indice) => ({ ...loja, ordem: indice }));
+  renderizarDiario();
+}
+
+function handleStatusInputDiario(event) {
+  const alvo = event.target;
+  if (!alvo?.dataset) return;
+  const storeId = alvo.dataset.storeId;
+  const campo = alvo.dataset.field;
+  if (!storeId || !campo) return;
+  const loja = Array.isArray(diarioEstado.lojas)
+    ? diarioEstado.lojas.find((item) => item.id === storeId)
+    : null;
+  if (!loja) return;
+
+  if (campo === 'nome') {
+    loja.nome = alvo.value;
+    sincronizarLabelsLojaDiario();
+  } else {
+    loja[campo] = normalizarNumeroDiario(alvo.value);
+  }
+}
+
+function handleStatusClickDiario(event) {
+  const botao = event.target.closest('[data-action="remove-loja"]');
+  if (!botao) return;
+  const storeId = botao.dataset.storeId;
+  if (!storeId) return;
+  removerLojaDiario(storeId);
+}
+
+function handleReputacaoInputDiario(event) {
+  const alvo = event.target;
+  if (!alvo?.dataset) return;
+  const storeId = alvo.dataset.storeId;
+  const campo = alvo.dataset.field;
+  if (!storeId || !campo) return;
+  const loja = Array.isArray(diarioEstado.lojas)
+    ? diarioEstado.lojas.find((item) => item.id === storeId)
+    : null;
+  if (!loja) return;
+
+  if (alvo.value === '') {
+    loja[campo] = null;
+  } else {
+    loja[campo] = normalizarPercentualDiario(alvo.value);
+  }
+}
+
+async function carregarDiarioDia(dataSelecionada) {
+  const data = dataSelecionada || obterDataIsoHoje();
+  diarioEstado.data = data;
+
+  const lojas = [];
+  if (!db || !usuarioLogado?.uid) {
+    for (let i = 0; i < 4; i += 1) {
+      lojas.push(normalizarLojaEstado({}, i));
+    }
+    diarioEstado.lojas = lojas;
+    renderizarDiario();
+    return;
+  }
+
+  try {
+    const colecao = db
+      .collection('uid')
+      .doc(usuarioLogado.uid)
+      .collection('acompanhamentoDiario');
+    const principal = await colecao.doc(data).get();
+    if (principal.exists) {
+      const dados = principal.data() || {};
+      if (Array.isArray(dados.lojas) && dados.lojas.length) {
+        dados.lojas
+          .slice()
+          .sort((a, b) => (a?.ordem ?? 0) - (b?.ordem ?? 0))
+          .forEach((loja, indice) => {
+            lojas.push(normalizarLojaEstado(loja, indice));
+          });
+      } else {
+        lojas.push(normalizarLojaEstado(dados, 0));
+      }
+    } else {
+      const antigos = await colecao.where('data', '==', data).get().catch((erro) => {
+        console.warn('Erro ao buscar registros diários antigos', erro);
+        return null;
+      });
+      if (antigos && !antigos.empty) {
+        antigos.forEach((docSnap) => {
+          const dados = docSnap.data() || {};
+          if (Array.isArray(dados.lojas) && dados.lojas.length) {
+            dados.lojas.forEach((loja) => {
+              lojas.push(normalizarLojaEstado(loja, lojas.length));
+            });
+          } else {
+            lojas.push(normalizarLojaEstado(dados, lojas.length));
+          }
+        });
+      }
+    }
+  } catch (erro) {
+    console.error('Erro ao carregar registros do dia', erro);
+  }
+
+  if (!lojas.length) {
+    for (let i = 0; i < 4; i += 1) {
+      lojas.push(normalizarLojaEstado({}, i));
+    }
+  }
+
+  diarioEstado.lojas = lojas.map((loja, indice) => ({ ...loja, ordem: indice }));
+  renderizarDiario();
 }
 
 function alternarSubPaginaDiaria(sub) {
@@ -11864,41 +12247,28 @@ function alternarSubPaginaDiaria(sub) {
   }
 }
 
-function atualizarCamposDiario(plataforma) {
-  const camposMercado = document.getElementById('diarioCamposMercado');
-  const camposShopee = document.getElementById('diarioCamposShopee');
-  if (plataforma === 'mercado') {
-    camposMercado?.classList.remove('hidden');
-    camposShopee?.classList.remove('hidden');
-  } else if (plataforma === 'shopee') {
-    camposMercado?.classList.add('hidden');
-    camposShopee?.classList.remove('hidden');
-  } else {
-    camposMercado?.classList.add('hidden');
-    camposShopee?.classList.add('hidden');
-  }
-}
-
 async function inicializarAbaDiaria() {
   const container = document.getElementById('diariamente');
   if (!container || container.dataset.initialized) return;
 
-  const dataInput = document.getElementById('diarioData');
+  const dataInput = document.getElementById('diarioDataAtual');
   if (dataInput && !dataInput.value) {
     dataInput.value = obterDataIsoHoje();
   }
+  diarioEstado.data = dataInput?.value || obterDataIsoHoje();
 
-  const resumoMes = document.getElementById('diarioResumoMes');
-  if (resumoMes && !resumoMes.value) {
-    resumoMes.value = obterMesIsoAtual();
+  if (dataInput && !dataInput.dataset.bound) {
+    dataInput.addEventListener('change', (event) => {
+      const novaData = event.target.value || obterDataIsoHoje();
+      carregarDiarioDia(novaData);
+    });
+    dataInput.dataset.bound = 'true';
   }
 
-  const plataformaSelect = document.getElementById('diarioPlataforma');
-  if (plataformaSelect && !plataformaSelect.dataset.bound) {
-    plataformaSelect.addEventListener('change', (event) => {
-      atualizarCamposDiario(event.target.value);
-    });
-    plataformaSelect.dataset.bound = 'true';
+  const adicionarBtn = document.getElementById('diarioAdicionarLoja');
+  if (adicionarBtn && !adicionarBtn.dataset.bound) {
+    adicionarBtn.addEventListener('click', () => adicionarLojaDiario());
+    adicionarBtn.dataset.bound = 'true';
   }
 
   const salvarBtn = document.getElementById('diarioSalvar');
@@ -11907,15 +12277,32 @@ async function inicializarAbaDiaria() {
     salvarBtn.dataset.bound = 'true';
   }
 
+  const statusContainer = document.getElementById('diarioStatusCards');
+  if (statusContainer && !statusContainer.dataset.bound) {
+    statusContainer.addEventListener('input', handleStatusInputDiario);
+    statusContainer.addEventListener('click', handleStatusClickDiario);
+    statusContainer.dataset.bound = 'true';
+  }
+
+  const reputacaoContainer = document.getElementById('diarioReputacaoCards');
+  if (reputacaoContainer && !reputacaoContainer.dataset.bound) {
+    reputacaoContainer.addEventListener('input', handleReputacaoInputDiario);
+    reputacaoContainer.dataset.bound = 'true';
+  }
+
+  const resumoMes = document.getElementById('diarioResumoMes');
+  if (resumoMes && !resumoMes.value) {
+    resumoMes.value = obterMesIsoAtual();
+  }
+  if (resumoMes && !resumoMes.dataset.bound) {
+    resumoMes.addEventListener('change', carregarResumoDiario);
+    resumoMes.dataset.bound = 'true';
+  }
+
   const atualizarResumoBtn = document.getElementById('diarioResumoAtualizar');
   if (atualizarResumoBtn && !atualizarResumoBtn.dataset.bound) {
     atualizarResumoBtn.addEventListener('click', carregarResumoDiario);
     atualizarResumoBtn.dataset.bound = 'true';
-  }
-
-  if (resumoMes && !resumoMes.dataset.bound) {
-    resumoMes.addEventListener('change', carregarResumoDiario);
-    resumoMes.dataset.bound = 'true';
   }
 
   const botoes = document.querySelectorAll('#diariamente [data-diario-sub]');
@@ -11927,7 +12314,7 @@ async function inicializarAbaDiaria() {
   });
 
   container.dataset.initialized = 'true';
-  atualizarCamposDiario(plataformaSelect?.value || '');
+  await carregarDiarioDia(diarioEstado.data);
   alternarSubPaginaDiaria('cadastro');
   await carregarResumoDiario();
 }
@@ -11938,38 +12325,55 @@ async function salvarAcompanhamentoDiario() {
     return;
   }
 
-  const plataforma = document.getElementById('diarioPlataforma')?.value || '';
-  const nomeLoja = (document.getElementById('diarioLoja')?.value || '').trim();
-  const dataRegistro = document.getElementById('diarioData')?.value || obterDataIsoHoje();
+  const dataRegistro = diarioEstado.data || document.getElementById('diarioDataAtual')?.value || obterDataIsoHoje();
+  const lojasEstado = Array.isArray(diarioEstado.lojas) ? diarioEstado.lojas : [];
 
-  if (!plataforma) {
-    mostrarErro('Selecione a plataforma da loja.');
-    return;
-  }
-  if (!nomeLoja) {
-    mostrarErro('Informe o nome da loja.');
+  if (!lojasEstado.length) {
+    mostrarErro('Adicione ao menos uma loja antes de salvar.');
     return;
   }
 
-  const pedidosNaoEnviados = normalizarNumeroDiario(document.getElementById('diarioPedidosNaoEnviados')?.value);
-  const reclamacoesRecorridas = normalizarNumeroDiario(document.getElementById('diarioReclamacoesRecorridas')?.value);
-  const reclamacoesRecusadas = normalizarNumeroDiario(document.getElementById('diarioReclamacoesRecusadas')?.value);
-  const reclamacoesAbertas = normalizarNumeroDiario(document.getElementById('diarioReclamacoesAbertas')?.value);
+  const lojasSanitizadas = lojasEstado.map((loja, indice) => {
+    const nomeNormalizado = String(loja?.nome || '').trim() || obterNomeLojaPadrao(indice);
+    return {
+      id: loja.id || gerarIdLojaDiario(),
+      ordem: indice,
+      nomeLoja: nomeNormalizado,
+      plataforma: loja.plataforma || 'Shopee',
+      reclamacoesAbertas: normalizarNumeroDiario(loja.reclamacoesAbertas),
+      reclamacoesRespondidas: normalizarNumeroDiario(loja.reclamacoesRespondidas ?? loja.reclamacoesRecorridas),
+      reclamacoesEncerradas: normalizarNumeroDiario(loja.reclamacoesEncerradas ?? loja.reclamacoesRecusadas),
+      reputacao: {
+        reclamacao: normalizarPercentualDiario(loja.reputacaoReclamacao),
+        mediacao: normalizarPercentualDiario(loja.reputacaoMediacao),
+        atraso: normalizarPercentualDiario(loja.reputacaoAtraso),
+        cancelado: normalizarPercentualDiario(loja.reputacaoCancelado),
+      },
+    };
+  });
 
-  let porcentagemReclamacoes = null;
-  let porcentagemCancelamento = null;
-  let porcentagemAtraso = null;
-  let porcentagemMediacao = null;
-
-  if (plataforma === 'mercado') {
-    porcentagemReclamacoes = normalizarPercentualDiario(document.getElementById('diarioPercentualReclamacoes')?.value);
-    porcentagemCancelamento = normalizarPercentualDiario(document.getElementById('diarioPercentualCancelamento')?.value);
-    porcentagemAtraso = normalizarPercentualDiario(document.getElementById('diarioPercentualAtraso')?.value);
-    porcentagemMediacao = normalizarPercentualDiario(document.getElementById('diarioPercentualMediacao')?.value);
+  if (!lojasSanitizadas.some((loja) => String(loja.nomeLoja || '').trim())) {
+    mostrarErro('Informe o nome das lojas antes de salvar.');
+    return;
   }
 
-  const docId = gerarIdDiario(dataRegistro, plataforma, nomeLoja);
-  const docRef = db.collection('uid').doc(usuarioLogado.uid).collection('acompanhamentoDiario').doc(docId);
+  diarioEstado.lojas = lojasSanitizadas.map((loja, indice) =>
+    normalizarLojaEstado(
+      {
+        ...loja,
+        nomeLoja: loja.nomeLoja,
+        reputacao: loja.reputacao,
+      },
+      indice,
+    ),
+  );
+  renderizarDiario();
+
+  const docRef = db
+    .collection('uid')
+    .doc(usuarioLogado.uid)
+    .collection('acompanhamentoDiario')
+    .doc(dataRegistro);
 
   const timestamp = (typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp)
     ? () => firebase.firestore.FieldValue.serverTimestamp()
@@ -11979,17 +12383,17 @@ async function salvarAcompanhamentoDiario() {
 
   const payload = {
     data: dataRegistro,
-    plataforma,
-    nomeLoja,
-    pedidosNaoEnviados,
-    porcentagemReclamacoes,
-    porcentagemCancelamento,
-    porcentagemAtraso,
-    porcentagemMediacao,
-    reclamacoesRecorridas,
-    reclamacoesRecusadas,
-    reclamacoesAbertas,
     uid: usuarioLogado.uid,
+    lojas: lojasSanitizadas.map((loja) => ({
+      id: loja.id,
+      ordem: loja.ordem,
+      nomeLoja: loja.nomeLoja,
+      plataforma: loja.plataforma,
+      reclamacoesAbertas: loja.reclamacoesAbertas,
+      reclamacoesRespondidas: loja.reclamacoesRespondidas,
+      reclamacoesEncerradas: loja.reclamacoesEncerradas,
+      reputacao: loja.reputacao,
+    })),
     atualizadoEm: timestamp(),
   };
 
@@ -11998,6 +12402,23 @@ async function salvarAcompanhamentoDiario() {
   }
 
   await docRef.set(payload, { merge: true });
+
+  try {
+    const antigos = await db
+      .collection('uid')
+      .doc(usuarioLogado.uid)
+      .collection('acompanhamentoDiario')
+      .where('data', '==', dataRegistro)
+      .get();
+    const paraRemover = antigos.docs.filter((docSnap) => docSnap.id !== dataRegistro);
+    if (paraRemover.length) {
+      const batch = db.batch();
+      paraRemover.forEach((docSnap) => batch.delete(docSnap.ref));
+      await batch.commit();
+    }
+  } catch (erroLimpeza) {
+    console.warn('Não foi possível remover registros antigos do dia', erroLimpeza);
+  }
 
   try {
     const { baseResp, respEmail } = await obterBasesUsuario();
@@ -12011,7 +12432,7 @@ async function salvarAcompanhamentoDiario() {
       if (!existente.exists) {
         copia.criadoEm = timestamp();
       }
-      await baseResp.collection('acompanhamentoDiario').doc(docId).set(copia, { merge: true });
+      await baseResp.collection('acompanhamentoDiario').doc(dataRegistro).set(copia, { merge: true });
     }
   } catch (erroCopia) {
     console.error('Erro ao compartilhar acompanhamento diário com o gestor', erroCopia);
@@ -12047,11 +12468,19 @@ async function carregarResumoDiario() {
     const registros = [];
     snap.forEach((doc) => {
       const dados = doc.data() || {};
-      const dataRegistro = String(dados.data || '');
+      const dataRegistro = String(dados.data || doc.id || '');
       if (inicio && fim) {
         if (!dataRegistro || dataRegistro < inicio || dataRegistro > fim) return;
       }
-      registros.push(dados);
+      if (Array.isArray(dados.lojas) && dados.lojas.length) {
+        dados.lojas.forEach((loja) => {
+          const registro = mapearRegistroDiarioBasico(loja, { data: dataRegistro });
+          if (registro) registros.push(registro);
+        });
+      } else {
+        const registro = mapearRegistroDiarioBasico(dados, { data: dataRegistro });
+        if (registro) registros.push(registro);
+      }
     });
 
     if (!registros.length) {
@@ -12064,7 +12493,7 @@ async function carregarResumoDiario() {
     renderResumoDiarioTotais(totais, mesSelecionado);
   } catch (error) {
     console.error('Erro ao carregar acompanhamento diário', error);
-    tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center text-red-500">Erro ao carregar os dados.</td></tr>';
+    tabelaBody.innerHTML = '<tr><td colspan="9" class="text-center text-red-500">Erro ao carregar os dados.</td></tr>';
   }
 }
 
@@ -12078,14 +12507,13 @@ function renderResumoDiarioTabela(linhas) {
     tr.innerHTML = `
       <td class="px-4 py-2">${escapeHtml(linha.plataforma)}</td>
       <td class="px-4 py-2">${escapeHtml(linha.nomeLoja)}</td>
-      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.pedidosNaoEnviados)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemReclamacoes)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemCancelamento)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemAtraso)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemMediacao)}</td>
-      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesRecorridas)}</td>
-      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesRecusadas)}</td>
       <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesAbertas)}</td>
+      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesRespondidas)}</td>
+      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesEncerradas)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemReclamacao)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemMediacao)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemAtraso)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemCancelado)}</td>
     `;
     tabelaBody.appendChild(tr);
   });
@@ -12101,40 +12529,36 @@ function renderResumoDiarioTotais(totais, mesSelecionado) {
   container.innerHTML = `
     <div class="space-y-4">
       <h4 class="text-lg font-semibold text-gray-700">Totais ${escapeHtml(mesLabel)}</h4>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="p-4 bg-indigo-50 rounded-lg">
-          <p class="text-sm text-gray-600">Pedidos não enviados</p>
-          <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.pedidosNaoEnviados)}</p>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="p-4 rounded-xl shadow bg-rose-100 text-rose-800">
+          <p class="text-sm font-semibold uppercase tracking-wide">Reclamações abertas</p>
+          <p class="text-2xl font-bold">${formatarNumeroPadrao(totais.reclamacoesAbertas)}</p>
         </div>
-        <div class="p-4 bg-indigo-50 rounded-lg">
-          <p class="text-sm text-gray-600">Reclamações recorridas</p>
-          <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.reclamacoesRecorridas)}</p>
+        <div class="p-4 rounded-xl shadow bg-lime-100 text-lime-800">
+          <p class="text-sm font-semibold uppercase tracking-wide">Reclamações respondidas</p>
+          <p class="text-2xl font-bold">${formatarNumeroPadrao(totais.reclamacoesRespondidas)}</p>
         </div>
-        <div class="p-4 bg-indigo-50 rounded-lg">
-          <p class="text-sm text-gray-600">Reclamações recusadas</p>
-          <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.reclamacoesRecusadas)}</p>
-        </div>
-        <div class="p-4 bg-indigo-50 rounded-lg">
-          <p class="text-sm text-gray-600">Reclamações abertas</p>
-          <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.reclamacoesAbertas)}</p>
+        <div class="p-4 rounded-xl shadow bg-cyan-100 text-cyan-800">
+          <p class="text-sm font-semibold uppercase tracking-wide">Reclamações encerradas</p>
+          <p class="text-2xl font-bold">${formatarNumeroPadrao(totais.reclamacoesEncerradas)}</p>
         </div>
       </div>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="p-4 bg-white border border-gray-200 rounded-lg">
-          <p class="text-sm text-gray-600">% Reclamações</p>
-          <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemReclamacoes)}</p>
+        <div class="p-4 rounded-xl shadow bg-fuchsia-100 text-fuchsia-800">
+          <p class="text-sm font-semibold uppercase tracking-wide">% Reclamação</p>
+          <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemReclamacao)}</p>
         </div>
-        <div class="p-4 bg-white border border-gray-200 rounded-lg">
-          <p class="text-sm text-gray-600">% Cancelamento</p>
-          <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemCancelamento)}</p>
+        <div class="p-4 rounded-xl shadow bg-purple-100 text-purple-800">
+          <p class="text-sm font-semibold uppercase tracking-wide">% Mediação</p>
+          <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemMediacao)}</p>
         </div>
-        <div class="p-4 bg-white border border-gray-200 rounded-lg">
-          <p class="text-sm text-gray-600">% Atraso</p>
-          <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemAtraso)}</p>
+        <div class="p-4 rounded-xl shadow bg-amber-100 text-amber-800">
+          <p class="text-sm font-semibold uppercase tracking-wide">% Atraso</p>
+          <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemAtraso)}</p>
         </div>
-        <div class="p-4 bg-white border border-gray-200 rounded-lg">
-          <p class="text-sm text-gray-600">% Mediação</p>
-          <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemMediacao)}</p>
+        <div class="p-4 rounded-xl shadow bg-pink-100 text-pink-800">
+          <p class="text-sm font-semibold uppercase tracking-wide">% Cancelado</p>
+          <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemCancelado)}</p>
         </div>
       </div>
     </div>
@@ -12170,7 +12594,7 @@ async function carregarDiarioGestor() {
   const totaisContainer = document.getElementById('diarioGestorTotais');
   const usuariosContainer = document.getElementById('diarioGestorUsuarios');
   if (tabelaBody) {
-    tabelaBody.innerHTML = '<tr><td colspan="11" class="text-center text-gray-500">Carregando registros...</td></tr>';
+    tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500">Carregando registros...</td></tr>';
   }
   if (totaisContainer) totaisContainer.innerHTML = '';
   if (usuariosContainer) usuariosContainer.innerHTML = '';
@@ -12184,7 +12608,7 @@ async function carregarDiarioGestor() {
 
     if (!usuarios.length) {
       if (tabelaBody) {
-        tabelaBody.innerHTML = '<tr><td colspan="11" class="text-center text-gray-500">Nenhum usuário vinculado encontrado.</td></tr>';
+        tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500">Nenhum usuário vinculado encontrado.</td></tr>';
       }
       return;
     }
@@ -12207,23 +12631,31 @@ async function carregarDiarioGestor() {
         const snap = await db.collection('uid').doc(usuario.uid).collection('acompanhamentoDiario').get();
         snap.forEach((doc) => {
           const dados = doc.data() || {};
-          const dataRegistro = String(dados.data || '');
+          const dataRegistro = String(dados.data || doc.id || '');
           if (inicio && fim) {
             if (!dataRegistro || dataRegistro < inicio || dataRegistro > fim) return;
           }
-          registros.push({
-            ...dados,
+          const contexto = {
+            data: dataRegistro,
             usuarioUid: usuario.uid,
             usuarioNome: usuario.nome || usuario.email || usuario.uid,
-            usuarioEmail: usuario.email || '',
-          });
+          };
+          if (Array.isArray(dados.lojas) && dados.lojas.length) {
+            dados.lojas.forEach((loja) => {
+              const registro = mapearRegistroDiarioBasico(loja, contexto);
+              if (registro) registros.push(registro);
+            });
+          } else {
+            const registro = mapearRegistroDiarioBasico(dados, contexto);
+            if (registro) registros.push(registro);
+          }
         });
       })
     );
 
     if (!registros.length) {
       if (tabelaBody) {
-        tabelaBody.innerHTML = '<tr><td colspan="11" class="text-center text-gray-500">Nenhum registro encontrado para o período selecionado.</td></tr>';
+        tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500">Nenhum registro encontrado para o período selecionado.</td></tr>';
       }
       return;
     }
@@ -12234,7 +12666,7 @@ async function carregarDiarioGestor() {
   } catch (error) {
     console.error('Erro ao carregar acompanhamento diário do gestor', error);
     if (tabelaBody) {
-      tabelaBody.innerHTML = '<tr><td colspan="11" class="text-center text-red-500">Erro ao carregar dados.</td></tr>';
+      tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center text-red-500">Erro ao carregar dados.</td></tr>';
     }
   }
 }
@@ -12250,14 +12682,13 @@ function renderTabelaDiarioGestor(linhas) {
       <td class="px-4 py-2">${escapeHtml(linha.usuarioNome)}</td>
       <td class="px-4 py-2">${escapeHtml(linha.plataforma)}</td>
       <td class="px-4 py-2">${escapeHtml(linha.nomeLoja)}</td>
-      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.pedidosNaoEnviados)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemReclamacoes)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemCancelamento)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemAtraso)}</td>
-      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemMediacao)}</td>
-      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesRecorridas)}</td>
-      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesRecusadas)}</td>
       <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesAbertas)}</td>
+      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesRespondidas)}</td>
+      <td class="px-4 py-2 text-right">${formatarNumeroPadrao(linha.reclamacoesEncerradas)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemReclamacao)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemMediacao)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemAtraso)}</td>
+      <td class="px-4 py-2 text-right">${formatarPercentualPadrao(linha.porcentagemCancelado)}</td>
     `;
     tabelaBody.appendChild(tr);
   });
@@ -12274,40 +12705,36 @@ function renderTotaisDiarioGestor(totais, totaisUsuarios, mesSelecionado) {
     totaisContainer.innerHTML = `
       <div class="space-y-4">
         <h4 class="text-lg font-semibold text-gray-700">Totais gerais ${escapeHtml(mesLabel)}</h4>
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="p-4 bg-indigo-50 rounded-lg">
-            <p class="text-sm text-gray-600">Pedidos não enviados</p>
-            <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.pedidosNaoEnviados)}</p>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="p-4 rounded-xl shadow bg-rose-100 text-rose-800">
+            <p class="text-sm font-semibold uppercase tracking-wide">Reclamações abertas</p>
+            <p class="text-2xl font-bold">${formatarNumeroPadrao(totais.reclamacoesAbertas)}</p>
           </div>
-          <div class="p-4 bg-indigo-50 rounded-lg">
-            <p class="text-sm text-gray-600">Reclamações recorridas</p>
-            <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.reclamacoesRecorridas)}</p>
+          <div class="p-4 rounded-xl shadow bg-lime-100 text-lime-800">
+            <p class="text-sm font-semibold uppercase tracking-wide">Reclamações respondidas</p>
+            <p class="text-2xl font-bold">${formatarNumeroPadrao(totais.reclamacoesRespondidas)}</p>
           </div>
-          <div class="p-4 bg-indigo-50 rounded-lg">
-            <p class="text-sm text-gray-600">Reclamações recusadas</p>
-            <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.reclamacoesRecusadas)}</p>
-          </div>
-          <div class="p-4 bg-indigo-50 rounded-lg">
-            <p class="text-sm text-gray-600">Reclamações abertas</p>
-            <p class="text-2xl font-semibold text-indigo-700">${formatarNumeroPadrao(totais.reclamacoesAbertas)}</p>
+          <div class="p-4 rounded-xl shadow bg-cyan-100 text-cyan-800">
+            <p class="text-sm font-semibold uppercase tracking-wide">Reclamações encerradas</p>
+            <p class="text-2xl font-bold">${formatarNumeroPadrao(totais.reclamacoesEncerradas)}</p>
           </div>
         </div>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="p-4 bg-white border border-gray-200 rounded-lg">
-            <p class="text-sm text-gray-600">% Reclamações</p>
-            <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemReclamacoes)}</p>
+          <div class="p-4 rounded-xl shadow bg-fuchsia-100 text-fuchsia-800">
+            <p class="text-sm font-semibold uppercase tracking-wide">% Reclamação</p>
+            <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemReclamacao)}</p>
           </div>
-          <div class="p-4 bg-white border border-gray-200 rounded-lg">
-            <p class="text-sm text-gray-600">% Cancelamento</p>
-            <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemCancelamento)}</p>
+          <div class="p-4 rounded-xl shadow bg-purple-100 text-purple-800">
+            <p class="text-sm font-semibold uppercase tracking-wide">% Mediação</p>
+            <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemMediacao)}</p>
           </div>
-          <div class="p-4 bg-white border border-gray-200 rounded-lg">
-            <p class="text-sm text-gray-600">% Atraso</p>
-            <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemAtraso)}</p>
+          <div class="p-4 rounded-xl shadow bg-amber-100 text-amber-800">
+            <p class="text-sm font-semibold uppercase tracking-wide">% Atraso</p>
+            <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemAtraso)}</p>
           </div>
-          <div class="p-4 bg-white border border-gray-200 rounded-lg">
-            <p class="text-sm text-gray-600">% Mediação</p>
-            <p class="text-xl font-semibold text-gray-700">${formatarPercentualPadrao(totais.porcentagemMediacao)}</p>
+          <div class="p-4 rounded-xl shadow bg-pink-100 text-pink-800">
+            <p class="text-sm font-semibold uppercase tracking-wide">% Cancelado</p>
+            <p class="text-xl font-bold">${formatarPercentualPadrao(totais.porcentagemCancelado)}</p>
           </div>
         </div>
       </div>
@@ -12327,40 +12754,36 @@ function renderTotaisDiarioGestor(totais, totaisUsuarios, mesSelecionado) {
           .map((usuario) => `
             <div class="border border-gray-200 rounded-lg p-4">
               <div class="font-semibold text-gray-800 mb-2">${escapeHtml(usuario.usuarioNome)}</div>
-              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <p class="text-sm text-gray-600">Pedidos não enviados</p>
-                  <p class="text-lg font-semibold text-gray-700">${formatarNumeroPadrao(usuario.pedidosNaoEnviados)}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-600">Recorridas</p>
-                  <p class="text-lg font-semibold text-gray-700">${formatarNumeroPadrao(usuario.reclamacoesRecorridas)}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-600">Recusadas</p>
-                  <p class="text-lg font-semibold text-gray-700">${formatarNumeroPadrao(usuario.reclamacoesRecusadas)}</p>
-                </div>
+              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <p class="text-sm text-gray-600">Abertas</p>
                   <p class="text-lg font-semibold text-gray-700">${formatarNumeroPadrao(usuario.reclamacoesAbertas)}</p>
                 </div>
+                <div>
+                  <p class="text-sm text-gray-600">Respondidas</p>
+                  <p class="text-lg font-semibold text-gray-700">${formatarNumeroPadrao(usuario.reclamacoesRespondidas)}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">Encerradas</p>
+                  <p class="text-lg font-semibold text-gray-700">${formatarNumeroPadrao(usuario.reclamacoesEncerradas)}</p>
+                </div>
               </div>
               <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-3">
                 <div>
-                  <p class="text-sm text-gray-600">% Reclamações</p>
-                  <p class="text-lg font-semibold text-gray-700">${formatarPercentualPadrao(usuario.porcentagemReclamacoes)}</p>
+                  <p class="text-sm text-gray-600">% Reclamação</p>
+                  <p class="text-lg font-semibold text-gray-700">${formatarPercentualPadrao(usuario.porcentagemReclamacao)}</p>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-600">% Cancelamento</p>
-                  <p class="text-lg font-semibold text-gray-700">${formatarPercentualPadrao(usuario.porcentagemCancelamento)}</p>
+                  <p class="text-sm text-gray-600">% Mediação</p>
+                  <p class="text-lg font-semibold text-gray-700">${formatarPercentualPadrao(usuario.porcentagemMediacao)}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-600">% Atraso</p>
                   <p class="text-lg font-semibold text-gray-700">${formatarPercentualPadrao(usuario.porcentagemAtraso)}</p>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-600">% Mediação</p>
-                  <p class="text-lg font-semibold text-gray-700">${formatarPercentualPadrao(usuario.porcentagemMediacao)}</p>
+                  <p class="text-sm text-gray-600">% Cancelado</p>
+                  <p class="text-lg font-semibold text-gray-700">${formatarPercentualPadrao(usuario.porcentagemCancelado)}</p>
                 </div>
               </div>
             </div>
