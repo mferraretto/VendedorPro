@@ -72,6 +72,32 @@ onAuthStateChanged(auth, (user) => {
       const di = document.getElementById('dataR');
       if (di) di.value = new Date().toISOString().split('T')[0];
     });
+  document
+    .getElementById('filtroStatusReembolsos')
+    ?.addEventListener('change', renderReembolsos);
+  document
+    .getElementById('filtroApelidoReembolsos')
+    ?.addEventListener('input', renderReembolsos);
+  document
+    .getElementById('filtroLojaReembolsos')
+    ?.addEventListener('input', renderReembolsos);
+  document
+    .getElementById('filtroNumeroReembolsos')
+    ?.addEventListener('input', renderReembolsos);
+  document
+    .getElementById('limparFiltrosReembolsos')
+    ?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const filtroStatus = document.getElementById('filtroStatusReembolsos');
+      const filtroApelido = document.getElementById('filtroApelidoReembolsos');
+      const filtroLoja = document.getElementById('filtroLojaReembolsos');
+      const filtroNumero = document.getElementById('filtroNumeroReembolsos');
+      if (filtroStatus) filtroStatus.value = '';
+      if (filtroApelido) filtroApelido.value = '';
+      if (filtroLoja) filtroLoja.value = '';
+      if (filtroNumero) filtroNumero.value = '';
+      renderReembolsos();
+    });
   document.getElementById('limparPecas')?.addEventListener('click', (ev) => {
     ev.preventDefault();
     const form = document.getElementById('pecasForm');
@@ -333,9 +359,31 @@ function renderReembolsos() {
   const tbody = document.getElementById('reembolsosTableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
+  const filtroStatus = document.getElementById('filtroStatusReembolsos')?.value;
+  const filtroApelido =
+    document.getElementById('filtroApelidoReembolsos')?.value.toLowerCase() ||
+    '';
+  const filtroLoja =
+    document.getElementById('filtroLojaReembolsos')?.value.toLowerCase() || '';
+  const filtroNumero =
+    document.getElementById('filtroNumeroReembolsos')?.value.toLowerCase() ||
+    '';
+  const reembolsosFiltrados = reembolsosCache.filter((d) => {
+    const statusOk = filtroStatus ? d.status === filtroStatus : true;
+    const apelidoOk = filtroApelido
+      ? (d.apelido || '').toLowerCase().includes(filtroApelido)
+      : true;
+    const lojaOk = filtroLoja
+      ? (d.loja || '').toLowerCase().includes(filtroLoja)
+      : true;
+    const numeroOk = filtroNumero
+      ? (d.numero || '').toLowerCase().includes(filtroNumero)
+      : true;
+    return statusOk && apelidoOk && lojaOk && numeroOk;
+  });
   const baseInputClass =
     'w-full rounded-xl border-slate-300 p-1 focus:border-violet-500 focus:ring-violet-500';
-  reembolsosCache.forEach((d) => {
+  reembolsosFiltrados.forEach((d) => {
     const tr = document.createElement('tr');
     tr.className =
       'border-t border-slate-100 hover:bg-slate-50 odd:bg-white even:bg-slate-50';
