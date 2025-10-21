@@ -8363,19 +8363,91 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       if (resumo) resumo.textContent = '';
     }
 
-    function obterProdutosVendidosFiltrados() {
-      const filtroSkuValor = (
+    function obterFiltroSkuProdutosVendidosValor() {
+      return (
         document.getElementById('filtroSkuProdutosVendidos')?.value || ''
       )
         .trim()
         .toLowerCase();
+    }
+
+    function obterFiltroResponsavelProdutosVendidosValor() {
+      const select = document.getElementById(
+        'filtroResponsavelProdutosVendidos',
+      );
+      if (!select) return '';
+      return (select.value || '').trim().toLowerCase();
+    }
+
+    function obterProdutosVendidosFiltrados() {
+      const filtroSkuValor = obterFiltroSkuProdutosVendidosValor();
+      const filtroResponsavelValor =
+        obterFiltroResponsavelProdutosVendidosValor();
 
       return produtosVendidosResumo.filter((item) => {
-        if (!filtroSkuValor) return true;
-        return item.todosSkus.some((sku) =>
-          sku.toLowerCase().includes(filtroSkuValor),
-        );
+        const passaSku =
+          !filtroSkuValor ||
+          item.todosSkus.some((sku) =>
+            String(sku || '').toLowerCase().includes(filtroSkuValor),
+          );
+
+        const passaResponsavel =
+          !filtroResponsavelValor ||
+          (Array.isArray(item.usuarios) &&
+            item.usuarios.some(([nome]) =>
+              String(nome || '').trim().toLowerCase() ===
+              filtroResponsavelValor,
+            ));
+
+        return passaSku && passaResponsavel;
       });
+    }
+
+    function popularFiltroResponsavelProdutosVendidos() {
+      const select = document.getElementById(
+        'filtroResponsavelProdutosVendidos',
+      );
+      if (!select) return;
+
+      const valorAtual = select.value || '';
+      const nomes = new Set();
+
+      produtosVendidosResumo.forEach((item) => {
+        if (!Array.isArray(item.usuarios)) return;
+        item.usuarios.forEach(([nome]) => {
+          const nomeLimpo = String(nome || '').trim();
+          if (nomeLimpo) nomes.add(nomeLimpo);
+        });
+      });
+
+      const nomesOrdenados = Array.from(nomes).sort((a, b) =>
+        a.localeCompare(b, 'pt-BR'),
+      );
+
+      select.innerHTML = '';
+
+      const opcaoTodos = document.createElement('option');
+      opcaoTodos.value = '';
+      opcaoTodos.textContent = 'Todos os responsáveis';
+      select.appendChild(opcaoTodos);
+
+      nomesOrdenados.forEach((nome) => {
+        const opt = document.createElement('option');
+        opt.value = nome;
+        opt.textContent = nome;
+        select.appendChild(opt);
+      });
+
+      if (valorAtual && nomes.has(valorAtual)) {
+        select.value = valorAtual;
+      } else {
+        select.value = '';
+      }
+
+      if (!select.dataset.listenerAdded) {
+        select.addEventListener('change', renderProdutosVendidos);
+        select.dataset.listenerAdded = 'true';
+      }
     }
 
     function renderProdutosVendidos() {
@@ -8397,10 +8469,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         return numero === null ? null : numero.toLocaleString('pt-BR');
       };
 
-      const filtroSku = (document
-        .getElementById('filtroSkuProdutosVendidos')?.value || '')
-        .trim()
-        .toLowerCase();
+      const filtroSku = obterFiltroSkuProdutosVendidosValor();
+      const filtroResponsavel =
+        obterFiltroResponsavelProdutosVendidosValor();
       const statusEl = document.getElementById('produtosVendidosStatus');
       const totalEl = document.getElementById('produtosVendidosTotalUnidades');
       const totalLiquidoEl = document.getElementById(
@@ -8418,13 +8489,13 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         tabela.innerHTML =
           '<tr><td colspan="4" class="py-6 text-center text-gray-500">Nenhum SKU encontrado.</td></tr>';
         if (statusEl) {
-          if (produtosVendidosResumo.length && filtroSku) {
-            statusEl.textContent = 'Nenhum SKU corresponde ao filtro aplicado.';
+          if (produtosVendidosResumo.length && (filtroSku || filtroResponsavel)) {
+            statusEl.textContent = 'Nenhum SKU corresponde aos filtros aplicados.';
           } else if (produtosVendidosResumo.length) {
             statusEl.textContent =
               'Nenhum dado encontrado para o período selecionado.';
           } else {
-            statusEl.textContent = 'Nenhum dado encontrado.';
+            statusEl.textContent = 'Nenhum dado disponível.';
           }
         }
         if (totalEl) totalEl.textContent = '0';
@@ -8656,6 +8727,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       produtosVendidosResumo = [];
       produtosVendidosCarregado = false;
       resetPrevisaoProdutosVendidos();
+      popularFiltroResponsavelProdutosVendidos();
 
       if (tabela) {
         tabela.innerHTML =
@@ -9196,6 +9268,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           };
         });
 
+        popularFiltroResponsavelProdutosVendidos();
         produtosVendidosCarregado = true;
         renderProdutosVendidos();
         if (statusEl && !produtosVendidosResumo.length) {
@@ -9220,7 +9293,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     }
 
     function obterProdutosVendidosParaExportacao() {
-      return [...produtosVendidosResumo]
+      return obterProdutosVendidosFiltrados()
         .sort((a, b) => b.total - a.total)
         .map((item) => ({
           skuPrincipal: item.sku,
@@ -9250,7 +9323,13 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         return;
       }
 
-      const linhas = obterProdutosVendidosParaExportacao().map((linha) => ({
+      const linhas = obterProdutosVendidosParaExportacao();
+      if (!linhas.length) {
+        mostrarErro('Nenhum dado disponível para exportar com os filtros atuais.');
+        return;
+      }
+
+      const linhasPlanilha = linhas.map((linha) => ({
         'SKU Principal': linha.skuPrincipal,
         'SKUs Agrupados': linha.skusAgrupados,
         'Quantidade Vendida': linha.quantidadeTotal,
@@ -9259,7 +9338,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         'Usuários Responsáveis': linha.usuarios,
       }));
 
-      const ws = XLSX.utils.json_to_sheet(linhas);
+      const ws = XLSX.utils.json_to_sheet(linhasPlanilha);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'ProdutosVendidos');
       const hoje = new Date().toISOString().slice(0, 10);
@@ -9277,18 +9356,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         return;
       }
 
-      const filtroSkuValor = (
-        document.getElementById('filtroSkuProdutosVendidos')?.value || ''
-      )
-        .trim();
-      const filtroSku = filtroSkuValor.toLowerCase();
-
-      const dadosFiltrados = produtosVendidosResumo.filter((item) => {
-        if (!filtroSku) return true;
-        return item.todosSkus.some((sku) =>
-          sku.toLowerCase().includes(filtroSku),
-        );
-      });
+      const dadosFiltrados = obterProdutosVendidosFiltrados();
 
       if (!dadosFiltrados.length) {
         mostrarErro('Nenhum SKU encontrado para exportar com os filtros atuais.');
