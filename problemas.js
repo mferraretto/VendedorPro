@@ -313,6 +313,7 @@ async function salvarReembolso(ev) {
     nf: form.nf.value.trim(),
     valor: parseFloat(form.valor.value) || 0,
     pix: form.pix?.value.trim() || '',
+    problema: form.problema?.value.trim() || '',
     status: form.status?.value || 'AGUARDANDO PIX',
   };
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'reembolsos');
@@ -348,6 +349,7 @@ async function carregarReembolsos() {
           ? Number(dados.valor)
           : Number.parseFloat(dados.valor) || 0,
         pix: dados.pix || '',
+        problema: dados.problema || '',
         status: statusValido,
       };
     })
@@ -420,6 +422,15 @@ function renderReembolsos() {
         tipo: 'text',
         valor: d.apelido || '',
         onChange: (valor) => atualizarReembolso(d, { apelido: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.problema || '',
+        onChange: (valor) => atualizarReembolso(d, { problema: valor.trim() }),
         classe: baseInputClass,
       }),
     );
