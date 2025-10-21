@@ -1,211 +1,530 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Problemas</title>
-  <script src="https://cdn.tailwindcss.com/3.3.5"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20240826">
-  <link rel="stylesheet" href="css/tabs-mobile.css?v=20240826">
-</head>
-<body class="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-700">
-  <div class="app-container">
-  <div id="sidebar-container"></div>
-  <div id="navbar-container"></div>
-  <div class="main-content px-4 sm:px-6 lg:px-8 py-6">
-    <div class="max-w-7xl mx-auto space-y-6">
-    <header>
-      <h1 class="text-2xl font-semibold text-slate-700">Problemas</h1>
-      <p class="mt-1 text-sm text-slate-500">Registre e acompanhe reembolsos e peças faltantes</p>
-    </header>
-    <div class="border-b border-slate-200 flex space-x-6 text-sm font-medium">
-      <button class="tab-btn pb-2 -mb-px border-b-2 border-violet-600 text-violet-600" data-tab="tab-reembolsos">Reembolsos</button>
-      <button class="tab-btn pb-2 -mb-px border-b-2 border-transparent text-slate-500" data-tab="tab-pecas">Peças Faltando</button>
-    </div>
-    <div id="tab-reembolsos" class="tab-panel space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <form id="reembolsosForm" class="card space-y-6">
-          <div>
-            <h2 class="text-lg font-semibold text-slate-700">Novo Reembolso</h2>
-            <p class="text-xs text-slate-500">Preencha as informações para registrar</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Problemas</title>
+    <script src="https://cdn.tailwindcss.com/3.3.5"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
+    <link rel="stylesheet" href="css/tabs-mobile.css?v=20240826" />
+  </head>
+  <body
+    class="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-700"
+  >
+    <div class="app-container">
+      <div id="sidebar-container"></div>
+      <div id="navbar-container"></div>
+      <div class="main-content px-4 sm:px-6 lg:px-8 py-6">
+        <div class="max-w-7xl mx-auto space-y-6">
+          <header>
+            <h1 class="text-2xl font-semibold text-slate-700">Problemas</h1>
+            <p class="mt-1 text-sm text-slate-500">
+              Registre e acompanhe reembolsos e peças faltantes
+            </p>
+          </header>
+          <div
+            class="border-b border-slate-200 flex space-x-6 text-sm font-medium"
+          >
+            <button
+              class="tab-btn pb-2 -mb-px border-b-2 border-violet-600 text-violet-600"
+              data-tab="tab-reembolsos"
+            >
+              Reembolsos
+            </button>
+            <button
+              class="tab-btn pb-2 -mb-px border-b-2 border-transparent text-slate-500"
+              data-tab="tab-pecas"
+            >
+              Peças Faltando
+            </button>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="flex flex-col">
-              <label for="dataR" class="block text-sm font-medium text-slate-600">Data</label>
-              <input type="date" id="dataR" name="data" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="numeroR" class="block text-sm font-medium text-slate-600">Número do Pedido</label>
-              <input type="text" id="numeroR" name="numero" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="apelidoR" class="block text-sm font-medium text-slate-600">Apelido</label>
-              <input type="text" id="apelidoR" name="apelido" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="nfR" class="block text-sm font-medium text-slate-600">NF</label>
-              <input type="text" id="nfR" name="nf" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="lojaR" class="block text-sm font-medium text-slate-600">Loja</label>
-              <input type="text" id="lojaR" name="loja" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="valorR" class="block text-sm font-medium text-slate-600">Valor</label>
-              <div class="relative mt-1">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">R$</span>
-                <input type="number" step="0.01" id="valorR" name="valor" class="w-full rounded-xl border-slate-300 pl-8 text-right focus:border-violet-500 focus:ring-violet-500">
+          <div id="tab-reembolsos" class="tab-panel space-y-6">
+            <div class="space-y-6">
+              <form id="reembolsosForm" class="card space-y-6">
+                <div>
+                  <h2 class="text-lg font-semibold text-slate-700">
+                    Novo Reembolso
+                  </h2>
+                  <p class="text-xs text-slate-500">
+                    Preencha as informações para registrar
+                  </p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div class="flex flex-col">
+                    <label
+                      for="dataR"
+                      class="block text-sm font-medium text-slate-600"
+                      >Data</label
+                    >
+                    <input
+                      type="date"
+                      id="dataR"
+                      name="data"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="numeroR"
+                      class="block text-sm font-medium text-slate-600"
+                      >Número do Pedido</label
+                    >
+                    <input
+                      type="text"
+                      id="numeroR"
+                      name="numero"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="apelidoR"
+                      class="block text-sm font-medium text-slate-600"
+                      >Apelido</label
+                    >
+                    <input
+                      type="text"
+                      id="apelidoR"
+                      name="apelido"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="nfR"
+                      class="block text-sm font-medium text-slate-600"
+                      >NF</label
+                    >
+                    <input
+                      type="text"
+                      id="nfR"
+                      name="nf"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="lojaR"
+                      class="block text-sm font-medium text-slate-600"
+                      >Loja</label
+                    >
+                    <input
+                      type="text"
+                      id="lojaR"
+                      name="loja"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="valorR"
+                      class="block text-sm font-medium text-slate-600"
+                      >Valor</label
+                    >
+                    <div class="relative mt-1">
+                      <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                        >R$</span
+                      >
+                      <input
+                        type="number"
+                        step="0.01"
+                        id="valorR"
+                        name="valor"
+                        class="w-full rounded-xl border-slate-300 pl-8 text-right focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="pixR"
+                      class="block text-sm font-medium text-slate-600"
+                      >PIX</label
+                    >
+                    <input
+                      type="text"
+                      id="pixR"
+                      name="pix"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="statusR"
+                      class="block text-sm font-medium text-slate-600"
+                      >Status</label
+                    >
+                    <select
+                      id="statusR"
+                      name="status"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    >
+                      <option value="AGUARDANDO PIX">Aguardando PIX</option>
+                      <option value="AGUARDANDO MERCADO">
+                        Aguardando Mercado
+                      </option>
+                      <option value="AGUARDANDO">Aguardando</option>
+                      <option value="FEITO">Feito</option>
+                      <option value="FEITO PIX">Feito PIX</option>
+                      <option value="FEITO MERCADO">Feito Mercado</option>
+                      <option value="CANCELADO">Cancelado</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    id="limparReembolsos"
+                    class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700"
+                  >
+                    Limpar
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-4 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+              <div class="card space-y-6">
+                <div
+                  class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+                >
+                  <div>
+                    <h2 class="text-lg font-semibold text-slate-700">
+                      Reembolsos Registrados
+                    </h2>
+                    <p class="text-xs text-slate-500">
+                      Filtre os registros por status, apelido, loja ou número do
+                      pedido
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="limparFiltrosReembolsos"
+                    class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Limpar filtros
+                  </button>
+                </div>
+                <div
+                  class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                >
+                  <div class="flex flex-col">
+                    <label
+                      for="filtroStatusReembolsos"
+                      class="block text-sm font-medium text-slate-600"
+                      >Status</label
+                    >
+                    <select
+                      id="filtroStatusReembolsos"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    >
+                      <option value="">Todos</option>
+                      <option value="AGUARDANDO PIX">Aguardando PIX</option>
+                      <option value="AGUARDANDO MERCADO">
+                        Aguardando Mercado
+                      </option>
+                      <option value="AGUARDANDO">Aguardando</option>
+                      <option value="FEITO">Feito</option>
+                      <option value="FEITO PIX">Feito PIX</option>
+                      <option value="FEITO MERCADO">Feito Mercado</option>
+                      <option value="CANCELADO">Cancelado</option>
+                    </select>
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="filtroApelidoReembolsos"
+                      class="block text-sm font-medium text-slate-600"
+                      >Apelido</label
+                    >
+                    <input
+                      type="text"
+                      id="filtroApelidoReembolsos"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="filtroLojaReembolsos"
+                      class="block text-sm font-medium text-slate-600"
+                      >Loja</label
+                    >
+                    <input
+                      type="text"
+                      id="filtroLojaReembolsos"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="filtroNumeroReembolsos"
+                      class="block text-sm font-medium text-slate-600"
+                      >Número do Pedido</label
+                    >
+                    <input
+                      type="text"
+                      id="filtroNumeroReembolsos"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50 sticky top-0 z-10">
+                      <tr class="text-left">
+                        <th class="p-2">Data</th>
+                        <th class="p-2">Número do Pedido</th>
+                        <th class="p-2">Loja</th>
+                        <th class="p-2">Apelido</th>
+                        <th class="p-2">NF</th>
+                        <th class="p-2">PIX</th>
+                        <th class="p-2">Status</th>
+                        <th class="p-2 text-right">Valor</th>
+                        <th class="p-2 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      id="reembolsosTableBody"
+                      class="divide-y divide-slate-100"
+                    ></tbody>
+                  </table>
+                </div>
               </div>
             </div>
-            <div class="flex flex-col">
-              <label for="pixR" class="block text-sm font-medium text-slate-600">PIX</label>
-              <input type="text" id="pixR" name="pix" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="statusR" class="block text-sm font-medium text-slate-600">Status</label>
-              <select id="statusR" name="status" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-                <option value="AGUARDANDO PIX">Aguardando PIX</option>
-                <option value="AGUARDANDO MERCADO">Aguardando Mercado</option>
-                <option value="AGUARDANDO">Aguardando</option>
-                <option value="FEITO">Feito</option>
-                <option value="FEITO PIX">Feito PIX</option>
-                <option value="FEITO MERCADO">Feito Mercado</option>
-                <option value="CANCELADO">Cancelado</option>
-              </select>
-            </div>
           </div>
-          <div class="flex justify-end gap-2">
-            <button type="button" id="limparReembolsos" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700">Limpar</button>
-            <button type="submit" class="px-4 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700">Salvar</button>
-          </div>
-        </form>
-        <div class="card overflow-x-auto">
-          <h2 class="text-lg font-semibold text-slate-700 mb-4">Reembolsos Registrados</h2>
-          <table class="min-w-full text-sm">
-            <thead class="bg-slate-50 sticky top-0 z-10">
-              <tr class="text-left">
-                <th class="p-2">Data</th>
-                <th class="p-2">Número do Pedido</th>
-                <th class="p-2">Loja</th>
-                <th class="p-2">Apelido</th>
-                <th class="p-2">NF</th>
-                <th class="p-2">PIX</th>
-                <th class="p-2">Status</th>
-                <th class="p-2 text-right">Valor</th>
-                <th class="p-2 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="reembolsosTableBody" class="divide-y divide-slate-100"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div id="tab-pecas" class="tab-panel hidden space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <form id="pecasForm" class="card space-y-6 lg:col-span-2">
-          <div>
-            <h2 class="text-lg font-semibold text-slate-700">Registrar Peça Faltante</h2>
-            <p class="text-xs text-slate-500">Informe os dados da peça</p>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex flex-col">
-              <label for="data" class="block text-sm font-medium text-slate-600">Data</label>
-              <input type="date" id="data" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="numero" class="block text-sm font-medium text-slate-600">Número</label>
-              <input type="text" id="numero" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="apelido" class="block text-sm font-medium text-slate-600">Apelido</label>
-              <input type="text" id="apelido" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="nf" class="block text-sm font-medium text-slate-600">NF</label>
-              <input type="text" id="nf" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="loja" class="block text-sm font-medium text-slate-600">Loja</label>
-              <input type="text" id="loja" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col">
-              <label for="peca" class="block text-sm font-medium text-slate-600">Peça Faltante</label>
-              <input type="text" id="peca" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-            <div class="flex flex-col md:col-span-2">
-              <label for="informacoes" class="block text-sm font-medium text-slate-600">Informações</label>
-              <textarea id="informacoes" name="informacoes" rows="2" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"></textarea>
-            </div>
-          </div>
-          <div class="flex justify-end gap-2">
-            <button type="button" id="limparPecas" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700">Limpar</button>
-            <button type="submit" class="px-4 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700">Salvar</button>
-          </div>
-        </form>
-        <div class="card space-y-4 lg:col-span-1 lg:sticky lg:top-4">
-          <h2 class="text-lg font-semibold text-slate-700">Filtros</h2>
-          <div class="space-y-4">
-            <div class="flex flex-col">
-              <label for="filtroStatus" class="block text-sm font-medium text-slate-600">Status</label>
-              <select id="filtroStatus" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-                <option value="">Todos</option>
-                <option value="NÃO FEITO">Não feito</option>
-                <option value="EM ANDAMENTO">Em andamento</option>
-                <option value="RESOLVIDO">Resolvido</option>
-              </select>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="flex flex-col">
-                <label for="filtroDataInicio" class="block text-sm font-medium text-slate-600">Data inicial</label>
-                <input type="date" id="filtroDataInicio" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
+          <div id="tab-pecas" class="tab-panel hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <form id="pecasForm" class="card space-y-6 lg:col-span-2">
+                <div>
+                  <h2 class="text-lg font-semibold text-slate-700">
+                    Registrar Peça Faltante
+                  </h2>
+                  <p class="text-xs text-slate-500">Informe os dados da peça</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="flex flex-col">
+                    <label
+                      for="data"
+                      class="block text-sm font-medium text-slate-600"
+                      >Data</label
+                    >
+                    <input
+                      type="date"
+                      id="data"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="numero"
+                      class="block text-sm font-medium text-slate-600"
+                      >Número</label
+                    >
+                    <input
+                      type="text"
+                      id="numero"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="apelido"
+                      class="block text-sm font-medium text-slate-600"
+                      >Apelido</label
+                    >
+                    <input
+                      type="text"
+                      id="apelido"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="nf"
+                      class="block text-sm font-medium text-slate-600"
+                      >NF</label
+                    >
+                    <input
+                      type="text"
+                      id="nf"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="loja"
+                      class="block text-sm font-medium text-slate-600"
+                      >Loja</label
+                    >
+                    <input
+                      type="text"
+                      id="loja"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="peca"
+                      class="block text-sm font-medium text-slate-600"
+                      >Peça Faltante</label
+                    >
+                    <input
+                      type="text"
+                      id="peca"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div class="flex flex-col md:col-span-2">
+                    <label
+                      for="informacoes"
+                      class="block text-sm font-medium text-slate-600"
+                      >Informações</label
+                    >
+                    <textarea
+                      id="informacoes"
+                      name="informacoes"
+                      rows="2"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    ></textarea>
+                  </div>
+                </div>
+                <div class="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    id="limparPecas"
+                    class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700"
+                  >
+                    Limpar
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-4 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+              <div class="card space-y-4 lg:col-span-1 lg:sticky lg:top-4">
+                <h2 class="text-lg font-semibold text-slate-700">Filtros</h2>
+                <div class="space-y-4">
+                  <div class="flex flex-col">
+                    <label
+                      for="filtroStatus"
+                      class="block text-sm font-medium text-slate-600"
+                      >Status</label
+                    >
+                    <select
+                      id="filtroStatus"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    >
+                      <option value="">Todos</option>
+                      <option value="NÃO FEITO">Não feito</option>
+                      <option value="EM ANDAMENTO">Em andamento</option>
+                      <option value="RESOLVIDO">Resolvido</option>
+                    </select>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="flex flex-col">
+                      <label
+                        for="filtroDataInicio"
+                        class="block text-sm font-medium text-slate-600"
+                        >Data inicial</label
+                      >
+                      <input
+                        type="date"
+                        id="filtroDataInicio"
+                        class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col">
+                      <label
+                        for="filtroDataFim"
+                        class="block text-sm font-medium text-slate-600"
+                        >Data final</label
+                      >
+                      <input
+                        type="date"
+                        id="filtroDataFim"
+                        class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="searchPecas"
+                      class="block text-sm font-medium text-slate-600"
+                      >Buscar</label
+                    >
+                    <input
+                      type="text"
+                      id="searchPecas"
+                      placeholder="Buscar por nome ou número do pedido"
+                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                    />
+                  </div>
+                </div>
+                <div class="flex justify-end">
+                  <button
+                    id="limparFiltros"
+                    class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 w-full sm:w-auto"
+                  >
+                    Limpar
+                  </button>
+                </div>
               </div>
-              <div class="flex flex-col">
-                <label for="filtroDataFim" class="block text-sm font-medium text-slate-600">Data final</label>
-                <input type="date" id="filtroDataFim" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
+            </div>
+            <div class="card overflow-x-auto space-y-4">
+              <div
+                class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2"
+              >
+                <button
+                  id="exportCsv"
+                  class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 w-full sm:w-auto"
+                >
+                  Exportar CSV
+                </button>
               </div>
+              <table class="min-w-full text-sm data-table">
+                <thead class="bg-slate-50 sticky top-0 z-10">
+                  <tr class="text-left">
+                    <th class="p-2">Data</th>
+                    <th class="p-2">Nome do Comprador</th>
+                    <th class="p-2">Apelido</th>
+                    <th class="p-2">Número</th>
+                    <th class="p-2">Loja</th>
+                    <th class="p-2">Peça Faltante</th>
+                    <th class="p-2">NF</th>
+                    <th class="p-2">Informações</th>
+                    <th class="p-2 text-right">Valor Gasto</th>
+                    <th class="p-2">Status</th>
+                    <th class="p-2 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody
+                  id="pecasTableBody"
+                  class="divide-y divide-slate-100"
+                ></tbody>
+              </table>
             </div>
-            <div class="flex flex-col">
-              <label for="searchPecas" class="block text-sm font-medium text-slate-600">Buscar</label>
-              <input type="text" id="searchPecas" placeholder="Buscar por nome ou número do pedido" class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500">
-            </div>
-          </div>
-          <div class="flex justify-end">
-            <button id="limparFiltros" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 w-full sm:w-auto">Limpar</button>
           </div>
         </div>
       </div>
-      <div class="card overflow-x-auto space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
-          <button id="exportCsv" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 w-full sm:w-auto">Exportar CSV</button>
-        </div>
-        <table class="min-w-full text-sm data-table">
-          <thead class="bg-slate-50 sticky top-0 z-10">
-            <tr class="text-left">
-              <th class="p-2">Data</th>
-              <th class="p-2">Nome do Comprador</th>
-              <th class="p-2">Apelido</th>
-              <th class="p-2">Número</th>
-              <th class="p-2">Loja</th>
-              <th class="p-2">Peça Faltante</th>
-              <th class="p-2">NF</th>
-              <th class="p-2">Informações</th>
-              <th class="p-2 text-right">Valor Gasto</th>
-              <th class="p-2">Status</th>
-              <th class="p-2 text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="pecasTableBody" class="divide-y divide-slate-100"></tbody>
-        </table>
-      </div>
+      <script type="module" src="firebase-config.js"></script>
+      <script type="module" src="problemas.js"></script>
+      <script>
+        window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
+      </script>
+      <script src="shared.js"></script>
     </div>
-    </div>
-  </div>
-  <script type="module" src="firebase-config.js"></script>
-  <script type="module" src="problemas.js"></script>
-  <script>window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';</script>
-  <script src="shared.js"></script>
-  </div>
-</body>
+  </body>
 </html>
