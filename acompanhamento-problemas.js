@@ -27,16 +27,35 @@ const globalStatusEl = document.getElementById('globalStatus');
 const pecasStatusMsgEl = document.getElementById('pecasStatusMsg');
 const pecasEmptyEl = document.getElementById('pecasEmpty');
 const pecasTabelaBody = document.getElementById('pecasTableBody');
+const pecasSelecionarTodosEl = document.getElementById('pecasSelecionarTodos');
+const pecasSelecaoResumoEl = document.getElementById('pecasSelecaoResumo');
+const pecasExportExcelBtn = document.getElementById('pecasExportExcel');
+const pecasExportPdfBtn = document.getElementById('pecasExportPdf');
 
 const reembolsosStatusMsgEl = document.getElementById('reembolsosStatusMsg');
 const reembolsosEmptyEl = document.getElementById('reembolsosEmpty');
 const reembolsosTabelaBody = document.getElementById('reembolsosTableBody');
+const reembolsosSelecionarTodosEl = document.getElementById(
+  'reembolsosSelecionarTodos',
+);
+const reembolsosSelecaoResumoEl = document.getElementById(
+  'reembolsosSelecaoResumo',
+);
+const reembolsosExportExcelBtn = document.getElementById(
+  'reembolsosExportExcel',
+);
+const reembolsosExportPdfBtn = document.getElementById('reembolsosExportPdf');
 
 let usuarios = [];
 let pecasCache = [];
 let reembolsosCache = [];
 let usuarioSelecionado = '';
 let currentUser = null;
+
+const pecasSelecionados = new Set();
+const reembolsosSelecionados = new Set();
+let pecasFiltradosAtuais = [];
+let reembolsosFiltradosAtuais = [];
 
 initTabs();
 registrarEventos();
@@ -118,6 +137,33 @@ function registrarEventos() {
   document
     .getElementById('reembolsosBusca')
     ?.addEventListener('input', renderReembolsos);
+
+  pecasSelecionarTodosEl?.addEventListener('change', (event) => {
+    const selecionar = event.target.checked;
+    if (event.target.indeterminate) event.target.indeterminate = false;
+    pecasFiltradosAtuais.forEach((item) => {
+      const chave = obterChavePeca(item);
+      if (selecionar) pecasSelecionados.add(chave);
+      else pecasSelecionados.delete(chave);
+    });
+    renderPecas();
+  });
+
+  reembolsosSelecionarTodosEl?.addEventListener('change', (event) => {
+    const selecionar = event.target.checked;
+    if (event.target.indeterminate) event.target.indeterminate = false;
+    reembolsosFiltradosAtuais.forEach((item) => {
+      const chave = obterChaveReembolso(item);
+      if (selecionar) reembolsosSelecionados.add(chave);
+      else reembolsosSelecionados.delete(chave);
+    });
+    renderReembolsos();
+  });
+
+  pecasExportExcelBtn?.addEventListener('click', exportarPecasExcel);
+  pecasExportPdfBtn?.addEventListener('click', exportarPecasPdf);
+  reembolsosExportExcelBtn?.addEventListener('click', exportarReembolsosExcel);
+  reembolsosExportPdfBtn?.addEventListener('click', exportarReembolsosPdf);
 }
 
 async function carregarDados() {
@@ -148,6 +194,7 @@ async function carregarPecas() {
       )
     ).flat();
     pecasCache = resultados;
+    sincronizarSelecaoComCache(pecasCache, pecasSelecionados, obterChavePeca);
     setStatus(
       pecasStatusMsgEl,
       resultados.length
@@ -183,6 +230,11 @@ async function carregarReembolsos() {
       )
     ).flat();
     reembolsosCache = resultados;
+    sincronizarSelecaoComCache(
+      reembolsosCache,
+      reembolsosSelecionados,
+      obterChaveReembolso,
+    );
     setStatus(
       reembolsosStatusMsgEl,
       resultados.length
@@ -268,10 +320,28 @@ function renderPecas() {
     })
     .sort((a, b) => ordenarPorDataNumero(b, a));
 
+  pecasFiltradosAtuais = filtrados;
   pecasTabelaBody.innerHTML = '';
   filtrados.forEach((item) => {
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
+
+    const chave = obterChavePeca(item);
+    const checkboxTd = document.createElement('td');
+    checkboxTd.className = 'px-4 py-3';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className =
+      'form-checkbox h-4 w-4 text-indigo-600 rounded focus:ring-indigo-500';
+    checkbox.checked = pecasSelecionados.has(chave);
+    checkbox.dataset.chave = chave;
+    checkbox.addEventListener('change', (event) => {
+      if (event.target.checked) pecasSelecionados.add(chave);
+      else pecasSelecionados.delete(chave);
+      atualizarSelecaoPecasUI();
+    });
+    checkboxTd.appendChild(checkbox);
+    tr.appendChild(checkboxTd);
 
     const status = normalizarStatus(item.status);
     const statusTexto = formatarStatus(status);
@@ -287,35 +357,38 @@ function renderPecas() {
       ? `<span class="text-xs text-gray-500">${escapeHtml(item.usuarioEmail)}</span>`
       : '';
 
-    tr.innerHTML = `
-      <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${formatarData(
-        item.data,
-      )}</td>
-      <td class="px-4 py-3">
-        <div class="flex flex-col">
-          <span class="font-medium text-gray-700">${escapeHtml(item.usuarioNome)}</span>
-          ${responsavelEmail}
-        </div>
-      </td>
-      <td class="px-4 py-3">${clienteHtml}</td>
-      <td class="px-4 py-3">${escapeHtml(item.numero || '-')}</td>
-      <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
-      <td class="px-4 py-3">${escapeHtml(item.peca || '-')}</td>
-      <td class="px-4 py-3">
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClasses}">
-          ${statusTexto}
-        </span>
-      </td>
-      <td class="px-4 py-3 text-right font-medium text-gray-700">${formatarMoeda(
-        Number(item.valorGasto) || 0,
-      )}</td>
-    `;
+    const dataFormatada = formatarData(item.data);
+    const valorFormatado = formatarMoeda(Number(item.valorGasto) || 0);
+
+    tr.insertAdjacentHTML(
+      'beforeend',
+      `
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${dataFormatada}</td>
+        <td class="px-4 py-3">
+          <div class="flex flex-col">
+            <span class="font-medium text-gray-700">${escapeHtml(item.usuarioNome)}</span>
+            ${responsavelEmail}
+          </div>
+        </td>
+        <td class="px-4 py-3">${clienteHtml}</td>
+        <td class="px-4 py-3">${escapeHtml(item.numero || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.peca || '-')}</td>
+        <td class="px-4 py-3">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClasses}">
+            ${statusTexto}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right font-medium text-gray-700">${valorFormatado}</td>
+      `,
+    );
 
     pecasTabelaBody.appendChild(tr);
   });
 
   pecasEmptyEl?.classList.toggle('hidden', filtrados.length > 0);
   atualizarResumoPecas(filtrados);
+  atualizarSelecaoPecasUI();
 }
 
 function renderReembolsos() {
@@ -355,40 +428,406 @@ function renderReembolsos() {
     })
     .sort((a, b) => ordenarPorDataNumero(b, a));
 
+  reembolsosFiltradosAtuais = filtrados;
   reembolsosTabelaBody.innerHTML = '';
   filtrados.forEach((item) => {
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-gray-50';
 
+    const chave = obterChaveReembolso(item);
+    const checkboxTd = document.createElement('td');
+    checkboxTd.className = 'px-4 py-3';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className =
+      'form-checkbox h-4 w-4 text-indigo-600 rounded focus:ring-indigo-500';
+    checkbox.checked = reembolsosSelecionados.has(chave);
+    checkbox.dataset.chave = chave;
+    checkbox.addEventListener('change', (event) => {
+      if (event.target.checked) reembolsosSelecionados.add(chave);
+      else reembolsosSelecionados.delete(chave);
+      atualizarSelecaoReembolsosUI();
+    });
+    checkboxTd.appendChild(checkbox);
+    tr.appendChild(checkboxTd);
+
     const responsavelEmail = item.usuarioEmail
       ? `<span class="text-xs text-gray-500">${escapeHtml(item.usuarioEmail)}</span>`
       : '';
 
-    tr.innerHTML = `
-      <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${formatarData(
-        item.data,
-      )}</td>
-      <td class="px-4 py-3">
-        <div class="flex flex-col">
-          <span class="font-medium text-gray-700">${escapeHtml(item.usuarioNome)}</span>
-          ${responsavelEmail}
-        </div>
-      </td>
-      <td class="px-4 py-3">${escapeHtml(item.numero || '-')}</td>
-      <td class="px-4 py-3">${escapeHtml(item.apelido || '-')}</td>
-      <td class="px-4 py-3">${escapeHtml(item.nf || '-')}</td>
-      <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
-      <td class="px-4 py-3">${escapeHtml(item.problema || '-')}</td>
-      <td class="px-4 py-3 text-right font-medium text-gray-700">${formatarMoeda(
-        Number(item.valor) || 0,
-      )}</td>
-    `;
+    const dataFormatada = formatarData(item.data);
+    const valorFormatado = formatarMoeda(Number(item.valor) || 0);
+
+    tr.insertAdjacentHTML(
+      'beforeend',
+      `
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${dataFormatada}</td>
+        <td class="px-4 py-3">
+          <div class="flex flex-col">
+            <span class="font-medium text-gray-700">${escapeHtml(item.usuarioNome)}</span>
+            ${responsavelEmail}
+          </div>
+        </td>
+        <td class="px-4 py-3">${escapeHtml(item.numero || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.apelido || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.nf || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.problema || '-')}</td>
+        <td class="px-4 py-3 text-right font-medium text-gray-700">${valorFormatado}</td>
+      `,
+    );
 
     reembolsosTabelaBody.appendChild(tr);
   });
 
   reembolsosEmptyEl?.classList.toggle('hidden', filtrados.length > 0);
   atualizarResumoReembolsos(filtrados);
+  atualizarSelecaoReembolsosUI();
+}
+
+function atualizarSelecaoPecasUI() {
+  atualizarResumoSelecao(pecasSelecaoResumoEl, pecasSelecionados.size);
+  atualizarBotoesExportacao(
+    pecasExportExcelBtn,
+    pecasExportPdfBtn,
+    pecasSelecionados.size,
+  );
+  atualizarSelectAllCheckbox(
+    pecasSelecionarTodosEl,
+    pecasFiltradosAtuais,
+    pecasSelecionados,
+    obterChavePeca,
+  );
+}
+
+function atualizarSelecaoReembolsosUI() {
+  atualizarResumoSelecao(
+    reembolsosSelecaoResumoEl,
+    reembolsosSelecionados.size,
+  );
+  atualizarBotoesExportacao(
+    reembolsosExportExcelBtn,
+    reembolsosExportPdfBtn,
+    reembolsosSelecionados.size,
+  );
+  atualizarSelectAllCheckbox(
+    reembolsosSelecionarTodosEl,
+    reembolsosFiltradosAtuais,
+    reembolsosSelecionados,
+    obterChaveReembolso,
+  );
+}
+
+function atualizarResumoSelecao(elemento, quantidade) {
+  if (!elemento) return;
+  if (quantidade > 0) {
+    const texto =
+      quantidade === 1
+        ? '1 registro selecionado'
+        : `${quantidade.toLocaleString('pt-BR')} registros selecionados`;
+    elemento.textContent = texto;
+    elemento.classList.remove('hidden');
+  } else {
+    elemento.textContent = '';
+    elemento.classList.add('hidden');
+  }
+}
+
+function atualizarBotoesExportacao(botaoExcel, botaoPdf, quantidade) {
+  const disabled = quantidade === 0;
+  if (botaoExcel) botaoExcel.disabled = disabled;
+  if (botaoPdf) botaoPdf.disabled = disabled;
+}
+
+function atualizarSelectAllCheckbox(
+  checkboxEl,
+  filtrados,
+  selecionadosSet,
+  chaveFn,
+) {
+  if (!checkboxEl) return;
+  const lista = Array.isArray(filtrados) ? filtrados : [];
+  const total = lista.length;
+  checkboxEl.disabled = total === 0;
+  if (total === 0) {
+    checkboxEl.checked = false;
+    checkboxEl.indeterminate = false;
+    return;
+  }
+
+  const selecionados = lista.reduce((acc, item) => {
+    const chave = chaveFn(item);
+    return acc + (selecionadosSet.has(chave) ? 1 : 0);
+  }, 0);
+
+  checkboxEl.checked = selecionados === total && total > 0;
+  checkboxEl.indeterminate =
+    selecionados > 0 && selecionados < total && !checkboxEl.checked;
+}
+
+function sincronizarSelecaoComCache(cache, selecionadosSet, chaveFn) {
+  if (!Array.isArray(cache)) return;
+  const chavesValidas = new Set(cache.map((item) => chaveFn(item)));
+  selecionadosSet.forEach((chave) => {
+    if (!chavesValidas.has(chave)) selecionadosSet.delete(chave);
+  });
+}
+
+function obterChavePeca(item) {
+  if (!item) return 'peca';
+  return [
+    'peca',
+    item.usuarioUid || '',
+    item.id || '',
+    item.numero || '',
+    item.data || '',
+    item.loja || '',
+    item.peca || '',
+  ].join('::');
+}
+
+function obterChaveReembolso(item) {
+  if (!item) return 'reembolso';
+  return [
+    'reembolso',
+    item.usuarioUid || '',
+    item.id || '',
+    item.numero || '',
+    item.nf || '',
+    item.data || '',
+    item.loja || '',
+  ].join('::');
+}
+
+function obterRegistrosSelecionados(cache, selecionadosSet, chaveFn) {
+  if (!Array.isArray(cache) || selecionadosSet.size === 0) return [];
+  const mapa = new Map();
+  cache.forEach((item) => {
+    mapa.set(chaveFn(item), item);
+  });
+  return Array.from(selecionadosSet)
+    .map((chave) => mapa.get(chave))
+    .filter(Boolean)
+    .sort((a, b) => ordenarPorDataNumero(b, a));
+}
+
+function gerarNomeArquivo(base, extensao) {
+  const data = new Date().toISOString().slice(0, 10);
+  return `${base}_${data}.${extensao}`;
+}
+
+function exportarPecasExcel() {
+  const registros = obterRegistrosSelecionados(
+    pecasCache,
+    pecasSelecionados,
+    obterChavePeca,
+  );
+  if (!registros.length) {
+    alert('Selecione ao menos um registro de peça faltante para exportar.');
+    return;
+  }
+
+  const headers = [
+    'Data',
+    'Responsável',
+    'E-mail',
+    'Cliente',
+    'Apelido',
+    'Número',
+    'Loja',
+    'Peça',
+    'Status',
+    'Valor gasto (R$)',
+  ];
+  const linhas = registros.map((item) => [
+    formatarData(item.data),
+    item.usuarioNome || '',
+    item.usuarioEmail || '',
+    item.nomeCliente || '',
+    item.apelido || '',
+    item.numero || '',
+    item.loja || '',
+    item.peca || '',
+    formatarStatus(normalizarStatus(item.status)),
+    Number(item.valorGasto) || 0,
+  ]);
+
+  exportarExcel(
+    gerarNomeArquivo('pecas_faltantes', 'xlsx'),
+    'Peças faltantes',
+    headers,
+    linhas,
+  );
+}
+
+function exportarPecasPdf() {
+  const registros = obterRegistrosSelecionados(
+    pecasCache,
+    pecasSelecionados,
+    obterChavePeca,
+  );
+  if (!registros.length) {
+    alert('Selecione ao menos um registro de peça faltante para exportar.');
+    return;
+  }
+
+  const headers = [
+    'Data',
+    'Responsável',
+    'E-mail',
+    'Cliente',
+    'Número',
+    'Loja',
+    'Peça',
+    'Status',
+    'Valor gasto',
+  ];
+  const linhas = registros.map((item) => [
+    formatarData(item.data),
+    item.usuarioNome || '',
+    item.usuarioEmail || '',
+    item.nomeCliente || item.apelido || '',
+    item.numero || '',
+    item.loja || '',
+    item.peca || '',
+    formatarStatus(normalizarStatus(item.status)),
+    formatarMoeda(Number(item.valorGasto) || 0),
+  ]);
+
+  exportarPDF(
+    'Peças faltantes selecionadas',
+    headers,
+    linhas,
+    gerarNomeArquivo('pecas_faltantes', 'pdf'),
+  );
+}
+
+function exportarReembolsosExcel() {
+  const registros = obterRegistrosSelecionados(
+    reembolsosCache,
+    reembolsosSelecionados,
+    obterChaveReembolso,
+  );
+  if (!registros.length) {
+    alert('Selecione ao menos um reembolso para exportar.');
+    return;
+  }
+
+  const headers = [
+    'Data',
+    'Responsável',
+    'E-mail',
+    'Número',
+    'Apelido',
+    'NF',
+    'Loja',
+    'Problema',
+    'Valor (R$)',
+  ];
+  const linhas = registros.map((item) => [
+    formatarData(item.data),
+    item.usuarioNome || '',
+    item.usuarioEmail || '',
+    item.numero || '',
+    item.apelido || '',
+    item.nf || '',
+    item.loja || '',
+    item.problema || '',
+    Number(item.valor) || 0,
+  ]);
+
+  exportarExcel(
+    gerarNomeArquivo('reembolsos', 'xlsx'),
+    'Reembolsos',
+    headers,
+    linhas,
+  );
+}
+
+function exportarReembolsosPdf() {
+  const registros = obterRegistrosSelecionados(
+    reembolsosCache,
+    reembolsosSelecionados,
+    obterChaveReembolso,
+  );
+  if (!registros.length) {
+    alert('Selecione ao menos um reembolso para exportar.');
+    return;
+  }
+
+  const headers = [
+    'Data',
+    'Responsável',
+    'E-mail',
+    'Número',
+    'Apelido',
+    'NF',
+    'Loja',
+    'Problema',
+    'Valor',
+  ];
+  const linhas = registros.map((item) => [
+    formatarData(item.data),
+    item.usuarioNome || '',
+    item.usuarioEmail || '',
+    item.numero || '',
+    item.apelido || '',
+    item.nf || '',
+    item.loja || '',
+    item.problema || '',
+    formatarMoeda(Number(item.valor) || 0),
+  ]);
+
+  exportarPDF(
+    'Reembolsos selecionados',
+    headers,
+    linhas,
+    gerarNomeArquivo('reembolsos', 'pdf'),
+  );
+}
+
+function exportarExcel(nomeArquivo, nomeAba, headers, linhas) {
+  if (typeof XLSX === 'undefined') {
+    alert(
+      'Biblioteca de planilhas não foi carregada. Recarregue a página e tente novamente.',
+    );
+    return;
+  }
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...linhas]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, nomeAba);
+  XLSX.writeFile(wb, nomeArquivo);
+}
+
+function exportarPDF(titulo, headers, linhas, nomeArquivo) {
+  if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+    alert(
+      'Biblioteca de PDF não foi carregada. Recarregue a página e tente novamente.',
+    );
+    return;
+  }
+  const doc = new window.jspdf.jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+  if (typeof doc.autoTable !== 'function') {
+    alert(
+      'Extensão de tabelas para PDF não foi carregada. Recarregue a página.',
+    );
+    return;
+  }
+
+  doc.setFontSize(12);
+  doc.text(titulo, 14, 15);
+  doc.autoTable({
+    head: [headers],
+    body: linhas,
+    startY: 20,
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+  });
+  doc.save(nomeArquivo);
 }
 
 function atualizarResumoPecas(lista) {

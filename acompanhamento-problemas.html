@@ -183,16 +183,51 @@
 
           <div class="card">
             <div
-              class="card-header flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-6 py-4"
+              class="card-header flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-4"
             >
-              <h2 class="text-lg font-semibold">Peças faltantes registradas</h2>
-              <span id="pecasStatusMsg" class="text-sm text-gray-500"></span>
+              <div class="flex flex-col gap-1">
+                <h2 class="text-lg font-semibold">Peças faltantes registradas</h2>
+                <span
+                  id="pecasSelecaoResumo"
+                  class="text-xs text-gray-500 hidden"
+                ></span>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span id="pecasStatusMsg" class="text-sm text-gray-500"></span>
+                <div class="flex items-center gap-2">
+                  <button
+                    id="pecasExportExcel"
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-md border border-indigo-500 px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled
+                  >
+                    <i class="fa-solid fa-file-excel"></i>
+                    Exportar Excel
+                  </button>
+                  <button
+                    id="pecasExportPdf"
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-md border border-indigo-500 px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled
+                  >
+                    <i class="fa-solid fa-file-pdf"></i>
+                    Exportar PDF
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="card-body p-0">
               <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                   <thead class="bg-gray-50 text-left text-xs font-semibold">
                     <tr>
+                      <th class="px-4 py-3 w-12">
+                        <input
+                          type="checkbox"
+                          id="pecasSelecionarTodos"
+                          class="form-checkbox h-4 w-4 text-indigo-600"
+                        />
+                      </th>
                       <th class="px-4 py-3">Data</th>
                       <th class="px-4 py-3">Responsável</th>
                       <th class="px-4 py-3">Cliente</th>
@@ -295,19 +330,54 @@
 
           <div class="card">
             <div
-              class="card-header flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-6 py-4"
+              class="card-header flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-4"
             >
-              <h2 class="text-lg font-semibold">Reembolsos registrados</h2>
-              <span
-                id="reembolsosStatusMsg"
-                class="text-sm text-gray-500"
-              ></span>
+              <div class="flex flex-col gap-1">
+                <h2 class="text-lg font-semibold">Reembolsos registrados</h2>
+                <span
+                  id="reembolsosSelecaoResumo"
+                  class="text-xs text-gray-500 hidden"
+                ></span>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  id="reembolsosStatusMsg"
+                  class="text-sm text-gray-500"
+                ></span>
+                <div class="flex items-center gap-2">
+                  <button
+                    id="reembolsosExportExcel"
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-md border border-indigo-500 px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled
+                  >
+                    <i class="fa-solid fa-file-excel"></i>
+                    Exportar Excel
+                  </button>
+                  <button
+                    id="reembolsosExportPdf"
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-md border border-indigo-500 px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled
+                  >
+                    <i class="fa-solid fa-file-pdf"></i>
+                    Exportar PDF
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="card-body p-0">
               <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                   <thead class="bg-gray-50 text-left text-xs font-semibold">
                     <tr>
+                      <th class="px-4 py-3 w-12">
+                        <input
+                          type="checkbox"
+                          id="reembolsosSelecionarTodos"
+                          class="form-checkbox h-4 w-4 text-indigo-600"
+                        />
+                      </th>
                       <th class="px-4 py-3">Data</th>
                       <th class="px-4 py-3">Responsável</th>
                       <th class="px-4 py-3">Número</th>
@@ -336,6 +406,9 @@
       </main>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script type="module" src="firebase-config.js"></script>
     <script type="module" src="acompanhamento-problemas.js"></script>
     <script>
