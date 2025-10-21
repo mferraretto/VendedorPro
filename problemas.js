@@ -27,6 +27,16 @@ let pecasColRef = null;
 let reembolsosCache = [];
 let reembolsosColRef = null;
 
+const REEMBOLSO_STATUS_OPCOES = [
+  { valor: 'AGUARDANDO PIX', texto: 'Aguardando PIX' },
+  { valor: 'AGUARDANDO MERCADO', texto: 'Aguardando Mercado' },
+  { valor: 'AGUARDANDO', texto: 'Aguardando' },
+  { valor: 'FEITO', texto: 'Feito' },
+  { valor: 'FEITO PIX', texto: 'Feito PIX' },
+  { valor: 'FEITO MERCADO', texto: 'Feito Mercado' },
+  { valor: 'CANCELADO', texto: 'Cancelado' },
+];
+
 onAuthStateChanged(auth, (user) => {
   if (!user) {
     window.location.href = 'index.html?login=1';
@@ -272,12 +282,12 @@ async function salvarReembolso(ev) {
   const registro = {
     data: form.data.value,
     numero: form.numero.value.trim(),
+    loja: form.loja.value.trim(),
     apelido: form.apelido.value.trim(),
     nf: form.nf.value.trim(),
-    loja: form.loja.value.trim(),
-    problema: form.problema.value.trim(),
     valor: parseFloat(form.valor.value) || 0,
-    informacoes: form.informacoes?.value.trim() || '',
+    pix: form.pix?.value.trim() || '',
+    status: form.status?.value || 'AGUARDANDO PIX',
   };
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'reembolsos');
   const colRef = collection(baseDoc, 'itens');
@@ -286,6 +296,8 @@ async function salvarReembolso(ev) {
   form.reset();
   const dataRInput = document.getElementById('dataR');
   if (dataRInput) dataRInput.value = new Date().toISOString().split('T')[0];
+  const statusInput = document.getElementById('statusR');
+  if (statusInput) statusInput.value = 'AGUARDANDO PIX';
   carregarReembolsos();
 }
 
@@ -296,7 +308,23 @@ async function carregarReembolsos() {
   reembolsosColRef = collection(baseDoc, 'itens');
   const snap = await getDocs(reembolsosColRef);
   reembolsosCache = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
+    .map((d) => {
+      const dados = d.data();
+      const statusValido = REEMBOLSO_STATUS_OPCOES.some(
+        (opcao) => opcao.valor === dados.status,
+      )
+        ? dados.status
+        : 'AGUARDANDO';
+      return {
+        id: d.id,
+        ...dados,
+        valor: Number.isFinite(Number(dados.valor))
+          ? Number(dados.valor)
+          : Number.parseFloat(dados.valor) || 0,
+        pix: dados.pix || '',
+        status: statusValido,
+      };
+    })
     .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
   renderReembolsos();
 }
@@ -333,6 +361,15 @@ function renderReembolsos() {
     tr.appendChild(
       criarCelulaInput({
         tipo: 'text',
+        valor: d.loja || '',
+        onChange: (valor) => atualizarReembolso(d, { loja: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
         valor: d.apelido || '',
         onChange: (valor) => atualizarReembolso(d, { apelido: valor.trim() }),
         classe: baseInputClass,
@@ -351,26 +388,19 @@ function renderReembolsos() {
     tr.appendChild(
       criarCelulaInput({
         tipo: 'text',
-        valor: d.loja || '',
-        onChange: (valor) => atualizarReembolso(d, { loja: valor.trim() }),
+        valor: d.pix || '',
+        onChange: (valor) => atualizarReembolso(d, { pix: valor.trim() }),
         classe: baseInputClass,
       }),
     );
 
     tr.appendChild(
-      criarCelulaInput({
-        tipo: 'text',
-        valor: d.problema || '',
-        onChange: (valor) => atualizarReembolso(d, { problema: valor.trim() }),
-        classe: baseInputClass,
-      }),
-    );
-
-    tr.appendChild(
-      criarCelulaTextarea({
-        valor: d.informacoes || '',
-        onChange: (valor) =>
-          atualizarReembolso(d, { informacoes: valor.trim() }),
+      criarCelulaSelect({
+        valor: d.status || 'AGUARDANDO',
+        opcoes: REEMBOLSO_STATUS_OPCOES,
+        onChange: (valor) => atualizarReembolso(d, { status: valor }),
+        classe:
+          'w-full rounded-xl border-slate-300 p-1 text-sm focus:border-violet-500 focus:ring-violet-500',
       }),
     );
 
@@ -464,6 +494,29 @@ function criarCelulaInput({ tipo, valor, onChange, classe }) {
     await onChange(ev.target.value);
   });
   td.appendChild(input);
+  return td;
+}
+
+function criarCelulaSelect({ valor, opcoes, onChange, classe }) {
+  const td = document.createElement('td');
+  td.className = 'p-2';
+  const select = document.createElement('select');
+  if (classe) {
+    select.className = classe;
+  }
+  opcoes.forEach((opcao) => {
+    const option = document.createElement('option');
+    option.value = opcao.valor;
+    option.textContent = opcao.texto;
+    if (opcao.valor === valor) {
+      option.selected = true;
+    }
+    select.appendChild(option);
+  });
+  select.addEventListener('change', async (ev) => {
+    await onChange(ev.target.value);
+  });
+  td.appendChild(select);
   return td;
 }
 
