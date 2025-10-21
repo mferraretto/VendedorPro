@@ -45,6 +45,38 @@ const reembolsosExportExcelBtn = document.getElementById(
   'reembolsosExportExcel',
 );
 const reembolsosExportPdfBtn = document.getElementById('reembolsosExportPdf');
+const reembolsosStatusFiltroEl = document.getElementById('reembolsosStatus');
+
+const REEMBOLSO_STATUS_MAPA = {
+  'AGUARDANDO PIX': {
+    texto: 'Aguardando PIX',
+    classe: 'bg-amber-50 text-amber-700 border border-amber-200',
+  },
+  'AGUARDANDO MERCADO': {
+    texto: 'Aguardando Mercado',
+    classe: 'bg-amber-50 text-amber-700 border border-amber-200',
+  },
+  AGUARDANDO: {
+    texto: 'Aguardando',
+    classe: 'bg-amber-50 text-amber-700 border border-amber-200',
+  },
+  FEITO: {
+    texto: 'Feito',
+    classe: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  },
+  'FEITO PIX': {
+    texto: 'Feito PIX',
+    classe: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  },
+  'FEITO MERCADO': {
+    texto: 'Feito Mercado',
+    classe: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  },
+  CANCELADO: {
+    texto: 'Cancelado',
+    classe: 'bg-rose-50 text-rose-700 border border-rose-200',
+  },
+};
 
 let usuarios = [];
 let pecasCache = [];
@@ -137,6 +169,7 @@ function registrarEventos() {
   document
     .getElementById('reembolsosBusca')
     ?.addEventListener('input', renderReembolsos);
+  reembolsosStatusFiltroEl?.addEventListener('change', renderReembolsos);
 
   pecasSelecionarTodosEl?.addEventListener('change', (event) => {
     const selecionar = event.target.checked;
@@ -399,6 +432,7 @@ function renderReembolsos() {
   const busca = (
     document.getElementById('reembolsosBusca')?.value || ''
   ).toLowerCase();
+  const statusFiltro = (reembolsosStatusFiltroEl?.value || '').toUpperCase();
 
   const filtrados = reembolsosCache
     .filter((item) => {
@@ -407,13 +441,17 @@ function renderReembolsos() {
       const data = item.data || '';
       if (inicio && (!data || data < inicio)) return false;
       if (fim && (!data || data > fim)) return false;
+      if (statusFiltro) {
+        const statusItem = (item.status || '').toString().toUpperCase();
+        if (statusItem !== statusFiltro) return false;
+      }
       if (busca) {
         const campos = [
           item.numero,
           item.apelido,
           item.nf,
           item.loja,
-          item.problema,
+          item.pix,
           item.usuarioNome,
           item.usuarioEmail,
         ];
@@ -457,6 +495,9 @@ function renderReembolsos() {
 
     const dataFormatada = formatarData(item.data);
     const valorFormatado = formatarMoeda(Number(item.valor) || 0);
+    const statusReembolso = (item.status || '').toString().toUpperCase();
+    const statusTexto = formatarStatusReembolso(statusReembolso);
+    const statusClasse = obterClasseStatusReembolso(statusReembolso);
 
     tr.insertAdjacentHTML(
       'beforeend',
@@ -472,8 +513,13 @@ function renderReembolsos() {
         <td class="px-4 py-3">${escapeHtml(item.apelido || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.nf || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
-        <td class="px-4 py-3">${escapeHtml(item.problema || '-')}</td>
         <td class="px-4 py-3 text-right font-medium text-gray-700">${valorFormatado}</td>
+        <td class="px-4 py-3">${escapeHtml(item.pix || '-')}</td>
+        <td class="px-4 py-3">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClasse}">
+            ${statusTexto}
+          </span>
+        </td>
       `,
     );
 
@@ -717,12 +763,13 @@ function exportarReembolsosExcel() {
     'Data',
     'Responsável',
     'E-mail',
-    'Número',
+    'Número do pedido',
     'Apelido',
     'NF',
     'Loja',
-    'Problema',
     'Valor (R$)',
+    'PIX',
+    'Status',
   ];
   const linhas = registros.map((item) => [
     formatarData(item.data),
@@ -732,8 +779,9 @@ function exportarReembolsosExcel() {
     item.apelido || '',
     item.nf || '',
     item.loja || '',
-    item.problema || '',
     Number(item.valor) || 0,
+    item.pix || '',
+    formatarStatusReembolso((item.status || '').toString().toUpperCase()),
   ]);
 
   exportarExcel(
@@ -759,12 +807,13 @@ function exportarReembolsosPdf() {
     'Data',
     'Responsável',
     'E-mail',
-    'Número',
+    'Número do pedido',
     'Apelido',
     'NF',
     'Loja',
-    'Problema',
     'Valor',
+    'PIX',
+    'Status',
   ];
   const linhas = registros.map((item) => [
     formatarData(item.data),
@@ -774,8 +823,9 @@ function exportarReembolsosPdf() {
     item.apelido || '',
     item.nf || '',
     item.loja || '',
-    item.problema || '',
     formatarMoeda(Number(item.valor) || 0),
+    item.pix || '',
+    formatarStatusReembolso((item.status || '').toString().toUpperCase()),
   ]);
 
   exportarPDF(
@@ -955,6 +1005,24 @@ function formatarStatus(status) {
     default:
       return status && status !== 'NÃO INFORMADO' ? status : 'Não informado';
   }
+}
+
+function formatarStatusReembolso(status) {
+  const statusNormalizado = status?.toString().toUpperCase() || '';
+  if (REEMBOLSO_STATUS_MAPA[statusNormalizado])
+    return REEMBOLSO_STATUS_MAPA[statusNormalizado].texto;
+  if (!statusNormalizado) return 'Não informado';
+  const texto = statusNormalizado
+    .toLowerCase()
+    .replace(/(^|\s)\S/g, (letra) => letra.toUpperCase());
+  return texto;
+}
+
+function obterClasseStatusReembolso(status) {
+  const statusNormalizado = status?.toString().toUpperCase() || '';
+  if (REEMBOLSO_STATUS_MAPA[statusNormalizado])
+    return REEMBOLSO_STATUS_MAPA[statusNormalizado].classe;
+  return 'bg-gray-100 text-gray-600 border border-gray-200';
 }
 
 function obterClasseStatus(status) {

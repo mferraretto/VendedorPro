@@ -295,7 +295,7 @@
           </div>
 
           <div class="card">
-            <div class="card-body grid gap-4 md:grid-cols-4">
+            <div class="card-body grid gap-4 md:grid-cols-5">
               <div class="space-y-2">
                 <label
                   for="reembolsosInicio"
@@ -312,6 +312,23 @@
                 >
                 <input type="date" id="reembolsosFim" class="form-control" />
               </div>
+              <div class="space-y-2">
+                <label
+                  for="reembolsosStatus"
+                  class="text-sm font-medium text-gray-700"
+                  >Status</label
+                >
+                <select id="reembolsosStatus" class="form-control">
+                  <option value="">Todos os status</option>
+                  <option value="AGUARDANDO PIX">Aguardando PIX</option>
+                  <option value="AGUARDANDO MERCADO">Aguardando Mercado</option>
+                  <option value="AGUARDANDO">Aguardando</option>
+                  <option value="FEITO">Feito</option>
+                  <option value="FEITO PIX">Feito PIX</option>
+                  <option value="FEITO MERCADO">Feito Mercado</option>
+                  <option value="CANCELADO">Cancelado</option>
+                </select>
+              </div>
               <div class="space-y-2 md:col-span-2">
                 <label
                   for="reembolsosBusca"
@@ -322,7 +339,7 @@
                   type="text"
                   id="reembolsosBusca"
                   class="form-control"
-                  placeholder="Número, loja ou descrição do problema"
+                  placeholder="Número do pedido, loja, NF ou apelido"
                 />
               </div>
             </div>
@@ -380,12 +397,13 @@
                       </th>
                       <th class="px-4 py-3">Data</th>
                       <th class="px-4 py-3">Responsável</th>
-                      <th class="px-4 py-3">Número</th>
+                      <th class="px-4 py-3">Número do pedido</th>
                       <th class="px-4 py-3">Apelido</th>
                       <th class="px-4 py-3">NF</th>
                       <th class="px-4 py-3">Loja</th>
-                      <th class="px-4 py-3">Problema</th>
                       <th class="px-4 py-3 text-right">Valor</th>
+                      <th class="px-4 py-3">PIX</th>
+                      <th class="px-4 py-3">Status</th>
                     </tr>
                   </thead>
                   <tbody
