@@ -24,6 +24,25 @@ export function anoMesBR(d = new Date()) {
   return `${dt.getFullYear()}-${mm}`;
 }
 
+export function anoMesPorDataISO(dataISO) {
+  if (!dataISO) return anoMesBR();
+
+  const [dataParte] = String(dataISO).split('T');
+  if (dataParte) {
+    const [ano, mes] = dataParte.split('-');
+    if (ano && mes) {
+      return `${ano}-${mes}`;
+    }
+  }
+
+  const data = new Date(dataISO);
+  if (!Number.isNaN(data.getTime())) {
+    return anoMesBR(data);
+  }
+
+  return anoMesBR();
+}
+
 // Utilitário para calcular resumo mensal a partir de uma lista de saques
 export function calcularResumo(saques = []) {
   const totalSacado = saques.reduce((s, x) => s + (x.valor || 0), 0);
