@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { calcularResumo } from '../comissoes-utils.js';
+import { calcularResumo, anoMesPorDataISO } from '../comissoes-utils.js';
 
 function testeAbaixo150k() {
   const saques = [
     { valor: 50_000, percentualPago: 0.03 },
-    { valor: 40_000, percentualPago: 0.04 }
+    { valor: 40_000, percentualPago: 0.04 },
   ];
   const r = calcularResumo(saques);
   assert.equal(r.totalSacado, 90_000);
@@ -19,7 +19,7 @@ function testeAbaixo150k() {
 function testeCruza150k() {
   const saques = [
     { valor: 100_000, percentualPago: 0.03 },
-    { valor: 60_000, percentualPago: 0.03 }
+    { valor: 60_000, percentualPago: 0.03 },
   ];
   const r = calcularResumo(saques);
   assert.equal(r.totalSacado, 160_000);
@@ -34,7 +34,7 @@ function testeCruza150k() {
 function testeCruza250k() {
   const saques = [
     { valor: 200_000, percentualPago: 0.04 },
-    { valor: 60_000, percentualPago: 0.04 }
+    { valor: 60_000, percentualPago: 0.04 },
   ];
   const r = calcularResumo(saques);
   assert.equal(r.totalSacado, 260_000);
@@ -46,7 +46,14 @@ function testeCruza250k() {
   assert.equal(r.faltamPara5, 0);
 }
 
+function testeAnoMesPorDataISO() {
+  assert.equal(anoMesPorDataISO('2024-05-01'), '2024-05');
+  assert.equal(anoMesPorDataISO('2024-05-01T00:00:00-03:00'), '2024-05');
+  assert.equal(anoMesPorDataISO('2024-05-01T03:00:00.000Z'), '2024-05');
+}
+
 testeAbaixo150k();
 testeCruza150k();
 testeCruza250k();
+testeAnoMesPorDataISO();
 console.log('Tests passed');
