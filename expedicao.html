@@ -291,6 +291,31 @@
       </div>
 
       <div
+        id="commentModal"
+        class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden"
+      >
+        <div class="bg-white w-full max-w-md p-5 rounded-xl shadow-lg relative">
+          <h2 class="text-lg font-semibold mb-3">Comentário da etiqueta</h2>
+          <textarea
+            id="commentText"
+            class="form-control w-full h-32"
+            placeholder="Escreva uma observação para esta etiqueta"
+          ></textarea>
+          <div class="flex items-center gap-2 mt-4">
+            <button id="commentDeleteBtn" class="btn btn-danger mr-auto">
+              Excluir
+            </button>
+            <button id="commentCancelBtn" class="btn btn-secondary">
+              Fechar
+            </button>
+            <button id="commentSaveBtn" class="btn btn-primary">
+              Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
         id="sobrasModal"
         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
       >
@@ -411,6 +436,74 @@
         let checklistRows = [];
         const collapsedOwners = new Set();
         let pendingManualFile = null;
+        const commentModal = document.getElementById('commentModal');
+        const commentTextarea = document.getElementById('commentText');
+        const commentSaveBtn = document.getElementById('commentSaveBtn');
+        const commentCancelBtn = document.getElementById('commentCancelBtn');
+        const commentDeleteBtn = document.getElementById('commentDeleteBtn');
+        let currentCommentDocId = null;
+        let currentCommentOriginalValue = '';
+        if (commentCancelBtn) {
+          commentCancelBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            closeCommentModal();
+          });
+        }
+        if (commentModal) {
+          commentModal.addEventListener('click', (event) => {
+            if (event.target === commentModal) closeCommentModal();
+          });
+        }
+        if (commentTextarea) {
+          commentTextarea.addEventListener('input', () => {
+            updateCommentModalButtons();
+          });
+        }
+        if (commentSaveBtn && commentTextarea) {
+          commentSaveBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            if (!currentCommentDocId) return;
+            const text = commentTextarea.value.trim();
+            commentSaveBtn.disabled = true;
+            try {
+              await salvarObservacao(currentCommentDocId, text);
+              applyCommentStateToElements(currentCommentDocId, text);
+              closeCommentModal();
+            } catch (err) {
+              console.error('Erro ao salvar observação:', err);
+              alert('Erro ao salvar observação');
+            } finally {
+              commentSaveBtn.disabled = false;
+            }
+          });
+        }
+        if (commentDeleteBtn) {
+          commentDeleteBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            if (!currentCommentDocId) return;
+            if (!confirm('Deseja remover este comentário?')) return;
+            commentDeleteBtn.disabled = true;
+            try {
+              await salvarObservacao(currentCommentDocId, '');
+              applyCommentStateToElements(currentCommentDocId, '');
+              closeCommentModal();
+            } catch (err) {
+              console.error('Erro ao remover observação:', err);
+              alert('Erro ao remover observação');
+            } finally {
+              commentDeleteBtn.disabled = false;
+            }
+          });
+        }
+        document.addEventListener('keydown', (event) => {
+          if (
+            event.key === 'Escape' &&
+            commentModal &&
+            !commentModal.classList.contains('hidden')
+          ) {
+            closeCommentModal();
+          }
+        });
 
         const CARD_STATUS_CLASS_MAP = {
           nao_impresso: 'expedicao-pdf-card--pending',
@@ -2282,6 +2375,104 @@
           container.appendChild(table);
         }
 
+        function getElementsByDocId(docId) {
+          if (!docId) return [];
+          if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+            try {
+              return Array.from(
+                document.querySelectorAll(
+                  `[data-doc-id="${CSS.escape(docId)}"]`,
+                ),
+              );
+            } catch (err) {
+              console.warn('Não foi possível usar CSS.escape para o docId:', err);
+            }
+          }
+          return Array.from(document.querySelectorAll('[data-doc-id]')).filter(
+            (el) => el.dataset.docId === docId,
+          );
+        }
+
+        function updateCommentButtonAppearance(button, texto) {
+          if (!button) return;
+          const hasText = Boolean(texto && texto.trim());
+          const actionLabel = hasText ? 'Editar comentário' : 'Adicionar comentário';
+          button.setAttribute('title', actionLabel);
+          button.setAttribute('aria-label', actionLabel);
+          if (button.classList.contains('expedicao-comment-btn')) {
+            button.classList.toggle('expedicao-comment-btn--active', hasText);
+          }
+          if (button.classList.contains('expedicao-icon-btn')) {
+            button.classList.toggle('expedicao-icon-btn--comment-active', hasText);
+          }
+        }
+
+        function updateCommentIndicator(indicator, texto) {
+          if (!indicator) return;
+          const hasText = Boolean(texto && texto.trim());
+          const normalized = hasText
+            ? texto.replace(/\s+/g, ' ').trim()
+            : '';
+          indicator.classList.toggle('hidden', !hasText);
+          indicator.classList.toggle('expedicao-list-note--active', hasText);
+          if (hasText) {
+            indicator.setAttribute(
+              'title',
+              normalized ? `Observação: ${normalized}` : 'Observação',
+            );
+          } else {
+            indicator.removeAttribute('title');
+          }
+        }
+
+        function applyCommentStateToElements(docId, texto) {
+          const value = (texto || '').trim();
+          const containers = getElementsByDocId(docId);
+          containers.forEach((element) => {
+            element.dataset.observacao = value;
+            const commentButton = element.querySelector('[data-role="comment-button"]');
+            if (commentButton) updateCommentButtonAppearance(commentButton, value);
+            const indicator = element.querySelector('[data-role="comment-indicator"]');
+            updateCommentIndicator(indicator, value);
+          });
+        }
+
+        function updateCommentModalButtons() {
+          if (!commentDeleteBtn) return;
+          const hasOriginal = Boolean((currentCommentOriginalValue || '').trim());
+          commentDeleteBtn.classList.toggle('hidden', !hasOriginal);
+        }
+
+        function openCommentModal(docId, initialText = '') {
+          if (!commentModal || !commentTextarea) return;
+          currentCommentDocId = docId;
+          currentCommentOriginalValue = initialText || '';
+          commentTextarea.value = initialText || '';
+          commentModal.classList.remove('hidden');
+          commentModal.setAttribute('aria-hidden', 'false');
+          updateCommentModalButtons();
+          setTimeout(() => {
+            try {
+              commentTextarea.focus();
+              commentTextarea.setSelectionRange(
+                commentTextarea.value.length,
+                commentTextarea.value.length,
+              );
+            } catch (err) {
+              /* foco opcional */
+            }
+          }, 50);
+        }
+
+        function closeCommentModal() {
+          if (!commentModal || !commentTextarea) return;
+          commentModal.classList.add('hidden');
+          commentModal.setAttribute('aria-hidden', 'true');
+          commentTextarea.value = '';
+          currentCommentDocId = null;
+          currentCommentOriginalValue = '';
+        }
+
         function createPdfCard(doc, ownerName) {
           const data = doc.data();
           const rawStatus = data.status || 'nao_impresso';
@@ -2319,11 +2510,22 @@
             <span class="expedicao-pdf-date">${createdDateStr}</span>
             ${foraHorario ? '<span class="expedicao-alert-badge">Fora do horário</span>' : ''}
           </div>
-          <button
-            class="expedicao-status-button ${statusData.buttonClass}"
-            data-status="${statusKey}"
-            onclick="toggleImpressoCard('${doc.id}', this, this.closest('.pdf-card'))"
-          >${buildStatusButtonContent(statusData)}</button>
+          <div class="expedicao-pdf-header-actions">
+            <button
+              type="button"
+              class="expedicao-comment-btn"
+              data-role="comment-button"
+              title="Adicionar comentário"
+              aria-label="Adicionar comentário"
+            >
+              <i class="fas fa-comment-dots"></i>
+            </button>
+            <button
+              class="expedicao-status-button ${statusData.buttonClass}"
+              data-status="${statusKey}"
+              onclick="toggleImpressoCard('${doc.id}', this, this.closest('.pdf-card'))"
+            >${buildStatusButtonContent(statusData)}</button>
+          </div>
         </div>
         <div class="expedicao-pdf-main">
           <div class="expedicao-pdf-icon">
@@ -2344,10 +2546,23 @@
           <p class="expedicao-pdf-quantity">Loja: ${lojaDisplay}</p>
           <p class="expedicao-pdf-quantity">Páginas: ${paginasLabel}</p>
         </div>`;
+          const commentText =
+            typeof data.observacao === 'string' ? data.observacao.trim() : '';
           div.dataset.ownerUid = data.ownerUid || '';
           div.dataset.ownerEmail = data.ownerEmail || '';
           div.dataset.fileName = name;
           div.dataset.status = statusKey;
+          div.dataset.docId = doc.id || '';
+          div.dataset.observacao = commentText;
+          const commentButton = div.querySelector('[data-role="comment-button"]');
+          if (commentButton) {
+            commentButton.dataset.docId = doc.id || '';
+            commentButton.addEventListener('click', (event) => {
+              event.stopPropagation();
+              openCommentModal(doc.id, div.dataset.observacao || '');
+            });
+            updateCommentButtonAppearance(commentButton, commentText);
+          }
           return div;
         }
 
@@ -2412,10 +2627,14 @@
           ];
           if (attention) rowClasses.push('expedicao-card--attention');
           row.className = rowClasses.join(' ');
+          const commentText =
+            typeof data.observacao === 'string' ? data.observacao.trim() : '';
           row.dataset.ownerUid = ownerUid;
           row.dataset.ownerEmail = data.ownerEmail || '';
           row.dataset.fileName = name;
           row.dataset.status = statusKey;
+          row.dataset.docId = doc.id || '';
+          row.dataset.observacao = commentText;
           row.innerHTML = `
       <td>
         <div class="expedicao-list-primary">${escapeHtml(owner)}</div>
@@ -2428,7 +2647,13 @@
       <td>
         <div class="expedicao-list-primary">${lojaDisplay}</div>
         ${name && data.loja && data.loja !== name ? `<div class="expedicao-list-secondary">${escapeHtml(name)}</div>` : ''}
-        ${observacao ? `<div class="expedicao-list-note" title="Observação: ${observacao}"><i class="fas fa-comment-dots"></i> Observação</div>` : ''}
+        <div
+          class="expedicao-list-note${observacao ? '' : ' hidden'}"
+          data-role="comment-indicator"
+          ${observacao ? `title="Observação: ${observacao}"` : ''}
+        >
+          <i class="fas fa-comment-dots"></i> Observação
+        </div>
       </td>
       <td>
         <div class="expedicao-list-primary">${quantidadeLabel}</div>
@@ -2476,6 +2701,14 @@
       </td>
       <td>
         <div class="expedicao-table-actions">
+          <button
+            type="button"
+            class="expedicao-icon-btn expedicao-icon-btn--comment"
+            data-role="comment-button"
+            title="Adicionar comentário"
+          >
+            <i class="fas fa-comment-dots"></i>
+          </button>
           <button type="button" class="expedicao-icon-btn" title="Visualizar" onclick="visualizar(${safeUrl})">
             <i class="fas fa-eye"></i>
           </button>
@@ -2509,6 +2742,19 @@
         </div>
       </td>`;
           row.dataset.defaultEnvio = envioDefaultRaw;
+          const commentButton = row.querySelector('[data-role="comment-button"]');
+          if (commentButton) {
+            commentButton.dataset.docId = doc.id || '';
+            commentButton.addEventListener('click', (event) => {
+              event.stopPropagation();
+              const container = commentButton.closest('[data-doc-id]');
+              const currentComment = container?.dataset?.observacao || '';
+              openCommentModal(doc.id, currentComment);
+            });
+            updateCommentButtonAppearance(commentButton, commentText);
+          }
+          const commentIndicator = row.querySelector('[data-role="comment-indicator"]');
+          updateCommentIndicator(commentIndicator, commentText);
           return row;
         }
 
@@ -2912,8 +3158,18 @@
         window.toggleAtencao = toggleAtencao;
 
         async function salvarObservacao(id, texto) {
-          await db.collection('pdfDocs').doc(id).update({ observacao: texto });
+          const docRef = db.collection('pdfDocs').doc(id);
+          const trimmed = (texto || '').trim();
+          if (!trimmed) {
+            await docRef.update({
+              observacao: firebase.firestore.FieldValue.delete(),
+            });
+            showToast('Observação removida');
+            return 'removed';
+          }
+          await docRef.update({ observacao: trimmed });
           showToast('Observação salva');
+          return 'saved';
         }
         window.salvarObservacao = salvarObservacao;
 

@@ -460,6 +460,50 @@
   gap: 1rem;
 }
 
+.expedicao-pdf-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.expedicao-comment-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  background: rgba(100, 116, 139, 0.08);
+  color: #475569;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.expedicao-comment-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(100, 116, 139, 0.15);
+}
+
+.expedicao-comment-btn--active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-color: rgba(220, 38, 38, 0.65);
+  color: #fff;
+  box-shadow: 0 18px 36px -24px rgba(220, 38, 38, 0.6);
+}
+
+.expedicao-comment-btn--active:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.expedicao-comment-btn i {
+  pointer-events: none;
+}
+
 .expedicao-pdf-header-content {
   display: flex;
   flex-direction: column;
@@ -738,6 +782,27 @@
   background: rgba(79, 70, 229, 0.15);
 }
 
+.expedicao-icon-btn--comment {
+  border-color: rgba(100, 116, 139, 0.25);
+  background: rgba(100, 116, 139, 0.08);
+  color: #475569;
+}
+
+.expedicao-icon-btn--comment:hover {
+  background: rgba(100, 116, 139, 0.15);
+}
+
+.expedicao-icon-btn--comment-active {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: rgba(220, 38, 38, 0.14);
+  color: #dc2626;
+  box-shadow: 0 12px 28px -24px rgba(220, 38, 38, 0.6);
+}
+
+.expedicao-icon-btn--comment-active:hover {
+  background: rgba(220, 38, 38, 0.2);
+}
+
 .expedicao-icon-btn--danger {
   border-color: rgba(239, 68, 68, 0.2);
   background: rgba(239, 68, 68, 0.08);
@@ -980,6 +1045,14 @@
 
 .expedicao-list-note i {
   color: #4f46e5;
+}
+
+.expedicao-list-note--active {
+  color: #b91c1c;
+}
+
+.expedicao-list-note--active i {
+  color: #dc2626;
 }
 
 .expedicao-status-chip {
