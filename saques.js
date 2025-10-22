@@ -37,6 +37,72 @@ let unsubscribeResumo = null;
 let editandoId = null;
 let saquesCache = {};
 let selecionados = new Set();
+const VALOR_TODAS_LOJAS = '__todas__';
+const VALOR_SEM_LOJA = '__sem_loja__';
+let filtroLojaAtual = VALOR_TODAS_LOJAS;
+let listaSaques = [];
+let listaSaquesFiltrada = [];
+
+const filtroLojaSelect = document.getElementById('filtroLoja');
+if (filtroLojaSelect) {
+  filtroLojaSelect.addEventListener('change', (event) => {
+    filtroLojaAtual = event.target.value;
+    selecionados.clear();
+    atualizarResumoSelecionados();
+    renderSaques();
+  });
+}
+
+function valorPadraoLoja(origem) {
+  if (typeof origem === 'string' && origem.trim()) {
+    return origem.trim();
+  }
+  return VALOR_SEM_LOJA;
+}
+
+function labelParaLoja(valor) {
+  return valor === VALOR_SEM_LOJA ? 'Sem loja cadastrada' : valor;
+}
+
+function atualizarCheckboxTodos() {
+  const master = document.getElementById('checkboxSelecionarTodos');
+  if (!master) return;
+  if (listaSaquesFiltrada.length === 0) {
+    master.checked = false;
+    master.indeterminate = false;
+    return;
+  }
+  const selecionadosVisiveis = listaSaquesFiltrada.filter((s) =>
+    selecionados.has(s.id),
+  ).length;
+  master.checked =
+    selecionadosVisiveis > 0 &&
+    selecionadosVisiveis === listaSaquesFiltrada.length;
+  master.indeterminate =
+    selecionadosVisiveis > 0 &&
+    selecionadosVisiveis < listaSaquesFiltrada.length;
+}
+
+function atualizarFiltroLojas() {
+  if (!filtroLojaSelect) return;
+  const valorAnterior = filtroLojaAtual;
+  const lojas = Array.from(
+    new Set(listaSaques.map((s) => valorPadraoLoja(s.origem))),
+  ).sort((a, b) => labelParaLoja(a).localeCompare(labelParaLoja(b), 'pt-BR'));
+
+  filtroLojaSelect.innerHTML = `<option value="${VALOR_TODAS_LOJAS}">Todas as lojas</option>`;
+  lojas.forEach((valor) => {
+    const option = document.createElement('option');
+    option.value = valor;
+    option.textContent = labelParaLoja(valor);
+    filtroLojaSelect.appendChild(option);
+  });
+
+  if (valorAnterior !== VALOR_TODAS_LOJAS && !lojas.includes(valorAnterior)) {
+    filtroLojaAtual = VALOR_TODAS_LOJAS;
+  }
+  filtroLojaSelect.value = filtroLojaAtual;
+}
 
 function formatarDataBR(iso) {
   if (!iso) return '';
@@ -120,7 +186,7 @@ async function carregarSaques() {
   const tbody = document.getElementById('tbodySaques');
   const tfoot = document.getElementById('tfootResumo');
 
-  tbody.innerHTML = '';
+  if (tbody) tbody.innerHTML = '';
   if (tfoot) tfoot.innerHTML = '';
   selecionados.clear();
   atualizarResumoSelecionados();
@@ -135,36 +201,97 @@ async function carregarSaques() {
   );
   const snap = await getDocs(col);
   saquesCache = {};
-  const dados = snap.docs
+  listaSaques = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => a.data.localeCompare(b.data));
+    .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  listaSaques.forEach((s) => {
+    saquesCache[s.id] = s;
+  });
+
+  atualizarFiltroLojas();
+  renderSaques();
+}
+
+async function excluirSaque(id) {
+  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
+  await deletarSaqueSvc({ db, uid: uidAtual, anoMes, saqueId: id });
+  carregarSaques();
+}
+
+function renderSaques() {
+  const tbody = document.getElementById('tbodySaques');
+  const tfoot = document.getElementById('tfootResumo');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+  if (tfoot) tfoot.innerHTML = '';
+
+  listaSaquesFiltrada = listaSaques.filter((s) => {
+    const valor = valorPadraoLoja(s.origem);
+    return filtroLojaAtual === VALOR_TODAS_LOJAS || valor === filtroLojaAtual;
+  });
+
+  if (listaSaquesFiltrada.length === 0) {
+    if (tfoot) {
+      const mensagem =
+        listaSaques.length === 0
+          ? 'Sem saques registrados.'
+          : 'Nenhum saque encontrado para a loja selecionada.';
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="8" class="px-4 py-3 text-center text-sm text-slate-500">${mensagem}</td>
+        </tr>`;
+    }
+    atualizarCheckboxTodos();
+    return;
+  }
 
   let totalValor = 0;
   let totalComissao = 0;
-  let todosPagos = true;
 
-  dados.forEach((s) => {
-    saquesCache[s.id] = s;
-    const dia = (s.data || '').substring(0, 10);
-    const pago = s.percentualPago > 0;
-    const status = pago ? 'Pago' : 'A pagar';
-    if (!pago) todosPagos = false;
-    totalValor += Number(s.valor) || 0;
-    totalComissao += Number(s.comissaoPaga) || 0;
+  listaSaquesFiltrada.forEach((s) => {
+    const valor = Number(s.valor) || 0;
+    const comissao = Number(s.comissaoPaga) || 0;
+    const percentual = Number(s.percentualPago) || 0;
+    const statusPago = percentual > 0;
+    const status = statusPago ? 'Pago' : 'A pagar';
+
+    totalValor += valor;
+    totalComissao += comissao;
 
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-slate-50 even:bg-slate-50/50';
     tr.innerHTML = `
       <td class="px-4 py-3 text-center">
-        <input type="checkbox" class="saque-select h-4 w-4 rounded border-slate-300" data-id="${s.id}" onchange="toggleSelecao('${s.id}', this.checked)" />
+        <input type="checkbox" class="saque-select h-4 w-4 rounded border-slate-300" data-id="${s.id}" onchange="toggleSelecao('${s.id}', this.checked)" ${
+          selecionados.has(s.id) ? 'checked' : ''
+        } />
       </td>
-      <td class="px-4 py-3 text-slate-800">${dia}</td>
-      <td class="px-4 py-3 text-slate-600">${s.origem || '-'}</td>
-      <td class="px-4 py-3 text-right font-medium text-slate-900">R$ ${(Number(s.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-      <td class="px-4 py-3 text-right text-slate-600">${((Number(s.percentualPago) || 0) * 100).toFixed(0)}%</td>
-      <td class="px-4 py-3 text-right text-slate-800">R$ ${(Number(s.comissaoPaga) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td class="px-4 py-3 text-slate-800">${formatarDataBR(s.data)}</td>
+      <td class="px-4 py-3 text-slate-600">${
+        s.origem && s.origem.trim() ? s.origem : '-'
+      }</td>
+      <td class="px-4 py-3 text-right font-medium text-slate-900">R$ ${valor.toLocaleString(
+        'pt-BR',
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        },
+      )}</td>
+      <td class="px-4 py-3 text-right text-slate-600">${(percentual * 100).toFixed(0)}%</td>
+      <td class="px-4 py-3 text-right text-slate-800">R$ ${comissao.toLocaleString(
+        'pt-BR',
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        },
+      )}</td>
       <td class="px-4 py-3">
-        <span class="inline-flex items-center rounded-full ${pago ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'} px-2 py-0.5 text-xs font-medium">${status}</span>
+        <span class="inline-flex items-center rounded-full ${
+          statusPago
+            ? 'bg-emerald-50 text-emerald-700'
+            : 'bg-amber-50 text-amber-700'
+        } px-2 py-0.5 text-xs font-medium">${status}</span>
       </td>
       <td class="px-4 py-3 text-right">
         <div class="inline-flex gap-1">
@@ -176,32 +303,32 @@ async function carregarSaques() {
     tbody.appendChild(tr);
   });
 
-  // Linha de resumo final dentro do <tfoot>
   if (tfoot) {
-    if (dados.length === 0) {
-      tfoot.innerHTML = `
-        <tr>
-          <td colspan="8" class="px-4 py-3 text-center text-sm text-slate-500">Sem saques registrados.</td>
-        </tr>`;
-    } else {
-      const perc = totalValor > 0 ? (totalComissao / totalValor) * 100 : 0;
-      tfoot.innerHTML = `
-        <tr>
-          <td></td>
-          <td colspan="2" class="px-4 py-3 font-medium text-slate-700">Total</td>
-          <td class="px-4 py-3 text-right font-semibold text-slate-900">R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          <td class="px-4 py-3 text-right text-slate-700">${perc.toFixed(0)}%</td>
-          <td class="px-4 py-3 text-right font-semibold text-slate-900">R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          <td colspan="2"></td>
-        </tr>`;
-    }
+    const perc = totalValor > 0 ? (totalComissao / totalValor) * 100 : 0;
+    tfoot.innerHTML = `
+      <tr>
+        <td></td>
+        <td colspan="2" class="px-4 py-3 font-medium text-slate-700">Total</td>
+        <td class="px-4 py-3 text-right font-semibold text-slate-900">R$ ${totalValor.toLocaleString(
+          'pt-BR',
+          {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          },
+        )}</td>
+        <td class="px-4 py-3 text-right text-slate-700">${perc.toFixed(0)}%</td>
+        <td class="px-4 py-3 text-right font-semibold text-slate-900">R$ ${totalComissao.toLocaleString(
+          'pt-BR',
+          {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          },
+        )}</td>
+        <td colspan="2"></td>
+      </tr>`;
   }
-}
 
-async function excluirSaque(id) {
-  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
-  await deletarSaqueSvc({ db, uid: uidAtual, anoMes, saqueId: id });
-  carregarSaques();
+  atualizarCheckboxTodos();
 }
 
 function toggleSelecao(id, marcado) {
@@ -226,6 +353,7 @@ function atualizarResumoSelecionados() {
   if (selecionados.size === 0) {
     div.style.display = 'none';
     texto.textContent = '';
+    atualizarCheckboxTodos();
     return;
   }
   let totalValor = 0;
@@ -233,12 +361,13 @@ function atualizarResumoSelecionados() {
   selecionados.forEach((id) => {
     const s = saquesCache[id];
     if (s) {
-      totalValor += s.valor || 0;
-      totalComissaoSel += s.comissaoPaga || 0;
+      totalValor += Number(s.valor) || 0;
+      totalComissaoSel += Number(s.comissaoPaga) || 0;
     }
   });
   texto.textContent = `${selecionados.size} selecionado(s) - Valor: R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Comissão: R$ ${totalComissaoSel.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   div.style.display = 'flex';
+  atualizarCheckboxTodos();
 }
 
 async function marcarComoPagoSelecionados() {
@@ -282,25 +411,29 @@ function exportarSelecionadosExcel() {
   selecionados.forEach((id) => {
     const s = saquesCache[id];
     if (!s) return;
-    const status = s.percentualPago > 0 ? 'PAGO' : 'A PAGAR';
+    const valor = Number(s.valor) || 0;
+    const comissao = Number(s.comissaoPaga) || 0;
+    const percentual = Number(s.percentualPago) || 0;
+    const status = percentual > 0 ? 'PAGO' : 'A PAGAR';
+    const lojaValor = valorPadraoLoja(s.origem);
+    const lojaLabel = labelParaLoja(lojaValor);
     linhas.push(
       [
         formatarDataBR(s.data),
-        s.origem || '',
-        s.valor.toFixed(2),
-        (s.percentualPago * 100).toFixed(0) + '%',
-        s.comissaoPaga.toFixed(2),
+        lojaLabel,
+        valor.toFixed(2),
+        (percentual * 100).toFixed(0) + '%',
+        comissao.toFixed(2),
         status,
       ].join(';'),
     );
 
-    if (!resumo[s.origem || '-']) {
-      resumo[s.origem || '-'] = { total: 0, comissao: 0, pagos: true };
+    if (!resumo[lojaLabel]) {
+      resumo[lojaLabel] = { total: 0, comissao: 0, pagos: true };
     }
-    resumo[s.origem || '-'].total += s.valor;
-    resumo[s.origem || '-'].comissao += s.comissaoPaga;
-    resumo[s.origem || '-'].pagos =
-      resumo[s.origem || '-'].pagos && s.percentualPago > 0;
+    resumo[lojaLabel].total += valor;
+    resumo[lojaLabel].comissao += comissao;
+    resumo[lojaLabel].pagos = resumo[lojaLabel].pagos && percentual > 0;
   });
 
   // Tabela de resumo
@@ -321,12 +454,12 @@ function exportarSelecionadosExcel() {
     );
   });
 
-  const csv = linhas.join('\n');
+  const csv = `\ufeff${linhas.join('\n')}`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'saques.csv';
+  a.download = 'saques-selecionados.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
