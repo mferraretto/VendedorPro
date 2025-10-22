@@ -24,7 +24,7 @@ export async function registrarSaque({
   if (![0, 0.03, 0.04, 0.05].includes(percentualPago))
     throw new Error('percentualPago inválido');
 
-  const anoMes = anoMesBR(new Date(dataISO));
+  const anoMes = anoMesBR(dataISO);
   const col = collection(db, 'usuarios', uid, 'comissoes', anoMes, 'saques');
   const comissaoPaga = valor * percentualPago;
   await addDoc(col, {
@@ -42,7 +42,7 @@ export async function registrarComissaoRecebida({ db, uid, dataISO, valor }) {
   if (!dataISO) throw new Error('dataISO obrigatório');
   if (typeof valor !== 'number') throw new Error('valor inválido');
 
-  const anoMes = anoMesBR(new Date(dataISO));
+  const anoMes = anoMesBR(dataISO);
   const col = collection(db, 'usuarios', uid, 'comissoes', anoMes, 'recebidas');
   await addDoc(col, {
     data: dataISO,

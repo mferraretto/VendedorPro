@@ -18,10 +18,36 @@ export function faltasParaTiers(total) {
 }
 
 // Chave mensal no fuso Brasil
-export function anoMesBR(d = new Date()) {
-  const dt = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-  const mm = String(dt.getMonth() + 1).padStart(2, '0');
-  return `${dt.getFullYear()}-${mm}`;
+export function anoMesBR(origem = new Date()) {
+  if (typeof origem === 'string') {
+    const [data] = origem.split('T');
+    if (data) {
+      const [ano, mes] = data.split('-');
+      if (ano && mes) {
+        return `${ano}-${mes}`;
+      }
+    }
+  }
+
+  const data =
+    origem instanceof Date || typeof origem === 'number'
+      ? new Date(origem)
+      : new Date();
+
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(data);
+
+  const ano = partes.find((p) => p.type === 'year')?.value;
+  const mes = partes.find((p) => p.type === 'month')?.value;
+
+  if (!ano || !mes) {
+    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  return `${ano}-${mes}`;
 }
 
 // Utilitário para calcular resumo mensal a partir de uma lista de saques
