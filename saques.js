@@ -44,6 +44,70 @@ let filtroLojaAtual = VALOR_TODAS_LOJAS;
 let listaSaques = [];
 let listaSaquesFiltrada = [];
 
+function getFiltroMesInicio() {
+  return document.getElementById('filtroMesInicio');
+}
+
+function getFiltroMesFim() {
+  return document.getElementById('filtroMesFim');
+}
+
+function mesStringValida(valor) {
+  return typeof valor === 'string' && /^\d{4}-\d{2}$/.test(valor);
+}
+
+function normalizarIntervaloMeses() {
+  const inicioInput = getFiltroMesInicio();
+  const fimInput = getFiltroMesFim();
+  const padrao = anoMesBR();
+
+  let inicio = padrao;
+  if (inicioInput) {
+    inicio = mesStringValida(inicioInput.value) ? inicioInput.value : padrao;
+    inicioInput.value = inicio;
+  }
+
+  let fim = inicio;
+  if (fimInput) {
+    fim = mesStringValida(fimInput.value) ? fimInput.value : inicio;
+    if (fim < inicio) fim = inicio;
+    fimInput.value = fim;
+  }
+
+  return { inicio, fim };
+}
+
+function obterMesesSelecionados() {
+  const { inicio, fim } = normalizarIntervaloMeses();
+  const meses = [];
+
+  let [anoAtual, mesAtual] = inicio
+    .split('-')
+    .map((parte) => parseInt(parte, 10));
+  const [anoFim, mesFim] = fim.split('-').map((parte) => parseInt(parte, 10));
+
+  if (Number.isNaN(anoAtual) || Number.isNaN(mesAtual)) {
+    return [anoMesBR()];
+  }
+
+  while (anoAtual < anoFim || (anoAtual === anoFim && mesAtual <= mesFim)) {
+    const mesStr = String(mesAtual).padStart(2, '0');
+    meses.push(`${anoAtual}-${mesStr}`);
+    mesAtual += 1;
+    if (mesAtual > 12) {
+      mesAtual = 1;
+      anoAtual += 1;
+    }
+  }
+
+  return meses.length > 0 ? meses : [anoMesBR()];
+}
+
+function obterMesPrincipal() {
+  const meses = obterMesesSelecionados();
+  return meses[0] || anoMesBR();
+}
+
 const filtroLojaSelect = document.getElementById('filtroLoja');
 if (filtroLojaSelect) {
   filtroLojaSelect.addEventListener('change', (event) => {
@@ -122,12 +186,22 @@ onAuthStateChanged(auth, (user) => {
   if (titulo) {
     titulo.textContent = (user.displayName || 'VENDEDOR').toUpperCase();
   }
-  const mesInput = document.getElementById('filtroMes');
-  mesInput.value = anoMesBR();
-  mesInput.addEventListener('change', () => {
+  const mesAtual = anoMesBR();
+  const inicioInput = getFiltroMesInicio();
+  const fimInput = getFiltroMesFim();
+  if (inicioInput && !mesStringValida(inicioInput.value)) {
+    inicioInput.value = mesAtual;
+  }
+  if (fimInput && !mesStringValida(fimInput.value)) {
+    fimInput.value = inicioInput ? inicioInput.value : mesAtual;
+  }
+  const onMudancaMes = () => {
     carregarSaques();
     assistirResumo();
-  });
+  };
+  inicioInput?.addEventListener('change', onMudancaMes);
+  fimInput?.addEventListener('change', onMudancaMes);
+  normalizarIntervaloMeses();
   carregarSaques();
   assistirResumo();
 });
@@ -144,12 +218,14 @@ export async function registrarSaque() {
     return;
   }
   if (editandoId) {
-    const anoMes = document.getElementById('filtroMes').value || anoMesBR();
+    const original = saquesCache[editandoId];
+    const anoMes = original?.anoMes || obterMesPrincipal();
+    const saqueId = original?.saqueId || editandoId;
     await atualizarSaqueSvc({
       db,
       uid: uidAtual,
       anoMes,
-      saqueId: editandoId,
+      saqueId,
       dataISO,
       valor,
       percentualPago: percentual,
@@ -184,7 +260,8 @@ export async function registrarComissaoRecebida() {
 }
 
 async function carregarSaques() {
-  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
+  if (!uidAtual) return;
+  const mesesSelecionados = obterMesesSelecionados();
   const tbody = document.getElementById('tbodySaques');
   const tfoot = document.getElementById('tfootResumo');
 
@@ -193,19 +270,36 @@ async function carregarSaques() {
   selecionados.clear();
   atualizarResumoSelecionados();
 
-  const col = collection(
-    db,
-    'usuarios',
-    uidAtual,
-    'comissoes',
-    anoMes,
-    'saques',
+  const colecoes = mesesSelecionados.map((anoMes) =>
+    getDocs(
+      collection(db, 'usuarios', uidAtual, 'comissoes', anoMes, 'saques'),
+    ).then((snap) => ({ anoMes, snap })),
   );
-  const snap = await getDocs(col);
+
+  const resultados = await Promise.all(colecoes);
+
   saquesCache = {};
-  listaSaques = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  listaSaques = resultados
+    .flatMap(({ anoMes, snap }) =>
+      snap.docs.map((d) => {
+        const dados = d.data();
+        const composto = `${anoMes}__${d.id}`;
+        return {
+          id: composto,
+          saqueId: d.id,
+          anoMes,
+          ...dados,
+        };
+      }),
+    )
+    .sort((a, b) => {
+      const dataA = a.data || '';
+      const dataB = b.data || '';
+      if (dataA !== dataB) return dataA.localeCompare(dataB);
+      if (a.anoMes !== b.anoMes) return a.anoMes.localeCompare(b.anoMes);
+      return (a.saqueId || '').localeCompare(b.saqueId || '');
+    });
+
   listaSaques.forEach((s) => {
     saquesCache[s.id] = s;
   });
@@ -215,8 +309,14 @@ async function carregarSaques() {
 }
 
 async function excluirSaque(id) {
-  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
-  await deletarSaqueSvc({ db, uid: uidAtual, anoMes, saqueId: id });
+  const saque = saquesCache[id];
+  if (!saque) return;
+  await deletarSaqueSvc({
+    db,
+    uid: uidAtual,
+    anoMes: saque.anoMes,
+    saqueId: saque.saqueId,
+  });
   carregarSaques();
 }
 
@@ -376,15 +476,14 @@ async function marcarComoPagoSelecionados() {
   const perc = parseFloat(
     document.getElementById('percentualSelecionado')?.value || '0',
   );
-  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
   for (const id of selecionados) {
     const s = saquesCache[id];
     if (!s) continue;
     await atualizarSaqueSvc({
       db,
       uid: uidAtual,
-      anoMes,
-      saqueId: id,
+      anoMes: s.anoMes,
+      saqueId: s.saqueId,
       dataISO: s.data,
       valor: s.valor,
       percentualPago: perc,
@@ -545,7 +644,8 @@ function exportarSelecionadosPDF() {
 
 function editarSaque(id) {
   const s = saquesCache[id];
-  document.getElementById('dataSaque').value = s.data.substring(0, 10);
+  if (!s) return;
+  document.getElementById('dataSaque').value = (s.data || '').substring(0, 10);
   document.getElementById('valorSaque').value = s.valor;
   document.getElementById('percentualSaque').value = String(
     s.percentualPago || 0,
@@ -556,27 +656,54 @@ function editarSaque(id) {
 }
 
 async function fecharMes() {
-  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
+  const meses = obterMesesSelecionados();
+  if (meses.length !== 1) {
+    alert('Selecione apenas um mês para realizar o fechamento.');
+    return;
+  }
+  const anoMes = meses[0];
   const ajusteId = await fecharMesSvc({ db, uid: uidAtual, anoMes });
   alert(ajusteId ? 'Ajuste lançado!' : 'Sem ajuste necessário');
 }
 
 function assistirResumo() {
-  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
-  if (unsubscribeResumo) unsubscribeResumo();
+  if (!uidAtual) return;
+  const meses = obterMesesSelecionados();
+  if (unsubscribeResumo) {
+    unsubscribeResumo();
+    unsubscribeResumo = null;
+  }
+
+  const cards = document.getElementById('cardsResumo');
+  const texto = document.getElementById('faltasTexto');
+
+  if (meses.length !== 1) {
+    if (cards) {
+      cards.innerHTML = `
+        <div class="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600">
+          Selecione apenas um mês para visualizar o resumo mensal.
+        </div>
+      `;
+    }
+    if (texto) texto.textContent = '';
+    return;
+  }
+
+  const anoMes = meses[0];
   unsubscribeResumo = watchResumoMesSvc({
     db,
     uid: uidAtual,
     anoMes,
     onChange: (r) => {
-      const cards = document.getElementById('cardsResumo');
-      const texto = document.getElementById('faltasTexto');
+      const cardsResumo = document.getElementById('cardsResumo');
+      const faltasTexto = document.getElementById('faltasTexto');
+      if (!cardsResumo || !faltasTexto) return;
       if (!r) {
-        cards.innerHTML = '<p class="text-slate-500">Sem dados</p>';
-        texto.textContent = '';
+        cardsResumo.innerHTML = '<p class="text-slate-500">Sem dados</p>';
+        faltasTexto.textContent = '';
         return;
       }
-      cards.innerHTML = `
+      cardsResumo.innerHTML = `
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">Total Saques</div>
           <div class="mt-2 text-2xl font-semibold text-slate-900">R$ ${r.totalSacado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
@@ -598,7 +725,7 @@ function assistirResumo() {
           <div class="mt-1 text-xs text-slate-500">Estimado</div>
         </div>
       `;
-      texto.textContent = `Faltam R$${r.faltamPara4.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para 4% | R$${r.faltamPara5.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para 5%`;
+      faltasTexto.textContent = `Faltam R$${r.faltamPara4.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para 4% | R$${r.faltamPara5.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para 5%`;
     },
   });
 }
@@ -631,7 +758,12 @@ async function carregarFonteRoboto(doc) {
 async function imprimirFechamento() {
   if (!window.jspdf) return;
   const { jsPDF } = window.jspdf;
-  const anoMes = document.getElementById('filtroMes').value || anoMesBR();
+  const meses = obterMesesSelecionados();
+  if (meses.length !== 1) {
+    alert('Selecione apenas um mês para exportar o fechamento.');
+    return;
+  }
+  const anoMes = meses[0];
 
   const colSaques = collection(
     db,
