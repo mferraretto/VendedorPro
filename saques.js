@@ -33,6 +33,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 let uidAtual = null;
+let nomeUsuarioAtual = '';
 let unsubscribeResumo = null;
 let editandoId = null;
 let saquesCache = {};
@@ -116,6 +117,7 @@ onAuthStateChanged(auth, (user) => {
     return;
   }
   uidAtual = user.uid;
+  nomeUsuarioAtual = (user.displayName || user.email || '').trim();
   const titulo = document.getElementById('tituloVendedor');
   if (titulo) {
     titulo.textContent = (user.displayName || 'VENDEDOR').toUpperCase();
@@ -464,6 +466,25 @@ function exportarSelecionadosExcel() {
   URL.revokeObjectURL(url);
 }
 
+function removerAcentos(texto) {
+  if (texto == null) return '';
+  return String(texto)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss');
+}
+
+function slugArquivo(texto, padrao = 'sem-nome') {
+  if (!texto) return padrao;
+  const semAcento = removerAcentos(texto);
+  const slug = semAcento
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '');
+  return slug || padrao;
+}
+
 function exportarSelecionadosPDF() {
   if (selecionados.size === 0 || !window.jspdf) return;
   const { jsPDF } = window.jspdf;
@@ -506,8 +527,20 @@ function exportarSelecionadosPDF() {
     finalY + 10,
   );
 
-  // Evite acentos no nome de arquivo para compatibilidade
-  doc.save('fechamento-comissao.pdf');
+  const lojasSelecionadas = Array.from(
+    new Set(
+      itens
+        .map((s) => (s.origem || '').trim())
+        .filter((origem) => origem && origem.length > 0),
+    ),
+  );
+  const nomeUsuarioSlug = slugArquivo(nomeUsuarioAtual, 'usuario');
+  const lojasSlug = lojasSelecionadas.length
+    ? slugArquivo(lojasSelecionadas.join('-'), 'lojas')
+    : 'sem-loja';
+  const nomeArquivo = `fechamento-comissao-${nomeUsuarioSlug}-${lojasSlug}.pdf`;
+
+  doc.save(nomeArquivo);
 }
 
 function editarSaque(id) {
