@@ -1568,3 +1568,23 @@ input:checked + .toggle-slider:before {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Garantir que os modais de expedição fiquem acima dos cards */
+#pdfModal,
+#storeModal,
+#commentModal,
+#sobrasModal,
+#checklistModal,
+#gestorModal {
+  z-index: 60;
+}
+
+#pdfModal > div,
+#storeModal > div,
+#commentModal > div,
+#sobrasModal > div,
+#checklistModal > div,
+#gestorModal > div {
+  position: relative;
+  z-index: 61;
+}
