@@ -48,6 +48,7 @@ let listaSaques = [];
 let listaSaquesFiltrada = [];
 let percentualPadrao = null;
 let mensagemPercentualPadraoTimeout = null;
+let resumoMesAtual = null;
 
 function mensagemPadraoBase() {
   if (percentualPadrao === null) {
@@ -98,6 +99,67 @@ function aplicarPercentualPadrao() {
   }
 }
 
+function renderResumoCards() {
+  const cardsResumo = document.getElementById('cardsResumo');
+  const faltasTexto = document.getElementById('faltasTexto');
+  if (!cardsResumo || !faltasTexto) return;
+
+  if (!resumoMesAtual) {
+    cardsResumo.innerHTML = '<p class="text-slate-500">Sem dados</p>';
+    faltasTexto.textContent = '';
+    return;
+  }
+
+  const totalSacado = Number(resumoMesAtual.totalSacado) || 0;
+  const taxaFinalOriginal = Number(resumoMesAtual.taxaFinal) || 0;
+  const comissaoPrevistaOriginal =
+    Number(resumoMesAtual.comissaoPrevista) || totalSacado * taxaFinalOriginal;
+  const comissaoRecebida = Number(resumoMesAtual.comissaoRecebida) || 0;
+
+  const taxaAplicada =
+    percentualPadrao !== null ? percentualPadrao : taxaFinalOriginal;
+  const comissaoPrevista =
+    percentualPadrao !== null
+      ? totalSacado * percentualPadrao
+      : comissaoPrevistaOriginal;
+  const faltaPagar = Math.max(0, comissaoPrevista - comissaoRecebida);
+
+  cardsResumo.innerHTML = `
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">Total Saques</div>
+          <div class="mt-2 text-2xl font-semibold text-slate-900">R$ ${totalSacado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="mt-1 text-xs text-slate-500">Mês atual</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">% Comissão</div>
+          <div class="mt-2 text-2xl font-semibold text-slate-900">${(taxaAplicada * 100).toFixed(0)}%</div>
+          <div class="mt-1 text-xs text-slate-500">Padrão</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">Comissão Paga</div>
+          <div class="mt-2 text-2xl font-semibold text-slate-900">R$ ${comissaoRecebida.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="mt-1 text-xs text-slate-500">Até agora</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">Falta Pagar</div>
+          <div class="mt-2 text-2xl font-semibold text-slate-900">R$ ${faltaPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="mt-1 text-xs text-slate-500">Estimado</div>
+        </div>
+      `;
+
+  const faltamPara4 =
+    Number(resumoMesAtual.faltamPara4) || Math.max(0, 150000 - totalSacado);
+  const faltamPara5 =
+    Number(resumoMesAtual.faltamPara5) || Math.max(0, 250000 - totalSacado);
+  faltasTexto.textContent = `Faltam R$${faltamPara4.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} para 4% | R$${faltamPara5.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} para 5%`;
+}
+
 async function carregarConfiguracaoPercentualPadrao() {
   if (!uidAtual) {
     percentualPadrao = null;
@@ -128,6 +190,9 @@ async function carregarConfiguracaoPercentualPadrao() {
   atualizarSelectPadrao();
   aplicarPercentualPadrao();
   atualizarMensagemPadrao();
+  if (resumoMesAtual) {
+    renderResumoCards();
+  }
 }
 
 async function salvarPercentualPadraoUsuario() {
@@ -168,6 +233,9 @@ async function salvarPercentualPadraoUsuario() {
     percentualPadrao = novoPadrao;
     aplicarPercentualPadrao();
     atualizarMensagemPadrao('Padrão atualizado com sucesso.');
+    if (resumoMesAtual) {
+      renderResumoCards();
+    }
   } catch (err) {
     console.error('Erro ao salvar padrão de comissão', err);
     atualizarMensagemPadrao(
@@ -821,6 +889,7 @@ function assistirResumo() {
   const texto = document.getElementById('faltasTexto');
 
   if (meses.length !== 1) {
+    resumoMesAtual = null;
     if (cards) {
       cards.innerHTML = `
         <div class="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600">
@@ -838,37 +907,8 @@ function assistirResumo() {
     uid: uidAtual,
     anoMes,
     onChange: (r) => {
-      const cardsResumo = document.getElementById('cardsResumo');
-      const faltasTexto = document.getElementById('faltasTexto');
-      if (!cardsResumo || !faltasTexto) return;
-      if (!r) {
-        cardsResumo.innerHTML = '<p class="text-slate-500">Sem dados</p>';
-        faltasTexto.textContent = '';
-        return;
-      }
-      cardsResumo.innerHTML = `
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">Total Saques</div>
-          <div class="mt-2 text-2xl font-semibold text-slate-900">R$ ${r.totalSacado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div class="mt-1 text-xs text-slate-500">Mês atual</div>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">% Comissão</div>
-          <div class="mt-2 text-2xl font-semibold text-slate-900">${(r.taxaFinal * 100).toFixed(0)}%</div>
-          <div class="mt-1 text-xs text-slate-500">Padrão</div>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">Comissão Paga</div>
-          <div class="mt-2 text-2xl font-semibold text-slate-900">R$ ${(r.comissaoRecebida || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div class="mt-1 text-xs text-slate-500">Até agora</div>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div class="text-slate-600 text-xs font-medium tracking-wide uppercase">Falta Pagar</div>
-          <div class="mt-2 text-2xl font-semibold text-slate-900">R$ ${((r.comissaoPrevista || 0) - (r.comissaoRecebida || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div class="mt-1 text-xs text-slate-500">Estimado</div>
-        </div>
-      `;
-      faltasTexto.textContent = `Faltam R$${r.faltamPara4.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para 4% | R$${r.faltamPara5.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para 5%`;
+      resumoMesAtual = r;
+      renderResumoCards();
     },
   });
 }
