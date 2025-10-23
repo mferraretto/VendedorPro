@@ -21,6 +21,9 @@ import {
   fecharMes as fecharMesSvc,
   watchResumoMes as watchResumoMesSvc,
   registrarComissaoRecebida as registrarComissaoRecebidaSvc,
+  obterConfiguracaoComissoes as obterConfiguracaoComissoesSvc,
+  salvarPercentualPadrao as salvarPercentualPadraoSvc,
+  PERCENTUAIS_COMISSAO,
 } from './comissoes-service.js';
 import {
   anoMesBR,
@@ -43,6 +46,142 @@ const VALOR_SEM_LOJA = '__sem_loja__';
 let filtroLojaAtual = VALOR_TODAS_LOJAS;
 let listaSaques = [];
 let listaSaquesFiltrada = [];
+let percentualPadrao = null;
+let mensagemPercentualPadraoTimeout = null;
+
+function mensagemPadraoBase() {
+  if (percentualPadrao === null) {
+    return 'Sem padrão definido. O cálculo atual será utilizado.';
+  }
+  const percentual = (percentualPadrao * 100).toFixed(0);
+  return `Padrão atual: ${percentual}% aplicado automaticamente.`;
+}
+
+function atualizarMensagemPadrao(mensagemTemporaria = null) {
+  const statusEl = document.getElementById('percentualPadraoStatus');
+  if (!statusEl) return;
+  if (mensagemPercentualPadraoTimeout) {
+    clearTimeout(mensagemPercentualPadraoTimeout);
+    mensagemPercentualPadraoTimeout = null;
+  }
+  if (mensagemTemporaria) {
+    statusEl.textContent = mensagemTemporaria;
+    mensagemPercentualPadraoTimeout = window.setTimeout(() => {
+      statusEl.textContent = mensagemPadraoBase();
+    }, 4000);
+  } else {
+    statusEl.textContent = mensagemPadraoBase();
+  }
+}
+
+function atualizarSelectPadrao() {
+  const select = document.getElementById('percentualPadraoSaque');
+  if (!select) return;
+  const valor = percentualPadrao === null ? '' : String(percentualPadrao);
+  if (Array.from(select.options).some((opt) => opt.value === valor)) {
+    select.value = valor;
+  }
+}
+
+function aplicarPercentualPadrao() {
+  if (editandoId) return;
+  const select = document.getElementById('percentualSaque');
+  if (!select) return;
+  const valor = percentualPadrao === null ? null : String(percentualPadrao);
+  const valores = Array.from(select.options).map((opt) => opt.value);
+  if (valor !== null && valores.includes(valor)) {
+    select.value = valor;
+  } else if (valores.includes('0')) {
+    select.value = '0';
+  } else if (select.options.length > 0) {
+    select.selectedIndex = 0;
+  }
+}
+
+async function carregarConfiguracaoPercentualPadrao() {
+  if (!uidAtual) {
+    percentualPadrao = null;
+    atualizarSelectPadrao();
+    aplicarPercentualPadrao();
+    atualizarMensagemPadrao();
+    return;
+  }
+  try {
+    const config = await obterConfiguracaoComissoesSvc({
+      db,
+      uid: uidAtual,
+    });
+    let padrao = config?.percentualPadrao;
+    if (typeof padrao === 'string' && padrao.trim() !== '') {
+      const convertido = Number(padrao);
+      padrao = Number.isNaN(convertido) ? null : convertido;
+    }
+    if (typeof padrao === 'number' && PERCENTUAIS_COMISSAO.includes(padrao)) {
+      percentualPadrao = padrao;
+    } else {
+      percentualPadrao = null;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configuração de comissão padrão', err);
+    percentualPadrao = null;
+  }
+  atualizarSelectPadrao();
+  aplicarPercentualPadrao();
+  atualizarMensagemPadrao();
+}
+
+async function salvarPercentualPadraoUsuario() {
+  if (!uidAtual) {
+    atualizarMensagemPadrao(
+      'É necessário estar autenticado para salvar o padrão.',
+    );
+    return;
+  }
+  const select = document.getElementById('percentualPadraoSaque');
+  const botao = document.getElementById('btnSalvarPercentualPadrao');
+  if (!select || !botao) return;
+
+  const valor = select.value;
+  let novoPadrao = null;
+  if (valor !== '') {
+    const convertido = Number(valor);
+    if (
+      !Number.isFinite(convertido) ||
+      !PERCENTUAIS_COMISSAO.includes(convertido)
+    ) {
+      atualizarMensagemPadrao('Selecione um percentual válido.');
+      return;
+    }
+    novoPadrao = convertido;
+  }
+
+  const textoOriginal = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = 'Salvando...';
+
+  try {
+    await salvarPercentualPadraoSvc({
+      db,
+      uid: uidAtual,
+      percentualPadrao: novoPadrao,
+    });
+    percentualPadrao = novoPadrao;
+    aplicarPercentualPadrao();
+    atualizarMensagemPadrao('Padrão atualizado com sucesso.');
+  } catch (err) {
+    console.error('Erro ao salvar padrão de comissão', err);
+    atualizarMensagemPadrao(
+      'Não foi possível salvar o padrão. Tente novamente.',
+    );
+  } finally {
+    botao.disabled = false;
+    botao.textContent = textoOriginal;
+  }
+
+  atualizarSelectPadrao();
+}
+
+atualizarMensagemPadrao();
 
 function getFiltroMesInicio() {
   return document.getElementById('filtroMesInicio');
@@ -201,9 +340,12 @@ onAuthStateChanged(auth, (user) => {
   };
   inicioInput?.addEventListener('change', onMudancaMes);
   fimInput?.addEventListener('change', onMudancaMes);
-  normalizarIntervaloMeses();
-  carregarSaques();
-  assistirResumo();
+  (async () => {
+    await carregarConfiguracaoPercentualPadrao();
+    normalizarIntervaloMeses();
+    carregarSaques();
+    assistirResumo();
+  })();
 });
 
 export async function registrarSaque() {
@@ -245,6 +387,7 @@ export async function registrarSaque() {
   document.getElementById('lojaSaque').value = '';
   editandoId = null;
   document.getElementById('btnRegistrar').textContent = 'Registrar';
+  aplicarPercentualPadrao();
   carregarSaques();
 }
 
@@ -1007,4 +1150,5 @@ if (typeof window !== 'undefined') {
   window.exportarSelecionadosPDF = exportarSelecionadosPDF;
   window.registrarComissaoRecebida = registrarComissaoRecebida;
   window.imprimirFechamento = imprimirFechamento;
+  window.salvarPercentualPadrao = salvarPercentualPadraoUsuario;
 }

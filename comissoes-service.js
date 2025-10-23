@@ -14,6 +14,15 @@ import {
   calcularResumo,
 } from './comissoes-utils.js';
 
+export const PERCENTUAIS_COMISSAO = [0, 0.03, 0.04, 0.05];
+
+const CONFIG_COLLECTION = 'configuracoes';
+const CONFIG_COMISSOES_ID = 'comissoes';
+
+function percentualValido(valor) {
+  return PERCENTUAIS_COMISSAO.includes(valor);
+}
+
 export async function registrarSaque({
   db,
   uid,
@@ -25,7 +34,7 @@ export async function registrarSaque({
   if (!uid) throw new Error('uid obrigatório');
   if (!dataISO) throw new Error('dataISO obrigatório');
   if (typeof valor !== 'number') throw new Error('valor inválido');
-  if (![0, 0.03, 0.04, 0.05].includes(percentualPago))
+  if (!percentualValido(percentualPago))
     throw new Error('percentualPago inválido');
 
   const anoMes = anoMesPorDataISO(dataISO);
@@ -68,6 +77,8 @@ export async function atualizarSaque({
   if (!uid) throw new Error('uid obrigatório');
   if (!anoMes) throw new Error('anoMes obrigatório');
   if (!saqueId) throw new Error('saqueId obrigatório');
+  if (!percentualValido(percentualPago))
+    throw new Error('percentualPago inválido');
   const ref = doc(db, 'usuarios', uid, 'comissoes', anoMes, 'saques', saqueId);
   const comissaoPaga = valor * percentualPago;
   await setDoc(
@@ -153,4 +164,34 @@ export function watchResumoMes({ db, uid, anoMes, onChange }) {
   return onSnapshot(ref, (snap) => {
     onChange(snap.exists() ? snap.data() : null);
   });
+}
+
+export async function obterConfiguracaoComissoes({ db, uid }) {
+  if (!uid) throw new Error('uid obrigatório');
+  const ref = doc(db, 'usuarios', uid, CONFIG_COLLECTION, CONFIG_COMISSOES_ID);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() : {};
+}
+
+export async function salvarPercentualPadrao({ db, uid, percentualPadrao }) {
+  if (!uid) throw new Error('uid obrigatório');
+  if (
+    percentualPadrao !== null &&
+    percentualPadrao !== undefined &&
+    !percentualValido(percentualPadrao)
+  ) {
+    throw new Error('percentualPadrao inválido');
+  }
+  const ref = doc(db, 'usuarios', uid, CONFIG_COLLECTION, CONFIG_COMISSOES_ID);
+  await setDoc(
+    ref,
+    {
+      percentualPadrao:
+        percentualPadrao === null || percentualPadrao === undefined
+          ? null
+          : percentualPadrao,
+      atualizadoEm: new Date().toISOString(),
+    },
+    { merge: true },
+  );
 }
