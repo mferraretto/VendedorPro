@@ -227,7 +227,6 @@ async function carregar() {
     carregarDevolucoes(listaUsuarios, mes),
   ]);
   renderResumoUsuarios(Object.values(resumoUsuarios));
-  await carregarAmostragemSkus(uid !== 'todos' ? uid : null);
   renderTabelaSaques();
   if (uid !== 'todos') {
     assistirResumoFinanceiro(uid, mes);
@@ -287,13 +286,6 @@ function formatMes(date) {
   const ano = date.getFullYear();
   const mes = String(date.getMonth() + 1).padStart(2, '0');
   return `${ano}-${mes}`;
-}
-
-function formatDateISO(date) {
-  const ano = date.getFullYear();
-  const mes = String(date.getMonth() + 1).padStart(2, '0');
-  const dia = String(date.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
 }
 
 function sameMonth(a, b) {
@@ -511,141 +503,6 @@ async function carregarDevolucoes(usuarios, mes) {
       total += Number(dados.quantidade || dados.total || 1);
     });
     resumoUsuarios[usuario.uid].devolucoes = total;
-  }
-}
-
-async function carregarAmostragemSkus(uid) {
-  const section = document.getElementById('amostragemSection');
-  const cardsEl = document.getElementById('amostragemCards');
-  const emptyEl = document.getElementById('amostragemEmpty');
-  const periodoEl = document.getElementById('amostragemPeriodo');
-  if (!section || !cardsEl || !emptyEl) return;
-
-  if (!uid) {
-    section.classList.add('hidden');
-    cardsEl.innerHTML = '';
-    emptyEl.classList.add('hidden');
-    if (periodoEl) periodoEl.textContent = '';
-    return;
-  }
-
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setDate(fim.getDate() - 14);
-  const inicioStr = formatDateISO(inicio);
-  const fimStr = formatDateISO(fim);
-
-  if (periodoEl) {
-    periodoEl.textContent = `Período: ${inicio.toLocaleDateString('pt-BR')} – ${fim.toLocaleDateString('pt-BR')}`;
-  }
-
-  section.classList.remove('hidden');
-  cardsEl.innerHTML =
-    '<p class="text-sm text-gray-500 col-span-full">Carregando amostragem...</p>';
-  emptyEl.classList.add('hidden');
-
-  try {
-    const skusRef = collection(db, `uid/${uid}/skusVendidos`);
-    const q = query(
-      skusRef,
-      orderBy('__name__'),
-      startAt(inicioStr),
-      endAt(fimStr),
-    );
-    const snap = await getDocs(q);
-    const agregador = new Map();
-
-    await Promise.all(
-      snap.docs.map(async (docSnap) => {
-        const dataDia = docSnap.id;
-        const listaRef = collection(
-          db,
-          `uid/${uid}/skusVendidos/${docSnap.id}/lista`,
-        );
-        const listaSnap = await getDocs(listaRef);
-        listaSnap.forEach((item) => {
-          const dados = item.data() || {};
-          const sku = dados.sku || item.id;
-          if (!sku) return;
-          const quantidade = Number(dados.total ?? dados.quantidade ?? 0) || 0;
-          const valorLiquido =
-            Number(
-              dados.valorLiquido ??
-                dados.totalLiquido ??
-                dados.liquido ??
-                dados.sobraReal ??
-                0,
-            ) || 0;
-          if (!agregador.has(sku)) {
-            agregador.set(sku, {
-              quantidade: 0,
-              valorLiquido: 0,
-              dias: new Set(),
-            });
-          }
-          const info = agregador.get(sku);
-          info.quantidade += quantidade;
-          info.valorLiquido += valorLiquido;
-          info.dias.add(dataDia);
-        });
-      }),
-    );
-
-    const itens = Array.from(agregador.entries())
-      .map(([sku, info]) => {
-        const diasCount = info.dias.size;
-        return {
-          sku,
-          quantidade: info.quantidade,
-          mediaLiquido: diasCount ? info.valorLiquido / diasCount : 0,
-          dias: diasCount,
-        };
-      })
-      .filter((item) => item.quantidade > 0 || item.mediaLiquido !== 0)
-      .sort((a, b) => {
-        if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;
-        return b.mediaLiquido - a.mediaLiquido;
-      })
-      .slice(0, 10);
-
-    cardsEl.innerHTML = '';
-    if (!itens.length) {
-      emptyEl.textContent = 'Sem dados de amostragem para os últimos 15 dias.';
-      emptyEl.classList.remove('hidden');
-      return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    itens.forEach((item) => {
-      const card = document.createElement('div');
-      card.className = 'card p-4 flex flex-col gap-2';
-      card.innerHTML = `
-        <div>
-          <span class="text-xs uppercase tracking-wide text-gray-500">SKU</span>
-          <div class="text-lg font-semibold text-gray-800 break-words">${item.sku}</div>
-        </div>
-        <div class="text-sm text-gray-600">Qtd. vendida (15 dias):
-          <span class="font-medium text-gray-800">${item.quantidade}</span>
-        </div>
-        <div class="text-sm text-gray-600">Média sobra real:
-          <span class="font-semibold text-gray-800">R$ ${item.mediaLiquido.toLocaleString(
-            'pt-BR',
-            {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            },
-          )}</span>
-        </div>
-        <div class="text-xs text-gray-400">Dias com vendas: ${item.dias}</div>
-      `;
-      fragment.appendChild(card);
-    });
-    cardsEl.appendChild(fragment);
-  } catch (err) {
-    console.error('Erro ao carregar amostragem de SKUs:', err);
-    cardsEl.innerHTML = '';
-    emptyEl.textContent = 'Não foi possível carregar a amostragem de SKUs.';
-    emptyEl.classList.remove('hidden');
   }
 }
 
