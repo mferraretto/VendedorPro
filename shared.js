@@ -637,6 +637,7 @@ document.addEventListener('sidebarLoaded', async () => {
     'menu-mentoria',
     'menu-produtos',
     'menu-configuracoes',
+    'menu-equipes',
     'menu-perfil-mentorado',
     'menu-acompanhamento-gestor',
     'menu-sku-associado',
@@ -650,6 +651,7 @@ document.addEventListener('sidebarLoaded', async () => {
         'menu-painel-atualizacoes-gerais',
         'menu-painel-atualizacoes-mentorados',
         'menu-saques',
+        'menu-equipes',
       ].includes(id),
   );
 
@@ -662,6 +664,7 @@ document.addEventListener('sidebarLoaded', async () => {
     'menu-precificacao',
     'menu-expedicao',
     'menu-comunicacao',
+    'menu-equipes',
     'menu-configuracoes',
   ];
 
@@ -705,6 +708,7 @@ document.addEventListener('sidebarLoaded', async () => {
     const acompProblemas = getLi('menu-acompanhamento-problemas');
     const mentoria = getLi('menu-mentoria');
     const gestaoProdutos = getLi('menu-produtos');
+    const equipes = getLi('menu-equipes');
     const configuracoes = getLi('menu-configuracoes');
     const perfilMentorado = getLi('menu-perfil-mentorado');
     const mentoradosVendedores = getLi('menu-acompanhamento-gestor');
@@ -753,6 +757,7 @@ document.addEventListener('sidebarLoaded', async () => {
       acompProblemas,
       mentoria,
       gestaoProdutos,
+      equipes,
     ]);
     const configuracoesGroup = createGroup(
       configuracoes,
