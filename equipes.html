@@ -947,7 +947,27 @@
         if (ownerUid === currentUser?.uid && currentUser?.email && currentUser.email.toLowerCase() === normalized) {
           return 'Você';
         }
+        if (normalized === currentEmail) {
+          return 'Você';
+        }
         return email;
+      }
+
+      function isManagerForOwner(ownerUid) {
+        if (!currentUser) return false;
+        if (ownerUid === currentUser.uid) return true;
+
+        const normalizedEmail = currentEmail || (currentUser.email || '').toLowerCase();
+        if (!normalizedEmail) return false;
+
+        const members = membersByOwner.get(ownerUid) || [];
+        return members.some((member) => {
+          if ((member.emailLower || '').toLowerCase() !== normalizedEmail) {
+            return false;
+          }
+          const roleLabel = (member.role || '').toLowerCase();
+          return roleLabel.includes('gestor') || roleLabel.includes('gerente');
+        });
       }
 
       function renderMyMembers() {
@@ -1181,11 +1201,17 @@
                 return aTime.localeCompare(bTime);
               });
 
-            if (!entries.length) {
+            const canViewAll = isManagerForOwner(ownerUid);
+            const normalizedEmail = currentEmail || (currentUser?.email || '').toLowerCase();
+            const visibleEntries = canViewAll
+              ? entries
+              : entries.filter((entry) => (entry.responsibleEmail || '').toLowerCase() === normalizedEmail);
+
+            if (!visibleEntries.length) {
               return '';
             }
 
-            const steps = entries
+            const steps = visibleEntries
               .map((entry, index) => {
                 const responsibleLabel = resolveMemberName(ownerUid, entry.responsibleEmail);
                 const notes = entry.notes ? `<p class="flow-notes">${entry.notes.replace(/\n/g, '<br>')}</p>` : '';
