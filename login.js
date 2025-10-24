@@ -326,10 +326,11 @@ async function showUserArea(user) {
     if (nameEl && profile?.nome) {
       nameEl.textContent = profile.nome;
     }
-    let perfil = normalizePerfil(
-      profile?.perfil || perfilFallback || 'usuario',
-    );
+    const rawPerfilValue = profile?.perfil || perfilFallback || 'usuario';
+    let perfil = normalizePerfil(rawPerfilValue);
     window.userPerfil = perfil;
+    window.userPerfilRaw = rawPerfilValue;
+    window.userPerfilBase = normalizePerfilBase(rawPerfilValue);
     window.authUser = user;
     window.userProfile = profile;
     window.userPerms = { perfil, isAdm: profile?.isAdm || false };
@@ -533,10 +534,17 @@ function restoreSidebar() {
     });
 }
 
+function normalizePerfilBase(perfil) {
+  return (perfil || '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 function normalizePerfil(perfil) {
-  const p = (perfil || '').toLowerCase().trim();
-  if (!p) return '';
-  const base = p.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const base = normalizePerfilBase(perfil);
+  if (!base) return '';
   if (['adm', 'admin', 'administrador'].includes(base)) return 'adm';
   if (['usuario completo', 'usuario'].includes(base)) return 'usuario';
   if (['usuario basico', 'cliente'].includes(base)) return 'cliente';
@@ -566,6 +574,13 @@ function applyPerfilRestrictions(perfil) {
   }
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
+
+  const rawPerfilBase = (function () {
+    if (typeof window === 'undefined') return normalizePerfilBase(perfil);
+    if (window.userPerfilBase) return window.userPerfilBase;
+    return normalizePerfilBase(window.userPerfil || perfil);
+  })();
+  const isGestorFinanceiro = rawPerfilBase === 'gestor financeiro';
 
   const menuLinks = Array.from(sidebar.querySelectorAll('a[id^="menu-"]'));
   const allIds = menuLinks.map((a) => a.id);
@@ -634,6 +649,15 @@ function applyPerfilRestrictions(perfil) {
         li.classList.add('hidden');
       }
     });
+  }
+
+  if (isGestorFinanceiro) {
+    const equipesLink = sidebar.querySelector('#menu-equipes');
+    if (equipesLink) {
+      equipesLink.classList.remove('hidden');
+      const equipesLi = equipesLink.closest('li');
+      if (equipesLi) equipesLi.classList.remove('hidden');
+    }
   }
 
   document.querySelectorAll('[data-perfil]').forEach((el) => {
