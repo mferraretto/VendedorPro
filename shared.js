@@ -307,7 +307,7 @@
 window.CUSTOM_SIDEBAR_PATH =
   window.CUSTOM_SIDEBAR_PATH || 'partials/sidebar.html';
 window.CUSTOM_NAVBAR_PATH = window.CUSTOM_NAVBAR_PATH || 'partials/navbar.html';
-const PARTIALS_VERSION = '2025-08-25-02'; // mude quando atualizar parciais
+const PARTIALS_VERSION = '2025-08-25-03'; // mude quando atualizar parciais
 
 function toggleSidebar() {
   const sb = document.getElementById('sidebar-container');

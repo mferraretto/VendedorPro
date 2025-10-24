@@ -2767,7 +2767,7 @@
           try {
             if (!currentUser) return;
             const perfilAtual = (window.userPerfil || '').toLowerCase();
-            if (perfilAtual !== 'expedicao') return;
+            if (!['expedicao', 'seller'].includes(perfilAtual)) return;
             if (!['impresso', 'concluido'].includes(newStatus)) return;
 
             let ownerUids = [];

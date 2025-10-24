@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=20240826">
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="app-container">
+    <div id="sidebar-container"></div>
+    <div id="navbar-container"></div>
+    <main class="main-content p-4 space-y-6">
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold text-gray-900">Catálogo de Produtos</h1>
+          <p class="text-gray-600">Organize os itens que precisam ter etiquetas preparadas para a expedição.</p>
+        </div>
+        <a
+          href="/expedicao.html"
+          class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow hover:bg-blue-700 transition"
+        >
+          <i class="fa-solid fa-box"></i>
+          <span>Ir para Expedição</span>
+        </a>
+      </header>
+
+      <section class="card">
+        <div class="card-header">
+          <h2 class="text-lg font-semibold">Resumo rápido</h2>
+        </div>
+        <div class="card-body grid gap-4 sm:grid-cols-3">
+          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p class="text-sm text-gray-500">Produtos aguardando etiqueta</p>
+            <p class="mt-2 text-2xl font-semibold text-gray-900" id="catalogAwaiting">--</p>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p class="text-sm text-gray-500">Etiquetas impressas hoje</p>
+            <p class="mt-2 text-2xl font-semibold text-gray-900" id="catalogPrintedToday">--</p>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p class="text-sm text-gray-500">Responsável de expedição</p>
+            <p class="mt-2 text-base font-medium text-gray-900" id="catalogManager">--</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-lg font-semibold">Itens do catálogo</h2>
+            <p class="text-sm text-gray-600">Cadastre aqui os produtos que precisam de preparação especial.</p>
+          </div>
+          <button
+            id="catalogAddItemBtn"
+            class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow hover:bg-green-700 transition"
+          >
+            <i class="fa-solid fa-plus"></i>
+            <span>Novo item</span>
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Produto</th>
+                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SKU</th>
+                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Observações</th>
+                </tr>
+              </thead>
+              <tbody id="catalogTableBody" class="divide-y divide-gray-100 bg-white">
+                <tr>
+                  <td class="px-4 py-3 text-sm text-gray-600" colspan="4">
+                    Nenhum item cadastrado ainda. Utilize o botão "Novo item" para começar.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="shared.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="login.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const awaitingEl = document.getElementById('catalogAwaiting');
+        const printedEl = document.getElementById('catalogPrintedToday');
+        const managerEl = document.getElementById('catalogManager');
+        const addItemBtn = document.getElementById('catalogAddItemBtn');
+
+        const updatePlaceholders = () => {
+          awaitingEl.textContent = '0';
+          printedEl.textContent = '0';
+          managerEl.textContent = 'Defina na Configuração de Perfil';
+        };
+
+        updatePlaceholders();
+
+        addItemBtn?.addEventListener('click', () => {
+          window.showToast?.('Em breve você poderá cadastrar itens do catálogo.', 'info');
+        });
+      });
+    </script>
+  </div>
+</body>
+</html>
