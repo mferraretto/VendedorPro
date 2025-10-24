@@ -112,6 +112,20 @@ const EXPEDICAO_ALLOWED_MENU_IDS = [
   'menu-painel-atualizacoes-gerais',
   'menu-equipes',
 ];
+const CASAROSA_ALLOWED_MENU_IDS = [
+  'menu-casarosa-controle-vendas',
+  'menu-casarosa-saques',
+  'menu-casarosa-etiquetas',
+  'menu-casarosa-precificacao',
+  'menu-casarosa-expedicao',
+  'menu-casarosa-configuracoes',
+  'menu-casarosa-marketing',
+  'menu-casarosa-problemas',
+  'menu-casarosa-previsao',
+  'menu-casarosa-conferir-sobras',
+  'menu-casarosa-equipes',
+  'menu-casarosa-painel-atualizacoes',
+];
 const SELLER_ALLOWED_MENU_IDS = [
   'menu-seller-expedicao',
   'menu-etiqueta-shopee',
@@ -563,6 +577,7 @@ function normalizePerfil(perfil) {
     return 'expedicao';
   if (['posvendas', 'pos-vendas', 'pos vendas'].includes(base))
     return 'posvendas';
+  if (['casarosa', 'casa rosa', 'casa-rosa'].includes(base)) return 'casarosa';
   return base;
 }
 function applyPerfilRestrictions(perfil) {
@@ -637,6 +652,7 @@ function applyPerfilRestrictions(perfil) {
     seller: SELLER_ALLOWED_MENU_IDS,
     posvendas: POSVENDAS_ALLOWED_MENU_IDS,
     expedicao: EXPEDICAO_ALLOWED_MENU_IDS,
+    casarosa: CASAROSA_ALLOWED_MENU_IDS,
   };
 
   const allowed = nivelMenus[currentPerfil];
