@@ -567,13 +567,21 @@ async function carregarAmostragemSkus(uid) {
           const dados = item.data() || {};
           const sku = dados.sku || item.id;
           if (!sku) return;
-          const quantidade = Number(dados.total ?? dados.quantidade ?? 0) || 0;
+          const quantidade =
+            toNumber(
+              dados.total ??
+                dados.quantidade ??
+                dados.qtd ??
+                dados.quantidadeVendida ??
+                0,
+            ) || 0;
           const valorLiquido =
-            Number(
-              dados.valorLiquido ??
+            toNumber(
+              dados.sobraReal ??
+                dados.valorLiquido ??
                 dados.totalLiquido ??
                 dados.liquido ??
-                dados.sobraReal ??
+                dados.valor ??
                 0,
             ) || 0;
           if (!agregador.has(sku)) {
@@ -581,12 +589,14 @@ async function carregarAmostragemSkus(uid) {
               quantidade: 0,
               valorLiquido: 0,
               dias: new Set(),
+              registros: 0,
             });
           }
           const info = agregador.get(sku);
           info.quantidade += quantidade;
           info.valorLiquido += valorLiquido;
           info.dias.add(dataDia);
+          info.registros += 1;
         });
       }),
     );
@@ -594,11 +604,13 @@ async function carregarAmostragemSkus(uid) {
     const itens = Array.from(agregador.entries())
       .map(([sku, info]) => {
         const diasCount = info.dias.size;
+        const registros = info.registros || diasCount || 1;
         return {
           sku,
           quantidade: info.quantidade,
-          mediaLiquido: diasCount ? info.valorLiquido / diasCount : 0,
+          mediaLiquido: info.valorLiquido / registros,
           dias: diasCount,
+          registros,
         };
       })
       .filter((item) => item.quantidade > 0 || item.mediaLiquido !== 0)
@@ -625,9 +637,9 @@ async function carregarAmostragemSkus(uid) {
           <div class="text-lg font-semibold text-gray-800 break-words">${item.sku}</div>
         </div>
         <div class="text-sm text-gray-600">Qtd. vendida (15 dias):
-          <span class="font-medium text-gray-800">${item.quantidade}</span>
+          <span class="font-medium text-gray-800">${item.quantidade.toLocaleString('pt-BR')}</span>
         </div>
-        <div class="text-sm text-gray-600">Média sobra real:
+        <div class="text-sm text-gray-600">Média sobra real (líquido):
           <span class="font-semibold text-gray-800">R$ ${item.mediaLiquido.toLocaleString(
             'pt-BR',
             {
@@ -636,7 +648,7 @@ async function carregarAmostragemSkus(uid) {
             },
           )}</span>
         </div>
-        <div class="text-xs text-gray-400">Dias com vendas: ${item.dias}</div>
+        <div class="text-xs text-gray-400">Dias com vendas: ${item.dias} · Registros analisados: ${item.registros}</div>
       `;
       fragment.appendChild(card);
     });
