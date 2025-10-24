@@ -833,8 +833,10 @@
             const cards = tasks
               .map((task) => {
                 const dueDate = task.dueDate ? new Date(`${task.dueDate}T00:00:00`) : null;
-                const material = task.supportMaterial ? `<div><strong>Material:</strong> ${task.supportMaterial.replace(/\n/g, '<br>')}</div>` : '';
-                const tips = task.tips ? `<div><strong>Dicas:</strong> ${task.tips.replace(/\n/g, '<br>')}</div>` : '';
+                const material = task.supportMaterial ? `<div><strong>Material:</strong> ${task.supportMaterial.replace(/\n
+/g, '<br>')}</div>` : '';
+                const tips = task.tips ? `<div><strong>Dicas:</strong> ${task.tips.replace(/\n
+/g, '<br>')}</div>` : '';
                 const responsible = resolveMemberName(ownerUid, task.responsibleEmail);
 
                 return `
