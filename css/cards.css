@@ -1138,42 +1138,6 @@
   box-shadow: none;
 }
 
-.expedicao-list-faltou {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.expedicao-input {
-  width: 4.5rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  color: #1f2937;
-  background-color: #fff;
-  text-align: right;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.expedicao-input:focus {
-  outline: none;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.25);
-}
-
-.expedicao-input::-webkit-outer-spin-button,
-.expedicao-input::-webkit-inner-spin-button {
-  margin: 0;
-}
-
-.expedicao-input[type='number'] {
-  -moz-appearance: textfield;
-}
-
 .expedicao-table-actions {
   display: flex;
   flex-wrap: wrap;

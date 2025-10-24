@@ -518,6 +518,30 @@
         };
         const LIST_STATUS_CLASSES = Object.values(LIST_STATUS_CLASS_MAP);
 
+        const LIST_ENVIO_STATUS = {
+          enviado: { label: 'Enviado', className: 'expedicao-status-chip--enviado' },
+          entregue: { label: 'Entregue', className: 'expedicao-status-chip--enviado' },
+          pendente: { label: 'Pendente', className: 'expedicao-status-chip--pendente' },
+          aguardando: {
+            label: 'Aguardando',
+            className: 'expedicao-status-chip--pendente',
+          },
+          processamento: {
+            label: 'Processando',
+            className: 'expedicao-status-chip--info',
+          },
+          cancelado: {
+            label: 'Cancelado',
+            className: 'expedicao-status-chip--alert',
+          },
+          falha: { label: 'Falha', className: 'expedicao-status-chip--alert' },
+          erro: { label: 'Erro', className: 'expedicao-status-chip--alert' },
+          retornado: {
+            label: 'Retornado',
+            className: 'expedicao-status-chip--info',
+          },
+        };
+
         const STATUS_UI_CONFIG = {
           nao_impresso: {
             text: 'Não impresso',
@@ -571,6 +595,18 @@
           updateListRowStatus(card, status);
         }
 
+        function getListEnvioConfig(status) {
+          return LIST_ENVIO_STATUS[status] || LIST_ENVIO_STATUS.pendente;
+        }
+
+        function applyListEnvioStatus(element, status) {
+          if (!element) return;
+          const config = getListEnvioConfig(status);
+          element.textContent = (config.label || '').toUpperCase();
+          element.className = `expedicao-status-chip ${config.className}`;
+          element.dataset.status = status;
+        }
+
         function applyListAttentionStatus(element, isAttention) {
           if (!element) return;
           element.textContent = isAttention ? 'ATENÇÃO' : 'PENDENTE';
@@ -579,48 +615,6 @@
               ? 'expedicao-status-chip--alert'
               : 'expedicao-status-chip--pendente'
           }`;
-        }
-
-        function applyListEmbaladoStatus(row, isEmbalado) {
-          if (!row) return;
-          const toggle = row.querySelector('[data-role="embalado-toggle"]');
-          const badge = row.querySelector('[data-role="status-embalado"]');
-          const checked = Boolean(isEmbalado);
-          if (toggle) {
-            toggle.checked = checked;
-          }
-          if (badge) {
-            badge.textContent = checked ? 'EMBALADO' : 'PENDENTE';
-            badge.className = `expedicao-status-chip ${
-              checked
-                ? 'expedicao-status-chip--enviado'
-                : 'expedicao-status-chip--pendente'
-            }`;
-          }
-          row.dataset.embalado = checked ? 'true' : 'false';
-        }
-
-        function applyListFaltouValue(row, value) {
-          if (!row) return;
-          const input = row.querySelector('[data-role="faltou-input"]');
-          let normalizedValue = '';
-          if (typeof value === 'number' && Number.isFinite(value)) {
-            normalizedValue = Math.max(0, Math.round(value));
-          } else if (typeof value === 'string') {
-            const parsed = parseInt(value, 10);
-            if (!Number.isNaN(parsed)) {
-              normalizedValue = Math.max(0, Math.round(parsed));
-            }
-          }
-          if (input) {
-            if (normalizedValue === '') {
-              input.value = '';
-            } else {
-              input.value = normalizedValue;
-            }
-          }
-          row.dataset.faltouQuantidade =
-            normalizedValue === '' ? '' : String(normalizedValue);
         }
 
         function updateListRowStatus(row, status) {
@@ -644,9 +638,18 @@
               impressaoToggle.checked = status !== 'nao_impresso';
             }
           }
-          const currentEmbalado = row.dataset.embalado === 'true';
-          const shouldMarkEmbalado = status === 'concluido' ? true : currentEmbalado;
-          applyListEmbaladoStatus(row, shouldMarkEmbalado);
+          const envioBadge = row.querySelector('[data-role="status-envio"]');
+          if (envioBadge) {
+            const defaultStatus =
+              envioBadge.dataset.defaultStatus || 'pendente';
+            const nextStatus =
+              status === 'concluido'
+                ? 'enviado'
+                : defaultStatus === 'enviado'
+                  ? 'enviado'
+                  : defaultStatus || 'pendente';
+            applyListEnvioStatus(envioBadge, nextStatus);
+          }
         }
 
         function getResumoTimeWindow() {
@@ -2359,8 +2362,7 @@
             <th>Nome (Envio)</th>
             <th>Baixas (Qtd.)</th>
             <th>Status Impressão</th>
-            <th>Embalado</th>
-            <th>Faltou</th>
+            <th>Status Envio</th>
             <th>Status Atenção</th>
             <th>Ações</th>
           </tr>
@@ -2597,25 +2599,19 @@
           const paginasLabel = totalPaginas > 0 ? totalPaginas : null;
           const observacao = data.observacao ? escapeHtml(data.observacao) : '';
           const foraHorario = Boolean(data.foraHorario);
-          const embalado =
-            data.embalado === true ||
-            data.embalado === 'true' ||
-            data.embalado === 1;
-          let faltouQuantidade = null;
-          if (typeof data.faltouQuantidade === 'number') {
-            if (!Number.isNaN(data.faltouQuantidade)) {
-              faltouQuantidade = data.faltouQuantidade;
-            }
-          } else if (typeof data.faltouQuantidade === 'string') {
-            const parsedFaltou = parseInt(data.faltouQuantidade, 10);
-            if (!Number.isNaN(parsedFaltou)) {
-              faltouQuantidade = parsedFaltou;
-            }
-          }
-          const faltouDisplay =
-            faltouQuantidade === null
-              ? ''
-              : Math.max(0, Math.round(faltouQuantidade));
+          const envioDefaultRaw = (
+            data.statusEnvio ||
+            data.envioStatus ||
+            ''
+          )
+            .toString()
+            .toLowerCase()
+            .trim();
+          const envioStatus =
+            statusKey === 'concluido'
+              ? 'enviado'
+              : envioDefaultRaw || 'pendente';
+          const envioConfig = getListEnvioConfig(envioStatus);
           const safeDocId = JSON.stringify(doc.id || '');
           const safeUrl = JSON.stringify(url);
           const safeDownloadUrl = encodeURIComponent(url || '');
@@ -2639,9 +2635,6 @@
           row.dataset.status = statusKey;
           row.dataset.docId = doc.id || '';
           row.dataset.observacao = commentText;
-          row.dataset.embalado = embalado ? 'true' : 'false';
-          row.dataset.faltouQuantidade =
-            faltouQuantidade === null ? '' : String(faltouDisplay);
           row.innerHTML = `
       <td>
         <div class="expedicao-list-primary">${escapeHtml(owner)}</div>
@@ -2682,36 +2675,11 @@
         </label>
       </td>
       <td>
-        <label class="expedicao-list-status-toggle" title="Marcar como embalado">
-          <input
-            type="checkbox"
-            data-role="embalado-toggle"
-            ${embalado ? 'checked' : ''}
-            onchange="toggleEmbalado(${safeDocId}, this, this.closest('tr'))"
-          />
-          <span
-            class="expedicao-status-chip ${
-              embalado
-                ? 'expedicao-status-chip--enviado'
-                : 'expedicao-status-chip--pendente'
-            }"
-            data-role="status-embalado"
-          >${embalado ? 'EMBALADO' : 'PENDENTE'}</span>
-        </label>
-      </td>
-      <td>
-        <div class="expedicao-list-faltou">
-          <input
-            type="number"
-            min="0"
-            step="1"
-            class="expedicao-input"
-            value="${faltouDisplay}"
-            data-role="faltou-input"
-            placeholder="0"
-            onchange="atualizarFaltou(${safeDocId}, this, this.closest('tr'))"
-          />
-        </div>
+        <span
+          class="expedicao-status-chip ${envioConfig.className}"
+          data-role="status-envio"
+          data-default-status="${escapeHtml(envioDefaultRaw)}"
+        >${(envioConfig.label || '').toUpperCase()}</span>
       </td>
       <td>
         <label class="expedicao-list-status-toggle" title="Marcar como atenção">
@@ -2773,6 +2741,7 @@
           </button>
         </div>
       </td>`;
+          row.dataset.defaultEnvio = envioDefaultRaw;
           const commentButton = row.querySelector('[data-role="comment-button"]');
           if (commentButton) {
             commentButton.dataset.docId = doc.id || '';
@@ -2861,39 +2830,8 @@
         const pdfFrame = document.getElementById('pdfFrame');
         const closeModal = document.getElementById('closeModal');
 
-        function resolvePdfUrl(url) {
-          if (!url) return '';
-          if (typeof url === 'string') {
-            const trimmed = url.trim();
-            if (!trimmed) return '';
-            try {
-              const parsed = JSON.parse(trimmed);
-              if (typeof parsed === 'string') {
-                return parsed;
-              }
-            } catch (err) {
-              // Ignora erros de parse; significa que já é uma URL válida.
-            }
-            return trimmed;
-          }
-          try {
-            return String(url);
-          } catch (err) {
-            return '';
-          }
-        }
-
         function visualizar(url) {
-          const resolvedUrl = resolvePdfUrl(url);
-          if (!resolvedUrl) {
-            showToast('Arquivo indisponível para visualização.');
-            return;
-          }
-          if (!pdfFrame || !pdfModal) {
-            window.open(resolvedUrl, '_blank', 'noopener');
-            return;
-          }
-          pdfFrame.src = resolvedUrl;
+          pdfFrame.src = url;
           pdfModal.classList.remove('hidden');
         }
         window.visualizar = visualizar;
@@ -2909,18 +2847,18 @@
             pdfFrame.src = '';
           }
         });
+
         function imprimir(url) {
-          const resolvedUrl = resolvePdfUrl(url);
-          if (!resolvedUrl) {
-            showToast('Arquivo indisponível para impressão.');
-            return;
-          }
-          const novaGuia = window.open(resolvedUrl, '_blank', 'noopener');
-          if (!novaGuia) {
-            showToast('Não foi possível abrir a nova guia para impressão.');
-            return;
-          }
-          novaGuia.focus();
+          const win = window.open('', '_blank');
+          win.document.write(
+            '<iframe id="printFrame" width="100%" height="100%" src="' +
+              url +
+              '"></iframe>',
+          );
+          win.document.close();
+          win.focus();
+          win.onload = () =>
+            win.document.getElementById('printFrame').contentWindow.print();
         }
         window.imprimir = imprimir;
 
@@ -2991,58 +2929,6 @@
           }
         }
         window.baixarArquivo = baixarArquivo;
-
-        async function toggleEmbalado(id, checkbox, row) {
-          const elementoLinha = row || checkbox?.closest('tr');
-          const estadoAnterior = elementoLinha?.dataset?.embalado === 'true';
-          const novoEstado = Boolean(checkbox?.checked);
-          try {
-            await db.collection('pdfDocs').doc(id).update({ embalado: novoEstado });
-            applyListEmbaladoStatus(elementoLinha, novoEstado);
-            showToast('Status de embalagem atualizado');
-          } catch (error) {
-            console.error('Erro ao atualizar status de embalagem:', error);
-            if (checkbox) {
-              checkbox.checked = estadoAnterior;
-            }
-            applyListEmbaladoStatus(elementoLinha, estadoAnterior);
-            showToast('Não foi possível atualizar o status de embalagem.');
-          }
-        }
-        window.toggleEmbalado = toggleEmbalado;
-
-        async function atualizarFaltou(id, input, row) {
-          const elementoLinha = row || input?.closest('tr');
-          const valorBruto = input ? input.value : '';
-          let valorNormalizado = null;
-          if (valorBruto === '' || valorBruto === null || valorBruto === undefined) {
-            valorNormalizado = null;
-          } else {
-            const numero = parseInt(valorBruto, 10);
-            valorNormalizado = Number.isNaN(numero) ? 0 : Math.max(0, numero);
-          }
-
-          try {
-            await db
-              .collection('pdfDocs')
-              .doc(id)
-              .update({ faltouQuantidade: valorNormalizado });
-            applyListFaltouValue(
-              elementoLinha,
-              valorNormalizado === null ? '' : valorNormalizado,
-            );
-            showToast('Quantidade faltante atualizada');
-          } catch (error) {
-            console.error('Erro ao atualizar quantidade faltante:', error);
-            const valorAnterior = elementoLinha?.dataset?.faltouQuantidade || '';
-            applyListFaltouValue(elementoLinha, valorAnterior);
-            if (input && valorAnterior === '') {
-              input.value = '';
-            }
-            showToast('Não foi possível atualizar a quantidade faltante.');
-          }
-        }
-        window.atualizarFaltou = atualizarFaltou;
 
         async function toggleImpresso(id, checkbox, card) {
           const checked = checkbox.checked;
