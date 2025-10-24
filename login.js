@@ -110,6 +110,7 @@ const EXPEDICAO_ALLOWED_MENU_IDS = [
   'menu-expedicao',
   'menu-configuracoes',
   'menu-painel-atualizacoes-gerais',
+  'menu-equipes',
 ];
 const SELLER_ALLOWED_MENU_IDS = [
   'menu-seller-expedicao',
@@ -117,6 +118,7 @@ const SELLER_ALLOWED_MENU_IDS = [
   'menu-email-expedicao',
   'menu-configuracao-perfil',
   'menu-catalogo',
+  'menu-equipes',
 ];
 const POSVENDAS_ALLOWED_MENU_IDS = [
   'menu-painel-atualizacoes-gerais',
@@ -124,6 +126,7 @@ const POSVENDAS_ALLOWED_MENU_IDS = [
   'menu-expedicao',
   'menu-acompanhamento-problemas',
   'menu-catalogo',
+  'menu-equipes',
 ];
 
 const EXPEDICAO_ALLOWED_SUBMENU_LINKS = {
