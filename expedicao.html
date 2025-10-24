@@ -519,15 +519,13 @@
         const LIST_STATUS_CLASSES = Object.values(LIST_STATUS_CLASS_MAP);
 
         const LIST_ENVIO_STATUS = {
-          enviado: { label: 'Embalado', className: 'expedicao-status-chip--enviado' },
-          embalado: { label: 'Embalado', className: 'expedicao-status-chip--enviado' },
-          'nao-embalado': {
-            label: 'Não embalado',
-            className: 'expedicao-status-chip--pendente',
+          embalado: {
+            label: 'Embalado',
+            className: 'expedicao-status-chip--enviado',
           },
-          nao_embalado: {
-            label: 'Não embalado',
-            className: 'expedicao-status-chip--pendente',
+          enviado: {
+            label: 'Embalado',
+            className: 'expedicao-status-chip--enviado',
           },
           entregue: { label: 'Entregue', className: 'expedicao-status-chip--enviado' },
           pendente: { label: 'Pendente', className: 'expedicao-status-chip--pendente' },
@@ -647,14 +645,15 @@
               impressaoToggle.checked = status !== 'nao_impresso';
             }
           }
-          const envioBadge = row.querySelector('[data-role="status-embalado"]');
+          const envioBadge = row.querySelector('[data-role="status-envio"]');
           if (envioBadge) {
-            const defaultStatus =
-              (envioBadge.dataset.defaultStatus || 'pendente').toLowerCase();
+            const defaultStatus = normalizeEnvioStatus(
+              envioBadge.dataset.defaultStatus || 'pendente',
+            );
             const nextStatus =
               status === 'concluido'
                 ? 'embalado'
-                : defaultStatus === 'embalado' || defaultStatus === 'enviado'
+                : defaultStatus === 'embalado'
                   ? 'embalado'
                   : defaultStatus || 'pendente';
             applyListEnvioStatus(envioBadge, nextStatus);
@@ -752,6 +751,30 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+        }
+
+        function normalizeEnvioStatus(status) {
+          if (status == null) return '';
+          const value = status.toString().toLowerCase().trim();
+          if (!value) return '';
+          if (value === 'enviado') return 'embalado';
+          return value;
+        }
+
+        function getFaltouQuantidade(data) {
+          if (!data) return '';
+          const rawValue =
+            data.faltouQuantidade !== undefined
+              ? data.faltouQuantidade
+              : data.faltou;
+          if (rawValue == null || rawValue === '') return '';
+          let numericValue = rawValue;
+          if (typeof numericValue === 'string') {
+            numericValue = parseInt(numericValue.trim(), 10);
+          }
+          if (!Number.isFinite(numericValue)) return '';
+          if (numericValue < 0) numericValue = 0;
+          return Math.round(numericValue);
         }
 
         function getResumoQuantidade(data) {
@@ -2370,9 +2393,9 @@
             <th>Data/Hr</th>
             <th>Nome (Envio)</th>
             <th>Baixas (Qtd.)</th>
+            <th>Faltou (Qtd.)</th>
             <th>Status Impressão</th>
             <th>Embalado</th>
-            <th>Faltou (Qtd.)</th>
             <th>Status Atenção</th>
             <th>Ações</th>
           </tr>
@@ -2447,43 +2470,6 @@
           });
         }
 
-        function parseFaltouQuantidade(value) {
-          if (value === undefined || value === null) return 0;
-          if (typeof value === 'number' && Number.isFinite(value)) {
-            return Math.max(0, Math.round(value));
-          }
-          if (typeof value === 'string') {
-            const normalized = value.replace(',', '.').trim();
-            if (!normalized) return 0;
-            const parsedFloat = Number.parseFloat(normalized);
-            if (Number.isFinite(parsedFloat)) {
-              return Math.max(0, Math.round(parsedFloat));
-            }
-            const parsedInt = Number.parseInt(normalized, 10);
-            if (Number.isFinite(parsedInt)) {
-              return Math.max(0, parsedInt);
-            }
-          }
-          return 0;
-        }
-
-        function applyFaltouQuantidadeToElements(docId, quantidade) {
-          const normalized = parseFaltouQuantidade(quantidade);
-          const targets = getElementsByDocId(docId);
-          targets.forEach((element) => {
-            element.dataset.faltouQuantidade = normalized;
-            const input = element.querySelector('[data-role="faltou-input"]');
-            if (input) {
-              input.value = normalized > 0 ? normalized : '';
-            }
-            const info = element.querySelector('[data-role="faltou-info"]');
-            if (info) {
-              info.textContent = `Faltou: ${normalized}`;
-              info.classList.toggle('hidden', normalized === 0);
-            }
-          });
-        }
-
         function updateCommentModalButtons() {
           if (!commentDeleteBtn) return;
           const hasOriginal = Boolean((currentCommentOriginalValue || '').trim());
@@ -2533,7 +2519,6 @@
           const url = data.url;
           const owner = ownerName || 'Desconhecido';
           const safeUrl = encodeURIComponent(url || '');
-          const safeViewUrl = JSON.stringify(url || '');
           const safeName = encodeURIComponent(name || 'Etiqueta');
           const createdDate =
             data.createdAt && data.createdAt.toDate
@@ -2543,22 +2528,13 @@
             ? createdDate.toLocaleString('pt-BR')
             : 'Data desconhecida';
           const quantidadeEtiquetas = getResumoQuantidade(data);
-          const faltouQuantidadeSource =
-            typeof data.faltouQuantidade !== 'undefined'
-              ? data.faltouQuantidade
-              : data.faltou;
-          const faltouQuantidade = parseFaltouQuantidade(
-            faltouQuantidadeSource,
-          );
           const lojaDisplay = data.loja
             ? escapeHtml(data.loja)
             : 'Loja não informada';
           const totalPaginas = getPdfPageCount(data);
           const paginasLabel =
             totalPaginas > 0 ? totalPaginas : 'Não informado';
-          const faltouInfoClass = `expedicao-pdf-quantity${
-            faltouQuantidade > 0 ? '' : ' hidden'
-          }`;
+          const faltouQuantidade = getFaltouQuantidade(data);
           const div = document.createElement('div');
           div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
           div.innerHTML = `
@@ -2593,7 +2569,7 @@
             </span>
           </div>
           <div class="expedicao-pdf-actions">
-            <button class="expedicao-card-btn" onclick="visualizar(${safeViewUrl})">Abrir</button>
+            <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
             <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
             <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
           </div>
@@ -2603,7 +2579,11 @@
           <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
           <p class="expedicao-pdf-quantity">Loja: ${lojaDisplay}</p>
           <p class="expedicao-pdf-quantity">Páginas: ${paginasLabel}</p>
-          <p class="${faltouInfoClass}" data-role="faltou-info">Faltou: ${faltouQuantidade}</p>
+          ${
+            faltouQuantidade !== ''
+              ? `<p class="expedicao-pdf-quantity">Faltou: ${faltouQuantidade}</p>`
+              : ''
+          }
         </div>`;
           const commentText =
             typeof data.observacao === 'string' ? data.observacao.trim() : '';
@@ -2613,7 +2593,6 @@
           div.dataset.status = statusKey;
           div.dataset.docId = doc.id || '';
           div.dataset.observacao = commentText;
-          div.dataset.faltouQuantidade = faltouQuantidade;
           const commentButton = div.querySelector('[data-role="comment-button"]');
           if (commentButton) {
             commentButton.dataset.docId = doc.id || '';
@@ -2658,22 +2637,11 @@
           const totalPaginas = getPdfPageCount(data);
           const paginasLabel = totalPaginas > 0 ? totalPaginas : null;
           const observacao = data.observacao ? escapeHtml(data.observacao) : '';
-          const faltouQuantidadeSource =
-            typeof data.faltouQuantidade !== 'undefined'
-              ? data.faltouQuantidade
-              : data.faltou;
-          const faltouQuantidade = parseFaltouQuantidade(
-            faltouQuantidadeSource,
-          );
           const foraHorario = Boolean(data.foraHorario);
-          const envioDefaultRaw = (
-            data.statusEnvio ||
-            data.envioStatus ||
-            ''
-          )
-            .toString()
-            .toLowerCase()
-            .trim();
+          const faltouQuantidade = getFaltouQuantidade(data);
+          const envioDefaultRaw = normalizeEnvioStatus(
+            data.statusEnvio || data.envioStatus || '',
+          );
           const envioStatus =
             statusKey === 'concluido'
               ? 'embalado'
@@ -2702,7 +2670,8 @@
           row.dataset.status = statusKey;
           row.dataset.docId = doc.id || '';
           row.dataset.observacao = commentText;
-          row.dataset.faltouQuantidade = faltouQuantidade;
+          row.dataset.faltouQuantidade =
+            faltouQuantidade === '' ? '' : String(faltouQuantidade);
           row.innerHTML = `
       <td>
         <div class="expedicao-list-primary">${escapeHtml(owner)}</div>
@@ -2728,6 +2697,20 @@
         ${paginasLabel ? `<div class="expedicao-list-secondary">Páginas: ${paginasLabel}</div>` : ''}
       </td>
       <td>
+        <div class="expedicao-faltou-field">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            class="form-control expedicao-faltou-input"
+            data-role="faltou-input"
+            placeholder="0"
+            title="Registrar quantidade que faltou"
+          />
+        </div>
+      </td>
+      <td>
         <label class="expedicao-list-status-toggle" title="Atualizar status de impressão">
           <input
             type="checkbox"
@@ -2745,21 +2728,9 @@
       <td>
         <span
           class="expedicao-status-chip ${envioConfig.className}"
-          data-role="status-embalado"
+          data-role="status-envio"
           data-default-status="${escapeHtml(envioDefaultRaw)}"
         >${(envioConfig.label || '').toUpperCase()}</span>
-      </td>
-      <td>
-        <input
-          type="number"
-          min="0"
-          step="1"
-          class="form-control w-24 text-sm expedicao-faltou-input"
-          value="${faltouQuantidade > 0 ? faltouQuantidade : ''}"
-          placeholder="0"
-          data-role="faltou-input"
-          onchange="atualizarFaltouQuantidade(${safeDocId}, this, this.closest('tr'))"
-        />
       </td>
       <td>
         <label class="expedicao-list-status-toggle" title="Marcar como atenção">
@@ -2835,6 +2806,21 @@
           }
           const commentIndicator = row.querySelector('[data-role="comment-indicator"]');
           updateCommentIndicator(commentIndicator, commentText);
+          const faltouInput = row.querySelector('[data-role="faltou-input"]');
+          if (faltouInput) {
+            if (faltouQuantidade !== '') {
+              faltouInput.value = faltouQuantidade;
+            }
+            faltouInput.addEventListener('change', () => {
+              atualizarFaltouQuantidade(doc.id, faltouInput, row);
+            });
+            faltouInput.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                faltouInput.blur();
+              }
+            });
+          }
           return row;
         }
 
@@ -2911,33 +2897,55 @@
         const closeModal = document.getElementById('closeModal');
 
         function visualizar(url) {
-          if (!url) {
-            showToast('Arquivo indisponível para visualização.');
+          const finalUrl = typeof url === 'string' ? url.trim() : '';
+          if (!finalUrl) {
+            showToast('Arquivo PDF indisponível.');
             return;
           }
-          pdfFrame.src = url;
-          pdfModal.classList.remove('hidden');
+          const viewerUrl = finalUrl.includes('?')
+            ? `${finalUrl}&t=${Date.now()}`
+            : `${finalUrl}?t=${Date.now()}`;
+          if (pdfFrame) {
+            pdfFrame.src = viewerUrl;
+          }
+          if (pdfModal) {
+            pdfModal.classList.remove('hidden');
+            pdfModal.setAttribute('aria-hidden', 'false');
+          }
         }
         window.visualizar = visualizar;
 
-        closeModal.addEventListener('click', () => {
-          pdfModal.classList.add('hidden');
-          pdfFrame.src = '';
-        });
+        if (closeModal) {
+          closeModal.addEventListener('click', () => {
+            if (pdfModal) {
+              pdfModal.classList.add('hidden');
+              pdfModal.setAttribute('aria-hidden', 'true');
+            }
+            if (pdfFrame) {
+              pdfFrame.src = '';
+            }
+          });
+        }
 
-        pdfModal.addEventListener('click', (e) => {
-          if (e.target === pdfModal) {
-            pdfModal.classList.add('hidden');
-            pdfFrame.src = '';
-          }
-        });
+        if (pdfModal) {
+          pdfModal.addEventListener('click', (e) => {
+            if (e.target === pdfModal) {
+              pdfModal.classList.add('hidden');
+              pdfModal.setAttribute('aria-hidden', 'true');
+              if (pdfFrame) {
+                pdfFrame.src = '';
+              }
+            }
+          });
+        }
 
         function imprimir(url) {
-          if (!url) {
-            showToast('Arquivo indisponível para impressão.');
+          const finalUrl = typeof url === 'string' ? url.trim() : '';
+          if (!finalUrl) {
+            showToast('Arquivo PDF indisponível para impressão.');
             return;
           }
-          window.open(url, '_blank', 'noopener');
+          window.open(finalUrl, '_blank', 'noopener');
         }
         window.imprimir = imprimir;
 
@@ -3009,35 +3017,53 @@
         }
         window.baixarArquivo = baixarArquivo;
 
-        async function atualizarFaltouQuantidade(id, input, row) {
-          if (!id || !input) return;
-          const rawValue = typeof input.value === 'string' ? input.value.trim() : '';
-          const previousValue = row?.dataset?.faltouQuantidade;
-          const quantidade = rawValue ? parseFaltouQuantidade(rawValue) : 0;
-
-          try {
-            const docRef = db.collection('pdfDocs').doc(id);
-            if (!quantidade) {
-              await docRef.update({
-                faltouQuantidade: firebase.firestore.FieldValue.delete(),
-              });
-              applyFaltouQuantidadeToElements(id, 0);
-              if (row) row.dataset.faltouQuantidade = 0;
-              input.value = '';
-              showToast('Quantidade de faltou removida');
+        async function atualizarFaltouQuantidade(docId, inputElement, row) {
+          if (!docId || !inputElement) return;
+          const previousValue = row?.dataset?.faltouQuantidade ?? '';
+          const rawValue = inputElement.value != null ? inputElement.value.trim() : '';
+          let parsedValue = null;
+          if (rawValue !== '') {
+            const parsed = parseInt(rawValue, 10);
+            if (!Number.isFinite(parsed) || parsed < 0) {
+              showToast('Informe uma quantidade válida.');
+              inputElement.value = previousValue;
               return;
             }
-
-            await docRef.update({ faltouQuantidade: quantidade });
-            applyFaltouQuantidadeToElements(id, quantidade);
-            if (row) row.dataset.faltouQuantidade = quantidade;
-            input.value = quantidade;
-            showToast('Quantidade de faltou atualizada');
+            parsedValue = Math.max(0, parsed);
+          }
+          const previousNumeric =
+            previousValue === '' ? null : Math.max(0, parseInt(previousValue, 10));
+          if (parsedValue === null && previousValue === '') {
+            return;
+          }
+          if (
+            parsedValue !== null &&
+            previousNumeric !== null &&
+            parsedValue === previousNumeric
+          ) {
+            inputElement.value = parsedValue;
+            return;
+          }
+          try {
+            const updatePayload =
+              parsedValue === null
+                ? { faltouQuantidade: firebase.firestore.FieldValue.delete() }
+                : { faltouQuantidade: parsedValue };
+            await db.collection('pdfDocs').doc(docId).update(updatePayload);
+            if (row) {
+              row.dataset.faltouQuantidade =
+                parsedValue === null ? '' : String(parsedValue);
+            }
+            if (parsedValue === null) {
+              inputElement.value = '';
+            } else {
+              inputElement.value = parsedValue;
+            }
+            showToast('Quantidade "faltou" atualizada');
           } catch (error) {
-            console.error('Erro ao atualizar quantidade de faltou:', error);
-            const fallback = parseFaltouQuantidade(previousValue);
-            input.value = fallback > 0 ? fallback : '';
-            showToast('Não foi possível atualizar o campo Faltou.');
+            console.error('Erro ao atualizar faltou:', error);
+            showToast('Não foi possível atualizar a quantidade.');
+            inputElement.value = previousValue;
           }
         }
         window.atualizarFaltouQuantidade = atualizarFaltouQuantidade;
