@@ -10,7 +10,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css?v=20240826">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800">
   <div class="app-container">
@@ -53,13 +52,16 @@
 
     <div id="overviewCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 
-    <div class="card p-4">
-      <h4 class="text-sm text-gray-500 mb-2">Evolução das Vendas</h4>
-      <canvas id="vendasChart" height="120"></canvas>
-      <div id="financeiroUsuarios" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4"></div>
-    </div>
-
     <div id="cardsContainer"></div>
+
+    <section id="amostragemSection" class="card p-4 hidden">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+        <h4 class="text-sm text-gray-500">Amostragem – Top SKUs</h4>
+        <span id="amostragemPeriodo" class="text-xs text-gray-400"></span>
+      </div>
+      <div id="amostragemLista" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+      <p id="amostragemEmpty" class="text-sm text-gray-500 hidden">Nenhuma venda encontrada para o período.</p>
+    </section>
 
     <section id="saquesGestor" class="card hidden">
       <div class="card-header flex justify-between items-center">
