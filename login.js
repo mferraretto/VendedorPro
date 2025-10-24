@@ -118,6 +118,16 @@ const SELLER_ALLOWED_MENU_IDS = [
   'menu-configuracao-perfil',
   'menu-catalogo',
 ];
+
+const EXPEDICAO_ALLOWED_SUBMENU_LINKS = {
+  menuExpedicao: null,
+  menuConfiguracoes: [
+    '/configuracao-expedicao.html',
+    '/configuracao-perfil.html',
+    '/email-expedicao.html',
+    '/manual/index.html',
+  ],
+};
 const DEFAULT_MEETING_NAVBAR_TITLE = 'Reuniões agendadas';
 let notifUnsub = null;
 let expNotifUnsub = null;
@@ -409,18 +419,74 @@ function applyExpedicaoSidebar(extraAllowedIds = []) {
         li.style.display = '';
       } else {
         li.classList.add('hidden');
+        li.style.display = 'none';
       }
     });
 
-    const submenu = document.getElementById('menuExpedicao');
-    if (submenu) {
-      submenu.style.maxHeight = submenu.scrollHeight + 'px';
-    }
+    Object.entries(EXPEDICAO_ALLOWED_SUBMENU_LINKS).forEach(
+      ([menuId, allowedLinks]) => {
+        const submenu = document.getElementById(menuId);
+        if (!submenu) return;
 
-    const configMenu = document.getElementById('menuConfiguracoes');
-    if (configMenu) {
-      configMenu.style.maxHeight = configMenu.scrollHeight + 'px';
-    }
+        const toggleButton = document.querySelector(
+          `button.submenu-toggle[onclick*="${menuId}"]`,
+        );
+
+        if (allowedLinks === null) {
+          submenu.querySelectorAll('li').forEach((li) => {
+            li.classList.add('hidden');
+            li.style.display = 'none';
+          });
+          submenu.classList.add('hidden');
+          submenu.style.display = 'none';
+          submenu.style.maxHeight = '0px';
+          if (toggleButton) {
+            toggleButton.classList.add('hidden');
+            toggleButton.style.display = 'none';
+          }
+          return;
+        }
+
+        const allowedSet = new Set(allowedLinks);
+        let visibleCount = 0;
+
+        submenu.querySelectorAll('li').forEach((li) => {
+          const link = li.querySelector('a.sidebar-link');
+          if (!link) return;
+
+          const href = link.getAttribute('href') || '';
+          if (allowedSet.has(href)) {
+            li.classList.remove('hidden');
+            li.style.display = '';
+            visibleCount += 1;
+          } else {
+            li.classList.add('hidden');
+            li.style.display = 'none';
+          }
+        });
+
+        submenu.style.maxHeight = '';
+        if (visibleCount) {
+          submenu.classList.remove('hidden');
+          submenu.style.display = '';
+          submenu.style.maxHeight = submenu.scrollHeight + 'px';
+        } else {
+          submenu.classList.add('hidden');
+          submenu.style.display = 'none';
+          submenu.style.maxHeight = '0px';
+        }
+
+        if (toggleButton) {
+          if (visibleCount) {
+            toggleButton.classList.remove('hidden');
+            toggleButton.style.display = '';
+          } else {
+            toggleButton.classList.add('hidden');
+            toggleButton.style.display = 'none';
+          }
+        }
+      },
+    );
   };
 
   filter();
@@ -430,10 +496,17 @@ function applyExpedicaoSidebar(extraAllowedIds = []) {
 function restoreSidebar() {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
-  sidebar.querySelectorAll('li, a.sidebar-link').forEach((el) => {
-    el.classList.remove('hidden');
-    if (el.style) el.style.display = '';
-  });
+  sidebar
+    .querySelectorAll('li, a.sidebar-link, .submenu-toggle, .submenu')
+    .forEach((el) => {
+      el.classList.remove('hidden');
+      if (el.style) {
+        el.style.display = '';
+        if (el.classList.contains('submenu')) {
+          el.style.maxHeight = '';
+        }
+      }
+    });
 }
 
 function normalizePerfil(perfil) {
@@ -575,7 +648,7 @@ async function checkExpedicao(user) {
     }
     if (!snap.empty) {
       isExpedicao = true;
-      applyExpedicaoSidebar(['menu-comunicacao']);
+      applyExpedicaoSidebar();
       const path = window.location.pathname.toLowerCase();
       if (!path.endsWith('/expedicao.html')) {
         window.location.href = 'expedicao.html';
