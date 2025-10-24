@@ -217,14 +217,14 @@
         </div>
         <div id="viewToggle" class="flex gap-2 mb-4">
           <button
-            class="view-btn px-4 py-2 rounded-full bg-indigo-600 text-white text-sm font-medium"
+            class="view-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition"
             data-view="cards"
             title="Exibição em cartões"
           >
             <i class="fas fa-th"></i>
           </button>
           <button
-            class="view-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition"
+            class="view-btn px-4 py-2 rounded-full bg-indigo-600 text-white text-sm font-medium"
             data-view="list"
             title="Exibição em lista"
           >
@@ -418,7 +418,7 @@
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
         let currentUser = null;
         let currentFilter = 'all';
-        let viewMode = 'cards';
+        let viewMode = 'list';
         let diaDocRef = null;
         let isResponsavel = false;
         const userNameCache = {};
@@ -517,6 +517,11 @@
           concluido: 'expedicao-table-row--concluido',
         };
         const LIST_STATUS_CLASSES = Object.values(LIST_STATUS_CLASS_MAP);
+        const STATUS_PRIORITY_ORDER = {
+          nao_impresso: 0,
+          impresso: 1,
+          concluido: 2,
+        };
 
         const LIST_ENVIO_STATUS = {
           embalado: {
@@ -1771,7 +1776,7 @@
             const key = data.storagePath || data.url;
             if (seen.has(key)) continue;
             seen.add(key);
-            const status = data.status || 'nao_impresso';
+            const status = (data.status || 'nao_impresso').toString().toLowerCase();
             const ownerName =
               data.ownerName ||
               (await getOwnerName(data.ownerUid, data.ownerEmail));
@@ -1825,7 +1830,7 @@
             } else if (status !== filter) {
               continue;
             }
-            results.push({ doc, data, ownerName, createdAt });
+            results.push({ doc, data, ownerName, createdAt, status });
           }
           updateStatusCounts(counts);
           const totalNaoImpressoLabels = labelTotals.nao_impresso || 0;
@@ -1835,10 +1840,15 @@
             printedTodayTotal > 0 || !temEtiquetasImpressas;
           const totalImpressoLabels = printedTodayTotal;
           results.sort((a, b) => {
+            const priorityA =
+              STATUS_PRIORITY_ORDER[a.status] ?? STATUS_PRIORITY_ORDER.nao_impresso;
+            const priorityB =
+              STATUS_PRIORITY_ORDER[b.status] ?? STATUS_PRIORITY_ORDER.nao_impresso;
+            if (priorityA !== priorityB) return priorityA - priorityB;
             if (sortOption === 'owner')
               return (a.ownerName || '').localeCompare(b.ownerName || '');
             if (sortOption === 'status')
-              return (a.data.status || '').localeCompare(b.data.status || '');
+              return (a.status || '').localeCompare(b.status || '');
             return (
               (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
             );
@@ -2510,7 +2520,9 @@
 
         function createPdfCard(doc, ownerName) {
           const data = doc.data();
-          const rawStatus = data.status || 'nao_impresso';
+          const rawStatus = (data.status || 'nao_impresso')
+            .toString()
+            .toLowerCase();
           const statusKey = STATUS_UI_CONFIG[rawStatus]
             ? rawStatus
             : 'nao_impresso';
@@ -2639,7 +2651,9 @@
 
         function createPdfListItem(doc, ownerName) {
           const data = doc.data();
-          const rawStatus = data.status || 'nao_impresso';
+          const rawStatus = (data.status || 'nao_impresso')
+            .toString()
+            .toLowerCase();
           const statusKey = STATUS_UI_CONFIG[rawStatus]
             ? rawStatus
             : 'nao_impresso';
