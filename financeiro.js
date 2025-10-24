@@ -594,11 +594,14 @@ async function carregarAmostragemSkus(uid) {
     const itens = Array.from(agregador.entries())
       .map(([sku, info]) => {
         const diasCount = info.dias.size;
+        const quantidade = info.quantidade;
+        const mediaLiquido = quantidade ? info.valorLiquido / quantidade : 0;
         return {
           sku,
-          quantidade: info.quantidade,
-          mediaLiquido: diasCount ? info.valorLiquido / diasCount : 0,
+          quantidade,
+          mediaLiquido,
           dias: diasCount,
+          totalLiquido: info.valorLiquido,
         };
       })
       .filter((item) => item.quantidade > 0 || item.mediaLiquido !== 0)
@@ -624,10 +627,10 @@ async function carregarAmostragemSkus(uid) {
           <span class="text-xs uppercase tracking-wide text-gray-500">SKU</span>
           <div class="text-lg font-semibold text-gray-800 break-words">${item.sku}</div>
         </div>
-        <div class="text-sm text-gray-600">Qtd. vendida (15 dias):
+        <div class="text-sm text-gray-600">Vendas (15 dias):
           <span class="font-medium text-gray-800">${item.quantidade}</span>
         </div>
-        <div class="text-sm text-gray-600">Média sobra real:
+        <div class="text-sm text-gray-600">Média sobra real por venda:
           <span class="font-semibold text-gray-800">R$ ${item.mediaLiquido.toLocaleString(
             'pt-BR',
             {
@@ -636,6 +639,13 @@ async function carregarAmostragemSkus(uid) {
             },
           )}</span>
         </div>
+        <div class="text-xs text-gray-400">Total sobra real (15 dias): R$ ${item.totalLiquido.toLocaleString(
+          'pt-BR',
+          {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          },
+        )}</div>
         <div class="text-xs text-gray-400">Dias com vendas: ${item.dias}</div>
       `;
       fragment.appendChild(card);
