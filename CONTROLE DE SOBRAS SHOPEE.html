@@ -535,7 +535,8 @@ async function processarPlanilhaVendas({
   plataforma,
   resultadoId,
   progressIds = {},
-  rowParser
+  rowParser,
+  datasInformadas = []
 }) {
   const { containerId, barId, textId } = progressIds || {};
   const progressContainer = containerId ? document.getElementById(containerId) : null;
@@ -545,6 +546,10 @@ async function processarPlanilhaVendas({
   if (progressContainer) progressContainer.classList.remove('hidden');
   if (progressBar) progressBar.style.width = '0%';
   if (progressText) progressText.textContent = '0%';
+
+  const diasInformados = Array.isArray(datasInformadas)
+    ? Array.from(new Set(datasInformadas.filter(d => typeof d === 'string' && d.trim()))).sort()
+    : [];
 
   const { baseResp, respEmail, gestorEmail, baseExp } = await obterBasesUsuario();
   const { encryptString, decryptString } = await import('./crypto.js');
@@ -933,7 +938,8 @@ async function processarPlanilhaVendas({
     qtdVendas,
     loja,
     atualizadoEm: new Date(),
-    uid: usuarioLogado.uid
+    uid: usuarioLogado.uid,
+    diasInformados
   };
   const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
   await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
@@ -956,7 +962,8 @@ async function processarPlanilhaVendas({
     atualizadoEm: new Date(),
     uid: usuarioLogado.uid,
     resumoPorDia,
-    periodoVendas: periodoResumo
+    periodoVendas: periodoResumo,
+    diasInformados
   };
   const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
   await db
@@ -1026,6 +1033,12 @@ async function processarPlanilhaVendas({
         `
         : `<p class="mt-4 text-sm text-gray-500">Nenhum faturamento ativo encontrado na planilha.</p>`;
 
+      const diasInformadosHtml = diasInformados.length
+        ? `<p class="mt-2 text-xs text-gray-500"><strong>Dias informados pelo usuário:</strong> ${diasInformados
+            .map(formatDateBr)
+            .join(', ')}</p>`
+        : '';
+
       resultado.innerHTML = `
         <div class="alert alert-success">
           <i class="fas fa-check-circle"></i> Faturamento ${escapeHtml(plataforma)} processado com sucesso!<br>
@@ -1034,6 +1047,7 @@ async function processarPlanilhaVendas({
           <strong>Bruto total:</strong> ${formatCurrency(bruto)}<br>
           <strong>Líquido total:</strong> ${formatCurrency(liquidoTotal)}<br>
           <strong>Vendas:</strong> ${qtdVendas}
+          ${diasInformadosHtml}
         </div>
         ${resumoDiasHtml}
       `;
@@ -6981,25 +6995,80 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
       const { value: form, isConfirmed } = await Swal.fire({
         title: 'Pedidos Tiny',
         html: `
+          <div class="swal2-field">
+            <label for="swal-periodo-tiny" class="swal2-label">Período da planilha</label>
+            <select id="swal-periodo-tiny" class="swal2-select">
+              <option value="single">Apenas um dia</option>
+              <option value="multiple">Vários dias</option>
+            </select>
+          </div>
           <input type="date" id="swal-data-tiny" class="swal2-input" />
+          <textarea id="swal-dias-tiny" class="swal2-textarea" placeholder="Informe os dias (AAAA-MM-DD) separados por vírgula ou quebra de linha"></textarea>
           <input type="text" id="swal-loja-tiny" class="swal2-input" placeholder="Nome da Loja" />
         `,
         focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'Continuar',
+        didOpen: () => {
+          const tipoSelect = document.getElementById('swal-periodo-tiny');
+          const dataInput = document.getElementById('swal-data-tiny');
+          const diasTextarea = document.getElementById('swal-dias-tiny');
+          if (!tipoSelect || !dataInput || !diasTextarea) return;
+          const toggleInputs = () => {
+            const isSingle = tipoSelect.value === 'single';
+            dataInput.style.display = isSingle ? 'block' : 'none';
+            diasTextarea.style.display = isSingle ? 'none' : 'block';
+            if (isSingle) diasTextarea.value = '';
+          };
+          toggleInputs();
+          tipoSelect.addEventListener('change', toggleInputs);
+        },
         preConfirm: () => {
-          const data = document.getElementById('swal-data-tiny').value;
+          const tipoPeriodo = document.getElementById('swal-periodo-tiny').value;
+          const dataUnica = document.getElementById('swal-data-tiny').value;
+          const diasInformadosTexto = document.getElementById('swal-dias-tiny').value.trim();
           const lojaNome = document.getElementById('swal-loja-tiny').value.trim();
-          if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data) || lojaNome.length < 2) {
-            Swal.showValidationMessage('Informe uma data e uma loja válidas.');
+          let datasSelecionadas = [];
+
+          if (tipoPeriodo === 'single') {
+            if (!dataUnica || !/^\d{4}-\d{2}-\d{2}$/.test(dataUnica)) {
+              Swal.showValidationMessage('Informe uma data válida no formato AAAA-MM-DD.');
+              return false;
+            }
+            datasSelecionadas = [dataUnica];
+          } else {
+            const diasList = diasInformadosTexto
+              ? diasInformadosTexto.split(/[,;\n]+/).map(d => d.trim()).filter(Boolean)
+              : [];
+            if (!diasList.length) {
+              Swal.showValidationMessage('Informe ao menos um dia presente na planilha.');
+              return false;
+            }
+            const invalidos = diasList.filter(dia => !/^\d{4}-\d{2}-\d{2}$/.test(dia));
+            if (invalidos.length) {
+              Swal.showValidationMessage('Use o formato AAAA-MM-DD para todos os dias informados.');
+              return false;
+            }
+            datasSelecionadas = Array.from(new Set(diasList)).sort();
           }
-          return { data, loja: lojaNome };
+
+          if (lojaNome.length < 2) {
+            Swal.showValidationMessage('Informe uma loja válida.');
+            return false;
+          }
+
+          return {
+            data: datasSelecionadas[0],
+            loja: lojaNome,
+            datasSelecionadas
+          };
         }
       });
       if (!isConfirmed || !form) return;
 
       const dataReferencia = form.data;
       const loja = form.loja;
+      const datasInformadas = form.datasSelecionadas || [dataReferencia];
 
       const reader = new FileReader();
       reader.onload = async function (e) {
@@ -7026,7 +7095,8 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
               barId: 'progressBarVendasTiny',
               textId: 'progressTextVendasTiny'
             },
-            rowParser: (row, contexto) => extrairLinhaTiny(row, contexto)
+            rowParser: (row, contexto) => extrairLinhaTiny(row, contexto),
+            datasInformadas
           });
 
           if (resultadoProcessamento) {
@@ -7467,20 +7537,39 @@ await db
 
       const { value: form, isConfirmed } = await Swal.fire({
         title: 'Importação em Massa',
-        html: `<input type="text" id="swal-loja-massa" class="swal2-input" placeholder="Nome da Loja" />`,
+        html: `
+          <input type="text" id="swal-loja-massa" class="swal2-input" placeholder="Nome da Loja" />
+          <textarea id="swal-dias-massa" class="swal2-textarea" placeholder="Quais dias estão presentes na planilha? Informe em AAAA-MM-DD separados por vírgula ou quebra de linha."></textarea>
+        `,
         focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'Continuar',
         preConfirm: () => {
           const lojaNome = document.getElementById('swal-loja-massa').value.trim();
+          const diasTexto = document.getElementById('swal-dias-massa').value.trim();
+          const diasList = diasTexto
+            ? diasTexto.split(/[,;\n]+/).map(d => d.trim()).filter(Boolean)
+            : [];
+          if (!diasList.length) {
+            Swal.showValidationMessage('Informe ao menos um dia presente na planilha.');
+            return false;
+          }
+          const invalidos = diasList.filter(dia => !/^\d{4}-\d{2}-\d{2}$/.test(dia));
+          if (invalidos.length) {
+            Swal.showValidationMessage('Use o formato AAAA-MM-DD para todos os dias informados.');
+            return false;
+          }
           if (lojaNome.length < 2) {
             Swal.showValidationMessage('Informe uma loja válida.');
+            return false;
           }
-          return { loja: lojaNome };
+          const datasSelecionadas = Array.from(new Set(diasList)).sort();
+          return { loja: lojaNome, datasSelecionadas };
         }
       });
       if (!isConfirmed || !form) return;
       const loja = form.loja;
+      const diasInformados = form.datasSelecionadas || [];
 
       const reader = new FileReader();
       reader.onload = async function (e) {
@@ -8038,6 +8127,17 @@ await db
           const ignorados = resultados.filter(r => r.status === 'ignorado');
 
           let html = '';
+          const formatDateBr = (iso) => {
+            if (!iso || typeof iso !== 'string') return iso || '';
+            const partes = iso.split('-');
+            if (partes.length !== 3) return iso;
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+          };
+          if (diasInformados.length) {
+            html += `<div class="alert alert-info mb-4"><i class="fas fa-calendar-alt"></i> Dias informados na planilha: ${diasInformados
+              .map(formatDateBr)
+              .join(', ')}</div>`;
+          }
           if (sucesso.length) {
             html += '<div class="alert alert-success">';
             html += '<i class="fas fa-check-circle"></i> Faturamentos processados:';
