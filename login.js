@@ -125,6 +125,7 @@ const POSVENDAS_ALLOWED_MENU_IDS = [
   'menu-acompanhamento-diario',
   'menu-expedicao',
   'menu-acompanhamento-problemas',
+  'menu-acompanhamento',
   'menu-catalogo',
   'menu-equipes',
 ];
