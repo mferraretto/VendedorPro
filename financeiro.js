@@ -15,7 +15,6 @@ import {
   startAt,
   endAt,
   startAfter,
-  limit,
   getDocs,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
@@ -39,9 +38,9 @@ let dadosSaquesExport = [];
 let dadosFaturamentoExport = [];
 let resumoUsuarios = {};
 let kpiUnsubs = [];
+let vendasChart;
 let resumoUnsub = null;
 let currentUser = null;
-let amostragemToken = 0;
 
 const metaPerfilCache = new Map();
 
@@ -229,7 +228,6 @@ async function carregar() {
   ]);
   renderResumoUsuarios(Object.values(resumoUsuarios));
   renderTabelaSaques();
-  await carregarAmostragem(uid);
   if (uid !== 'todos') {
     assistirResumoFinanceiro(uid, mes);
   } else {
@@ -785,123 +783,30 @@ async function subscribeKPIs() {
   kpiUnsubs.push(unsubDev);
 }
 
-async function carregarAmostragem(uid) {
-  const section = document.getElementById('amostragemSection');
-  const lista = document.getElementById('amostragemLista');
-  const empty = document.getElementById('amostragemEmpty');
-  const periodo = document.getElementById('amostragemPeriodo');
-  if (!section || !lista || !empty || !periodo) return;
-  if (!uid || uid === 'todos') {
-    section.classList.add('hidden');
-    lista.innerHTML = '';
-    empty.classList.add('hidden');
-    periodo.textContent = '';
-    return;
-  }
-
-  const token = ++amostragemToken;
-  section.classList.remove('hidden');
-  lista.innerHTML = '<p class="text-sm text-gray-500">Carregando...</p>';
-  empty.classList.add('hidden');
-  periodo.textContent = '';
-
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setDate(fim.getDate() - 14);
-  const inicioISO = inicio.toISOString().slice(0, 10);
-  const fimISO = fim.toISOString().slice(0, 10);
-
-  try {
-    const colRef = collection(db, `uid/${uid}/skusVendidos`);
-    const q = query(colRef, orderBy('__name__', 'desc'), limit(60));
-    const snap = await getDocs(q);
-
-    const docsValidos = snap.docs.filter((docSnap) => {
-      const dataDoc = parseDocIdDate(docSnap.id);
-      return dataDoc && dataDoc >= inicio;
+function updateSalesChart(labels, data) {
+  const ctx = document.getElementById('vendasChart')?.getContext('2d');
+  if (!ctx) return;
+  if (vendasChart) {
+    vendasChart.data.labels = labels;
+    vendasChart.data.datasets[0].data = data;
+    vendasChart.update();
+  } else {
+    vendasChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Vendas',
+            data,
+            borderColor: 'var(--primary)',
+            backgroundColor: 'rgba(99,102,241,0.2)',
+            tension: 0.3,
+          },
+        ],
+      },
+      options: { scales: { y: { beginAtZero: true } } },
     });
-
-    if (amostragemToken !== token) return;
-
-    periodo.textContent = `Período: ${formatarData(inicioISO)} – ${formatarData(fimISO)}`;
-
-    if (!docsValidos.length) {
-      lista.innerHTML = '';
-      empty.textContent = 'Nenhuma venda encontrada para o período.';
-      empty.classList.remove('hidden');
-      return;
-    }
-
-    const listas = await Promise.all(
-      docsValidos.map((docSnap) =>
-        getDocs(collection(db, `uid/${uid}/skusVendidos/${docSnap.id}/lista`)),
-      ),
-    );
-
-    if (amostragemToken !== token) return;
-
-    const agregados = new Map();
-    listas.forEach((listaSnap) => {
-      listaSnap.forEach((item) => {
-        const dados = item.data() || {};
-        const sku = dados.sku || item.id;
-        const quantidade = Number(
-          dados.total ?? dados.quantidade ?? dados.qtd ?? dados.vendidos ?? 0,
-        );
-        const liquido = Number(dados.valorLiquido ?? dados.liquido ?? 0);
-        if (!sku || !quantidade) return;
-        const atual = agregados.get(sku) || { quantidade: 0, liquido: 0 };
-        atual.quantidade += quantidade;
-        atual.liquido += liquido;
-        agregados.set(sku, atual);
-      });
-    });
-
-    const ranking = Array.from(agregados.entries())
-      .map(([sku, valores]) => ({
-        sku,
-        quantidade: valores.quantidade,
-        totalLiquido: valores.liquido,
-        mediaLiquida:
-          valores.quantidade > 0 ? valores.liquido / valores.quantidade : 0,
-      }))
-      .filter((item) => item.quantidade > 0)
-      .sort((a, b) => b.quantidade - a.quantidade)
-      .slice(0, 10);
-
-    if (amostragemToken !== token) return;
-
-    if (!ranking.length) {
-      lista.innerHTML = '';
-      empty.textContent = 'Nenhuma venda encontrada para o período.';
-      empty.classList.remove('hidden');
-      return;
-    }
-
-    empty.classList.add('hidden');
-    lista.innerHTML = '';
-    ranking.forEach((item, index) => {
-      const card = document.createElement('div');
-      card.className =
-        'border border-gray-200 rounded-lg p-4 bg-white shadow-sm flex flex-col gap-2';
-      card.innerHTML = `
-        <div class="flex items-baseline justify-between text-xs text-gray-500">
-          <span class="font-semibold text-indigo-500">#${index + 1}</span>
-          <span>Qtd: ${item.quantidade}</span>
-        </div>
-        <div class="text-base font-semibold text-gray-800 break-all">${item.sku}</div>
-        <div class="text-sm text-gray-600">Média sobra líquida: ${formatCurrency(item.mediaLiquida)}</div>
-        <div class="text-xs text-gray-500">Total líquido (15 dias): ${formatCurrency(item.totalLiquido)}</div>
-      `;
-      lista.appendChild(card);
-    });
-  } catch (err) {
-    console.error('Erro ao carregar amostragem de SKUs', err);
-    if (amostragemToken !== token) return;
-    lista.innerHTML = '';
-    empty.textContent = 'Não foi possível carregar os dados.';
-    empty.classList.remove('hidden');
-    periodo.textContent = '';
   }
 }
 
@@ -1084,13 +989,6 @@ function formatarData(str) {
   }
   const d = new Date(str);
   return isNaN(d) ? str : d.toLocaleDateString('pt-BR');
-}
-
-function parseDocIdDate(id) {
-  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})/.exec(id || '');
-  if (!match) return null;
-  const [_, ano, mes, dia] = match;
-  return new Date(Number(ano), Number(mes) - 1, Number(dia));
 }
 
 function showModal(titulo, corpo) {
