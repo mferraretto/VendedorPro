@@ -519,7 +519,16 @@
         const LIST_STATUS_CLASSES = Object.values(LIST_STATUS_CLASS_MAP);
 
         const LIST_ENVIO_STATUS = {
-          enviado: { label: 'Enviado', className: 'expedicao-status-chip--enviado' },
+          enviado: { label: 'Embalado', className: 'expedicao-status-chip--enviado' },
+          embalado: { label: 'Embalado', className: 'expedicao-status-chip--enviado' },
+          'nao-embalado': {
+            label: 'Não embalado',
+            className: 'expedicao-status-chip--pendente',
+          },
+          nao_embalado: {
+            label: 'Não embalado',
+            className: 'expedicao-status-chip--pendente',
+          },
           entregue: { label: 'Entregue', className: 'expedicao-status-chip--enviado' },
           pendente: { label: 'Pendente', className: 'expedicao-status-chip--pendente' },
           aguardando: {
@@ -638,15 +647,15 @@
               impressaoToggle.checked = status !== 'nao_impresso';
             }
           }
-          const envioBadge = row.querySelector('[data-role="status-envio"]');
+          const envioBadge = row.querySelector('[data-role="status-embalado"]');
           if (envioBadge) {
             const defaultStatus =
-              envioBadge.dataset.defaultStatus || 'pendente';
+              (envioBadge.dataset.defaultStatus || 'pendente').toLowerCase();
             const nextStatus =
               status === 'concluido'
-                ? 'enviado'
-                : defaultStatus === 'enviado'
-                  ? 'enviado'
+                ? 'embalado'
+                : defaultStatus === 'embalado' || defaultStatus === 'enviado'
+                  ? 'embalado'
                   : defaultStatus || 'pendente';
             applyListEnvioStatus(envioBadge, nextStatus);
           }
@@ -2362,7 +2371,8 @@
             <th>Nome (Envio)</th>
             <th>Baixas (Qtd.)</th>
             <th>Status Impressão</th>
-            <th>Status Envio</th>
+            <th>Embalado</th>
+            <th>Faltou (Qtd.)</th>
             <th>Status Atenção</th>
             <th>Ações</th>
           </tr>
@@ -2437,6 +2447,43 @@
           });
         }
 
+        function parseFaltouQuantidade(value) {
+          if (value === undefined || value === null) return 0;
+          if (typeof value === 'number' && Number.isFinite(value)) {
+            return Math.max(0, Math.round(value));
+          }
+          if (typeof value === 'string') {
+            const normalized = value.replace(',', '.').trim();
+            if (!normalized) return 0;
+            const parsedFloat = Number.parseFloat(normalized);
+            if (Number.isFinite(parsedFloat)) {
+              return Math.max(0, Math.round(parsedFloat));
+            }
+            const parsedInt = Number.parseInt(normalized, 10);
+            if (Number.isFinite(parsedInt)) {
+              return Math.max(0, parsedInt);
+            }
+          }
+          return 0;
+        }
+
+        function applyFaltouQuantidadeToElements(docId, quantidade) {
+          const normalized = parseFaltouQuantidade(quantidade);
+          const targets = getElementsByDocId(docId);
+          targets.forEach((element) => {
+            element.dataset.faltouQuantidade = normalized;
+            const input = element.querySelector('[data-role="faltou-input"]');
+            if (input) {
+              input.value = normalized > 0 ? normalized : '';
+            }
+            const info = element.querySelector('[data-role="faltou-info"]');
+            if (info) {
+              info.textContent = `Faltou: ${normalized}`;
+              info.classList.toggle('hidden', normalized === 0);
+            }
+          });
+        }
+
         function updateCommentModalButtons() {
           if (!commentDeleteBtn) return;
           const hasOriginal = Boolean((currentCommentOriginalValue || '').trim());
@@ -2486,6 +2533,7 @@
           const url = data.url;
           const owner = ownerName || 'Desconhecido';
           const safeUrl = encodeURIComponent(url || '');
+          const safeViewUrl = JSON.stringify(url || '');
           const safeName = encodeURIComponent(name || 'Etiqueta');
           const createdDate =
             data.createdAt && data.createdAt.toDate
@@ -2495,12 +2543,22 @@
             ? createdDate.toLocaleString('pt-BR')
             : 'Data desconhecida';
           const quantidadeEtiquetas = getResumoQuantidade(data);
+          const faltouQuantidadeSource =
+            typeof data.faltouQuantidade !== 'undefined'
+              ? data.faltouQuantidade
+              : data.faltou;
+          const faltouQuantidade = parseFaltouQuantidade(
+            faltouQuantidadeSource,
+          );
           const lojaDisplay = data.loja
             ? escapeHtml(data.loja)
             : 'Loja não informada';
           const totalPaginas = getPdfPageCount(data);
           const paginasLabel =
             totalPaginas > 0 ? totalPaginas : 'Não informado';
+          const faltouInfoClass = `expedicao-pdf-quantity${
+            faltouQuantidade > 0 ? '' : ' hidden'
+          }`;
           const div = document.createElement('div');
           div.className = `pdf-card expedicao-card expedicao-pdf-card ticket-card${attention ? ' expedicao-card--attention' : ''}`;
           div.innerHTML = `
@@ -2535,7 +2593,7 @@
             </span>
           </div>
           <div class="expedicao-pdf-actions">
-            <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
+            <button class="expedicao-card-btn" onclick="visualizar(${safeViewUrl})">Abrir</button>
             <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
             <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
           </div>
@@ -2545,6 +2603,7 @@
           <p class="expedicao-pdf-quantity">Quantidade: ${quantidadeEtiquetas} etiquetas</p>
           <p class="expedicao-pdf-quantity">Loja: ${lojaDisplay}</p>
           <p class="expedicao-pdf-quantity">Páginas: ${paginasLabel}</p>
+          <p class="${faltouInfoClass}" data-role="faltou-info">Faltou: ${faltouQuantidade}</p>
         </div>`;
           const commentText =
             typeof data.observacao === 'string' ? data.observacao.trim() : '';
@@ -2554,6 +2613,7 @@
           div.dataset.status = statusKey;
           div.dataset.docId = doc.id || '';
           div.dataset.observacao = commentText;
+          div.dataset.faltouQuantidade = faltouQuantidade;
           const commentButton = div.querySelector('[data-role="comment-button"]');
           if (commentButton) {
             commentButton.dataset.docId = doc.id || '';
@@ -2598,6 +2658,13 @@
           const totalPaginas = getPdfPageCount(data);
           const paginasLabel = totalPaginas > 0 ? totalPaginas : null;
           const observacao = data.observacao ? escapeHtml(data.observacao) : '';
+          const faltouQuantidadeSource =
+            typeof data.faltouQuantidade !== 'undefined'
+              ? data.faltouQuantidade
+              : data.faltou;
+          const faltouQuantidade = parseFaltouQuantidade(
+            faltouQuantidadeSource,
+          );
           const foraHorario = Boolean(data.foraHorario);
           const envioDefaultRaw = (
             data.statusEnvio ||
@@ -2609,7 +2676,7 @@
             .trim();
           const envioStatus =
             statusKey === 'concluido'
-              ? 'enviado'
+              ? 'embalado'
               : envioDefaultRaw || 'pendente';
           const envioConfig = getListEnvioConfig(envioStatus);
           const safeDocId = JSON.stringify(doc.id || '');
@@ -2635,6 +2702,7 @@
           row.dataset.status = statusKey;
           row.dataset.docId = doc.id || '';
           row.dataset.observacao = commentText;
+          row.dataset.faltouQuantidade = faltouQuantidade;
           row.innerHTML = `
       <td>
         <div class="expedicao-list-primary">${escapeHtml(owner)}</div>
@@ -2677,9 +2745,21 @@
       <td>
         <span
           class="expedicao-status-chip ${envioConfig.className}"
-          data-role="status-envio"
+          data-role="status-embalado"
           data-default-status="${escapeHtml(envioDefaultRaw)}"
         >${(envioConfig.label || '').toUpperCase()}</span>
+      </td>
+      <td>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          class="form-control w-24 text-sm expedicao-faltou-input"
+          value="${faltouQuantidade > 0 ? faltouQuantidade : ''}"
+          placeholder="0"
+          data-role="faltou-input"
+          onchange="atualizarFaltouQuantidade(${safeDocId}, this, this.closest('tr'))"
+        />
       </td>
       <td>
         <label class="expedicao-list-status-toggle" title="Marcar como atenção">
@@ -2831,6 +2911,10 @@
         const closeModal = document.getElementById('closeModal');
 
         function visualizar(url) {
+          if (!url) {
+            showToast('Arquivo indisponível para visualização.');
+            return;
+          }
           pdfFrame.src = url;
           pdfModal.classList.remove('hidden');
         }
@@ -2849,16 +2933,11 @@
         });
 
         function imprimir(url) {
-          const win = window.open('', '_blank');
-          win.document.write(
-            '<iframe id="printFrame" width="100%" height="100%" src="' +
-              url +
-              '"></iframe>',
-          );
-          win.document.close();
-          win.focus();
-          win.onload = () =>
-            win.document.getElementById('printFrame').contentWindow.print();
+          if (!url) {
+            showToast('Arquivo indisponível para impressão.');
+            return;
+          }
+          window.open(url, '_blank', 'noopener');
         }
         window.imprimir = imprimir;
 
@@ -2929,6 +3008,39 @@
           }
         }
         window.baixarArquivo = baixarArquivo;
+
+        async function atualizarFaltouQuantidade(id, input, row) {
+          if (!id || !input) return;
+          const rawValue = typeof input.value === 'string' ? input.value.trim() : '';
+          const previousValue = row?.dataset?.faltouQuantidade;
+          const quantidade = rawValue ? parseFaltouQuantidade(rawValue) : 0;
+
+          try {
+            const docRef = db.collection('pdfDocs').doc(id);
+            if (!quantidade) {
+              await docRef.update({
+                faltouQuantidade: firebase.firestore.FieldValue.delete(),
+              });
+              applyFaltouQuantidadeToElements(id, 0);
+              if (row) row.dataset.faltouQuantidade = 0;
+              input.value = '';
+              showToast('Quantidade de faltou removida');
+              return;
+            }
+
+            await docRef.update({ faltouQuantidade: quantidade });
+            applyFaltouQuantidadeToElements(id, quantidade);
+            if (row) row.dataset.faltouQuantidade = quantidade;
+            input.value = quantidade;
+            showToast('Quantidade de faltou atualizada');
+          } catch (error) {
+            console.error('Erro ao atualizar quantidade de faltou:', error);
+            const fallback = parseFaltouQuantidade(previousValue);
+            input.value = fallback > 0 ? fallback : '';
+            showToast('Não foi possível atualizar o campo Faltou.');
+          }
+        }
+        window.atualizarFaltouQuantidade = atualizarFaltouQuantidade;
 
         async function toggleImpresso(id, checkbox, card) {
           const checked = checkbox.checked;
