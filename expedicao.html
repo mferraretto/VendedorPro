@@ -612,6 +612,7 @@
           element.textContent = (config.label || '').toUpperCase();
           element.className = `expedicao-status-chip ${config.className}`;
           element.dataset.status = status;
+          element.setAttribute('aria-pressed', status === 'embalado' ? 'true' : 'false');
         }
 
         function applyListAttentionStatus(element, isAttention) {
@@ -2384,6 +2385,7 @@
         function renderListView(container, results) {
           if (!container) return;
           container.className = 'expedicao-table-wrapper';
+          container.innerHTML = '';
           const table = document.createElement('table');
           table.className = 'expedicao-table';
           table.innerHTML = `
@@ -2518,7 +2520,8 @@
           const name = data.name || 'PDF';
           const url = data.url;
           const owner = ownerName || 'Desconhecido';
-          const safeUrl = encodeURIComponent(url || '');
+          const safeViewUrl = JSON.stringify(url || '');
+          const safeDownloadUrl = encodeURIComponent(url || '');
           const safeName = encodeURIComponent(name || 'Etiqueta');
           const createdDate =
             data.createdAt && data.createdAt.toDate
@@ -2569,8 +2572,8 @@
             </span>
           </div>
           <div class="expedicao-pdf-actions">
-            <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
-            <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
+            <button class="expedicao-card-btn" onclick="visualizar(${safeViewUrl})">Abrir</button>
+            <button class="expedicao-card-btn" onclick="baixarArquivo('${safeDownloadUrl}', '${safeName}')">Baixar</button>
             <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
           </div>
         </div>
@@ -2648,7 +2651,7 @@
               : envioDefaultRaw || 'pendente';
           const envioConfig = getListEnvioConfig(envioStatus);
           const safeDocId = JSON.stringify(doc.id || '');
-          const safeUrl = JSON.stringify(url);
+          const safeUrl = JSON.stringify(url || '');
           const safeDownloadUrl = encodeURIComponent(url || '');
           const safeDownloadName = encodeURIComponent(name || 'Etiqueta');
           const ownerUid = Array.isArray(data.ownerUid)
@@ -2730,6 +2733,10 @@
           class="expedicao-status-chip ${envioConfig.className}"
           data-role="status-envio"
           data-default-status="${escapeHtml(envioDefaultRaw)}"
+          data-status="${escapeHtml(envioStatus)}"
+          tabindex="0"
+          role="button"
+          aria-pressed="${envioStatus === 'embalado' ? 'true' : 'false'}"
         >${(envioConfig.label || '').toUpperCase()}</span>
       </td>
       <td>
@@ -2806,6 +2813,21 @@
           }
           const commentIndicator = row.querySelector('[data-role="comment-indicator"]');
           updateCommentIndicator(commentIndicator, commentText);
+          const envioBadge = row.querySelector('[data-role="status-envio"]');
+          if (envioBadge) {
+            applyListEnvioStatus(envioBadge, envioStatus);
+            const handleEnvioToggle = (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              toggleEnvioStatus(doc.id, envioBadge, row);
+            };
+            envioBadge.addEventListener('click', handleEnvioToggle);
+            envioBadge.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                handleEnvioToggle(event);
+              }
+            });
+          }
           const faltouInput = row.querySelector('[data-role="faltou-input"]');
           if (faltouInput) {
             if (faltouQuantidade !== '') {
@@ -2905,12 +2927,15 @@
           const viewerUrl = finalUrl.includes('?')
             ? `${finalUrl}&t=${Date.now()}`
             : `${finalUrl}?t=${Date.now()}`;
-          if (pdfFrame) {
+          if (pdfFrame && pdfModal) {
             pdfFrame.src = viewerUrl;
-          }
-          if (pdfModal) {
             pdfModal.classList.remove('hidden');
             pdfModal.setAttribute('aria-hidden', 'false');
+            return;
+          }
+          const win = window.open(viewerUrl, '_blank', 'noopener');
+          if (!win) {
+            showToast('Permita pop-ups para visualizar o PDF.');
           }
         }
         window.visualizar = visualizar;
@@ -2945,7 +2970,13 @@
             showToast('Arquivo PDF indisponível para impressão.');
             return;
           }
-          window.open(finalUrl, '_blank', 'noopener');
+          const printUrl = finalUrl.includes('?')
+            ? `${finalUrl}&t=${Date.now()}`
+            : `${finalUrl}?t=${Date.now()}`;
+          const win = window.open(printUrl, '_blank', 'noopener');
+          if (!win) {
+            showToast('Permita pop-ups para imprimir o PDF.');
+          }
         }
         window.imprimir = imprimir;
 
@@ -3072,7 +3103,13 @@
           const checked = checkbox.checked;
           const previousStatus =
             card?.dataset?.status || (checked ? 'nao_impresso' : 'impresso');
-          const confirmMsg = `Deseja ${checked ? 'marcar como impresso' : 'marcar como não impresso'}?`;
+          const fileName = (card?.dataset?.fileName || '').trim();
+          const actionLabel = checked
+            ? 'marcar como impresso'
+            : 'marcar como não impresso';
+          const confirmMsg = fileName
+            ? `Deseja ${actionLabel} o arquivo "${fileName}"?`
+            : `Deseja ${actionLabel}?`;
           if (!confirm(confirmMsg)) {
             checkbox.checked = !checked;
             return;
@@ -3101,7 +3138,14 @@
           const newStatus =
             current === 'impresso' ? 'nao_impresso' : 'impresso';
           const previousStatus = current;
-          const confirmMsg = `Deseja marcar como ${newStatus === 'impresso' ? 'impresso' : 'não impresso'}?`;
+          const fileName = (card?.dataset?.fileName || '').trim();
+          const actionLabel =
+            newStatus === 'impresso'
+              ? 'marcar como impresso'
+              : 'marcar como não impresso';
+          const confirmMsg = fileName
+            ? `Deseja ${actionLabel} o arquivo "${fileName}"?`
+            : `Deseja ${actionLabel}?`;
           if (!confirm(confirmMsg)) return;
 
           await db.collection('pdfDocs').doc(id).update({ status: newStatus });
@@ -3150,6 +3194,41 @@
           }
         }
         window.toggleImpressoCard = toggleImpressoCard;
+
+        async function toggleEnvioStatus(id, badge, row) {
+          if (!id || !badge) return;
+          const currentStatus = normalizeEnvioStatus(
+            badge.dataset.status || badge.dataset.defaultStatus || '',
+          );
+          const normalizedStatus = currentStatus || 'pendente';
+          const nextStatus =
+            normalizedStatus === 'embalado' ? 'pendente' : 'embalado';
+          const fileName = (row?.dataset?.fileName || '').trim();
+          const actionLabel =
+            nextStatus === 'embalado'
+              ? 'marcar como embalado'
+              : 'marcar como pendente';
+          const confirmMsg = fileName
+            ? `Deseja ${actionLabel} o arquivo "${fileName}"?`
+            : `Deseja ${actionLabel}?`;
+          if (!confirm(confirmMsg)) return;
+          try {
+            await db.collection('pdfDocs').doc(id).update({
+              statusEnvio: nextStatus,
+              envioStatus: nextStatus,
+            });
+            applyListEnvioStatus(badge, nextStatus);
+            badge.dataset.defaultStatus = nextStatus;
+            if (row) {
+              row.dataset.defaultEnvio = nextStatus;
+            }
+            showToast('Status de envio atualizado');
+          } catch (error) {
+            console.error('Erro ao atualizar status de envio:', error);
+            showToast('Não foi possível atualizar o status de envio.');
+          }
+        }
+        window.toggleEnvioStatus = toggleEnvioStatus;
 
         async function updateStatus(id, select, card) {
           const newStatus = select.value;
