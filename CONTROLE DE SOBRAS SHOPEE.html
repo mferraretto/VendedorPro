@@ -349,6 +349,30 @@ function normalizeDate(value) {
   return '';
 }
 
+function parseDiasInformados(valor) {
+  const dias = [];
+  if (Array.isArray(valor)) {
+    for (const item of valor) {
+      const normalizado = normalizeDate(item);
+      if (normalizado) dias.push(normalizado);
+    }
+  } else if (typeof valor === 'string') {
+    const partes = valor
+      .split(/[,;\n]+/)
+      .map(parte => normalizeDate(parte))
+      .filter(Boolean);
+    dias.push(...partes);
+  }
+
+  const unicos = [];
+  for (const dia of dias) {
+    if (!unicos.includes(dia)) {
+      unicos.push(dia);
+    }
+  }
+  return unicos;
+}
+
 function normalizeHeaderKey(key) {
   return String(key || '')
     .normalize('NFD')
@@ -535,7 +559,8 @@ async function processarPlanilhaVendas({
   plataforma,
   resultadoId,
   progressIds = {},
-  rowParser
+  rowParser,
+  datasInformadas = []
 }) {
   const { containerId, barId, textId } = progressIds || {};
   const progressContainer = containerId ? document.getElementById(containerId) : null;
@@ -549,6 +574,7 @@ async function processarPlanilhaVendas({
   const { baseResp, respEmail, gestorEmail, baseExp } = await obterBasesUsuario();
   const { encryptString, decryptString } = await import('./crypto.js');
   const pass = getPassphrase() || usuarioLogado.uid;
+  const diasInformados = parseDiasInformados(datasInformadas);
 
   const ref = db
     .collection('uid')
@@ -814,7 +840,8 @@ async function processarPlanilhaVendas({
     totalPedidosAtivos: qtdVendas,
     valorBruto: bruto,
     valorLiquido: liquidoTotal,
-    taxas
+    taxas,
+    diasInformados
   };
 
   await pedidosRef.doc(dataReferencia).set({ ...resumoPedidos, uid: usuarioLogado.uid }, { merge: true });
@@ -933,7 +960,8 @@ async function processarPlanilhaVendas({
     qtdVendas,
     loja,
     atualizadoEm: new Date(),
-    uid: usuarioLogado.uid
+    uid: usuarioLogado.uid,
+    diasInformados
   };
   const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
   await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
@@ -956,7 +984,8 @@ async function processarPlanilhaVendas({
     atualizadoEm: new Date(),
     uid: usuarioLogado.uid,
     resumoPorDia,
-    periodoVendas: periodoResumo
+    periodoVendas: periodoResumo,
+    diasInformados
   };
   const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
   await db
@@ -990,6 +1019,9 @@ async function processarPlanilhaVendas({
         periodoResumo.inicio === periodoResumo.fim
           ? formatDateBr(periodoResumo.inicio)
           : `${formatDateBr(periodoResumo.inicio)} até ${formatDateBr(periodoResumo.fim)}`;
+      const diasInformadosTexto = diasInformados.length
+        ? diasInformados.map(formatDateBr).join(', ')
+        : '';
       const resumoDiasHtml = resumoPorDia.length
         ? `
           <div class="mt-4">
@@ -1031,6 +1063,7 @@ async function processarPlanilhaVendas({
           <i class="fas fa-check-circle"></i> Faturamento ${escapeHtml(plataforma)} processado com sucesso!<br>
           <strong>Loja:</strong> ${escapeHtml(loja)}<br>
           <strong>Período identificado:</strong> ${periodoTexto}<br>
+          ${diasInformadosTexto ? `<strong>Dias informados:</strong> ${diasInformadosTexto}<br>` : ''}
           <strong>Bruto total:</strong> ${formatCurrency(bruto)}<br>
           <strong>Líquido total:</strong> ${formatCurrency(liquidoTotal)}<br>
           <strong>Vendas:</strong> ${qtdVendas}
@@ -6959,7 +6992,8 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
               barId: 'progressBarVendasML',
               textId: 'progressTextVendasML'
             },
-            rowParser: (row, contexto) => extrairLinhaMercadoLivre(row, contexto)
+            rowParser: (row, contexto) => extrairLinhaMercadoLivre(row, contexto),
+            datasInformadas: [dataReferencia]
           });
 
           if (resultadoProcessamento) {
@@ -6978,33 +7012,90 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
       const file = input?.files?.[0];
       if (!file) return mostrarErro('Selecione um arquivo do Tiny para importar.');
 
-      const { value: form, isConfirmed } = await Swal.fire({
-        title: 'Pedidos Tiny',
-        html: `
-          <input type="date" id="swal-data-tiny" class="swal2-input" />
-          <input type="text" id="swal-loja-tiny" class="swal2-input" placeholder="Nome da Loja" />
-        `,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Continuar',
-        preConfirm: () => {
-          const data = document.getElementById('swal-data-tiny').value;
-          const lojaNome = document.getElementById('swal-loja-tiny').value.trim();
-          if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data) || lojaNome.length < 2) {
-            Swal.showValidationMessage('Informe uma data e uma loja válidas.');
+    const { value: form, isConfirmed } = await Swal.fire({
+      title: 'Pedidos Tiny',
+      html: `
+        <div class="swal2-field" style="text-align: left">
+          <label class="swal2-label" style="margin-bottom: 0.5rem; display: block">Período da planilha</label>
+          <div class="swal2-radio-group" style="display: flex; gap: 1rem; flex-wrap: wrap">
+            <label class="swal2-radio" style="display: flex; align-items: center; gap: 0.35rem">
+              <input type="radio" name="swal-periodo-tiny" value="unico" checked />
+              <span>Um único dia</span>
+            </label>
+            <label class="swal2-radio" style="display: flex; align-items: center; gap: 0.35rem">
+              <input type="radio" name="swal-periodo-tiny" value="multiplos" />
+              <span>Vários dias</span>
+            </label>
+          </div>
+        </div>
+        <input type="date" id="swal-data-tiny" class="swal2-input" />
+        <textarea id="swal-dias-tiny" class="swal2-textarea" placeholder="Informe os dias (ex: 2024-05-01, 2024-05-02)" style="display: none"></textarea>
+        <input type="text" id="swal-loja-tiny" class="swal2-input" placeholder="Nome da Loja" />
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const dataInput = popup.querySelector('#swal-data-tiny');
+        const diasTextarea = popup.querySelector('#swal-dias-tiny');
+        const toggleCampos = () => {
+          const selecionado = popup.querySelector('input[name="swal-periodo-tiny"]:checked')?.value;
+          if (selecionado === 'multiplos') {
+            dataInput.style.display = 'none';
+            diasTextarea.style.display = '';
+          } else {
+            dataInput.style.display = '';
+            diasTextarea.style.display = 'none';
           }
-          return { data, loja: lojaNome };
+        };
+        popup
+          .querySelectorAll('input[name="swal-periodo-tiny"]')
+          .forEach(radio => radio.addEventListener('change', toggleCampos));
+        toggleCampos();
+      },
+      preConfirm: () => {
+        const popup = Swal.getPopup();
+        const tipoPeriodo = popup.querySelector('input[name="swal-periodo-tiny"]:checked')?.value || 'unico';
+        const dataSelecionada = popup.querySelector('#swal-data-tiny').value;
+        const diasTexto = popup.querySelector('#swal-dias-tiny').value;
+        const lojaNome = popup.querySelector('#swal-loja-tiny').value.trim();
+        if (lojaNome.length < 2) {
+          Swal.showValidationMessage('Informe uma loja válida.');
+          return false;
         }
-      });
-      if (!isConfirmed || !form) return;
 
-      const dataReferencia = form.data;
-      const loja = form.loja;
+        let datasPlanilha = [];
+        let dataReferencia = '';
+        if (tipoPeriodo === 'multiplos') {
+          datasPlanilha = parseDiasInformados(diasTexto);
+          if (!datasPlanilha.length) {
+            Swal.showValidationMessage('Informe ao menos um dia válido da planilha.');
+            return false;
+          }
+          dataReferencia = [...datasPlanilha].sort()[0];
+        } else {
+          if (!dataSelecionada || !/^\d{4}-\d{2}-\d{2}$/.test(dataSelecionada)) {
+            Swal.showValidationMessage('Informe uma data válida.');
+            return false;
+          }
+          dataReferencia = dataSelecionada;
+          datasPlanilha = [dataSelecionada];
+        }
 
-      const reader = new FileReader();
-      reader.onload = async function (e) {
-        try {
-          const data = new Uint8Array(e.target.result);
+        return { dataReferencia, loja: lojaNome, datasPlanilha, tipoPeriodo };
+      }
+    });
+    if (!isConfirmed || !form) return;
+
+    const dataReferencia = form.dataReferencia;
+    const loja = form.loja;
+    const datasPlanilha = Array.isArray(form.datasPlanilha) ? form.datasPlanilha : [dataReferencia];
+
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+      try {
+        const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
@@ -7026,7 +7117,8 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
               barId: 'progressBarVendasTiny',
               textId: 'progressTextVendasTiny'
             },
-            rowParser: (row, contexto) => extrairLinhaTiny(row, contexto)
+            rowParser: (row, contexto) => extrairLinhaTiny(row, contexto),
+            datasInformadas: datasPlanilha
           });
 
           if (resultadoProcessamento) {
@@ -7045,24 +7137,53 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
       const file = input.files[0];
       if (!file) return mostrarErro("Selecione um arquivo para importar.");
 
-      const { value: form, isConfirmed } = await Swal.fire({
-        title: 'Informações de Faturamento',
-        html: `\n          <input type="date" id="swal-data" class="swal2-input" />\n          <input type="text" id="swal-loja" class="swal2-input" placeholder="Nome da Loja" />\n        `,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Continuar',
-        preConfirm: () => {
-          const data = document.getElementById('swal-data').value;
-          const lojaNome = document.getElementById('swal-loja').value.trim();
-          if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data) || lojaNome.length < 2) {
-            Swal.showValidationMessage('Informe uma data e uma loja válidas.');
-          }
-          return { data, loja: lojaNome };
+    const { value: form, isConfirmed } = await Swal.fire({
+      title: 'Informações de Faturamento',
+      html: `
+        <input type="date" id="swal-data" class="swal2-input" />
+        <input type="text" id="swal-loja" class="swal2-input" placeholder="Nome da Loja" />
+        <textarea id="swal-dias-planilha" class="swal2-textarea" placeholder="Quais dias constam na planilha importada? (ex: 2024-05-01, 2024-05-02)"></textarea>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      preConfirm: () => {
+        const popup = Swal.getPopup();
+        const data = popup.querySelector('#swal-data').value;
+        const lojaNome = popup.querySelector('#swal-loja').value.trim();
+        const diasTexto = popup.querySelector('#swal-dias-planilha').value;
+        if (lojaNome.length < 2) {
+          Swal.showValidationMessage('Informe uma loja válida.');
+          return false;
         }
-      });
-      if (!isConfirmed || !form) return;
-      const dataReferencia = form.data;
-      const loja = form.loja;
+        if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+          Swal.showValidationMessage('Informe a data no formato AAAA-MM-DD.');
+          return false;
+        }
+
+        let datasPlanilha = parseDiasInformados(diasTexto);
+        let dataReferencia = data;
+
+        if (!dataReferencia && datasPlanilha.length) {
+          dataReferencia = [...datasPlanilha].sort()[0];
+        }
+
+        if (!dataReferencia) {
+          Swal.showValidationMessage('Informe ao menos uma data ou os dias presentes na planilha.');
+          return false;
+        }
+
+        if (!datasPlanilha.length) {
+          datasPlanilha = [dataReferencia];
+        }
+
+        return { dataReferencia, loja: lojaNome, datasPlanilha };
+      }
+    });
+    if (!isConfirmed || !form) return;
+    const dataReferencia = form.dataReferencia;
+    const loja = form.loja;
+    const datasPlanilha = Array.isArray(form.datasPlanilha) ? form.datasPlanilha : [dataReferencia];
 
       const reader = new FileReader();
       reader.onload = async function (e) {
@@ -7403,7 +7524,8 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
             qtdVendas: qtdVendas,
             loja: loja,
             atualizadoEm: new Date(),
-            uid: usuarioLogado.uid
+            uid: usuarioLogado.uid,
+            diasInformados: datasPlanilha
          };
           const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
           await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
@@ -7423,7 +7545,8 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
             taxasPlataforma: taxas,
             vendas: qtdVendas,
             atualizadoEm: new Date(),
-            uid: usuarioLogado.uid
+            uid: usuarioLogado.uid,
+            diasInformados: datasPlanilha
         };
           const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
 await db
@@ -7439,10 +7562,22 @@ await db
               .doc(dataReferencia)
               .set({ encrypted: encResumoResp, uid: usuarioLogado.uid }, { merge: true });
           }
+          const diasInformadosFormatados = datasPlanilha
+            .map(dia => {
+              if (typeof dia !== 'string') return '';
+              const partes = dia.split('-');
+              if (partes.length === 3) {
+                return `${partes[2]}/${partes[1]}/${partes[0]}`;
+              }
+              return dia;
+            })
+            .filter(Boolean)
+            .join(', ');
           document.getElementById("resultadoFaturamento").innerHTML = `
             <div class="alert alert-success">
               <i class="fas fa-check-circle"></i>
               Faturamento de <strong>${dataReferencia}</strong> da loja <strong>${loja}</strong> registrado com sucesso.<br>
+              ${diasInformadosFormatados ? `<strong>Dias na planilha:</strong> ${diasInformadosFormatados}<br>` : ''}
               <strong>Bruto:</strong> R$ ${bruto.toFixed(2)}<br>
               <strong>Taxas:</strong> R$ ${taxas.toFixed(2)}<br>
               <strong>Líquido:</strong> R$ ${liquido.toFixed(2)}<br>
@@ -7465,22 +7600,34 @@ await db
       const file = input?.files?.[0];
       if (!file) return mostrarErro("Selecione um arquivo para importar.");
 
-      const { value: form, isConfirmed } = await Swal.fire({
-        title: 'Importação em Massa',
-        html: `<input type="text" id="swal-loja-massa" class="swal2-input" placeholder="Nome da Loja" />`,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Continuar',
-        preConfirm: () => {
-          const lojaNome = document.getElementById('swal-loja-massa').value.trim();
-          if (lojaNome.length < 2) {
-            Swal.showValidationMessage('Informe uma loja válida.');
-          }
-          return { loja: lojaNome };
+    const { value: form, isConfirmed } = await Swal.fire({
+      title: 'Importação em Massa',
+      html: `
+        <input type="text" id="swal-loja-massa" class="swal2-input" placeholder="Nome da Loja" />
+        <textarea id="swal-dias-massa" class="swal2-textarea" placeholder="Informe os dias presentes na planilha (ex: 2024-05-01, 2024-05-02)"></textarea>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      preConfirm: () => {
+        const popup = Swal.getPopup();
+        const lojaNome = popup.querySelector('#swal-loja-massa').value.trim();
+        const diasTexto = popup.querySelector('#swal-dias-massa').value;
+        if (lojaNome.length < 2) {
+          Swal.showValidationMessage('Informe uma loja válida.');
+          return false;
         }
-      });
-      if (!isConfirmed || !form) return;
-      const loja = form.loja;
+        const diasPlanilha = parseDiasInformados(diasTexto);
+        if (!diasPlanilha.length) {
+          Swal.showValidationMessage('Informe ao menos um dia presente na planilha.');
+          return false;
+        }
+        return { loja: lojaNome, diasPlanilha };
+      }
+    });
+    if (!isConfirmed || !form) return;
+    const loja = form.loja;
+    const diasPlanilhaInformados = Array.isArray(form.diasPlanilha) ? form.diasPlanilha : [];
 
       const reader = new FileReader();
       reader.onload = async function (e) {
@@ -7981,7 +8128,8 @@ await db
               qtdVendas: grupo.qtdVendas,
               loja: loja,
               atualizadoEm: new Date(),
-              uid: usuarioLogado.uid
+              uid: usuarioLogado.uid,
+              diasInformados: diasPlanilhaInformados
             };
             const encLoja = await encryptString(JSON.stringify(lojaPayload), pass);
             await ref.set({ encrypted: encLoja, uid: usuarioLogado.uid });
@@ -8001,7 +8149,8 @@ await db
               taxasPlataforma: grupo.taxas,
               vendas: grupo.qtdVendas,
               atualizadoEm: new Date(),
-              uid: usuarioLogado.uid
+              uid: usuarioLogado.uid,
+              diasInformados: diasPlanilhaInformados
             };
             const encResumo = await encryptString(JSON.stringify(resumoPayload), pass);
             await db
@@ -8025,7 +8174,8 @@ await db
               bruto: grupo.bruto,
               taxas: grupo.taxas,
               liquido,
-              qtd: grupo.qtdVendas
+              qtd: grupo.qtdVendas,
+              diasInformados: diasPlanilhaInformados
             });
             await notificarResponsavelFinanceiro(dataReferencia, loja, grupo.bruto, liquido, grupo.qtdVendas);
           }
@@ -8038,6 +8188,20 @@ await db
           const ignorados = resultados.filter(r => r.status === 'ignorado');
 
           let html = '';
+          const diasInformadosResumo = diasPlanilhaInformados
+            .map(dia => {
+              if (typeof dia !== 'string') return '';
+              const partes = dia.split('-');
+              if (partes.length === 3) {
+                return `${partes[2]}/${partes[1]}/${partes[0]}`;
+              }
+              return dia;
+            })
+            .filter(Boolean)
+            .join(', ');
+          if (diasInformadosResumo) {
+            html += `<div class="alert alert-info mb-4"><i class="fas fa-calendar-alt"></i> Dias informados na planilha: ${diasInformadosResumo}</div>`;
+          }
           if (sucesso.length) {
             html += '<div class="alert alert-success">';
             html += '<i class="fas fa-check-circle"></i> Faturamentos processados:';
