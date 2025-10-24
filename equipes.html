@@ -833,10 +833,12 @@
             const cards = tasks
               .map((task) => {
                 const dueDate = task.dueDate ? new Date(`${task.dueDate}T00:00:00`) : null;
-                const material = task.supportMaterial ? `<div><strong>Material:</strong> ${task.supportMaterial.replace(/\n
-/g, '<br>')}</div>` : '';
-                const tips = task.tips ? `<div><strong>Dicas:</strong> ${task.tips.replace(/\n
-/g, '<br>')}</div>` : '';
+                const material = task.supportMaterial
+                  ? `<div><strong>Material:</strong> ${task.supportMaterial.replace(/\n/g, '<br>')}</div>`
+                  : '';
+                const tips = task.tips
+                  ? `<div><strong>Dicas:</strong> ${task.tips.replace(/\n/g, '<br>')}</div>`
+                  : '';
                 const responsible = resolveMemberName(ownerUid, task.responsibleEmail);
 
                 return `
@@ -901,8 +903,8 @@
                         <div class="tag"><i class="fas fa-user"></i>${update.createdBy || 'Equipe'}</div>
                       </div>
                     </header>
-                    <div>${(update.message || '').replace(/\n
-/g, '<br>')}</div>
+          <div>${(update.message || '').replace(/\n/g, '<br>')}</div>
+
                     <div class="card-footer">
                       <span>Publicado em ${createdAt}</span>
                       ${ownerUid === currentUser?.uid ? `<button type="button" data-action="delete-update" data-id="${update.id}">Excluir</button>` : ''}

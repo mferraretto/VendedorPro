@@ -1,97 +1,55 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Financeiro</title>
-    <link rel="manifest" href="financeiro-manifest.json" />
-    <meta name="theme-color" content="#6366F1" />
-    <link
-      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="css/styles.css?v=20240826" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  </head>
-  <body class="bg-gray-100 text-gray-800">
-    <div class="app-container">
-      <div id="sidebar-container"></div>
-      <div id="navbar-container"></div>
-      <main class="main-content p-4 space-y-4">
-        <div class="card p-4 flex flex-wrap items-center gap-4">
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              id="usuarioIcon"
-              class="text-blue-500 focus:outline-none"
-            >
-              <i class="fa fa-user"></i>
-            </button>
-            <div class="flex flex-col">
-              <label for="usuarioFiltro" class="text-xs font-medium"
-                >Usuário</label
-              >
-              <select
-                id="usuarioFiltro"
-                class="border rounded p-2 text-sm"
-              ></select>
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              id="mesIcon"
-              class="text-blue-500 focus:outline-none"
-            >
-              <i class="fa fa-calendar"></i>
-            </button>
-            <div class="flex flex-col">
-              <label for="mesFiltro" class="text-xs font-medium">Mês</label>
-              <input
-                type="month"
-                id="mesFiltro"
-                class="border rounded p-2 text-sm"
-              />
-            </div>
-          </div>
-        </div>
-
-        <button id="installAppBtn" class="btn btn-primary text-sm hidden">
-          Instalar aplicativo
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Financeiro</title>
+    <link rel="manifest" href="financeiro-manifest.json">
+  <meta name="theme-color" content="#6366F1">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=20240826">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="app-container">
+  <div id="sidebar-container"></div>
+  <div id="navbar-container"></div>
+  <main class="main-content p-4 space-y-4">
+    <div class="card p-4 flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-2">
+        <button type="button" id="usuarioIcon" class="text-blue-500 focus:outline-none">
+          <i class="fa fa-user"></i>
         </button>
-
-        <h3 id="contexto" class="text-sm text-gray-500"></h3>
-        <h3 id="dataAtual" class="text-sm text-gray-500"></h3>
-
-        <div id="metaSection" class="hidden flex flex-wrap gap-2 items-end">
-          <div>
-            <label for="metaValor" class="text-sm font-medium"
-              >Meta Mensal (R$)</label
-            >
-            <input
-              type="number"
-              id="metaValor"
-              class="border rounded p-2"
-              placeholder="0"
-            />
-          </div>
-          <button id="salvarMeta" class="btn btn-primary text-sm">
-            Salvar Meta
-          </button>
+        <div class="flex flex-col">
+          <label for="usuarioFiltro" class="text-xs font-medium">Usuário</label>
+          <select id="usuarioFiltro" class="border rounded p-2 text-sm"></select>
         </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" id="mesIcon" class="text-blue-500 focus:outline-none">
+          <i class="fa fa-calendar"></i>
+        </button>
+        <div class="flex flex-col">
+          <label for="mesFiltro" class="text-xs font-medium">Mês</label>
+          <input type="month" id="mesFiltro" class="border rounded p-2 text-sm" />
+        </div>
+      </div>
+    </div>
 
-        <div
-          id="overviewCards"
-          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-        ></div>
+        <button id="installAppBtn" class="btn btn-primary text-sm hidden">Instalar aplicativo</button>
+
+    <h3 id="contexto" class="text-sm text-gray-500"></h3>
+    <h3 id="dataAtual" class="text-sm text-gray-500"></h3>
+
+    <div id="metaSection" class="hidden flex flex-wrap gap-2 items-end">
+      <div>
+        <label for="metaValor" class="text-sm font-medium">Meta Mensal (R$)</label>
+        <input type="number" id="metaValor" class="border rounded p-2" placeholder="0" />
+      </div>
+      <button id="salvarMeta" class="btn btn-primary text-sm">Salvar Meta</button>
+    </div>
 
         <section id="amostragemSection" class="card hidden">
           <div class="flex flex-col gap-3">
@@ -114,75 +72,57 @@
             </p>
           </div>
         </section>
+    
 
-        <div class="card p-4">
-          <h4 class="text-sm text-gray-500 mb-2">Evolução das Vendas</h4>
-          <canvas id="vendasChart" height="120"></canvas>
-          <div
-            id="financeiroUsuarios"
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4"
-          ></div>
-        </div>
-
-        <div id="cardsContainer"></div>
-
-        <section id="saquesGestor" class="card hidden">
-          <div class="card-header flex justify-between items-center">
-            <h2 class="text-xl font-bold">Saques e Comissões</h2>
-            <div class="flex items-center gap-2">
-              <select id="percentualMarcar" class="form-control">
-                <option value="0">0%</option>
-                <option value="0.03">3%</option>
-                <option value="0.04">4%</option>
-                <option value="0.05">5%</option>
-              </select>
-              <button id="btnMarcarPago" class="btn btn-primary text-sm">
-                Marcar como Pago
-              </button>
-            </div>
-          </div>
-          <div
-            id="cardsResumoFinanceiro"
-            class="card-body grid grid-cols-1 md:grid-cols-4 gap-4 text-center"
-          ></div>
-          <p
-            id="faltasTextoFinanceiro"
-            class="px-4 pb-4 text-center text-sm text-gray-600"
-          ></p>
-          <div class="card-body overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-4 py-2">
-                    <input type="checkbox" id="chkSaquesFinanceiro" />
-                  </th>
-                  <th class="px-4 py-2 text-left">Data</th>
-                  <th class="px-4 py-2 text-left">Loja</th>
-                  <th class="px-4 py-2 text-right">Saque</th>
-                  <th class="px-4 py-2 text-right">%</th>
-                  <th class="px-4 py-2 text-right">Comissão</th>
-                  <th class="px-4 py-2 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody
-                id="tbodySaquesFinanceiro"
-                class="divide-y divide-gray-200"
-              ></tbody>
-            </table>
-          </div>
-          <div
-            class="card-footer text-right text-sm"
-            id="resumoSaquesFinanceiro"
-          ></div>
-        </section>
-      </main>
-      <script>
-        window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
-        window.CUSTOM_NAVBAR_PATH = '/partials/navbar.html';
-      </script>
-      <script src="shared.js"></script>
-      <script type="module" src="firebase-config.js"></script>
-      <script type="module" src="financeiro.js"></script>
+    <div class="card p-4">
+      <h4 class="text-sm text-gray-500 mb-2">Evolução das Vendas</h4>
+      <canvas id="vendasChart" height="120"></canvas>
+      <div id="financeiroUsuarios" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4"></div>
     </div>
-  </body>
+
+    <div id="cardsContainer"></div>
+
+    <section id="saquesGestor" class="card hidden">
+      <div class="card-header flex justify-between items-center">
+        <h2 class="text-xl font-bold">Saques e Comissões</h2>
+        <div class="flex items-center gap-2">
+          <select id="percentualMarcar" class="form-control">
+            <option value="0">0%</option>
+            <option value="0.03">3%</option>
+            <option value="0.04">4%</option>
+            <option value="0.05">5%</option>
+          </select>
+          <button id="btnMarcarPago" class="btn btn-primary text-sm">Marcar como Pago</button>
+        </div>
+      </div>
+      <div id="cardsResumoFinanceiro" class="card-body grid grid-cols-1 md:grid-cols-4 gap-4 text-center"></div>
+      <p id="faltasTextoFinanceiro" class="px-4 pb-4 text-center text-sm text-gray-600"></p>
+      <div class="card-body overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2"><input type="checkbox" id="chkSaquesFinanceiro" /></th>
+              <th class="px-4 py-2 text-left">Data</th>
+              <th class="px-4 py-2 text-left">Loja</th>
+              <th class="px-4 py-2 text-right">Saque</th>
+              <th class="px-4 py-2 text-right">%</th>
+              <th class="px-4 py-2 text-right">Comissão</th>
+              <th class="px-4 py-2 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbodySaquesFinanceiro" class="divide-y divide-gray-200"></tbody>
+        </table>
+      </div>
+      <div class="card-footer text-right text-sm" id="resumoSaquesFinanceiro"></div>
+    </section>
+  </main>
+  <script>
+    window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
+    window.CUSTOM_NAVBAR_PATH = '/partials/navbar.html';
+  </script>
+  <script src="shared.js"></script>
+  <script type="module" src="firebase-config.js"></script>
+  <script type="module" src="financeiro.js"></script>
+    </div>
+</body>
 </html>

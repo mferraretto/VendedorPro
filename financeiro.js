@@ -227,7 +227,6 @@ async function carregar() {
     carregarDevolucoes(listaUsuarios, mes),
   ]);
   renderResumoUsuarios(Object.values(resumoUsuarios));
-  await carregarAmostragemSkus(uid !== 'todos' ? uid : null);
   renderTabelaSaques();
   if (uid !== 'todos') {
     assistirResumoFinanceiro(uid, mes);
@@ -287,13 +286,6 @@ function formatMes(date) {
   const ano = date.getFullYear();
   const mes = String(date.getMonth() + 1).padStart(2, '0');
   return `${ano}-${mes}`;
-}
-
-function formatDateISO(date) {
-  const ano = date.getFullYear();
-  const mes = String(date.getMonth() + 1).padStart(2, '0');
-  const dia = String(date.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
 }
 
 function sameMonth(a, b) {
@@ -658,6 +650,7 @@ async function carregarAmostragemSkus(uid) {
     emptyEl.classList.remove('hidden');
   }
 }
+
 
 async function calcularFaturamentoDiaDetalhado(uid, dia) {
   const lojasSnap = await getDocs(
