@@ -594,10 +594,12 @@ async function carregarAmostragemSkus(uid) {
     const itens = Array.from(agregador.entries())
       .map(([sku, info]) => {
         const diasCount = info.dias.size;
+        const mediaLiquido =
+          info.quantidade > 0 ? info.valorLiquido / info.quantidade : 0;
         return {
           sku,
           quantidade: info.quantidade,
-          mediaLiquido: diasCount ? info.valorLiquido / diasCount : 0,
+          mediaLiquido,
           dias: diasCount,
         };
       })
