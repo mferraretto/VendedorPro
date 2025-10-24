@@ -2573,6 +2573,7 @@
 
         function createPdfCard(doc, ownerName) {
           const data = doc.data();
+          const docId = doc.id || '';
           const rawStatus = data.status || 'nao_impresso';
           const statusKey = STATUS_UI_CONFIG[rawStatus]
             ? rawStatus
@@ -2620,9 +2621,9 @@
               <i class="fas fa-comment-dots"></i>
             </button>
             <button
+              type="button"
               class="expedicao-status-button ${statusData.buttonClass}"
-              data-status="${statusKey}"
-              onclick="toggleImpressoCard('${doc.id}', this, this.closest('.pdf-card'))"
+              data-role="status-button"
             >${buildStatusButtonContent(statusData)}</button>
           </div>
         </div>
@@ -2634,9 +2635,9 @@
             </span>
           </div>
           <div class="expedicao-pdf-actions">
-            <button class="expedicao-card-btn" onclick="visualizar('${url}')">Abrir</button>
-            <button class="expedicao-card-btn" onclick="baixarArquivo('${safeUrl}', '${safeName}')">Baixar</button>
-            <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
+            <button type="button" class="expedicao-card-btn" data-role="open-btn">Abrir</button>
+            <button type="button" class="expedicao-card-btn" data-role="download-btn">Baixar</button>
+            <button type="button" class="expedicao-card-btn expedicao-card-btn--danger" data-role="delete-btn">Excluir</button>
           </div>
         </div>
         <div class="expedicao-pdf-body">
@@ -2656,22 +2657,55 @@
           div.dataset.ownerEmail = data.ownerEmail || '';
           div.dataset.fileName = name;
           div.dataset.status = statusKey;
-          div.dataset.docId = doc.id || '';
+          div.dataset.docId = docId;
           div.dataset.observacao = commentText;
           const commentButton = div.querySelector('[data-role="comment-button"]');
           if (commentButton) {
-            commentButton.dataset.docId = doc.id || '';
+            commentButton.dataset.docId = docId;
             commentButton.addEventListener('click', (event) => {
               event.stopPropagation();
-              openCommentModal(doc.id, div.dataset.observacao || '');
+              openCommentModal(docId, div.dataset.observacao || '');
             });
             updateCommentButtonAppearance(commentButton, commentText);
+          }
+          const statusButton = div.querySelector('[data-role="status-button"]');
+          if (statusButton) {
+            statusButton.dataset.status = statusKey;
+            statusButton.addEventListener('click', (event) => {
+              event.preventDefault();
+              toggleImpressoCard(docId, statusButton, div);
+            });
+          }
+          const openButton = div.querySelector('[data-role="open-btn"]');
+          if (openButton) {
+            openButton.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              visualizar(url);
+            });
+          }
+          const downloadButton = div.querySelector('[data-role="download-btn"]');
+          if (downloadButton) {
+            downloadButton.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              baixarArquivo(safeUrl, safeName);
+            });
+          }
+          const deleteButton = div.querySelector('[data-role="delete-btn"]');
+          if (deleteButton) {
+            deleteButton.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              excluirEtiqueta(docId, div);
+            });
           }
           return div;
         }
 
         function createPdfListItem(doc, ownerName) {
           const data = doc.data();
+          const docId = doc.id || '';
           const rawStatus = data.status || 'nao_impresso';
           const statusKey = STATUS_UI_CONFIG[rawStatus]
             ? rawStatus
@@ -2712,7 +2746,6 @@
               ? 'embalado'
               : envioDefaultRaw || 'pendente';
           const envioConfig = getListEnvioConfig(envioStatus);
-          const safeDocId = JSON.stringify(doc.id || '');
           const safeUrlAttr = encodeURIComponent(url || '');
           const safeDownloadUrl = encodeURIComponent(url || '');
           const safeDownloadName = encodeURIComponent(name || 'Etiqueta');
@@ -2733,7 +2766,7 @@
           row.dataset.ownerEmail = data.ownerEmail || '';
           row.dataset.fileName = name;
           row.dataset.status = statusKey;
-          row.dataset.docId = doc.id || '';
+          row.dataset.docId = docId;
           row.dataset.observacao = commentText;
           row.dataset.faltouQuantidade =
             faltouQuantidade === '' ? '' : String(faltouQuantidade);
@@ -2782,7 +2815,6 @@
             data-role="impressao-toggle"
             ${statusKey !== 'nao_impresso' ? 'checked' : ''}
             ${statusKey === 'concluido' ? 'disabled' : ''}
-            onchange="toggleImpresso(${safeDocId}, this, this.closest('tr'))"
           />
           <span
             class="expedicao-status-chip expedicao-status-chip--${statusKey}"
@@ -2803,7 +2835,6 @@
             type="checkbox"
             data-role="attention-toggle"
             ${attention ? 'checked' : ''}
-            onchange="toggleAtencao(${safeDocId}, this, this.closest('tr'))"
           />
           <span
             class="expedicao-status-chip ${
@@ -2847,7 +2878,7 @@
             type="button"
             class="expedicao-icon-btn"
             title="Baixar"
-            onclick="baixarArquivo('${safeDownloadUrl}', '${safeDownloadName}')"
+            data-role="download-btn"
           >
             <i class="fas fa-download"></i>
           </button>
@@ -2855,7 +2886,7 @@
             type="button"
             class="expedicao-icon-btn expedicao-icon-btn--success"
             title="Concluir"
-            onclick="marcarConcluido(${safeDocId}, this.closest('tr'))"
+            data-role="concluir-btn"
           >
             <i class="fas fa-check"></i>
           </button>
@@ -2863,7 +2894,7 @@
             type="button"
             class="expedicao-icon-btn expedicao-icon-btn--danger"
             title="Excluir"
-            onclick="excluirEtiqueta(${safeDocId}, this.closest('tr'))"
+            data-role="excluir-btn"
           >
             <i class="fas fa-trash"></i>
           </button>
@@ -2873,12 +2904,12 @@
           row.dataset.statusEnvioAtual = envioStatus;
           const commentButton = row.querySelector('[data-role="comment-button"]');
           if (commentButton) {
-            commentButton.dataset.docId = doc.id || '';
+            commentButton.dataset.docId = docId;
             commentButton.addEventListener('click', (event) => {
               event.stopPropagation();
               const container = commentButton.closest('[data-doc-id]');
               const currentComment = container?.dataset?.observacao || '';
-              openCommentModal(doc.id, currentComment);
+              openCommentModal(docId, currentComment);
             });
             updateCommentButtonAppearance(commentButton, commentText);
           }
@@ -2889,9 +2920,9 @@
             if (faltouQuantidade !== '') {
               faltouInput.value = faltouQuantidade;
             }
-            faltouInput.addEventListener('change', () => {
-              atualizarFaltouQuantidade(doc.id, faltouInput, row);
-            });
+              faltouInput.addEventListener('change', () => {
+                atualizarFaltouQuantidade(docId, faltouInput, row);
+              });
             faltouInput.addEventListener('keydown', (event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
@@ -2922,7 +2953,43 @@
             envioBadge.addEventListener('click', async (event) => {
               event.preventDefault();
               event.stopPropagation();
-              await handleEnvioBadgeClick(doc.id, row, envioBadge);
+              await handleEnvioBadgeClick(docId, row, envioBadge);
+            });
+          }
+          const impressaoToggle = row.querySelector('[data-role="impressao-toggle"]');
+          if (impressaoToggle) {
+            impressaoToggle.addEventListener('change', () => {
+              toggleImpresso(docId, impressaoToggle, row);
+            });
+          }
+          const attentionToggle = row.querySelector('[data-role="attention-toggle"]');
+          if (attentionToggle) {
+            attentionToggle.addEventListener('change', () => {
+              toggleAtencao(docId, attentionToggle, row);
+            });
+          }
+          const downloadBtn = row.querySelector('[data-role="download-btn"]');
+          if (downloadBtn) {
+            downloadBtn.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              baixarArquivo(safeDownloadUrl, safeDownloadName);
+            });
+          }
+          const concluirBtn = row.querySelector('[data-role="concluir-btn"]');
+          if (concluirBtn) {
+            concluirBtn.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              marcarConcluido(docId, row);
+            });
+          }
+          const excluirBtn = row.querySelector('[data-role="excluir-btn"]');
+          if (excluirBtn) {
+            excluirBtn.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              excluirEtiqueta(docId, row);
             });
           }
           return row;
