@@ -229,16 +229,9 @@ async function carregar() {
   ]);
   renderResumoUsuarios(Object.values(resumoUsuarios));
   renderTabelaSaques();
-  if (uid !== 'todos') {
-    carregarAmostragem(uid).catch((err) =>
-      console.error('Falha ao atualizar amostragem:', err),
-    );
-  } else {
-    amostragemLoadToken++;
-    renderAmostragemMessage(
-      'Selecione um usuário para visualizar a amostragem.',
-    );
-  }
+  carregarAmostragem(listaUsuarios).catch((err) =>
+    console.error('Falha ao atualizar amostragem:', err),
+  );
   if (uid !== 'todos') {
     assistirResumoFinanceiro(uid, mes);
   } else {
@@ -374,11 +367,25 @@ function renderAmostragemLista(itens) {
   );
 }
 
-async function carregarAmostragem(uid) {
+async function carregarAmostragem(usuarios) {
   const container = document.getElementById('amostragemContainer');
   if (!container) return;
   const token = ++amostragemLoadToken;
-  if (!uid) {
+  const lista = [];
+  const vistos = new Set();
+  if (Array.isArray(usuarios)) {
+    for (const usuario of usuarios) {
+      if (!usuario) continue;
+      const uid =
+        typeof usuario === 'string'
+          ? usuario
+          : usuario.uid || usuario.id || usuario.uidUsuario;
+      if (!uid || vistos.has(uid)) continue;
+      vistos.add(uid);
+      lista.push({ uid });
+    }
+  }
+  if (!lista.length) {
     renderAmostragemMessage(
       'Selecione um usuário para visualizar a amostragem.',
     );
@@ -386,58 +393,71 @@ async function carregarAmostragem(uid) {
   }
   renderAmostragemMessage('Carregando amostragem...');
   try {
-    const diasRef = collection(db, `uid/${uid}/skusVendidos`);
-    const diasSnap = await getDocs(
-      query(diasRef, orderBy('data', 'desc'), limit(15)),
-    );
-    if (token !== amostragemLoadToken) return;
-    if (diasSnap.empty) {
-      renderAmostragemMessage('Sem dados de vendas recentes para exibir.');
-      return;
-    }
-
     const acumulado = new Map();
     const passphrase = getPassphrase();
-    for (const diaDoc of diasSnap.docs) {
-      const listaRef = collection(
-        db,
-        `uid/${uid}/skusVendidos/${diaDoc.id}/lista`,
-      );
-      const listaSnap = await getDocs(listaRef);
-      if (token !== amostragemLoadToken) return;
-      for (const itemDoc of listaSnap.docs) {
-        let dados = itemDoc.data() || {};
-        if (dados.encrypted) {
-          const candidatos = [passphrase, `chave-${uid}`, uid].filter(Boolean);
-          let texto = null;
-          for (const chave of candidatos) {
-            if (!chave) continue;
-            try {
-              texto = await decryptString(dados.encrypted, chave);
-              if (texto) break;
-            } catch (_) {
-              // tenta próxima chave
+    for (const usuario of lista) {
+      const { uid } = usuario;
+      if (!uid) continue;
+      try {
+        const diasRef = collection(db, `uid/${uid}/skusVendidos`);
+        const diasSnap = await getDocs(
+          query(diasRef, orderBy('data', 'desc'), limit(15)),
+        );
+        if (token !== amostragemLoadToken) return;
+        if (diasSnap.empty) {
+          continue;
+        }
+
+        for (const diaDoc of diasSnap.docs) {
+          const listaRef = collection(
+            db,
+            `uid/${uid}/skusVendidos/${diaDoc.id}/lista`,
+          );
+          const listaSnap = await getDocs(listaRef);
+          if (token !== amostragemLoadToken) return;
+          for (const itemDoc of listaSnap.docs) {
+            let dados = itemDoc.data() || {};
+            if (dados.encrypted) {
+              const candidatos = [passphrase, `chave-${uid}`, uid].filter(
+                Boolean,
+              );
+              let texto = null;
+              for (const chave of candidatos) {
+                if (!chave) continue;
+                try {
+                  texto = await decryptString(dados.encrypted, chave);
+                  if (texto) break;
+                } catch (_) {
+                  // tenta próxima chave
+                }
+              }
+              if (texto) {
+                try {
+                  dados = JSON.parse(texto);
+                } catch (_) {
+                  continue;
+                }
+              } else {
+                continue;
+              }
             }
-          }
-          if (texto) {
-            try {
-              dados = JSON.parse(texto);
-            } catch (_) {
-              continue;
-            }
-          } else {
-            continue;
+            const sku = dados.sku || itemDoc.id;
+            const total = Number(dados.total) || 0;
+            const liquido = Number(dados.valorLiquido || dados.valor || 0);
+            if (!sku) continue;
+            const atual = acumulado.get(sku) || { total: 0, liquido: 0 };
+            atual.total += total;
+            atual.liquido += liquido;
+            acumulado.set(sku, atual);
           }
         }
-        const sku = dados.sku || itemDoc.id;
-        const total = Number(dados.total) || 0;
-        const liquido = Number(dados.valorLiquido || dados.valor || 0);
-        if (!sku) continue;
-        const atual = acumulado.get(sku) || { total: 0, liquido: 0 };
-        atual.total += total;
-        atual.liquido += liquido;
-        acumulado.set(sku, atual);
+      } catch (errUsuario) {
+        console.error(
+          `Erro ao carregar amostragem do usuário ${uid}:`,
+          errUsuario,
+        );
       }
+      if (token !== amostragemLoadToken) return;
     }
     if (token !== amostragemLoadToken) return;
     const itensOrdenados = Array.from(acumulado.entries())
