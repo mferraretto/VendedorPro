@@ -111,6 +111,13 @@ const EXPEDICAO_ALLOWED_MENU_IDS = [
   'menu-configuracoes',
   'menu-painel-atualizacoes-gerais',
 ];
+const SELLER_ALLOWED_MENU_IDS = [
+  'menu-seller-expedicao',
+  'menu-etiqueta-shopee',
+  'menu-email-expedicao',
+  'menu-configuracao-perfil',
+  'menu-catalogo',
+];
 const DEFAULT_MEETING_NAVBAR_TITLE = 'Reuniões agendadas';
 let notifUnsub = null;
 let expNotifUnsub = null;
@@ -322,7 +329,7 @@ async function showUserArea(user) {
     applyPerfilRestrictions(perfil);
 
     // 2) verifica associação com expedição (gestor ou responsável)
-    if (perfil !== 'expedicao') {
+    if (!['expedicao', 'seller'].includes(perfil)) {
       await checkExpedicao(user);
     }
 
@@ -446,6 +453,7 @@ function normalizePerfil(perfil) {
     ].includes(base)
   )
     return 'gestor';
+  if (['seller', 'vendedor'].includes(base)) return 'seller';
   if (['expedicao', 'gestor expedicao', 'gestor de expedicao'].includes(base))
     return 'expedicao';
   return base;
@@ -510,6 +518,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-sku-associado',
       'menu-desempenho',
     ],
+    seller: SELLER_ALLOWED_MENU_IDS,
     expedicao: EXPEDICAO_ALLOWED_MENU_IDS,
   };
 
