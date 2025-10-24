@@ -118,6 +118,13 @@ const SELLER_ALLOWED_MENU_IDS = [
   'menu-configuracao-perfil',
   'menu-catalogo',
 ];
+const POSVENDAS_ALLOWED_MENU_IDS = [
+  'menu-painel-atualizacoes-gerais',
+  'menu-acompanhamento-diario',
+  'menu-expedicao',
+  'menu-acompanhamento-problemas',
+  'menu-catalogo',
+];
 
 const EXPEDICAO_ALLOWED_SUBMENU_LINKS = {
   menuExpedicao: null,
@@ -335,6 +342,19 @@ async function showUserArea(user) {
       }
     }
 
+    if (perfil === 'posvendas') {
+      const path = window.location.pathname.toLowerCase();
+      if (
+        path.endsWith('/index.html') ||
+        path.endsWith('/login.html') ||
+        path.endsWith('/')
+      ) {
+        window.location.href =
+          'CONTROLE%20DE%20SOBRAS%20SHOPEE.html?tab=diariamente';
+        return;
+      }
+    }
+
     // 1) aplica restrições de UI
     applyPerfilRestrictions(perfil);
 
@@ -529,6 +549,8 @@ function normalizePerfil(perfil) {
   if (['seller', 'vendedor'].includes(base)) return 'seller';
   if (['expedicao', 'gestor expedicao', 'gestor de expedicao'].includes(base))
     return 'expedicao';
+  if (['posvendas', 'pos-vendas', 'pos vendas'].includes(base))
+    return 'posvendas';
   return base;
 }
 function applyPerfilRestrictions(perfil) {
@@ -592,6 +614,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-desempenho',
     ],
     seller: SELLER_ALLOWED_MENU_IDS,
+    posvendas: POSVENDAS_ALLOWED_MENU_IDS,
     expedicao: EXPEDICAO_ALLOWED_MENU_IDS,
   };
 
