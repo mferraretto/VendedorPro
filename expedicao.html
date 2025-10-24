@@ -2520,7 +2520,7 @@
           const name = data.name || 'PDF';
           const url = data.url;
           const owner = ownerName || 'Desconhecido';
-          const safeViewUrl = JSON.stringify(url || '');
+          const docId = doc.id || '';
           const safeDownloadUrl = encodeURIComponent(url || '');
           const safeName = encodeURIComponent(name || 'Etiqueta');
           const createdDate =
@@ -2560,7 +2560,7 @@
             <button
               class="expedicao-status-button ${statusData.buttonClass}"
               data-status="${statusKey}"
-              onclick="toggleImpressoCard('${doc.id}', this, this.closest('.pdf-card'))"
+              data-role="status-toggle"
             >${buildStatusButtonContent(statusData)}</button>
           </div>
         </div>
@@ -2572,9 +2572,9 @@
             </span>
           </div>
           <div class="expedicao-pdf-actions">
-            <button class="expedicao-card-btn" onclick="visualizar(${safeViewUrl})">Abrir</button>
-            <button class="expedicao-card-btn" onclick="baixarArquivo('${safeDownloadUrl}', '${safeName}')">Baixar</button>
-            <button class="expedicao-card-btn expedicao-card-btn--danger" onclick="excluirEtiqueta('${doc.id}', this.closest('.pdf-card'))">Excluir</button>
+            <button class="expedicao-card-btn" data-role="view-button">Abrir</button>
+            <button class="expedicao-card-btn" data-role="download-button">Baixar</button>
+            <button class="expedicao-card-btn expedicao-card-btn--danger" data-role="delete-button">Excluir</button>
           </div>
         </div>
         <div class="expedicao-pdf-body">
@@ -2594,17 +2594,46 @@
           div.dataset.ownerEmail = data.ownerEmail || '';
           div.dataset.fileName = name;
           div.dataset.status = statusKey;
-          div.dataset.docId = doc.id || '';
+          div.dataset.docId = docId;
           div.dataset.observacao = commentText;
           const commentButton = div.querySelector('[data-role="comment-button"]');
           if (commentButton) {
-            commentButton.dataset.docId = doc.id || '';
+            commentButton.dataset.docId = docId;
             commentButton.addEventListener('click', (event) => {
               event.stopPropagation();
-              openCommentModal(doc.id, div.dataset.observacao || '');
+              openCommentModal(docId, div.dataset.observacao || '');
             });
             updateCommentButtonAppearance(commentButton, commentText);
           }
+
+          const viewButton = div.querySelector('[data-role="view-button"]');
+          if (viewButton) {
+            viewButton.addEventListener('click', () => {
+              visualizar(url || '');
+            });
+          }
+
+          const downloadButton = div.querySelector('[data-role="download-button"]');
+          if (downloadButton) {
+            downloadButton.addEventListener('click', () => {
+              baixarArquivo(safeDownloadUrl, safeName);
+            });
+          }
+
+          const deleteButton = div.querySelector('[data-role="delete-button"]');
+          if (deleteButton) {
+            deleteButton.addEventListener('click', () => {
+              excluirEtiqueta(docId, div);
+            });
+          }
+
+          const statusButton = div.querySelector('[data-role="status-toggle"]');
+          if (statusButton) {
+            statusButton.addEventListener('click', function () {
+              toggleImpressoCard(docId, this, div);
+            });
+          }
+
           return div;
         }
 
@@ -2618,6 +2647,7 @@
           const attention = Boolean(data.attention);
           const name = data.name || 'PDF';
           const owner = ownerName || 'Desconhecido';
+          const docId = doc.id || '';
           const ownerEmail = data.ownerEmail || '';
           const url = data.url || '';
           const createdDate =
@@ -2650,8 +2680,7 @@
               ? 'embalado'
               : envioDefaultRaw || 'pendente';
           const envioConfig = getListEnvioConfig(envioStatus);
-          const safeDocId = JSON.stringify(doc.id || '');
-          const safeUrl = JSON.stringify(url || '');
+          const safeDocId = JSON.stringify(docId);
           const safeDownloadUrl = encodeURIComponent(url || '');
           const safeDownloadName = encodeURIComponent(name || 'Etiqueta');
           const ownerUid = Array.isArray(data.ownerUid)
@@ -2671,7 +2700,7 @@
           row.dataset.ownerEmail = data.ownerEmail || '';
           row.dataset.fileName = name;
           row.dataset.status = statusKey;
-          row.dataset.docId = doc.id || '';
+          row.dataset.docId = docId;
           row.dataset.observacao = commentText;
           row.dataset.faltouQuantidade =
             faltouQuantidade === '' ? '' : String(faltouQuantidade);
@@ -2767,17 +2796,17 @@
           >
             <i class="fas fa-comment-dots"></i>
           </button>
-          <button type="button" class="expedicao-icon-btn" title="Visualizar" onclick="visualizar(${safeUrl})">
+          <button type="button" class="expedicao-icon-btn" title="Visualizar" data-role="view-button">
             <i class="fas fa-eye"></i>
           </button>
-          <button type="button" class="expedicao-icon-btn" title="Imprimir" onclick="imprimir(${safeUrl})">
+          <button type="button" class="expedicao-icon-btn" title="Imprimir" data-role="print-button">
             <i class="fas fa-print"></i>
           </button>
           <button
             type="button"
             class="expedicao-icon-btn"
             title="Baixar"
-            onclick="baixarArquivo('${safeDownloadUrl}', '${safeDownloadName}')"
+            data-role="download-button"
           >
             <i class="fas fa-download"></i>
           </button>
@@ -2793,7 +2822,7 @@
             type="button"
             class="expedicao-icon-btn expedicao-icon-btn--danger"
             title="Excluir"
-            onclick="excluirEtiqueta(${safeDocId}, this.closest('tr'))"
+            data-role="delete-button"
           >
             <i class="fas fa-trash"></i>
           </button>
@@ -2802,12 +2831,12 @@
           row.dataset.defaultEnvio = envioDefaultRaw;
           const commentButton = row.querySelector('[data-role="comment-button"]');
           if (commentButton) {
-            commentButton.dataset.docId = doc.id || '';
+            commentButton.dataset.docId = docId;
             commentButton.addEventListener('click', (event) => {
               event.stopPropagation();
               const container = commentButton.closest('[data-doc-id]');
               const currentComment = container?.dataset?.observacao || '';
-              openCommentModal(doc.id, currentComment);
+              openCommentModal(docId, currentComment);
             });
             updateCommentButtonAppearance(commentButton, commentText);
           }
@@ -2819,7 +2848,7 @@
             const handleEnvioToggle = (event) => {
               event.preventDefault();
               event.stopPropagation();
-              toggleEnvioStatus(doc.id, envioBadge, row);
+              toggleEnvioStatus(docId, envioBadge, row);
             };
             envioBadge.addEventListener('click', handleEnvioToggle);
             envioBadge.addEventListener('keydown', (event) => {
@@ -2834,7 +2863,7 @@
               faltouInput.value = faltouQuantidade;
             }
             faltouInput.addEventListener('change', () => {
-              atualizarFaltouQuantidade(doc.id, faltouInput, row);
+              atualizarFaltouQuantidade(docId, faltouInput, row);
             });
             faltouInput.addEventListener('keydown', (event) => {
               if (event.key === 'Enter') {
@@ -2843,6 +2872,34 @@
               }
             });
           }
+          const viewButton = row.querySelector('[data-role="view-button"]');
+          if (viewButton) {
+            viewButton.addEventListener('click', () => {
+              visualizar(url || '');
+            });
+          }
+
+          const printButton = row.querySelector('[data-role="print-button"]');
+          if (printButton) {
+            printButton.addEventListener('click', () => {
+              imprimir(url || '');
+            });
+          }
+
+          const downloadButton = row.querySelector('[data-role="download-button"]');
+          if (downloadButton) {
+            downloadButton.addEventListener('click', () => {
+              baixarArquivo(safeDownloadUrl, safeDownloadName);
+            });
+          }
+
+          const deleteButton = row.querySelector('[data-role="delete-button"]');
+          if (deleteButton) {
+            deleteButton.addEventListener('click', () => {
+              excluirEtiqueta(docId, row);
+            });
+          }
+
           return row;
         }
 
