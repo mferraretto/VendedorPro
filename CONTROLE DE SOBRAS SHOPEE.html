@@ -7604,22 +7604,92 @@ await db
       title: 'Importação em Massa',
       html: `
         <input type="text" id="swal-loja-massa" class="swal2-input" placeholder="Nome da Loja" />
-        <textarea id="swal-dias-massa" class="swal2-textarea" placeholder="Informe os dias presentes na planilha (ex: 2024-05-01, 2024-05-02)"></textarea>
+        <div id="swal-dias-massa-container" class="swal2-field" style="display:flex; flex-direction:column; gap:0.75rem;">
+          <label for="swal-dia-massa" style="font-size:0.85rem; text-align:left;">Selecione os dias presentes na planilha</label>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <input type="date" id="swal-dia-massa" class="swal2-input" style="margin:0;" />
+            <button type="button" id="swal-add-dia" class="swal2-styled" style="margin:0; background-color:#2563eb;">
+              Adicionar dia
+            </button>
+          </div>
+          <ul id="swal-dias-lista" style="list-style:none; padding:0; margin:0; text-align:left; font-size:0.85rem;"></ul>
+        </div>
       `,
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: 'Continuar',
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const dateInput = popup.querySelector('#swal-dia-massa');
+        const addButton = popup.querySelector('#swal-add-dia');
+        const list = popup.querySelector('#swal-dias-lista');
+        popup.diasSelecionados = [];
+
+        const renderLista = () => {
+          if (!Array.isArray(popup.diasSelecionados) || popup.diasSelecionados.length === 0) {
+            list.innerHTML = '<li style="color:#6b7280;">Nenhum dia selecionado ainda.</li>';
+            return;
+          }
+
+          const itens = popup.diasSelecionados
+            .slice()
+            .sort()
+            .map(dia => `
+              <li style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.35rem;">
+                <span>${dia}</span>
+                <button type="button" class="swal2-styled" data-remove-dia="${dia}" style="margin:0; padding:0.25rem 0.5rem; background-color:#ef4444;">
+                  Remover
+                </button>
+              </li>
+            `)
+            .join('');
+          list.innerHTML = itens;
+        };
+
+        const adicionarDia = () => {
+          const diaSelecionado = dateInput.value;
+          Swal.resetValidationMessage();
+          if (!diaSelecionado) {
+            Swal.showValidationMessage('Selecione um dia no calendário.');
+            return;
+          }
+          if (!popup.diasSelecionados.includes(diaSelecionado)) {
+            popup.diasSelecionados.push(diaSelecionado);
+          }
+          dateInput.value = '';
+          renderLista();
+        };
+
+        addButton.addEventListener('click', adicionarDia);
+        dateInput.addEventListener('keydown', event => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            adicionarDia();
+          }
+        });
+
+        list.addEventListener('click', event => {
+          const botaoRemover = event.target.closest('[data-remove-dia]');
+          if (botaoRemover) {
+            const dia = botaoRemover.getAttribute('data-remove-dia');
+            popup.diasSelecionados = popup.diasSelecionados.filter(item => item !== dia);
+            renderLista();
+          }
+        });
+
+        renderLista();
+      },
       preConfirm: () => {
         const popup = Swal.getPopup();
         const lojaNome = popup.querySelector('#swal-loja-massa').value.trim();
-        const diasTexto = popup.querySelector('#swal-dias-massa').value;
+        const diasSelecionados = Array.isArray(popup.diasSelecionados) ? popup.diasSelecionados : [];
         if (lojaNome.length < 2) {
           Swal.showValidationMessage('Informe uma loja válida.');
           return false;
         }
-        const diasPlanilha = parseDiasInformados(diasTexto);
+        const diasPlanilha = parseDiasInformados(diasSelecionados);
         if (!diasPlanilha.length) {
-          Swal.showValidationMessage('Informe ao menos um dia presente na planilha.');
+          Swal.showValidationMessage('Selecione ao menos um dia no calendário.');
           return false;
         }
         return { loja: lojaNome, diasPlanilha };
