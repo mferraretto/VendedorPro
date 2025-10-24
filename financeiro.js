@@ -16,6 +16,7 @@ import {
   endAt,
   startAfter,
   getDocs,
+  limit,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getAuth,
@@ -38,11 +39,11 @@ let dadosSaquesExport = [];
 let dadosFaturamentoExport = [];
 let resumoUsuarios = {};
 let kpiUnsubs = [];
-let vendasChart;
 let resumoUnsub = null;
 let currentUser = null;
 
 const metaPerfilCache = new Map();
+let amostragemLoadToken = 0;
 
 function parseMetaValor(meta) {
   if (typeof meta === 'number' && Number.isFinite(meta)) {
@@ -229,6 +230,16 @@ async function carregar() {
   renderResumoUsuarios(Object.values(resumoUsuarios));
   renderTabelaSaques();
   if (uid !== 'todos') {
+    carregarAmostragem(uid).catch((err) =>
+      console.error('Falha ao atualizar amostragem:', err),
+    );
+  } else {
+    amostragemLoadToken++;
+    renderAmostragemMessage(
+      'Selecione um usuário para visualizar a amostragem.',
+    );
+  }
+  if (uid !== 'todos') {
     assistirResumoFinanceiro(uid, mes);
   } else {
     if (resumoUnsub) resumoUnsub();
@@ -317,6 +328,146 @@ function formatCurrency(v) {
     style: 'currency',
     currency: 'BRL',
   });
+}
+
+function renderAmostragemWrapper(content) {
+  return `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm text-gray-500 uppercase tracking-wide">Amostragem – Top 10 SKUs (15 dias)</h4>
+      </div>
+      ${content}
+    </div>`;
+}
+
+function renderAmostragemMessage(message) {
+  const container = document.getElementById('amostragemContainer');
+  if (!container) return;
+  container.innerHTML = renderAmostragemWrapper(
+    `<p class="text-sm text-gray-500">${message}</p>`,
+  );
+}
+
+function renderAmostragemLista(itens) {
+  const container = document.getElementById('amostragemContainer');
+  if (!container) return;
+  if (!Array.isArray(itens) || !itens.length) {
+    renderAmostragemMessage('Sem dados de vendas recentes para exibir.');
+    return;
+  }
+  const grid = itens
+    .map(
+      (item, index) => `
+        <div class="border border-gray-200 rounded-lg p-3 bg-white shadow-sm">
+          <div class="flex items-center justify-between text-xs text-gray-400">
+            <span>#${index + 1}</span>
+            <span>${item.total} vendas</span>
+          </div>
+          <div class="mt-2 text-sm font-semibold text-gray-700 break-words">${item.sku}</div>
+          <div class="mt-3 text-sm font-bold text-indigo-600">${formatCurrency(item.media)}</div>
+          <div class="text-xs text-gray-500">Média sobra real</div>
+        </div>`,
+    )
+    .join('');
+  container.innerHTML = renderAmostragemWrapper(
+    `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">${grid}</div>`,
+  );
+}
+
+async function carregarAmostragem(uid) {
+  const container = document.getElementById('amostragemContainer');
+  if (!container) return;
+  const token = ++amostragemLoadToken;
+  if (!uid) {
+    renderAmostragemMessage(
+      'Selecione um usuário para visualizar a amostragem.',
+    );
+    return;
+  }
+  renderAmostragemMessage('Carregando amostragem...');
+  try {
+    const diasRef = collection(db, `uid/${uid}/skusVendidos`);
+    const diasSnap = await getDocs(
+      query(diasRef, orderBy('data', 'desc'), limit(15)),
+    );
+    if (token !== amostragemLoadToken) return;
+    if (diasSnap.empty) {
+      renderAmostragemMessage('Sem dados de vendas recentes para exibir.');
+      return;
+    }
+
+    const acumulado = new Map();
+    const passphrase = getPassphrase();
+    for (const diaDoc of diasSnap.docs) {
+      const listaRef = collection(
+        db,
+        `uid/${uid}/skusVendidos/${diaDoc.id}/lista`,
+      );
+      const listaSnap = await getDocs(listaRef);
+      if (token !== amostragemLoadToken) return;
+      for (const itemDoc of listaSnap.docs) {
+        let dados = itemDoc.data() || {};
+        if (dados.encrypted) {
+          const candidatos = [passphrase, `chave-${uid}`, uid].filter(Boolean);
+          let texto = null;
+          for (const chave of candidatos) {
+            if (!chave) continue;
+            try {
+              texto = await decryptString(dados.encrypted, chave);
+              if (texto) break;
+            } catch (_) {
+              // tenta próxima chave
+            }
+          }
+          if (texto) {
+            try {
+              dados = JSON.parse(texto);
+            } catch (_) {
+              continue;
+            }
+          } else {
+            continue;
+          }
+        }
+        const sku = dados.sku || itemDoc.id;
+        const total = Number(dados.total) || 0;
+        const liquido = Number(dados.valorLiquido || dados.valor || 0);
+        if (!sku) continue;
+        const atual = acumulado.get(sku) || { total: 0, liquido: 0 };
+        atual.total += total;
+        atual.liquido += liquido;
+        acumulado.set(sku, atual);
+      }
+    }
+    if (token !== amostragemLoadToken) return;
+    const itensOrdenados = Array.from(acumulado.entries())
+      .map(([sku, valores]) => ({
+        sku,
+        total: valores.total,
+        liquido: valores.liquido,
+        media: valores.total ? valores.liquido / valores.total : 0,
+      }))
+      .filter((item) => item.total > 0 || item.liquido > 0)
+      .sort(
+        (a, b) =>
+          b.total - a.total ||
+          b.liquido - a.liquido ||
+          a.sku.localeCompare(b.sku, 'pt-BR'),
+      )
+      .slice(0, 10);
+
+    if (!itensOrdenados.length) {
+      renderAmostragemMessage('Sem dados de vendas recentes para exibir.');
+      return;
+    }
+    renderAmostragemLista(itensOrdenados);
+  } catch (err) {
+    console.error('Erro ao carregar amostragem de SKUs:', err);
+    if (token !== amostragemLoadToken) return;
+    renderAmostragemMessage(
+      'Não foi possível carregar a amostragem no momento.',
+    );
+  }
 }
 
 function calcularLiquido(p) {
@@ -781,33 +932,6 @@ async function subscribeKPIs() {
     devEl.textContent = qtd;
   });
   kpiUnsubs.push(unsubDev);
-}
-
-function updateSalesChart(labels, data) {
-  const ctx = document.getElementById('vendasChart')?.getContext('2d');
-  if (!ctx) return;
-  if (vendasChart) {
-    vendasChart.data.labels = labels;
-    vendasChart.data.datasets[0].data = data;
-    vendasChart.update();
-  } else {
-    vendasChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Vendas',
-            data,
-            borderColor: 'var(--primary)',
-            backgroundColor: 'rgba(99,102,241,0.2)',
-            tension: 0.3,
-          },
-        ],
-      },
-      options: { scales: { y: { beginAtZero: true } } },
-    });
-  }
 }
 
 function renderResumoUsuarios(lista) {
