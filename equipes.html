@@ -108,6 +108,131 @@
         border: 1px solid color-mix(in srgb, var(--primary, #4262ff) 10%, transparent);
       }
 
+      .schedule-section {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .schedule-flow {
+        position: relative;
+        display: grid;
+        gap: 16px;
+        padding-left: 16px;
+      }
+
+      .schedule-flow::before {
+        content: '';
+        position: absolute;
+        left: 28px;
+        top: 12px;
+        bottom: 12px;
+        width: 2px;
+        background: color-mix(in srgb, var(--primary, #4262ff) 35%, transparent);
+        opacity: 0.4;
+      }
+
+      .flow-step {
+        position: relative;
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        padding-left: 40px;
+      }
+
+      .flow-step-index {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--primary, #4262ff);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        box-shadow: 0 10px 20px -12px rgba(66, 98, 255, 0.6);
+      }
+
+      .flow-step-content {
+        flex: 1;
+        background: color-mix(in srgb, var(--card-bg, #ffffff) 92%, transparent);
+        border-radius: 14px;
+        border: 1px solid color-mix(in srgb, var(--primary, #4262ff) 12%, transparent);
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .flow-step-content header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .flow-step-content header h3 {
+        margin: 0 0 4px;
+        font-size: 1.05rem;
+      }
+
+      .flow-step-content .flow-time {
+        font-weight: 600;
+        color: var(--primary, #4262ff);
+        white-space: nowrap;
+      }
+
+      .flow-notes {
+        margin: 0;
+        color: var(--text-light, #4b5563);
+        font-size: 0.95rem;
+      }
+
+      .flow-step-content footer button {
+        background: transparent;
+        border: none;
+        color: #ef4444;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .flow-step-content footer button:hover {
+        text-decoration: underline;
+      }
+
+      @media (max-width: 640px) {
+        .schedule-flow::before {
+          left: 22px;
+        }
+
+        .flow-step {
+          padding-left: 32px;
+        }
+
+        .flow-step-index {
+          width: 32px;
+          height: 32px;
+          font-size: 0.9rem;
+        }
+
+        .flow-step-content {
+          padding: 14px;
+        }
+
+        .flow-step-content header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .flow-step-content .flow-time {
+          font-size: 0.95rem;
+        }
+      }
+
       .text-sm {
         font-size: 0.95rem;
       }
@@ -408,6 +533,10 @@
             <i class="fas fa-list-check" aria-hidden="true"></i>
             Tarefas da equipe
           </button>
+          <button type="button" data-tab="schedule">
+            <i class="fas fa-diagram-project" aria-hidden="true"></i>
+            Cronograma diário
+          </button>
           <button type="button" data-tab="updates">
             <i class="fas fa-bell" aria-hidden="true"></i>
             Atualizações e alertas
@@ -553,6 +682,88 @@
           </div>
         </section>
 
+        <section id="schedule" class="tab-view" aria-labelledby="Cronograma diário">
+          <div class="card">
+            <h2>Planejar cronograma diário</h2>
+            <p class="text-sm" style="color: var(--text-light, #4b5563); margin-bottom: 12px;">
+              Defina as etapas do dia da equipe em sequência para garantir o alinhamento das atividades e responsáveis.
+            </p>
+            <div id="scheduleStatus" class="status-message" role="status" aria-live="polite"></div>
+            <form id="scheduleForm">
+              <div>
+                <label for="scheduleTitle">
+                  Etapa ou atividade <span class="required" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="scheduleTitle"
+                  name="scheduleTitle"
+                  type="text"
+                  placeholder="Ex.: Briefing matinal com a equipe"
+                  required
+                />
+              </div>
+              <div class="stack" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                <div>
+                  <label for="scheduleDate">
+                    Data <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="scheduleDate" name="scheduleDate" type="date" required />
+                </div>
+                <div>
+                  <label for="scheduleStart">
+                    Início <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <input id="scheduleStart" name="scheduleStart" type="time" required />
+                </div>
+                <div>
+                  <label for="scheduleEnd">Término</label>
+                  <input id="scheduleEnd" name="scheduleEnd" type="time" />
+                </div>
+              </div>
+              <div>
+                <label for="scheduleResponsible">
+                  Responsável <span class="required" aria-hidden="true">*</span>
+                </label>
+                <select id="scheduleResponsible" name="scheduleResponsible" required>
+                  <option value="" disabled selected>Cadastre a equipe para selecionar um responsável</option>
+                </select>
+              </div>
+              <div>
+                <label for="scheduleNotes">Detalhes e observações</label>
+                <textarea
+                  id="scheduleNotes"
+                  name="scheduleNotes"
+                  placeholder="Instruções, materiais necessários ou dependências desta etapa."
+                ></textarea>
+              </div>
+              <div class="actions-row">
+                <button type="submit" id="scheduleSubmitBtn">
+                  <i class="fas fa-plus" aria-hidden="true"></i>
+                  Adicionar etapa ao fluxo
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap;">
+              <div>
+                <h2 style="margin-bottom: 4px;">Fluxograma do dia</h2>
+                <p class="text-sm" style="color: var(--text-light, #4b5563); margin: 0;">
+                  Visualize as etapas do cronograma em ordem sequencial para toda a equipe ou equipes compartilhadas.
+                </p>
+              </div>
+              <label for="scheduleDateFilter" class="text-sm" style="display: flex; flex-direction: column; gap: 4px; font-weight: 600;">
+                Selecionar data
+                <input id="scheduleDateFilter" name="scheduleDateFilter" type="date" style="font-weight: 500;" />
+              </label>
+            </div>
+            <div id="scheduleFlowContainer" class="stack">
+              <div class="empty-state">Cadastre etapas para ver o fluxo diário da equipe.</div>
+            </div>
+          </div>
+        </section>
+
         <section id="updates" class="tab-view" aria-labelledby="Atualizações e alertas">
           <div class="card">
             <h2>Publicar atualização ou alerta</h2>
@@ -653,6 +864,13 @@
       const taskResponsibleSelect = document.getElementById('taskResponsible');
       const tasksContainer = document.getElementById('tasksContainer');
 
+      const scheduleForm = document.getElementById('scheduleForm');
+      const scheduleStatus = document.getElementById('scheduleStatus');
+      const scheduleSubmitBtn = document.getElementById('scheduleSubmitBtn');
+      const scheduleResponsibleSelect = document.getElementById('scheduleResponsible');
+      const scheduleFlowContainer = document.getElementById('scheduleFlowContainer');
+      const scheduleDateFilter = document.getElementById('scheduleDateFilter');
+
       const updateForm = document.getElementById('updateForm');
       const updateStatus = document.getElementById('updateStatus');
       const updateSubmitBtn = document.getElementById('updateSubmitBtn');
@@ -668,10 +886,12 @@
       const ownerInfo = new Map();
       const membersByOwner = new Map();
       const tasksByOwner = new Map();
+      const schedulesByOwner = new Map();
       const updatesByOwner = new Map();
 
       const memberUnsubs = new Map();
       const taskUnsubs = new Map();
+      const scheduleUnsubs = new Map();
       const updateUnsubs = new Map();
 
       function showStatus(element, message, type = 'success') {
@@ -926,12 +1146,89 @@
         updatesContainer.innerHTML = sections || '<div class="empty-state">Nenhuma atualização registrada até o momento.</div>';
       }
 
-      function updateResponsibleOptions() {
-        if (!taskResponsibleSelect) return;
+      function formatDateISO(date) {
+        if (!date) return '';
+        const year = date.getFullYear();
+        const month = `${date.getMonth() + 1}`.padStart(2, '0');
+        const day = `${date.getDate()}`.padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      if (scheduleDateFilter) {
+        scheduleDateFilter.value = formatDateISO(new Date());
+        const scheduleDateInput = document.getElementById('scheduleDate');
+        if (scheduleDateInput && !scheduleDateInput.value) {
+          scheduleDateInput.value = scheduleDateFilter.value;
+        }
+      }
+
+      function renderSchedule() {
+        if (!scheduleFlowContainer) return;
+        const owners = Array.from(trackedOwners);
+        const targetDate = (scheduleDateFilter?.value || '').trim();
+        if (!owners.length || !targetDate) {
+          scheduleFlowContainer.innerHTML = '<div class="empty-state">Cadastre etapas para ver o fluxo diário da equipe.</div>';
+          return;
+        }
+
+        const sections = owners
+          .map((ownerUid) => {
+            const entries = (schedulesByOwner.get(ownerUid) || [])
+              .filter((entry) => entry.scheduledDate === targetDate)
+              .sort((a, b) => {
+                const aTime = `${a.startTime || ''}`;
+                const bTime = `${b.startTime || ''}`;
+                return aTime.localeCompare(bTime);
+              });
+
+            if (!entries.length) {
+              return '';
+            }
+
+            const steps = entries
+              .map((entry, index) => {
+                const responsibleLabel = resolveMemberName(ownerUid, entry.responsibleEmail);
+                const notes = entry.notes ? `<p class="flow-notes">${entry.notes.replace(/\n/g, '<br>')}</p>` : '';
+                const timeRange = [formatTime(entry.startTime), formatTime(entry.endTime)].filter(Boolean).join(' → ');
+                return `
+                  <article class="flow-step" data-schedule-id="${entry.id}" data-owner="${ownerUid}">
+                    <div class="flow-step-index" aria-hidden="true">${index + 1}</div>
+                    <div class="flow-step-content">
+                      <header>
+                        <div>
+                          <h3>${entry.title || 'Etapa'}</h3>
+                          <div class="tag"><i class="fas fa-user"></i>${responsibleLabel}</div>
+                        </div>
+                        ${timeRange ? `<span class="flow-time">${timeRange}</span>` : ''}
+                      </header>
+                      ${notes}
+                      ${ownerUid === currentUser?.uid
+                        ? `<footer class="card-footer"><button type="button" data-action="delete-schedule" data-id="${entry.id}"><i class="fas fa-trash"></i> Remover</button></footer>`
+                        : ''}
+                    </div>
+                  </article>
+                `;
+              })
+              .join('');
+
+            return `
+              <section class="schedule-section">
+                <h3>${resolveOwnerLabel(ownerUid)}</h3>
+                <div class="schedule-flow">${steps}</div>
+              </section>
+            `;
+          })
+          .filter(Boolean)
+          .join('');
+
+        scheduleFlowContainer.innerHTML = sections || '<div class="empty-state">Nenhum fluxo registrado para esta data.</div>';
+      }
+
+      function buildResponsibleOptions(emptyLabel = 'Selecione um responsável') {
         const myMembers = membersByOwner.get(currentUser?.uid) || [];
         const currentUserEmail = currentUser?.email || '';
         const options = [
-          '<option value="">Selecione um responsável</option>'
+          `<option value="" selected>${emptyLabel}</option>`
         ];
 
         const normalizedEmails = new Set();
@@ -951,7 +1248,17 @@
           }
         }
 
-        taskResponsibleSelect.innerHTML = options.join('');
+        return options.join('');
+      }
+
+      function updateResponsibleOptions() {
+        const optionsHtml = buildResponsibleOptions();
+        if (taskResponsibleSelect && optionsHtml) {
+          taskResponsibleSelect.innerHTML = optionsHtml;
+        }
+        if (scheduleResponsibleSelect && optionsHtml) {
+          scheduleResponsibleSelect.innerHTML = optionsHtml;
+        }
       }
 
       function extractOwnerUidFromPath(path) {
@@ -996,6 +1303,7 @@
             renderMyMembers();
             renderSharedTeams();
             renderTasks();
+            renderSchedule();
           }, (error) => {
             console.error('Erro ao acompanhar membros:', error);
           });
@@ -1031,6 +1339,33 @@
             console.error('Erro ao acompanhar tarefas:', error);
           });
           taskUnsubs.set(ownerUid, unsub);
+        }
+
+        if (!scheduleUnsubs.has(ownerUid)) {
+          const scheduleRef = collection(db, 'artifacts', appId, 'users', ownerUid, 'dailySchedules');
+          const scheduleQuery = query(scheduleRef, orderBy('scheduledDate', 'desc'), orderBy('startTime', 'asc'));
+          const unsub = onSnapshot(scheduleQuery, (snapshot) => {
+            const entries = snapshot.docs.map((docSnap) => {
+              const data = docSnap.data();
+              if (data.ownerUid && data.ownerEmail) {
+                ensureOwnerMeta(data.ownerUid, { email: data.ownerEmail });
+              }
+              return {
+                id: docSnap.id,
+                title: data.title || '',
+                scheduledDate: data.scheduledDate || '',
+                startTime: data.startTime || '',
+                endTime: data.endTime || '',
+                notes: data.notes || '',
+                responsibleEmail: data.responsibleEmail || '',
+              };
+            });
+            schedulesByOwner.set(ownerUid, entries);
+            renderSchedule();
+          }, (error) => {
+            console.error('Erro ao acompanhar cronograma diário:', error);
+          });
+          scheduleUnsubs.set(ownerUid, unsub);
         }
 
         if (!updateUnsubs.has(ownerUid)) {
@@ -1071,6 +1406,11 @@
           unsubTasks();
           taskUnsubs.delete(ownerUid);
         }
+        const unsubSchedules = scheduleUnsubs.get(ownerUid);
+        if (unsubSchedules) {
+          unsubSchedules();
+          scheduleUnsubs.delete(ownerUid);
+        }
         const unsubUpdates = updateUnsubs.get(ownerUid);
         if (unsubUpdates) {
           unsubUpdates();
@@ -1078,6 +1418,7 @@
         }
         membersByOwner.delete(ownerUid);
         tasksByOwner.delete(ownerUid);
+        schedulesByOwner.delete(ownerUid);
         updatesByOwner.delete(ownerUid);
       }
 
@@ -1097,6 +1438,7 @@
         renderMyMembers();
         renderSharedTeams();
         renderTasks();
+        renderSchedule();
         renderUpdates();
       }
 
@@ -1286,6 +1628,77 @@
         }
       });
 
+      scheduleForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!db || !currentUser) return;
+        const formData = new FormData(scheduleForm);
+        const title = (formData.get('scheduleTitle') || '').toString().trim();
+        const scheduledDate = (formData.get('scheduleDate') || '').toString();
+        const startTime = (formData.get('scheduleStart') || '').toString();
+        const endTime = (formData.get('scheduleEnd') || '').toString();
+        const responsible = (formData.get('scheduleResponsible') || '').toString();
+        const notes = (formData.get('scheduleNotes') || '').toString();
+
+        if (!title || !scheduledDate || !startTime || !responsible) {
+          showStatus(scheduleStatus, 'Preencha os campos obrigatórios da etapa.', 'error');
+          return;
+        }
+
+        setButtonLoading(scheduleSubmitBtn, true);
+        try {
+          await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'dailySchedules'), {
+            title,
+            scheduledDate,
+            startTime,
+            endTime,
+            responsibleEmail: responsible,
+            notes,
+            ownerUid: currentUser.uid,
+            ownerEmail: currentUser.email || null,
+            createdBy: currentUser.email || currentUser.uid,
+            createdAt: serverTimestamp(),
+          });
+          scheduleForm.reset();
+          const scheduleDateInput = document.getElementById('scheduleDate');
+          if (scheduleDateInput) {
+            scheduleDateInput.value = scheduledDate;
+          }
+          if (scheduleDateFilter && scheduleDateFilter.value !== scheduledDate) {
+            scheduleDateFilter.value = scheduledDate;
+          }
+          renderSchedule();
+          showStatus(scheduleStatus, 'Etapa adicionada ao cronograma!');
+        } catch (error) {
+          console.error('Erro ao salvar etapa do cronograma:', error);
+          showStatus(scheduleStatus, 'Não foi possível salvar a etapa.', 'error');
+        } finally {
+          setButtonLoading(scheduleSubmitBtn, false);
+        }
+      });
+
+      scheduleFlowContainer?.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-action="delete-schedule"]');
+        if (!button || !db || !currentUser) return;
+        const scheduleId = button.dataset.id;
+        if (!scheduleId) return;
+        if (!confirm('Deseja remover esta etapa do cronograma?')) return;
+        try {
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'dailySchedules', scheduleId));
+          showStatus(scheduleStatus, 'Etapa removida do fluxo.');
+        } catch (error) {
+          console.error('Erro ao remover etapa do cronograma:', error);
+          showStatus(scheduleStatus, 'Não foi possível remover a etapa.', 'error');
+        }
+      });
+
+      scheduleDateFilter?.addEventListener('change', () => {
+        const scheduleDateInput = document.getElementById('scheduleDate');
+        if (scheduleDateInput && scheduleDateFilter.value) {
+          scheduleDateInput.value = scheduleDateFilter.value;
+        }
+        renderSchedule();
+      });
+
       updateForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (!db || !currentUser) return;
@@ -1339,6 +1752,7 @@
       });
 
       initializeAuth();
+      renderSchedule();
     </script>
   </body>
 </html>
