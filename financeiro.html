@@ -51,28 +51,7 @@
       <button id="salvarMeta" class="btn btn-primary text-sm">Salvar Meta</button>
     </div>
 
-        <section id="amostragemSection" class="card hidden">
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2 class="text-lg font-semibold text-gray-800">
-                Amostragem de SKUs
-              </h2>
-              <span id="amostragemPeriodo" class="text-sm text-gray-500"></span>
-            </div>
-            <p class="text-xs text-gray-500">
-              Top 10 SKUs mais vendidos dos últimos 15 dias com a média da sobra
-              real líquida por venda.
-            </p>
-            <div
-              id="amostragemCards"
-              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"
-            ></div>
-            <p id="amostragemEmpty" class="text-sm text-gray-500 hidden">
-              Sem dados de amostragem para os últimos 15 dias.
-            </p>
-          </div>
-        </section>
-    
+    <div id="overviewCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 
     <div class="card p-4">
       <h4 class="text-sm text-gray-500 mb-2">Evolução das Vendas</h4>
