@@ -286,6 +286,51 @@ function getCatalogExportData() {
   return { headers, linhas };
 }
 
+function getProductsGroupedByCategory() {
+  const produtos = Array.from(productCache.values());
+  const grupos = new Map();
+  produtos.forEach((produto) => {
+    const categoriaBase = (produto.categoria || '').trim();
+    const chave = categoriaBase ? categoriaBase : 'Sem categoria';
+    if (!grupos.has(chave)) {
+      grupos.set(chave, []);
+    }
+    grupos.get(chave).push(produto);
+  });
+
+  const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
+  return Array.from(grupos.entries())
+    .map(([categoria, itens]) => ({
+      categoria,
+      produtos: itens.sort((a, b) =>
+        collator.compare(a.nome || '', b.nome || ''),
+      ),
+    }))
+    .sort((a, b) => collator.compare(a.categoria, b.categoria));
+}
+
+async function carregarImagemComoDataUrl(url) {
+  if (!url) return null;
+  try {
+    const resposta = await fetch(url, { mode: 'cors' });
+    if (!resposta.ok) {
+      throw new Error(
+        `Resposta inesperada ao carregar imagem: ${resposta.status}`,
+      );
+    }
+    const blob = await resposta.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Falha ao ler a imagem.'));
+      reader.readAsDataURL(blob);
+    });
+  } catch (erro) {
+    console.warn('Não foi possível carregar imagem para o PDF:', url, erro);
+    return null;
+  }
+}
+
 function updateExportButtons(hasProducts) {
   const disabled = !hasProducts;
   [exportPdfBtn, exportExcelBtn].forEach((btn) => {
@@ -318,9 +363,9 @@ function exportCatalogToExcel() {
   XLSX.writeFile(workbook, nomeArquivo);
 }
 
-function exportCatalogToPdf() {
-  const { headers, linhas } = getCatalogExportData();
-  if (!linhas.length) {
+async function exportCatalogToPdf() {
+  const grupos = getProductsGroupedByCategory();
+  if (!grupos.length) {
     showToast('Não há produtos para exportar.', 'warning');
     return;
   }
@@ -328,32 +373,176 @@ function exportCatalogToPdf() {
     showToast('Biblioteca de PDF não foi carregada.', 'error');
     return;
   }
+  if (exportPdfBtn) {
+    exportPdfBtn.disabled = true;
+    exportPdfBtn.classList.add('opacity-60', 'cursor-not-allowed');
+  }
   const doc = new window.jspdf.jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
   });
-  if (typeof doc.autoTable !== 'function') {
-    showToast('Extensão de tabelas para PDF não foi carregada.', 'error');
-    return;
+
+  const margem = 15;
+  const espacamentoEntreCartoes = 8;
+  const colunas = 2;
+  const larguraPagina = doc.internal.pageSize.getWidth();
+  const alturaPagina = doc.internal.pageSize.getHeight();
+  const larguraCartao =
+    (larguraPagina - margem * 2 - espacamentoEntreCartoes * (colunas - 1)) /
+    colunas;
+  const alturaCartao = 70;
+  const paddingCartao = 5;
+  const alturaImagem = 32;
+  const larguraImagem = larguraCartao - paddingCartao * 2;
+
+  let posicaoYAtual = margem;
+
+  const adicionarCabecalhoCategoria = (categoria) => {
+    const alturaCabecalho = 8;
+    if (posicaoYAtual + alturaCabecalho > alturaPagina - margem) {
+      doc.addPage();
+      posicaoYAtual = margem;
+    }
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(categoria, margem, posicaoYAtual);
+    posicaoYAtual += alturaCabecalho + 2;
+  };
+
+  try {
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Catálogo de Produtos', margem, posicaoYAtual);
+    posicaoYAtual += 10;
+    doc.setFont('helvetica', 'normal');
+
+    for (const grupo of grupos) {
+      const categoriaTitulo = grupo.categoria || 'Sem categoria';
+      adicionarCabecalhoCategoria(categoriaTitulo);
+
+      const produtosPreparados = await Promise.all(
+        grupo.produtos.map(async (produto) => {
+          const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
+          const primeiraFoto = fotos.find((foto) => foto?.url)?.url;
+          const imagemDataUrl = await carregarImagemComoDataUrl(primeiraFoto);
+          return { produto, imagemDataUrl };
+        }),
+      );
+
+      let colunaAtual = 0;
+      let yLinhaAtual = posicaoYAtual;
+
+      for (const { produto, imagemDataUrl } of produtosPreparados) {
+        if (colunaAtual === 0) {
+          yLinhaAtual = posicaoYAtual;
+          if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
+            doc.addPage();
+            posicaoYAtual = margem;
+            adicionarCabecalhoCategoria(categoriaTitulo);
+            yLinhaAtual = posicaoYAtual;
+          }
+        } else if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
+          doc.addPage();
+          posicaoYAtual = margem;
+          adicionarCabecalhoCategoria(categoriaTitulo);
+          yLinhaAtual = posicaoYAtual;
+          colunaAtual = 0;
+        }
+
+        const posicaoX =
+          margem + colunaAtual * (larguraCartao + espacamentoEntreCartoes);
+
+        doc.setDrawColor(200);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(
+          posicaoX,
+          yLinhaAtual,
+          larguraCartao,
+          alturaCartao,
+          3,
+          3,
+        );
+
+        if (imagemDataUrl) {
+          try {
+            doc.addImage(
+              imagemDataUrl,
+              undefined,
+              posicaoX + paddingCartao,
+              yLinhaAtual + paddingCartao,
+              larguraImagem,
+              alturaImagem,
+            );
+          } catch (erro) {
+            console.warn('Não foi possível adicionar imagem ao PDF:', erro);
+          }
+        }
+
+        let textoY = yLinhaAtual + paddingCartao + alturaImagem + 5;
+        const textoX = posicaoX + paddingCartao;
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(produto.nome || 'Produto sem nome', textoX, textoY, {
+          maxWidth: larguraCartao - paddingCartao * 2,
+        });
+        textoY += 6;
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`SKU: ${produto.sku || '--'}`, textoX, textoY);
+        textoY += 5;
+
+        doc.text(
+          `Categoria: ${produto.categoria || 'Sem categoria'}`,
+          textoX,
+          textoY,
+          {
+            maxWidth: larguraCartao - paddingCartao * 2,
+          },
+        );
+        textoY += 5;
+
+        doc.text(
+          `Custo: ${formatCurrencyForExport(produto.custo)}`,
+          textoX,
+          textoY,
+        );
+        textoY += 5;
+
+        doc.text(
+          `Venda: ${formatCurrencyForExport(
+            produto.precoSugerido ?? produto.preco ?? produto.valorVenda,
+          )}`,
+          textoX,
+          textoY,
+        );
+
+        colunaAtual += 1;
+        if (colunaAtual >= colunas) {
+          colunaAtual = 0;
+          posicaoYAtual = yLinhaAtual + alturaCartao + espacamentoEntreCartoes;
+        }
+      }
+
+      if (colunaAtual > 0) {
+        posicaoYAtual = yLinhaAtual + alturaCartao + espacamentoEntreCartoes;
+      }
+
+      posicaoYAtual += 4;
+    }
+
+    const nomeArquivo = `catalogo_produtos_${new Date()
+      .toISOString()
+      .slice(0, 10)}.pdf`;
+    doc.save(nomeArquivo);
+  } catch (error) {
+    console.error('Erro ao gerar PDF do catálogo:', error);
+    showToast('Não foi possível gerar o PDF do catálogo.', 'error');
+  } finally {
+    updateExportButtons(productCache.size > 0);
   }
-  doc.setFontSize(12);
-  doc.text('Catálogo de Produtos', 14, 15);
-  doc.autoTable({
-    head: [headers],
-    body: linhas,
-    startY: 20,
-    styles: { fontSize: 8, cellWidth: 'wrap' },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-    columnStyles: {
-      3: { halign: 'right' },
-      4: { halign: 'right' },
-    },
-  });
-  const nomeArquivo = `catalogo_produtos_${new Date()
-    .toISOString()
-    .slice(0, 10)}.pdf`;
-  doc.save(nomeArquivo);
 }
 
 function renderProducts(produtos) {
