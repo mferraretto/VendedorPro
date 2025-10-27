@@ -26,17 +26,29 @@
     <section id="diarioCadastroSection" class="space-y-8">
       <div class="space-y-6">
         <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div class="flex flex-col gap-2">
-            <label for="diarioData" class="text-sm font-medium text-gray-600">Data do registro</label>
-            <input
-              type="date"
-              id="diarioData"
-              class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
-            />
+          <div class="flex flex-col gap-3 md:flex-row md:items-end md:gap-6">
+            <div class="flex flex-col gap-2">
+              <label for="diarioData" class="text-sm font-medium text-gray-600">Data do registro</label>
+              <input
+                type="date"
+                id="diarioData"
+                class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <label for="diarioTurno" class="text-sm font-medium text-gray-600">Momento do dia</label>
+              <select
+                id="diarioTurno"
+                class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-300 outline-none transition"
+              >
+                <option value="inicio">Início do dia • 07:00</option>
+                <option value="fim">Encerramento • 16:30</option>
+              </select>
+            </div>
           </div>
           <div class="text-sm text-gray-500 max-w-md">
-            Os números abaixo representam o desempenho diário de cada loja. Atualize as informações uma vez ao dia para manter o
-            acompanhamento mensal sempre atualizado.
+            Os números abaixo representam o desempenho diário de cada loja. Registre os valores no início e no fim do expediente
+            para que o sistema calcule automaticamente o resumo do dia da equipe.
           </div>
         </div>
 

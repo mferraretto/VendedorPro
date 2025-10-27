@@ -12977,8 +12977,89 @@ function agruparRegistrosDiariosGestor(registros) {
   return { linhas, totais, totaisUsuarios };
 }
 
+function agruparResumosEquipeDiario(registros) {
+  const mapa = new Map();
+
+  registros.forEach((registro) => {
+    const dataRegistro = String(registro.data || '');
+    if (!dataRegistro) return;
+
+    const resumoBase = registro.resumoDiario || calcularResumoTurnos(registro.turnos || {});
+    if (!resumoBase) return;
+
+    if (!mapa.has(dataRegistro)) {
+      mapa.set(dataRegistro, {
+        data: dataRegistro,
+        totais: {
+          reclamacoesAbertas: 0,
+          reclamacoesRespondidas: 0,
+          reclamacoesEncerradas: 0,
+        },
+        reputacoes: {
+          reclamacoes: { inicio: criarAcumuladorPercentual(), fim: criarAcumuladorPercentual() },
+          mediacao: { inicio: criarAcumuladorPercentual(), fim: criarAcumuladorPercentual() },
+          atraso: { inicio: criarAcumuladorPercentual(), fim: criarAcumuladorPercentual() },
+          cancelamento: { inicio: criarAcumuladorPercentual(), fim: criarAcumuladorPercentual() },
+        },
+      });
+    }
+
+    const agregado = mapa.get(dataRegistro);
+
+    agregado.totais.reclamacoesAbertas += normalizarNumeroDiario(
+      resumoBase.totais?.reclamacoesAbertas,
+    );
+    agregado.totais.reclamacoesRespondidas += normalizarNumeroDiario(
+      resumoBase.totais?.reclamacoesRespondidas,
+    );
+    agregado.totais.reclamacoesEncerradas += normalizarNumeroDiario(
+      resumoBase.totais?.reclamacoesEncerradas,
+    );
+
+    adicionarPercentual(agregado.reputacoes.reclamacoes.inicio, resumoBase.reputacoes?.reclamacoes?.inicio);
+    adicionarPercentual(agregado.reputacoes.reclamacoes.fim, resumoBase.reputacoes?.reclamacoes?.fim);
+
+    adicionarPercentual(agregado.reputacoes.mediacao.inicio, resumoBase.reputacoes?.mediacao?.inicio);
+    adicionarPercentual(agregado.reputacoes.mediacao.fim, resumoBase.reputacoes?.mediacao?.fim);
+
+    adicionarPercentual(agregado.reputacoes.atraso.inicio, resumoBase.reputacoes?.atraso?.inicio);
+    adicionarPercentual(agregado.reputacoes.atraso.fim, resumoBase.reputacoes?.atraso?.fim);
+
+    adicionarPercentual(agregado.reputacoes.cancelamento.inicio, resumoBase.reputacoes?.cancelamento?.inicio);
+    adicionarPercentual(agregado.reputacoes.cancelamento.fim, resumoBase.reputacoes?.cancelamento?.fim);
+  });
+
+  const resumirReputacao = (info) => {
+    const inicio = mediaPercentual(info.inicio);
+    const fim = mediaPercentual(info.fim);
+    return {
+      inicio,
+      fim,
+      variacao: inicio === null || fim === null ? null : fim - inicio,
+    };
+  };
+
+  return Array.from(mapa.values())
+    .map((item) => ({
+      data: item.data,
+      totais: {
+        reclamacoesAbertas: item.totais.reclamacoesAbertas,
+        reclamacoesRespondidas: item.totais.reclamacoesRespondidas,
+        reclamacoesEncerradas: item.totais.reclamacoesEncerradas,
+      },
+      reputacoes: {
+        reclamacoes: resumirReputacao(item.reputacoes.reclamacoes),
+        mediacao: resumirReputacao(item.reputacoes.mediacao),
+        atraso: resumirReputacao(item.reputacoes.atraso),
+        cancelamento: resumirReputacao(item.reputacoes.cancelamento),
+      },
+    }))
+    .sort((a, b) => b.data.localeCompare(a.data));
+}
+
 let diarioCadastroDadosOriginais = new Map();
 let diarioCadastroRemovidos = new Set();
+let diarioTurnoAtual = 'inicio';
 
 function formatarValorInputNumero(valor) {
   if (valor === null || valor === undefined || valor === '') return '';
@@ -12993,6 +13074,113 @@ function formatarIdentificacaoLoja(linha) {
     return nome;
   }
   return `${nome} (${plataforma})`;
+}
+
+function normalizarTurnoDiario(turno) {
+  return turno === 'fim' ? 'fim' : 'inicio';
+}
+
+function obterTurnoAtualDiario() {
+  return normalizarTurnoDiario(diarioTurnoAtual);
+}
+
+function definirTurnoAtualDiario(turno) {
+  diarioTurnoAtual = normalizarTurnoDiario(turno);
+}
+
+function criarEstruturaTurnoVazia() {
+  return {
+    reclamacoesAbertas: 0,
+    reclamacoesRespondidas: 0,
+    reclamacoesEncerradas: 0,
+    porcentagemReclamacoes: null,
+    porcentagemMediacao: null,
+    porcentagemAtraso: null,
+    porcentagemCancelamento: null,
+  };
+}
+
+function sanitizarDadosTurno(turno) {
+  if (!turno) return criarEstruturaTurnoVazia();
+  return {
+    reclamacoesAbertas: normalizarNumeroDiario(turno.reclamacoesAbertas),
+    reclamacoesRespondidas: normalizarNumeroDiario(turno.reclamacoesRespondidas),
+    reclamacoesEncerradas: normalizarNumeroDiario(turno.reclamacoesEncerradas),
+    porcentagemReclamacoes: normalizarPercentualDiario(turno.porcentagemReclamacoes),
+    porcentagemMediacao: normalizarPercentualDiario(turno.porcentagemMediacao),
+    porcentagemAtraso: normalizarPercentualDiario(turno.porcentagemAtraso),
+    porcentagemCancelamento: normalizarPercentualDiario(turno.porcentagemCancelamento),
+  };
+}
+
+function extrairDadosTurnoRegistro(registro, turno) {
+  const chave = normalizarTurnoDiario(turno);
+  const turnos = registro?.turnos || {};
+  if (turnos[chave]) {
+    return sanitizarDadosTurno(turnos[chave]);
+  }
+
+  const resumo = registro?.resumoDiario || {};
+  if (resumo[chave]) {
+    return sanitizarDadosTurno(resumo[chave]);
+  }
+
+  return criarEstruturaTurnoVazia();
+}
+
+function prepararDadosTurnoParaSalvar(registro) {
+  return {
+    reclamacoesAbertas: normalizarNumeroDiario(registro.reclamacoesAbertas),
+    reclamacoesRespondidas: normalizarNumeroDiario(registro.reclamacoesRespondidas),
+    reclamacoesEncerradas: normalizarNumeroDiario(registro.reclamacoesEncerradas),
+    porcentagemReclamacoes: normalizarPercentualDiario(registro.porcentagemReclamacoes),
+    porcentagemMediacao: normalizarPercentualDiario(registro.porcentagemMediacao),
+    porcentagemAtraso: normalizarPercentualDiario(registro.porcentagemAtraso),
+    porcentagemCancelamento: normalizarPercentualDiario(registro.porcentagemCancelamento),
+  };
+}
+
+function calcularResumoPercentualTurnos(valorInicio, valorFim) {
+  const inicio = normalizarPercentualDiario(valorInicio);
+  const fim = normalizarPercentualDiario(valorFim);
+  return {
+    inicio,
+    fim,
+    variacao: inicio === null || fim === null ? null : fim - inicio,
+  };
+}
+
+function calcularResumoTurnos(turnos) {
+  const inicio = sanitizarDadosTurno(turnos?.inicio);
+  const fim = sanitizarDadosTurno(turnos?.fim);
+
+  if (!turnos?.inicio || !turnos?.fim) {
+    return null;
+  }
+
+  const diferenca = (campo) => {
+    const valorFim = normalizarNumeroDiario(fim[campo]);
+    const valorInicio = normalizarNumeroDiario(inicio[campo]);
+    const total = valorFim - valorInicio;
+    return total >= 0 ? total : 0;
+  };
+
+  return {
+    geradoEm: new Date().toISOString(),
+    inicio,
+    fim,
+    totais: {
+      reclamacoesAbertas: diferenca('reclamacoesAbertas'),
+      reclamacoesRespondidas: diferenca('reclamacoesRespondidas'),
+      reclamacoesEncerradas: diferenca('reclamacoesEncerradas'),
+    },
+    reputacoes: {
+      reclamacoes: calcularResumoPercentualTurnos(inicio.porcentagemReclamacoes, fim.porcentagemReclamacoes),
+      mediacao: calcularResumoPercentualTurnos(inicio.porcentagemMediacao, fim.porcentagemMediacao),
+      atraso: calcularResumoPercentualTurnos(inicio.porcentagemAtraso, fim.porcentagemAtraso),
+      cancelamento: calcularResumoPercentualTurnos(inicio.porcentagemCancelamento, fim.porcentagemCancelamento),
+    },
+  };
 }
 
 function renderListaValores(containerId, linhas, campo, formatador, opcoes = {}) {
@@ -13217,6 +13405,7 @@ async function carregarCadastroDiarioDiaAtual() {
   diarioCadastroRemovidos = new Set();
 
   try {
+    const turnoAtual = obterTurnoAtualDiario();
     const ref = db.collection('uid').doc(usuarioLogado.uid).collection('acompanhamentoDiario');
     const snap = await ref.get();
     const registros = [];
@@ -13256,17 +13445,18 @@ async function carregarCadastroDiarioDiaAtual() {
       }
     } else {
       registros.forEach((registro) => {
+        const dadosTurno = extrairDadosTurnoRegistro(registro, turnoAtual);
         criarLinhaCadastroDiario({
           docId: registro.docId,
           nomeLoja: registro.nomeLoja || '',
           plataforma: registro.plataforma || 'shopee',
-          reclamacoesAbertas: obterNumeroDiarioCompat(registro, 'reclamacoesAbertas', 'reclamacoesAbertas'),
-          reclamacoesRespondidas: obterNumeroDiarioCompat(registro, 'reclamacoesRespondidas', 'reclamacoesRecorridas'),
-          reclamacoesEncerradas: obterNumeroDiarioCompat(registro, 'reclamacoesEncerradas', 'reclamacoesRecusadas'),
-          porcentagemReclamacoes: normalizarPercentualDiario(registro.porcentagemReclamacoes),
-          porcentagemMediacao: normalizarPercentualDiario(registro.porcentagemMediacao),
-          porcentagemAtraso: normalizarPercentualDiario(registro.porcentagemAtraso),
-          porcentagemCancelamento: normalizarPercentualDiario(registro.porcentagemCancelamento),
+          reclamacoesAbertas: dadosTurno.reclamacoesAbertas,
+          reclamacoesRespondidas: dadosTurno.reclamacoesRespondidas,
+          reclamacoesEncerradas: dadosTurno.reclamacoesEncerradas,
+          porcentagemReclamacoes: dadosTurno.porcentagemReclamacoes,
+          porcentagemMediacao: dadosTurno.porcentagemMediacao,
+          porcentagemAtraso: dadosTurno.porcentagemAtraso,
+          porcentagemCancelamento: dadosTurno.porcentagemCancelamento,
         });
       });
     }
@@ -13308,6 +13498,27 @@ async function inicializarAbaDiaria() {
   const dataInput = document.getElementById('diarioData');
   if (dataInput && !dataInput.value) {
     dataInput.value = obterDataIsoHoje();
+  }
+
+  const turnoSelect = document.getElementById('diarioTurno');
+  if (turnoSelect) {
+    if (!turnoSelect.value) {
+      const agora = new Date();
+      const turnoPadrao = agora.getHours() >= 12 ? 'fim' : 'inicio';
+      turnoSelect.value = turnoPadrao;
+    }
+    definirTurnoAtualDiario(turnoSelect.value);
+    if (!turnoSelect.dataset.bound) {
+      turnoSelect.addEventListener('change', () => {
+        definirTurnoAtualDiario(turnoSelect.value);
+        carregarCadastroDiarioDiaAtual().catch((erro) => {
+          console.error('Erro ao carregar o acompanhamento diário para o turno selecionado', erro);
+        });
+      });
+      turnoSelect.dataset.bound = 'true';
+    }
+  } else {
+    definirTurnoAtualDiario('inicio');
   }
 
   const resumoMes = document.getElementById('diarioResumoMes');
@@ -13401,6 +13612,7 @@ async function salvarAcompanhamentoDiario() {
   const operacoes = [];
   let baseResp = null;
   let respEmail = null;
+  const turnoAtual = obterTurnoAtualDiario();
 
   try {
     const bases = await obterBasesUsuario();
@@ -13416,19 +13628,46 @@ async function salvarAcompanhamentoDiario() {
     idsMantidos.add(docId);
 
     const atualizadoEm = timestamp();
+    const dadosOriginais = diarioCadastroDadosOriginais.get(registro.docId) || {};
+    const turnosOriginais = dadosOriginais.turnos ? { ...dadosOriginais.turnos } : {};
+    const dadosTurnoAtual = prepararDadosTurnoParaSalvar(registro);
+    turnosOriginais[turnoAtual] = {
+      ...dadosTurnoAtual,
+      registradoEm: timestamp(),
+    };
+
+    const resumoCalculado = calcularResumoTurnos(turnosOriginais);
+    const totaisResumo = resumoCalculado?.totais || {};
+    const finaisReputacao = resumoCalculado
+      ? {
+          reclamacoes: resumoCalculado.reputacoes.reclamacoes.fim,
+          mediacao: resumoCalculado.reputacoes.mediacao.fim,
+          atraso: resumoCalculado.reputacoes.atraso.fim,
+          cancelamento: resumoCalculado.reputacoes.cancelamento.fim,
+        }
+      : {
+          reclamacoes: turnosOriginais[turnoAtual]?.porcentagemReclamacoes ?? null,
+          mediacao: turnosOriginais[turnoAtual]?.porcentagemMediacao ?? null,
+          atraso: turnosOriginais[turnoAtual]?.porcentagemAtraso ?? null,
+          cancelamento: turnosOriginais[turnoAtual]?.porcentagemCancelamento ?? null,
+        };
+
     const payloadBase = {
       data: dataRegistro,
       plataforma,
       nomeLoja: registro.nomeLoja,
-      reclamacoesAbertas: registro.reclamacoesAbertas,
-      reclamacoesRespondidas: registro.reclamacoesRespondidas,
-      reclamacoesEncerradas: registro.reclamacoesEncerradas,
-      porcentagemReclamacoes: registro.porcentagemReclamacoes,
-      porcentagemMediacao: registro.porcentagemMediacao,
-      porcentagemAtraso: registro.porcentagemAtraso,
-      porcentagemCancelamento: registro.porcentagemCancelamento,
-      reclamacoesRecorridas: registro.reclamacoesRespondidas,
-      reclamacoesRecusadas: registro.reclamacoesEncerradas,
+      turnos: turnosOriginais,
+      resumoDiario: resumoCalculado || null,
+      turnoAtualizado: turnoAtual,
+      reclamacoesAbertas: normalizarNumeroDiario(totaisResumo.reclamacoesAbertas),
+      reclamacoesRespondidas: normalizarNumeroDiario(totaisResumo.reclamacoesRespondidas),
+      reclamacoesEncerradas: normalizarNumeroDiario(totaisResumo.reclamacoesEncerradas),
+      porcentagemReclamacoes: finaisReputacao.reclamacoes,
+      porcentagemMediacao: finaisReputacao.mediacao,
+      porcentagemAtraso: finaisReputacao.atraso,
+      porcentagemCancelamento: finaisReputacao.cancelamento,
+      reclamacoesRecorridas: normalizarNumeroDiario(totaisResumo.reclamacoesRespondidas),
+      reclamacoesRecusadas: normalizarNumeroDiario(totaisResumo.reclamacoesEncerradas),
       uid: usuarioLogado.uid,
       atualizadoEm,
     };
@@ -13802,11 +14041,13 @@ async function carregarDiarioGestor() {
   const tabelaBody = document.querySelector('#diarioGestorTabela tbody');
   const totaisContainer = document.getElementById('diarioGestorTotais');
   const usuariosContainer = document.getElementById('diarioGestorUsuarios');
+  const resumoEquipeContainer = document.getElementById('diarioGestorResumoEquipe');
   if (tabelaBody) {
     tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500">Carregando registros...</td></tr>';
   }
   if (totaisContainer) totaisContainer.innerHTML = '';
   if (usuariosContainer) usuariosContainer.innerHTML = '';
+  if (resumoEquipeContainer) resumoEquipeContainer.innerHTML = '';
 
   try {
     const usuariosSnap = await db.collection('usuarios')
@@ -13858,12 +14099,17 @@ async function carregarDiarioGestor() {
       if (tabelaBody) {
         tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500">Nenhum registro encontrado para o período selecionado.</td></tr>';
       }
+      if (resumoEquipeContainer) {
+        renderResumoEquipeGestor([]);
+      }
       return;
     }
 
     const { linhas, totais, totaisUsuarios } = agruparRegistrosDiariosGestor(registros);
+    const resumosEquipe = agruparResumosEquipeDiario(registros);
     renderTabelaDiarioGestor(linhas);
     renderTotaisDiarioGestor(totais, totaisUsuarios, mesSelecionado);
+    renderResumoEquipeGestor(resumosEquipe);
   } catch (error) {
     console.error('Erro ao carregar acompanhamento diário do gestor', error);
     if (tabelaBody) {
@@ -13996,6 +14242,109 @@ function renderTotaisDiarioGestor(totais, totaisUsuarios, mesSelecionado) {
       </div>
     `;
   }
+}
+
+function renderResumoEquipeGestor(resumos) {
+  const container = document.getElementById('diarioGestorResumoEquipe');
+  if (!container) return;
+
+  if (!Array.isArray(resumos) || !resumos.length) {
+    container.innerHTML = `
+      <div class="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/30 p-6 text-sm text-indigo-700">
+        Registre os dois turnos do acompanhamento diário para gerar o comparativo automático das equipes.
+      </div>
+    `;
+    return;
+  }
+
+  const maxDias = 10;
+  const dias = resumos.slice(0, maxDias);
+
+  const formatarDataResumo = (valor) => {
+    try {
+      const data = new Date(`${valor}T00:00:00`);
+      if (Number.isNaN(data.valueOf())) return valor;
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }).format(data);
+    } catch (erro) {
+      return valor;
+    }
+  };
+
+  const formatarVariacao = (valor) => {
+    if (valor === null || valor === undefined || Number.isNaN(Number(valor))) {
+      return 'Variação indisponível';
+    }
+    const numero = Number(valor);
+    const sinal = numero > 0 ? '+' : '';
+    return `Variação ${sinal}${numero.toFixed(2)} pp`;
+  };
+
+  const renderReputacao = (titulo, info, classe) => {
+    const dados = info || { inicio: null, fim: null, variacao: null };
+    return `
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase ${classe}">${escapeHtml(titulo)}</p>
+      <p class="mt-2 text-base font-semibold text-gray-700">${escapeHtml(
+        `${formatarPercentualPadrao(dados.inicio)} → ${formatarPercentualPadrao(dados.fim)}`,
+      )}</p>
+      <p class="text-xs text-gray-500">${escapeHtml(formatarVariacao(dados.variacao))}</p>
+    </div>
+  `;
+  };
+
+  const cards = dias
+    .map((dia) => {
+      const abertas = formatarNumeroPadrao(dia.totais.reclamacoesAbertas);
+      const respondidas = formatarNumeroPadrao(dia.totais.reclamacoesRespondidas);
+      const encerradas = formatarNumeroPadrao(dia.totais.reclamacoesEncerradas);
+
+      return `
+        <article class="rounded-3xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/40 p-6 shadow">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h5 class="text-lg font-semibold text-gray-800">${escapeHtml(formatarDataResumo(dia.data))}</h5>
+              <p class="text-sm text-gray-500">Comparativo entre início (07h) e encerramento (16h30).</p>
+            </div>
+            <span class="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500">Resumo diário</span>
+          </div>
+          <div class="mt-5 grid gap-4 md:grid-cols-3">
+            <div class="rounded-xl bg-rose-50 p-4 border border-rose-100">
+              <p class="text-xs font-semibold uppercase text-rose-600">Mensagens abertas</p>
+              <p class="mt-2 text-2xl font-bold text-rose-700">${escapeHtml(abertas)}</p>
+            </div>
+            <div class="rounded-xl bg-amber-50 p-4 border border-amber-100">
+              <p class="text-xs font-semibold uppercase text-amber-600">Mensagens respondidas</p>
+              <p class="mt-2 text-2xl font-bold text-amber-700">${escapeHtml(respondidas)}</p>
+            </div>
+            <div class="rounded-xl bg-emerald-50 p-4 border border-emerald-100">
+              <p class="text-xs font-semibold uppercase text-emerald-600">Mensagens encerradas</p>
+              <p class="mt-2 text-2xl font-bold text-emerald-700">${escapeHtml(encerradas)}</p>
+            </div>
+          </div>
+          <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            ${renderReputacao('Reclamação', dia.reputacoes.reclamacoes, 'text-pink-600')}
+            ${renderReputacao('Mediação', dia.reputacoes.mediacao, 'text-purple-600')}
+            ${renderReputacao('Atraso', dia.reputacoes.atraso, 'text-sky-600')}
+            ${renderReputacao('Cancelado', dia.reputacoes.cancelamento, 'text-fuchsia-600')}
+          </div>
+        </article>
+      `;
+    })
+    .join('');
+
+  container.innerHTML = `
+    <div class="space-y-4">
+      <h4 class="text-lg font-semibold text-gray-700">Resumo da equipe por dia</h4>
+      <div class="space-y-5">${cards}</div>
+      ${resumos.length > maxDias
+        ? `<p class="text-xs text-gray-500">Exibindo os ${maxDias} resumos mais recentes.</p>`
+        : ''}
+    </div>
+  `;
 }
 
 function filtrarPorSKU() {
