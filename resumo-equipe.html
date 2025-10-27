@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resumo da Equipe</title>
+    <link rel="manifest" href="financeiro-manifest.json" />
+    <meta name="theme-color" content="#6366F1" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="app-container">
+      <div id="sidebar-container"></div>
+      <div id="navbar-container"></div>
+      <main class="main-content p-4 space-y-4">
+        <header class="space-y-2">
+          <h1 class="text-2xl font-bold text-gray-800">Resumo da Equipe</h1>
+          <p class="text-sm text-gray-500">
+            Acompanhe os principais indicadores dos usuários vinculados ao
+            gestor financeiro, com visão consolidada de reputação diária, vendas
+            e acompanhamento de problemas.
+          </p>
+        </header>
+
+        <section class="card p-4 space-y-4">
+          <h2 class="text-lg font-semibold text-gray-700">Filtros</h2>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <label class="block text-sm font-medium text-gray-700">
+              Usuário
+              <select
+                id="resumoFiltroUsuario"
+                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              ></select>
+            </label>
+            <label class="block text-sm font-medium text-gray-700">
+              Tipo de período
+              <select
+                id="resumoFiltroTipo"
+                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="mes">Mês</option>
+                <option value="semana">Semana</option>
+                <option value="dia">Dia</option>
+              </select>
+            </label>
+            <label
+              id="resumoFiltroMesWrapper"
+              class="block text-sm font-medium text-gray-700"
+            >
+              Mês
+              <input
+                type="month"
+                id="resumoFiltroMes"
+                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </label>
+            <label
+              id="resumoFiltroSemanaWrapper"
+              class="block text-sm font-medium text-gray-700 hidden"
+            >
+              Semana
+              <input
+                type="week"
+                id="resumoFiltroSemana"
+                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </label>
+            <label
+              id="resumoFiltroDiaWrapper"
+              class="block text-sm font-medium text-gray-700 hidden"
+            >
+              Dia
+              <input
+                type="date"
+                id="resumoFiltroDia"
+                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </label>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              id="resumoFiltroAplicar"
+              class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            >
+              <i class="fa fa-sync-alt"></i>
+              Aplicar filtros
+            </button>
+            <span
+              id="resumoFiltroPeriodoSelecionado"
+              class="text-sm text-gray-500"
+            ></span>
+          </div>
+        </section>
+
+        <section class="card p-4 space-y-4">
+          <div class="flex flex-wrap gap-2">
+            <button
+              class="tab-btn rounded-lg border border-indigo-100 bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              data-tab="diario"
+            >
+              Resumo Acompanhamento Diário
+            </button>
+            <button
+              class="tab-btn rounded-lg border border-indigo-100 bg-white px-4 py-2 text-sm font-medium text-indigo-600 shadow hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              data-tab="vendas"
+            >
+              Acompanhamento Vendas
+            </button>
+            <button
+              class="tab-btn rounded-lg border border-indigo-100 bg-white px-4 py-2 text-sm font-medium text-indigo-600 shadow hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              data-tab="problemas"
+            >
+              Acompanhamento de Problemas
+            </button>
+          </div>
+
+          <div id="tab-diario" class="space-y-4">
+            <p id="diarioStatus" class="text-sm text-gray-500"></p>
+            <div id="diarioTotais" class="space-y-4"></div>
+            <div
+              class="overflow-x-auto rounded-xl border border-gray-200 shadow"
+            >
+              <table
+                class="min-w-full divide-y divide-gray-200 text-left text-sm"
+              >
+                <thead
+                  class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"
+                >
+                  <tr>
+                    <th class="px-4 py-3">Usuário</th>
+                    <th class="px-4 py-3">Plataforma</th>
+                    <th class="px-4 py-3">Loja</th>
+                    <th class="px-4 py-3 text-right">Abertas</th>
+                    <th class="px-4 py-3 text-right">Respondidas</th>
+                    <th class="px-4 py-3 text-right">Encerradas</th>
+                    <th class="px-4 py-3 text-right">% Reclamação</th>
+                    <th class="px-4 py-3 text-right">% Mediação</th>
+                    <th class="px-4 py-3 text-right">% Atraso</th>
+                    <th class="px-4 py-3 text-right">% Cancelado</th>
+                  </tr>
+                </thead>
+                <tbody
+                  id="diarioTabela"
+                  class="divide-y divide-gray-100 bg-white"
+                ></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="tab-vendas" class="space-y-4 hidden">
+            <p id="vendasStatus" class="text-sm text-gray-500"></p>
+            <div
+              id="vendasTotais"
+              class="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+            ></div>
+            <div
+              class="overflow-x-auto rounded-xl border border-gray-200 shadow"
+            >
+              <table
+                class="min-w-full divide-y divide-gray-200 text-left text-sm"
+              >
+                <thead
+                  class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"
+                >
+                  <tr>
+                    <th class="px-4 py-3">Usuário</th>
+                    <th class="px-4 py-3 text-right">Faturamento bruto</th>
+                    <th class="px-4 py-3 text-right">Faturamento líquido</th>
+                    <th class="px-4 py-3 text-right">Quantidade vendida</th>
+                  </tr>
+                </thead>
+                <tbody
+                  id="vendasUsuariosTabela"
+                  class="divide-y divide-gray-100 bg-white"
+                ></tbody>
+              </table>
+            </div>
+            <div
+              class="overflow-x-auto rounded-xl border border-gray-200 shadow"
+            >
+              <table
+                class="min-w-full divide-y divide-gray-200 text-left text-sm"
+              >
+                <thead
+                  class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"
+                >
+                  <tr>
+                    <th class="px-4 py-3">SKU</th>
+                    <th class="px-4 py-3 text-right">Quantidade</th>
+                    <th class="px-4 py-3 text-right">Sobra total</th>
+                    <th class="px-4 py-3 text-right">Sobra média</th>
+                  </tr>
+                </thead>
+                <tbody
+                  id="vendasSkusTabela"
+                  class="divide-y divide-gray-100 bg-white"
+                ></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="tab-problemas" class="space-y-4 hidden">
+            <p class="text-sm text-gray-500">
+              A visualização abaixo reutiliza a ferramenta completa de
+              acompanhamento de problemas para facilitar o acesso rápido do
+              gestor financeiro.
+            </p>
+            <div
+              class="overflow-hidden rounded-xl border border-gray-200 shadow"
+            >
+              <iframe
+                id="problemasFrame"
+                title="Acompanhamento de Problemas"
+                src="acompanhamento-problemas.html?embedded=1"
+                class="h-[75vh] w-full border-0"
+                loading="lazy"
+              ></iframe>
+            </div>
+          </div>
+        </section>
+      </main>
+      <script>
+        window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
+        window.CUSTOM_NAVBAR_PATH = '/partials/navbar.html';
+      </script>
+      <script src="shared.js"></script>
+      <script type="module" src="firebase-config.js"></script>
+      <script type="module" src="resumo-equipe.js"></script>
+    </div>
+  </body>
+</html>
