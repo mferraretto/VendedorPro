@@ -640,6 +640,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-painel-atualizacoes-gerais',
       'menu-painel-atualizacoes-mentorados',
       'menu-financeiro',
+      'menu-resumo-equipe',
       'menu-produtos-precos',
       'menu-pedidos-reais',
       'menu-gestao',
