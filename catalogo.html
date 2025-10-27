@@ -261,12 +261,34 @@
         </section>
 
         <section class="card">
-          <div class="card-header">
-            <h2 class="text-lg font-semibold">Produtos cadastrados</h2>
-            <p class="text-sm text-gray-600">
-              Os produtos cadastrados ficam visíveis para todos os usuários
-              vinculados ao responsável financeiro.
-            </p>
+          <div
+            class="card-header flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+          >
+            <div>
+              <h2 class="text-lg font-semibold">Produtos cadastrados</h2>
+              <p class="text-sm text-gray-600">
+                Os produtos cadastrados ficam visíveis para todos os usuários
+                vinculados ao responsável financeiro.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                id="catalogExportPdf"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <i class="fa-solid fa-file-pdf"></i>
+                <span>Exportar PDF</span>
+              </button>
+              <button
+                id="catalogExportExcel"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <i class="fa-solid fa-file-excel"></i>
+                <span>Exportar Excel</span>
+              </button>
+            </div>
           </div>
           <div class="card-body">
             <div
@@ -385,6 +407,9 @@
       </div>
 
       <script src="shared.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
       <script type="module" src="firebase-config.js"></script>
       <script type="module" src="login.js"></script>
       <script type="module" src="catalogo.js"></script>
