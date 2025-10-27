@@ -13,6 +13,7 @@ import {
   query,
   where,
   setDoc,
+  updateDoc,
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
@@ -54,6 +55,7 @@ const modalPreco = document.getElementById('catalogDetailsPreco');
 const modalDescricao = document.getElementById('catalogDetailsDescricao');
 const modalMedidas = document.getElementById('catalogDetailsMedidas');
 const modalFotos = document.getElementById('catalogDetailsFotos');
+const modalVariacoes = document.getElementById('catalogDetailsVariacoes');
 
 const nameInput = document.getElementById('catalogProductName');
 const skuInput = document.getElementById('catalogProductSku');
@@ -64,6 +66,15 @@ const descriptionInput = document.getElementById('catalogProductDescription');
 const measuresInput = document.getElementById('catalogProductMeasures');
 const photosInput = document.getElementById('catalogProductPhotos');
 const photoUrlsInput = document.getElementById('catalogProductPhotoUrls');
+const colorVariationsContainer = document.getElementById(
+  'catalogColorVariations',
+);
+const addColorVariationBtn = document.getElementById(
+  'catalogAddColorVariation',
+);
+const editingNotice = document.getElementById('catalogEditingNotice');
+const editingNameEl = document.getElementById('catalogEditingName');
+const editingCancelBtn = document.getElementById('catalogEditingCancel');
 const submitBtn = form?.querySelector('button[type="submit"]');
 const exportPdfBtn = document.getElementById('catalogExportPdf');
 const exportExcelBtn = document.getElementById('catalogExportExcel');
@@ -76,6 +87,8 @@ let canEdit = false;
 let catalogUnsub = null;
 let isSubmitting = false;
 const productCache = new Map();
+let editingProductId = null;
+let editingProductData = null;
 
 function normalizePerfil(perfil) {
   const base = (perfil || '')
@@ -141,10 +154,116 @@ function toggleForm(visible) {
   }
 }
 
+function updateSubmitButtonLabel() {
+  if (!submitBtn) return;
+  const span = submitBtn.querySelector('span');
+  if (span)
+    span.textContent = editingProductId
+      ? 'Atualizar produto'
+      : 'Salvar produto';
+}
+
+function updateEditingNotice() {
+  if (!editingNotice) return;
+  if (editingProductId) {
+    editingNotice.classList.remove('hidden');
+    editingNotice.classList.add('flex');
+    if (editingNameEl) {
+      const descricao =
+        editingProductData?.nome || editingProductData?.sku || '';
+      editingNameEl.textContent = descricao ? `Produto: ${descricao}` : '';
+    }
+  } else {
+    editingNotice.classList.add('hidden');
+    editingNotice.classList.remove('flex');
+    if (editingNameEl) editingNameEl.textContent = '';
+  }
+}
+
+function createColorVariationRow(variacao = {}) {
+  const wrapper = document.createElement('div');
+  wrapper.className =
+    'catalog-color-variation grid gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-3 sm:items-end';
+
+  const colorGroup = document.createElement('div');
+  colorGroup.className = 'flex flex-col gap-1';
+  const colorLabel = document.createElement('label');
+  colorLabel.className = 'text-xs font-semibold uppercase text-gray-600';
+  colorLabel.textContent = 'Cor';
+  const colorInput = document.createElement('input');
+  colorInput.type = 'text';
+  colorInput.value = variacao.cor || '';
+  colorInput.placeholder = 'Ex.: Preto, Azul, Vermelho';
+  colorInput.className =
+    'catalog-color-name rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  colorGroup.append(colorLabel, colorInput);
+
+  const urlGroup = document.createElement('div');
+  urlGroup.className = 'flex flex-col gap-1';
+  const urlLabel = document.createElement('label');
+  urlLabel.className = 'text-xs font-semibold uppercase text-gray-600';
+  urlLabel.textContent = 'URL da foto';
+  const urlInput = document.createElement('input');
+  urlInput.type = 'url';
+  urlInput.value = variacao.fotoUrl || '';
+  urlInput.placeholder = 'https://exemplo.com/imagem-cor.jpg';
+  urlInput.className =
+    'catalog-color-url rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  urlGroup.append(urlLabel, urlInput);
+
+  const actions = document.createElement('div');
+  actions.className = 'flex items-center justify-end sm:justify-center';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className =
+    'inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100';
+  removeBtn.innerHTML = '<i class="fa-solid fa-trash"></i><span>Remover</span>';
+  removeBtn.addEventListener('click', () => {
+    wrapper.remove();
+  });
+  actions.appendChild(removeBtn);
+
+  wrapper.append(colorGroup, urlGroup, actions);
+  return wrapper;
+}
+
+function setColorVariations(variacoes = []) {
+  if (!colorVariationsContainer) return;
+  colorVariationsContainer.innerHTML = '';
+  variacoes
+    .filter((item) => item && (item.cor || item.fotoUrl))
+    .forEach((variacao) => {
+      colorVariationsContainer.appendChild(createColorVariationRow(variacao));
+    });
+}
+
+function getColorVariations() {
+  if (!colorVariationsContainer) return [];
+  const rows = Array.from(
+    colorVariationsContainer.querySelectorAll('.catalog-color-variation'),
+  );
+  return rows
+    .map((row) => {
+      const cor = row.querySelector('.catalog-color-name')?.value?.trim();
+      const fotoUrl = row.querySelector('.catalog-color-url')?.value?.trim();
+      if (!cor && !fotoUrl) return null;
+      return {
+        cor: cor || null,
+        fotoUrl: fotoUrl || null,
+      };
+    })
+    .filter(Boolean);
+}
+
 function clearForm() {
   form?.reset();
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
+  setColorVariations([]);
+  editingProductId = null;
+  editingProductData = null;
+  updateSubmitButtonLabel();
+  updateEditingNotice();
 }
 
 function getFileNameFromUrl(url) {
@@ -205,6 +324,54 @@ function openModal(produto) {
     });
   }
 
+  if (modalVariacoes) {
+    modalVariacoes.innerHTML = '';
+    const variacoes = Array.isArray(produto.variacoesCor)
+      ? produto.variacoesCor.filter(
+          (item) => item && (item.cor || item.fotoUrl),
+        )
+      : [];
+    if (!variacoes.length) {
+      const empty = document.createElement('p');
+      empty.className = 'text-sm text-gray-500';
+      empty.textContent = 'Nenhuma variação cadastrada.';
+      modalVariacoes.appendChild(empty);
+    } else {
+      variacoes.forEach((variacao) => {
+        const item = document.createElement('div');
+        item.className =
+          'space-y-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700';
+
+        if (variacao.cor) {
+          const corEl = document.createElement('p');
+          corEl.className = 'font-medium text-gray-800';
+          corEl.textContent = variacao.cor;
+          item.appendChild(corEl);
+        }
+
+        if (variacao.fotoUrl) {
+          const link = document.createElement('a');
+          link.href = variacao.fotoUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.className =
+            'break-all text-xs text-blue-600 hover:text-blue-700';
+          link.textContent = variacao.fotoUrl;
+          item.appendChild(link);
+        }
+
+        if (!variacao.cor && !variacao.fotoUrl) {
+          const emptyInfo = document.createElement('p');
+          emptyInfo.className = 'text-xs text-gray-500';
+          emptyInfo.textContent = 'Variação sem detalhes.';
+          item.appendChild(emptyInfo);
+        }
+
+        modalVariacoes.appendChild(item);
+      });
+    }
+  }
+
   modal.classList.remove('hidden');
   document.body.classList.add('overflow-hidden');
 }
@@ -263,12 +430,24 @@ function getCatalogExportData() {
     'Preço sugerido',
     'Descrição',
     'Medidas',
+    'Variações de cor',
     'Fotos (URLs)',
   ];
   const linhas = produtos.map((produto) => {
     const fotos = Array.isArray(produto.fotos)
       ? produto.fotos
           .map((foto) => foto?.url)
+          .filter(Boolean)
+          .join('\n')
+      : '';
+    const variacoes = Array.isArray(produto.variacoesCor)
+      ? produto.variacoesCor
+          .filter((item) => item && (item.cor || item.fotoUrl))
+          .map((item) => {
+            if (item.cor && item.fotoUrl)
+              return `${item.cor} - ${item.fotoUrl}`;
+            return item.cor || item.fotoUrl || '';
+          })
           .filter(Boolean)
           .join('\n')
       : '';
@@ -280,6 +459,7 @@ function getCatalogExportData() {
       formatCurrencyForExport(produto.precoSugerido),
       produto.descricao || '',
       produto.medidas || '',
+      variacoes,
       fotos,
     ];
   });
@@ -600,19 +780,48 @@ function renderProducts(produtos) {
       categoryEl.className = 'mt-1 text-sm text-gray-500';
       categoryEl.textContent = produto.categoria || 'Sem categoria';
 
-      const detailsBtn = document.createElement('button');
-      detailsBtn.type = 'button';
-      detailsBtn.className =
-        'mt-auto inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700';
-      detailsBtn.innerHTML =
-        '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
-      detailsBtn.addEventListener('click', () => openModal(produto));
-
       body.appendChild(skuLabel);
       body.appendChild(skuValue);
       body.appendChild(nameEl);
       body.appendChild(categoryEl);
-      body.appendChild(detailsBtn);
+
+      const variacoes = Array.isArray(produto.variacoesCor)
+        ? produto.variacoesCor.filter((item) => item && item.cor)
+        : [];
+      if (variacoes.length) {
+        const variacoesEl = document.createElement('p');
+        variacoesEl.className = 'mt-2 text-xs text-gray-500';
+        variacoesEl.textContent = `Cores: ${variacoes
+          .map((item) => item.cor)
+          .join(', ')}`;
+        body.appendChild(variacoesEl);
+      }
+
+      const actions = document.createElement('div');
+      actions.className =
+        'mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between';
+
+      const detailsBtn = document.createElement('button');
+      detailsBtn.type = 'button';
+      detailsBtn.className =
+        'inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700';
+      detailsBtn.innerHTML =
+        '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
+      detailsBtn.addEventListener('click', () => openModal(produto));
+      actions.appendChild(detailsBtn);
+
+      if (canEdit) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className =
+          'inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700';
+        editBtn.innerHTML =
+          '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
+        editBtn.addEventListener('click', () => startEditingProduct(produto));
+        actions.appendChild(editBtn);
+      }
+
+      body.appendChild(actions);
       card.appendChild(body);
 
       cardsContainer?.appendChild(card);
@@ -775,7 +984,13 @@ async function handleSubmit(event) {
         }
       : responsavelInfo;
 
-  const payload = {
+  const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
+  const isEditing = Boolean(editingProductId);
+  const docRef = isEditing ? doc(colRef, editingProductId) : doc(colRef);
+
+  const variacoesCor = getColorVariations();
+
+  const basePayload = {
     nome,
     sku,
     custo: typeof custo === 'number' && !Number.isNaN(custo) ? custo : null,
@@ -784,20 +999,30 @@ async function handleSubmit(event) {
     categoria: categoria || null,
     descricao: descricao || null,
     medidas: medidas || null,
-    fotos: [],
-    createdAt: serverTimestamp(),
+    variacoesCor,
     updatedAt: serverTimestamp(),
-    criadoPorUid: currentUser.uid,
-    criadoPorEmail: currentUser.email,
-    criadoPorNome:
-      currentProfile?.nome || currentUser.displayName || currentUser.email,
-    responsavelUid: responsavel?.uid || scopeUid,
-    responsavelEmail: responsavel?.email || null,
-    responsavelNome: responsavel?.nome || null,
   };
 
-  const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
-  const docRef = doc(colRef);
+  const payload = isEditing
+    ? basePayload
+    : {
+        ...basePayload,
+        fotos: [],
+        createdAt: serverTimestamp(),
+        criadoPorUid: currentUser.uid,
+        criadoPorEmail: currentUser.email,
+        criadoPorNome:
+          currentProfile?.nome || currentUser.displayName || currentUser.email,
+        responsavelUid: responsavel?.uid || scopeUid,
+        responsavelEmail: responsavel?.email || null,
+        responsavelNome: responsavel?.nome || null,
+      };
+
+  const fotosAtuais = isEditing
+    ? Array.isArray(editingProductData?.fotos)
+      ? [...editingProductData.fotos]
+      : []
+    : [];
 
   try {
     isSubmitting = true;
@@ -806,7 +1031,6 @@ async function handleSubmit(event) {
       submitBtn.classList.add('opacity-60');
     }
 
-    const fotosSalvas = [];
     const errosUpload = [];
     for (const arquivo of arquivos) {
       if (!(arquivo instanceof File)) continue;
@@ -815,7 +1039,7 @@ async function handleSubmit(event) {
         const storageRef = ref(storage, path);
         await uploadBytes(storageRef, arquivo);
         const url = await getDownloadURL(storageRef);
-        fotosSalvas.push({ nome: arquivo.name, url, storagePath: path });
+        fotosAtuais.push({ nome: arquivo.name, url, storagePath: path });
       } catch (err) {
         console.error('Não foi possível enviar uma foto para o Storage:', err);
         errosUpload.push(arquivo.name);
@@ -824,12 +1048,18 @@ async function handleSubmit(event) {
 
     fotosUrls.forEach((url, index) => {
       const nome = getFileNameFromUrl(url) || `Foto ${index + 1}`;
-      fotosSalvas.push({ nome, url });
+      fotosAtuais.push({ nome, url });
     });
-    payload.fotos = fotosSalvas;
 
-    await setDoc(docRef, payload);
-    showToast('Produto cadastrado no catálogo com sucesso!');
+    payload.fotos = fotosAtuais;
+
+    if (isEditing) {
+      await updateDoc(docRef, payload);
+      showToast('Produto atualizado com sucesso!');
+    } else {
+      await setDoc(docRef, payload);
+      showToast('Produto cadastrado no catálogo com sucesso!');
+    }
     if (errosUpload.length) {
       showToast(
         'Algumas fotos não puderam ser enviadas. Considere usar URLs externas.',
@@ -839,8 +1069,8 @@ async function handleSubmit(event) {
     clearForm();
     toggleForm(false);
   } catch (err) {
-    console.error('Erro ao cadastrar produto no catálogo:', err);
-    showToast('Erro ao cadastrar produto. Tente novamente.', 'error');
+    console.error('Erro ao salvar produto no catálogo:', err);
+    showToast('Erro ao salvar produto. Tente novamente.', 'error');
   } finally {
     isSubmitting = false;
     if (submitBtn) {
@@ -848,6 +1078,39 @@ async function handleSubmit(event) {
       submitBtn.classList.remove('opacity-60');
     }
   }
+}
+
+function startEditingProduct(produto) {
+  if (!canEdit || !produto) return;
+  editingProductId = produto.id;
+  editingProductData = produto;
+  if (nameInput) nameInput.value = produto.nome || '';
+  if (skuInput) skuInput.value = produto.sku || '';
+  if (costInput)
+    costInput.value =
+      typeof produto.custo === 'number' && !Number.isNaN(produto.custo)
+        ? produto.custo
+        : produto.custo || '';
+  if (priceInput)
+    priceInput.value =
+      typeof produto.precoSugerido === 'number' &&
+      !Number.isNaN(produto.precoSugerido)
+        ? produto.precoSugerido
+        : produto.precoSugerido || '';
+  if (categoryInput) categoryInput.value = produto.categoria || '';
+  if (descriptionInput) descriptionInput.value = produto.descricao || '';
+  if (measuresInput) measuresInput.value = produto.medidas || '';
+  if (photosInput) photosInput.value = '';
+  if (photoUrlsInput) photoUrlsInput.value = '';
+  setColorVariations(
+    Array.isArray(produto.variacoesCor) ? produto.variacoesCor : [],
+  );
+  updateSubmitButtonLabel();
+  updateEditingNotice();
+  toggleForm(true);
+  setTimeout(() => {
+    formWrapper?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
 }
 
 function setupEventListeners() {
@@ -866,10 +1129,19 @@ function setupEventListeners() {
   });
   exportExcelBtn?.addEventListener('click', exportCatalogToExcel);
   exportPdfBtn?.addEventListener('click', exportCatalogToPdf);
+  addColorVariationBtn?.addEventListener('click', () => {
+    colorVariationsContainer?.appendChild(createColorVariationRow());
+  });
+  editingCancelBtn?.addEventListener('click', () => {
+    clearForm();
+    toggleForm(false);
+  });
 }
 
 setupEventListeners();
 updateExportButtons(false);
+updateSubmitButtonLabel();
+updateEditingNotice();
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
