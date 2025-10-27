@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resumo da Equipe Financeira</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
+    <link rel="stylesheet" href="css/tabs-mobile.css?v=20240826" />
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="app-container">
+      <div id="sidebar-container"></div>
+      <div id="navbar-container"></div>
+
+      <main class="main-content p-4 space-y-6">
+        <header class="space-y-2">
+          <h1 class="text-2xl font-bold flex items-center gap-2">
+            <span>📊</span>
+            Resumo da Equipe
+          </h1>
+          <p class="text-sm text-gray-600">
+            Acompanhe o desempenho diário, vendas e indicadores de problemas da equipe de pós-vendas sob sua gestão financeira.
+          </p>
+        </header>
+
+        <nav class="flex flex-wrap gap-2 text-sm border-b border-gray-200">
+          <button
+            type="button"
+            class="main-tab-btn pb-2 -mb-px border-b-2 border-indigo-600 text-indigo-600 font-medium"
+            data-tab="aba-diario"
+          >
+            Resumo Diário
+          </button>
+          <button
+            type="button"
+            class="main-tab-btn pb-2 -mb-px border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+            data-tab="aba-vendas"
+          >
+            Acompanhamento de Vendas
+          </button>
+          <button
+            type="button"
+            class="main-tab-btn pb-2 -mb-px border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+            data-tab="aba-problemas"
+          >
+            Acompanhamento de Problemas
+          </button>
+        </nav>
+
+        <section id="aba-diario" class="space-y-6">
+          <div class="card">
+            <div class="card-body grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-end">
+              <div class="space-y-2">
+                <label for="dailyUsuarioSelect" class="text-sm font-medium text-gray-700"
+                  >Usuário</label
+                >
+                <select id="dailyUsuarioSelect" class="form-control">
+                  <option value="todos">Todos os usuários vinculados</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <label for="dailyPeriodoTipo" class="text-sm font-medium text-gray-700"
+                  >Período</label
+                >
+                <select id="dailyPeriodoTipo" class="form-control">
+                  <option value="dia">Dia</option>
+                  <option value="semana">Semana</option>
+                  <option value="mes">Mês</option>
+                </select>
+              </div>
+              <div class="space-y-2" id="dailyPeriodoDiaWrapper">
+                <label for="dailyDataDia" class="text-sm font-medium text-gray-700"
+                  >Selecionar dia</label
+                >
+                <input type="date" id="dailyDataDia" class="form-control" />
+              </div>
+              <div class="space-y-2 hidden" id="dailyPeriodoSemanaWrapper">
+                <label for="dailyDataSemana" class="text-sm font-medium text-gray-700"
+                  >Selecionar semana</label
+                >
+                <input type="week" id="dailyDataSemana" class="form-control" />
+              </div>
+              <div class="space-y-2 hidden" id="dailyPeriodoMesWrapper">
+                <label for="dailyDataMes" class="text-sm font-medium text-gray-700"
+                  >Selecionar mês</label
+                >
+                <input type="month" id="dailyDataMes" class="form-control" />
+              </div>
+              <div class="md:col-span-2 xl:col-span-1 flex flex-col gap-1 text-sm text-gray-500">
+                <span id="dailyIntervaloLabel">Intervalo selecionado</span>
+                <span id="dailyStatus" class="text-xs text-gray-400">Carregando...</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="dailyCardsContainer" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4"></div>
+
+          <div class="card">
+            <div class="card-header flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-lg font-semibold">Totais por usuário</h2>
+              <span id="dailyLastUpdate" class="text-xs text-gray-400"></span>
+            </div>
+            <div class="card-body overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th class="px-4 py-2 text-left">Usuário</th>
+                    <th class="px-4 py-2 text-right">Registros</th>
+                    <th class="px-4 py-2 text-right">Abertas</th>
+                    <th class="px-4 py-2 text-right">Respondidas</th>
+                    <th class="px-4 py-2 text-right">Encerradas</th>
+                    <th class="px-4 py-2 text-right">% Reclamação</th>
+                    <th class="px-4 py-2 text-right">% Mediação</th>
+                    <th class="px-4 py-2 text-right">% Atraso</th>
+                    <th class="px-4 py-2 text-right">% Cancelamento</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyUsuariosTableBody" class="divide-y divide-gray-200"></tbody>
+              </table>
+              <p
+                id="dailyEmptyState"
+                class="text-sm text-gray-500 text-center py-6 hidden"
+              >
+                Nenhum acompanhamento encontrado para o filtro selecionado.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2 class="text-lg font-semibold">Registros detalhados</h2>
+            </div>
+            <div class="card-body overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th class="px-4 py-2 text-left">Data</th>
+                    <th class="px-4 py-2 text-left">Usuário</th>
+                    <th class="px-4 py-2 text-left">Plataforma</th>
+                    <th class="px-4 py-2 text-left">Loja</th>
+                    <th class="px-4 py-2 text-right">Abertas</th>
+                    <th class="px-4 py-2 text-right">Respondidas</th>
+                    <th class="px-4 py-2 text-right">Encerradas</th>
+                    <th class="px-4 py-2 text-right">% Reclamação</th>
+                    <th class="px-4 py-2 text-right">% Mediação</th>
+                    <th class="px-4 py-2 text-right">% Atraso</th>
+                    <th class="px-4 py-2 text-right">% Cancelamento</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyDetalhesTableBody" class="divide-y divide-gray-200"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="aba-vendas" class="space-y-6 hidden">
+          <div class="card">
+            <div class="card-body grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-end">
+              <div class="space-y-2">
+                <label for="salesUsuarioSelect" class="text-sm font-medium text-gray-700"
+                  >Usuário</label
+                >
+                <select id="salesUsuarioSelect" class="form-control">
+                  <option value="todos">Todos os usuários vinculados</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <label for="salesPeriodoTipo" class="text-sm font-medium text-gray-700"
+                  >Período</label
+                >
+                <select id="salesPeriodoTipo" class="form-control">
+                  <option value="dia">Dia</option>
+                  <option value="semana">Semana</option>
+                  <option value="mes">Mês</option>
+                </select>
+              </div>
+              <div class="space-y-2" id="salesPeriodoDiaWrapper">
+                <label for="salesDataDia" class="text-sm font-medium text-gray-700"
+                  >Selecionar dia</label
+                >
+                <input type="date" id="salesDataDia" class="form-control" />
+              </div>
+              <div class="space-y-2 hidden" id="salesPeriodoSemanaWrapper">
+                <label for="salesDataSemana" class="text-sm font-medium text-gray-700"
+                  >Selecionar semana</label
+                >
+                <input type="week" id="salesDataSemana" class="form-control" />
+              </div>
+              <div class="space-y-2 hidden" id="salesPeriodoMesWrapper">
+                <label for="salesDataMes" class="text-sm font-medium text-gray-700"
+                  >Selecionar mês</label
+                >
+                <input type="month" id="salesDataMes" class="form-control" />
+              </div>
+              <div class="md:col-span-2 xl:col-span-1 flex flex-col gap-1 text-sm text-gray-500">
+                <span id="salesIntervaloLabel">Intervalo selecionado</span>
+                <span id="salesStatus" class="text-xs text-gray-400">Carregando...</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="salesCardsContainer" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4"></div>
+
+          <div class="card">
+            <div class="card-header flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-lg font-semibold">Totais por usuário</h2>
+              <span id="salesLastUpdate" class="text-xs text-gray-400"></span>
+            </div>
+            <div class="card-body overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th class="px-4 py-2 text-left">Usuário</th>
+                    <th class="px-4 py-2 text-right">Dias</th>
+                    <th class="px-4 py-2 text-right">Faturamento Bruto</th>
+                    <th class="px-4 py-2 text-right">Faturamento Líquido</th>
+                    <th class="px-4 py-2 text-right">Quantidade</th>
+                    <th class="px-4 py-2 text-right">Ticket Médio</th>
+                  </tr>
+                </thead>
+                <tbody id="salesUsuariosTableBody" class="divide-y divide-gray-200"></tbody>
+              </table>
+              <p
+                id="salesEmptyState"
+                class="text-sm text-gray-500 text-center py-6 hidden"
+              >
+                Nenhum faturamento encontrado para o filtro selecionado.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2 class="text-lg font-semibold">Top 10 SKUs mais vendidos</h2>
+            </div>
+            <div class="card-body overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th class="px-4 py-2 text-left">SKU</th>
+                    <th class="px-4 py-2 text-right">Quantidade</th>
+                    <th class="px-4 py-2 text-right">Faturamento Bruto</th>
+                    <th class="px-4 py-2 text-right">Faturamento Líquido</th>
+                    <th class="px-4 py-2 text-right">Sobra média</th>
+                  </tr>
+                </thead>
+                <tbody id="salesTopSkusTableBody" class="divide-y divide-gray-200"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="aba-problemas" class="space-y-6 hidden">
+          <header class="space-y-2">
+            <h2 class="text-xl font-semibold flex items-center gap-2">
+              <span>🛟</span>
+              Acompanhamento de Problemas
+            </h2>
+            <p class="text-sm text-gray-500">
+              Utilize os filtros abaixo para monitorar peças faltantes e reembolsos registrados pela equipe.
+            </p>
+          </header>
+
+          <section class="card">
+            <div class="card-body grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-end">
+              <div class="space-y-2">
+                <label
+                  for="filtroUsuario"
+                  class="block text-sm font-medium text-gray-700"
+                  >Selecionar usuário</label
+                >
+                <select id="filtroUsuario" class="form-control">
+                  <option value="">Todos os usuários conectados</option>
+                </select>
+              </div>
+              <div class="space-y-2 lg:col-span-2">
+                <label class="block text-sm font-medium text-gray-700">Resumo</label>
+                <p class="text-sm text-gray-500" id="resumoUsuarios">
+                  Aguarde enquanto buscamos os dados registrados na aba de Problemas.
+                </p>
+              </div>
+              <div class="lg:justify-self-end">
+                <span
+                  id="globalStatus"
+                  class="text-xs text-gray-500 px-3 py-1 rounded-full bg-gray-100"
+                  >Sincronizando dados...</span
+                >
+              </div>
+            </div>
+          </section>
+
+          <section class="space-y-4">
+            <nav class="border-b border-gray-200 flex flex-wrap gap-2 text-sm">
+              <button
+                class="tab-btn pb-2 -mb-px border-b-2 border-indigo-600 text-indigo-600 font-medium"
+                data-tab="tab-pecas"
+              >
+                Peças faltantes
+              </button>
+              <button
+                class="tab-btn pb-2 -mb-px border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+                data-tab="tab-reembolsos"
+              >
+                Reembolsos
+              </button>
+            </nav>
+
+            <section id="tab-pecas" class="tab-panel space-y-6">
+              <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-gray-500">Total de registros</p>
+                  <p class="text-2xl font-semibold" id="pecasResumoTotal">0</p>
+                </div>
+                <div class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-amber-600">Não feito</p>
+                  <p class="text-2xl font-semibold text-amber-600" id="pecasResumoNaoFeito">0</p>
+                </div>
+                <div class="bg-white border border-blue-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-blue-600">Em andamento</p>
+                  <p class="text-2xl font-semibold text-blue-600" id="pecasResumoEmAndamento">0</p>
+                </div>
+                <div class="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-emerald-600">Resolvidos</p>
+                  <p class="text-2xl font-semibold text-emerald-600" id="pecasResumoResolvido">0</p>
+                </div>
+                <div class="bg-white border border-indigo-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-indigo-600">Valor gasto</p>
+                  <p class="text-2xl font-semibold text-indigo-600" id="pecasResumoValor">R$ 0,00</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-body grid gap-4 md:grid-cols-5">
+                  <div class="space-y-2">
+                    <label for="pecasInicio" class="text-sm font-medium text-gray-700">Início</label>
+                    <input type="date" id="pecasInicio" class="form-control" />
+                  </div>
+                  <div class="space-y-2">
+                    <label for="pecasFim" class="text-sm font-medium text-gray-700">Fim</label>
+                    <input type="date" id="pecasFim" class="form-control" />
+                  </div>
+                  <div class="space-y-2">
+                    <label for="pecasStatus" class="text-sm font-medium text-gray-700">Status</label>
+                    <select id="pecasStatus" class="form-control">
+                      <option value="">Todos</option>
+                      <option value="NÃO FEITO">Não feito</option>
+                      <option value="EM ANDAMENTO">Em andamento</option>
+                      <option value="RESOLVIDO">Resolvido</option>
+                    </select>
+                  </div>
+                  <div class="space-y-2 md:col-span-2">
+                    <label for="pecasBusca" class="text-sm font-medium text-gray-700">Busca</label>
+                    <input
+                      type="text"
+                      id="pecasBusca"
+                      class="form-control"
+                      placeholder="Número, peça, loja ou responsável"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
+                  <div class="flex flex-col gap-1">
+                    <h2 class="text-lg font-semibold">Peças faltantes registradas</h2>
+                    <span id="pecasSelecaoResumo" class="text-xs text-gray-500 hidden"></span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span id="pecasStatusMsg" class="text-sm text-gray-500"></span>
+                    <div class="flex items-center gap-2">
+                      <button id="pecasExportExcel" type="button" class="btn btn-secondary text-xs">
+                        <i class="fa fa-file-excel"></i>
+                        Exportar Excel
+                      </button>
+                      <button id="pecasExportPdf" type="button" class="btn btn-secondary text-xs">
+                        <i class="fa fa-file-pdf"></i>
+                        Exportar PDF
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-body overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th class="px-4 py-3">
+                          <input type="checkbox" id="pecasSelecionarTodos" />
+                        </th>
+                        <th class="px-4 py-3 text-left">Data</th>
+                        <th class="px-4 py-3 text-left">Responsável</th>
+                        <th class="px-4 py-3 text-left">Loja</th>
+                        <th class="px-4 py-3 text-left">Peça</th>
+                        <th class="px-4 py-3 text-right">Valor</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="pecasTableBody" class="divide-y divide-gray-100"></tbody>
+                  </table>
+                  <p id="pecasEmpty" class="text-sm text-gray-500 text-center py-6 hidden">
+                    Nenhuma peça encontrada com os filtros selecionados.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section id="tab-reembolsos" class="tab-panel space-y-6 hidden">
+              <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-gray-500">Total de registros</p>
+                  <p class="text-2xl font-semibold" id="reembolsosResumoTotal">0</p>
+                </div>
+                <div class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-amber-600">Aguardando</p>
+                  <p class="text-2xl font-semibold text-amber-600" id="reembolsosResumoAguardando">0</p>
+                </div>
+                <div class="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-emerald-600">Concluídos</p>
+                  <p class="text-2xl font-semibold text-emerald-600" id="reembolsosResumoConcluidos">0</p>
+                </div>
+                <div class="bg-white border border-rose-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-rose-600">Cancelados</p>
+                  <p class="text-2xl font-semibold text-rose-600" id="reembolsosResumoCancelados">0</p>
+                </div>
+                <div class="bg-white border border-indigo-200 rounded-lg p-4 shadow-sm">
+                  <p class="text-xs uppercase text-indigo-600">Valor total</p>
+                  <p class="text-2xl font-semibold text-indigo-600" id="reembolsosResumoValor">R$ 0,00</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-body grid gap-4 md:grid-cols-5">
+                  <div class="space-y-2">
+                    <label for="reembolsosInicio" class="text-sm font-medium text-gray-700">Início</label>
+                    <input type="date" id="reembolsosInicio" class="form-control" />
+                  </div>
+                  <div class="space-y-2">
+                    <label for="reembolsosFim" class="text-sm font-medium text-gray-700">Fim</label>
+                    <input type="date" id="reembolsosFim" class="form-control" />
+                  </div>
+                  <div class="space-y-2">
+                    <label for="reembolsosStatus" class="text-sm font-medium text-gray-700">Status</label>
+                    <select id="reembolsosStatus" class="form-control">
+                      <option value="">Todos</option>
+                      <option value="AGUARDANDO PIX">Aguardando PIX</option>
+                      <option value="AGUARDANDO MERCADO">Aguardando Mercado</option>
+                      <option value="AGUARDANDO">Aguardando</option>
+                      <option value="FEITO">Feito</option>
+                      <option value="FEITO PIX">Feito PIX</option>
+                      <option value="FEITO MERCADO">Feito Mercado</option>
+                      <option value="CANCELADO">Cancelado</option>
+                    </select>
+                  </div>
+                  <div class="space-y-2 md:col-span-2">
+                    <label for="reembolsosBusca" class="text-sm font-medium text-gray-700">Busca</label>
+                    <input
+                      type="text"
+                      id="reembolsosBusca"
+                      class="form-control"
+                      placeholder="Responsável, pedido, apelido, NF ou loja"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
+                  <div class="flex flex-col gap-1">
+                    <h2 class="text-lg font-semibold">Reembolsos registrados</h2>
+                    <span id="reembolsosSelecaoResumo" class="text-xs text-gray-500 hidden"></span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span id="reembolsosStatusMsg" class="text-sm text-gray-500"></span>
+                    <div class="flex items-center gap-2">
+                      <button id="reembolsosExportExcel" type="button" class="btn btn-secondary text-xs">
+                        <i class="fa fa-file-excel"></i>
+                        Exportar Excel
+                      </button>
+                      <button id="reembolsosExportPdf" type="button" class="btn btn-secondary text-xs">
+                        <i class="fa fa-file-pdf"></i>
+                        Exportar PDF
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-body overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th class="px-4 py-3">
+                          <input type="checkbox" id="reembolsosSelecionarTodos" />
+                        </th>
+                        <th class="px-4 py-3">Data</th>
+                        <th class="px-4 py-3">Responsável</th>
+                        <th class="px-4 py-3">Número do pedido</th>
+                        <th class="px-4 py-3">Apelido</th>
+                        <th class="px-4 py-3">NF</th>
+                        <th class="px-4 py-3">Loja</th>
+                        <th class="px-4 py-3 text-right">Valor</th>
+                        <th class="px-4 py-3">PIX</th>
+                        <th class="px-4 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="reembolsosTableBody" class="divide-y divide-gray-100"></tbody>
+                  </table>
+                  <p id="reembolsosEmpty" class="text-sm text-gray-500 text-center py-6 hidden">
+                    Nenhum reembolso encontrado com os filtros selecionados.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </section>
+        </section>
+      </main>
+
+      <script>
+        window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
+        window.CUSTOM_NAVBAR_PATH = '/partials/navbar.html';
+      </script>
+      <script src="shared.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+      <script type="module" src="firebase-config.js"></script>
+      <script type="module" src="resumo-equipe.js"></script>
+      <script type="module" src="acompanhamento-problemas.js"></script>
+    </div>
+  </body>
+</html>
