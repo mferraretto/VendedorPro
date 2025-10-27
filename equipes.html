@@ -297,6 +297,7 @@
       }
 
       button[type='submit'],
+      .primary-button,
       .secondary-button {
         display: inline-flex;
         align-items: center;
@@ -315,7 +316,13 @@
         color: #fff;
       }
 
-      button[type='submit']:hover:not([disabled]) {
+      .primary-button {
+        background: linear-gradient(135deg, var(--primary, #4262ff), #6b8bff);
+        color: #fff;
+      }
+
+      button[type='submit']:hover:not([disabled]),
+      .primary-button:hover:not([disabled]) {
         transform: translateY(-1px);
         box-shadow: 0 10px 24px -18px rgba(66, 98, 255, 0.8);
       }
@@ -444,6 +451,77 @@
         background: color-mix(in srgb, var(--primary, #4262ff) 6%, transparent);
         border-radius: 999px;
         font-size: 0.75rem;
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .modal {
+        border: none;
+        border-radius: 16px;
+        padding: 0;
+        width: min(560px, 90vw);
+        max-width: 90vw;
+        background: var(--card-bg, #ffffff);
+        color: inherit;
+        box-shadow: 0 24px 48px -32px rgba(15, 23, 42, 0.55);
+      }
+
+      .modal::backdrop {
+        background: rgba(15, 23, 42, 0.45);
+      }
+
+      .modal-content {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .modal-close {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        color: inherit;
+        font-size: 1rem;
+        padding: 6px;
+        border-radius: 999px;
+        transition: background 0.2s ease;
+      }
+
+      .modal-close:hover,
+      .modal-close:focus {
+        background: color-mix(in srgb, var(--primary, #4262ff) 10%, transparent);
+        outline: none;
+      }
+
+      .modal-body {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .form-hint {
+        font-size: 0.8rem;
+        color: var(--text-light, #4b5563);
+        margin-top: 4px;
       }
 
       .card-footer {
@@ -613,66 +691,90 @@
             <p class="text-sm" style="color: var(--text-light, #4b5563); margin-bottom: 12px;">
               Defina tarefas com data, horário, prioridade e materiais de apoio. Os integrantes cadastrados verão tudo automaticamente.
             </p>
-            <div id="taskStatus" class="status-message" role="status" aria-live="polite"></div>
-            <form id="taskForm">
-              <div>
-                <label for="taskTitle">
-                  Tarefa <span class="required" aria-hidden="true">*</span>
-                </label>
-                <input id="taskTitle" name="taskTitle" type="text" placeholder="Ex.: Realizar inventário diário" required />
-              </div>
-              <div class="stack" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-                <div>
-                  <label for="taskDate">
-                    Data <span class="required" aria-hidden="true">*</span>
-                  </label>
-                  <input id="taskDate" name="taskDate" type="date" required />
-                </div>
-                <div>
-                  <label for="taskTime">
-                    Horário <span class="required" aria-hidden="true">*</span>
-                  </label>
-                  <input id="taskTime" name="taskTime" type="time" required />
-                </div>
-                <div>
-                  <label for="taskPriority">
-                    Prioridade <span class="required" aria-hidden="true">*</span>
-                  </label>
-                  <select id="taskPriority" name="taskPriority" required>
-                    <option value="alta">Alta</option>
-                    <option value="media">Média</option>
-                    <option value="baixa">Baixa</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label for="taskTips">Dicas e orientações</label>
-                <textarea id="taskTips" name="taskTips" placeholder="Compartilhe detalhes, lembretes ou checklists importantes."></textarea>
-              </div>
-              <div>
-                <label for="taskSupport">Material de apoio</label>
-                <textarea
-                  id="taskSupport"
-                  name="taskSupport"
-                  placeholder="Links, anotações ou referências úteis."
-                ></textarea>
-              </div>
-              <div>
-                <label for="taskResponsible">
-                  Usuário responsável <span class="required" aria-hidden="true">*</span>
-                </label>
-                <select id="taskResponsible" name="taskResponsible" required>
-                  <option value="" disabled selected>Cadastre a equipe para selecionar um responsável</option>
-                </select>
-              </div>
-              <div class="actions-row">
-                <button type="submit" id="taskSubmitBtn">
-                  <i class="fas fa-plus" aria-hidden="true"></i>
-                  Salvar tarefa
-                </button>
-              </div>
-            </form>
+            <div id="taskCardStatus" class="status-message" role="status" aria-live="polite"></div>
+            <div class="actions-row" style="justify-content: flex-start;">
+              <button type="button" class="primary-button" id="openTaskModal">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                Nova tarefa
+              </button>
+            </div>
           </div>
+
+          <dialog id="taskModal" class="modal" aria-labelledby="taskModalTitle">
+            <div class="modal-content">
+              <header class="modal-header">
+                <h3 id="taskModalTitle" style="margin: 0;">Registrar tarefa</h3>
+                <button type="button" class="modal-close" id="closeTaskModal" aria-label="Fechar formulário de tarefa">
+                  <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+              </header>
+              <div class="modal-body">
+                <div id="taskStatus" class="status-message" role="status" aria-live="polite"></div>
+                <form id="taskForm">
+                  <div>
+                    <label for="taskTitle">
+                      Tarefa <span class="required" aria-hidden="true">*</span>
+                    </label>
+                    <input id="taskTitle" name="taskTitle" type="text" placeholder="Ex.: Realizar inventário diário" required />
+                  </div>
+                  <div class="stack" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                    <div>
+                      <label for="taskDate">
+                        Data <span class="required" aria-hidden="true">*</span>
+                      </label>
+                      <input id="taskDate" name="taskDate" type="date" required />
+                    </div>
+                    <div>
+                      <label for="taskTime">
+                        Horário <span class="required" aria-hidden="true">*</span>
+                      </label>
+                      <input id="taskTime" name="taskTime" type="time" required />
+                    </div>
+                    <div>
+                      <label for="taskPriority">
+                        Prioridade <span class="required" aria-hidden="true">*</span>
+                      </label>
+                      <select id="taskPriority" name="taskPriority" required>
+                        <option value="alta">Alta</option>
+                        <option value="media">Média</option>
+                        <option value="baixa">Baixa</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label for="taskTips">Dicas e orientações</label>
+                    <textarea id="taskTips" name="taskTips" placeholder="Compartilhe detalhes, lembretes ou checklists importantes."></textarea>
+                  </div>
+                  <div>
+                    <label for="taskSupport">Material de apoio</label>
+                    <textarea
+                      id="taskSupport"
+                      name="taskSupport"
+                      placeholder="Links, anotações ou referências úteis."
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label for="taskResponsible">
+                      Responsáveis <span class="required" aria-hidden="true">*</span>
+                    </label>
+                    <select id="taskResponsible" name="taskResponsible" multiple required size="4">
+                      <option value="" disabled>Cadastre a equipe para selecionar responsáveis</option>
+                    </select>
+                    <p class="form-hint">Selecione um ou mais responsáveis segurando Ctrl (Windows) ou Command (Mac).</p>
+                  </div>
+                  <div class="modal-actions">
+                    <button type="button" class="secondary-button" id="cancelTaskModal">
+                      Cancelar
+                    </button>
+                    <button type="submit" id="taskSubmitBtn">
+                      <i class="fas fa-floppy-disk" aria-hidden="true"></i>
+                      Salvar tarefa
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </dialog>
 
           <div class="card">
             <h2>Tarefas compartilhadas</h2>
@@ -859,10 +961,15 @@
       const sharedTeamsContainer = document.getElementById('sharedTeamsContainer');
 
       const taskForm = document.getElementById('taskForm');
-      const taskStatus = document.getElementById('taskStatus');
+      const taskFormStatus = document.getElementById('taskStatus');
+      const taskCardStatus = document.getElementById('taskCardStatus');
       const taskSubmitBtn = document.getElementById('taskSubmitBtn');
       const taskResponsibleSelect = document.getElementById('taskResponsible');
       const tasksContainer = document.getElementById('tasksContainer');
+      const openTaskModalBtn = document.getElementById('openTaskModal');
+      const closeTaskModalBtn = document.getElementById('closeTaskModal');
+      const cancelTaskModalBtn = document.getElementById('cancelTaskModal');
+      const taskModal = document.getElementById('taskModal');
 
       const scheduleForm = document.getElementById('scheduleForm');
       const scheduleStatus = document.getElementById('scheduleStatus');
@@ -907,6 +1014,42 @@
         button.disabled = loading;
       }
 
+      function showDialog(dialog) {
+        if (!dialog) return;
+        if (typeof dialog.showModal === 'function') {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute('open', '');
+        }
+      }
+
+      function closeDialog(dialog) {
+        if (!dialog) return;
+        if (typeof dialog.close === 'function') {
+          dialog.close();
+        } else {
+          dialog.removeAttribute('open');
+        }
+      }
+
+      function resetTaskForm() {
+        if (!taskForm) return;
+        taskForm.reset();
+        if (taskResponsibleSelect) {
+          Array.from(taskResponsibleSelect.options).forEach((option) => {
+            option.selected = false;
+          });
+        }
+      }
+
+      function closeTaskFormModal({ focusTrigger = false } = {}) {
+        closeDialog(taskModal);
+        showStatus(taskFormStatus, '');
+        if (focusTrigger) {
+          openTaskModalBtn?.focus();
+        }
+      }
+
       function formatDate(date) {
         if (!date) return 'Sem data definida';
         return new Intl.DateTimeFormat('pt-BR', {
@@ -936,7 +1079,37 @@
         return 'Equipe compartilhada';
       }
 
-      function resolveMemberName(ownerUid, email) {
+      function normalizeEmailList(...values) {
+        const seen = new Set();
+        const result = [];
+        const addValue = (value) => {
+          const email = (value || '').toString().trim();
+          if (!email) return;
+          const key = email.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          result.push(email);
+        };
+
+        values.forEach((value) => {
+          if (Array.isArray(value)) {
+            value.forEach(addValue);
+            return;
+          }
+          addValue(value);
+        });
+
+        return result;
+      }
+
+      function resolveMemberName(ownerUid, emailOrEmails) {
+        if (Array.isArray(emailOrEmails)) {
+          const normalized = normalizeEmailList(emailOrEmails);
+          if (!normalized.length) return 'Não atribuído';
+          return normalized.map((email) => resolveMemberName(ownerUid, email)).join(', ');
+        }
+
+        const email = (emailOrEmails || '').toString().trim();
         if (!email) return 'Não atribuído';
         const normalized = email.toLowerCase();
         const members = membersByOwner.get(ownerUid) || [];
@@ -1079,14 +1252,19 @@
                 const tips = task.tips
                   ? `<div><strong>Dicas:</strong> ${task.tips.replace(/\n/g, '<br>')}</div>`
                   : '';
-                const responsible = resolveMemberName(ownerUid, task.responsibleEmail);
+                const responsibleEmails = normalizeEmailList(task.responsibleEmails, task.responsibleEmail);
+                const responsibleTags = responsibleEmails.length
+                  ? responsibleEmails
+                      .map((email) => `<span class="tag"><i class="fas fa-user"></i>${resolveMemberName(ownerUid, email)}</span>`)
+                      .join('')
+                  : '<span class="tag"><i class="fas fa-user"></i>Não atribuído</span>';
 
                 return `
                   <article class="task-card" data-task-id="${task.id}" data-owner="${ownerUid}">
                     <header>
                       <div>
                         <h3 style="margin: 0 0 4px;">${task.title || 'Tarefa sem título'}</h3>
-                        <div class="tag"><i class="fas fa-user"></i>${responsible}</div>
+                        <div class="tag-list">${responsibleTags}</div>
                       </div>
                       ${priorityBadge(task.priority)}
                     </header>
@@ -1250,11 +1428,13 @@
         scheduleFlowContainer.innerHTML = sections || '<div class="empty-state">Nenhum fluxo registrado para esta data.</div>';
       }
 
-      function buildResponsibleOptions(emptyLabel = 'Selecione um responsável') {
+      function buildResponsibleOptions(emptyLabel = 'Selecione um responsável', { multiple = false } = {}) {
         const myMembers = membersByOwner.get(currentUser?.uid) || [];
         const currentUserEmail = currentUser?.email || '';
         const options = [
-          `<option value="" selected>${emptyLabel}</option>`
+          multiple
+            ? `<option value="" disabled>${emptyLabel}</option>`
+            : `<option value="" selected>${emptyLabel}</option>`
         ];
 
         const normalizedEmails = new Set();
@@ -1278,12 +1458,16 @@
       }
 
       function updateResponsibleOptions() {
-        const optionsHtml = buildResponsibleOptions();
-        if (taskResponsibleSelect && optionsHtml) {
-          taskResponsibleSelect.innerHTML = optionsHtml;
+        if (taskResponsibleSelect) {
+          const taskOptions = buildResponsibleOptions(
+            taskResponsibleSelect.multiple ? 'Selecione responsáveis' : 'Selecione um responsável',
+            { multiple: !!taskResponsibleSelect.multiple }
+          );
+          taskResponsibleSelect.innerHTML = taskOptions;
         }
-        if (scheduleResponsibleSelect && optionsHtml) {
-          scheduleResponsibleSelect.innerHTML = optionsHtml;
+        if (scheduleResponsibleSelect) {
+          const scheduleOptions = buildResponsibleOptions();
+          scheduleResponsibleSelect.innerHTML = scheduleOptions;
         }
       }
 
@@ -1354,6 +1538,9 @@
                 priority: data.priority || 'baixa',
                 tips: data.tips || '',
                 supportMaterial: data.supportMaterial || '',
+                responsibleEmails: Array.isArray(data.responsibleEmails)
+                  ? normalizeEmailList(data.responsibleEmails)
+                  : normalizeEmailList(data.responsibleEmail),
                 responsibleEmail: data.responsibleEmail || '',
                 createdBy: data.createdBy || '',
                 createdAt,
@@ -1596,9 +1783,42 @@
         }
       });
 
+      openTaskModalBtn?.addEventListener('click', () => {
+        resetTaskForm();
+        showStatus(taskCardStatus, '');
+        showStatus(taskFormStatus, '');
+        showDialog(taskModal);
+        setTimeout(() => {
+          document.getElementById('taskTitle')?.focus();
+        }, 50);
+      });
+
+      closeTaskModalBtn?.addEventListener('click', () => {
+        closeTaskFormModal({ focusTrigger: true });
+      });
+
+      cancelTaskModalBtn?.addEventListener('click', () => {
+        closeTaskFormModal({ focusTrigger: true });
+      });
+
+      taskModal?.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        closeTaskFormModal({ focusTrigger: true });
+      });
+
+      taskModal?.addEventListener('click', (event) => {
+        if (event.target === taskModal) {
+          closeTaskFormModal({ focusTrigger: true });
+        }
+      });
+
       taskForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (!db || !currentUser) return;
+        if (!db || !currentUser) {
+          showStatus(taskFormStatus, 'É necessário estar autenticado para registrar tarefas.', 'error');
+          return;
+        }
+
         const formData = new FormData(taskForm);
         const title = (formData.get('taskTitle') || '').toString().trim();
         const dueDate = (formData.get('taskDate') || '').toString();
@@ -1606,10 +1826,13 @@
         const priority = (formData.get('taskPriority') || '').toString();
         const tips = (formData.get('taskTips') || '').toString();
         const support = (formData.get('taskSupport') || '').toString();
-        const responsible = (formData.get('taskResponsible') || '').toString();
+        const responsibles = formData
+          .getAll('taskResponsible')
+          .map((value) => (value || '').toString().trim())
+          .filter(Boolean);
 
-        if (!title || !dueDate || !dueTime || !priority || !responsible) {
-          showStatus(taskStatus, 'Preencha os campos obrigatórios da tarefa.', 'error');
+        if (!title || !dueDate || !dueTime || !priority || !responsibles.length) {
+          showStatus(taskFormStatus, 'Preencha os campos obrigatórios da tarefa.', 'error');
           return;
         }
 
@@ -1622,18 +1845,19 @@
             priority,
             tips,
             supportMaterial: support,
-            responsibleEmail: responsible,
+            responsibleEmails: responsibles,
+            responsibleEmail: responsibles[0] || '',
             ownerUid: currentUser.uid,
             ownerEmail: currentUser.email || null,
             createdBy: currentUser.email || currentUser.uid,
             createdAt: serverTimestamp(),
           });
-          taskForm.reset();
-          updateResponsibleOptions();
-          showStatus(taskStatus, 'Tarefa registrada com sucesso!');
+          resetTaskForm();
+          closeTaskFormModal({ focusTrigger: true });
+          showStatus(taskCardStatus, 'Tarefa registrada com sucesso!');
         } catch (error) {
           console.error('Erro ao salvar tarefa:', error);
-          showStatus(taskStatus, 'Não foi possível salvar a tarefa.', 'error');
+          showStatus(taskFormStatus, 'Não foi possível salvar a tarefa.', 'error');
         } finally {
           setButtonLoading(taskSubmitBtn, false);
         }
@@ -1647,10 +1871,10 @@
         if (!confirm('Deseja excluir esta tarefa?')) return;
         try {
           await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'tasks', taskId));
-          showStatus(taskStatus, 'Tarefa excluída.');
+          showStatus(taskCardStatus, 'Tarefa excluída.');
         } catch (error) {
           console.error('Erro ao excluir tarefa:', error);
-          showStatus(taskStatus, 'Não foi possível excluir a tarefa.', 'error');
+          showStatus(taskCardStatus, 'Não foi possível excluir a tarefa.', 'error');
         }
       });
 
