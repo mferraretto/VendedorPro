@@ -197,6 +197,9 @@ let graficoBarras, graficoPizza, graficoPrevisao;
 let previsaoDados = {};
 let initialTab = null;
 const API_URL = 'https://us-central1-matheus-35023.cloudfunctions.net/proxyDeepSeek';
+const controleVendasSelecao = new Map();
+const controleVendasBaseCache = new Map();
+let controleVendasEventosRegistrados = false;
 
 if (window.pdfjsLib?.GlobalWorkerOptions) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1397,6 +1400,199 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
       }
     });
+
+    function registrarEventosControleVendas() {
+      if (controleVendasEventosRegistrados) return;
+      const selecionarTodos = document.getElementById('controleVendasSelecionarTodos');
+      const botaoExcluir = document.getElementById('btnExcluirControleVendasSelecionados');
+      if (!selecionarTodos || !botaoExcluir) return;
+      selecionarTodos.addEventListener('change', (event) => {
+        const checkboxes = document.querySelectorAll('#listaControleVendas .controle-vendas-checkbox');
+        controleVendasSelecao.clear();
+        checkboxes.forEach((checkbox) => {
+          checkbox.checked = event.target.checked;
+          atualizarSelecaoControleVendas(checkbox, false);
+        });
+        atualizarPainelSelecaoControleVendas();
+      });
+      botaoExcluir.addEventListener('click', excluirControleVendasSelecionados);
+      controleVendasEventosRegistrados = true;
+      atualizarPainelSelecaoControleVendas();
+    }
+
+    function atualizarSelecaoControleVendas(checkbox, atualizarPainel = true) {
+      if (!checkbox) return;
+      const dia = checkbox.getAttribute('data-dia');
+      const uid = checkbox.getAttribute('data-uid');
+      if (!dia || !uid) return;
+      const chave = `${uid}__${dia}`;
+      if (checkbox.checked) {
+        controleVendasSelecao.set(chave, { dia, uid });
+      } else {
+        controleVendasSelecao.delete(chave);
+      }
+      if (atualizarPainel) atualizarPainelSelecaoControleVendas();
+    }
+
+    function atualizarPainelSelecaoControleVendas() {
+      const info = document.getElementById('controleVendasSelecionadosInfo');
+      const botao = document.getElementById('btnExcluirControleVendasSelecionados');
+      const selecionarTodos = document.getElementById('controleVendasSelecionarTodos');
+      const totalSelecionados = controleVendasSelecao.size;
+      if (info) {
+        info.textContent = totalSelecionados
+          ? `${totalSelecionados} dia${totalSelecionados > 1 ? 's' : ''} selecionado${totalSelecionados > 1 ? 's' : ''}`
+          : 'Nenhum dia selecionado';
+      }
+      if (botao) {
+        botao.disabled = totalSelecionados === 0;
+      }
+      if (selecionarTodos) {
+        const checkboxes = Array.from(document.querySelectorAll('#listaControleVendas .controle-vendas-checkbox'));
+        if (!checkboxes.length) {
+          selecionarTodos.checked = false;
+          selecionarTodos.indeterminate = false;
+        } else {
+          const selecionados = checkboxes.filter((cb) => cb.checked).length;
+          selecionarTodos.checked = selecionados > 0 && selecionados === checkboxes.length;
+          selecionarTodos.indeterminate = selecionados > 0 && selecionados < checkboxes.length;
+        }
+      }
+    }
+
+    function limparSelecaoControleVendas() {
+      controleVendasSelecao.clear();
+      const selecionarTodos = document.getElementById('controleVendasSelecionarTodos');
+      if (selecionarTodos) {
+        selecionarTodos.checked = false;
+        selecionarTodos.indeterminate = false;
+      }
+      document.querySelectorAll('#listaControleVendas .controle-vendas-checkbox').forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+      atualizarPainelSelecaoControleVendas();
+    }
+
+    async function obterBaseResponsavelFinanceiroPorUid(uid) {
+      if (!uid || !db) return { baseResp: null, respEmail: null };
+      if (controleVendasBaseCache.has(uid)) {
+        const cached = controleVendasBaseCache.get(uid);
+        if (cached && typeof cached.then === 'function') {
+          return cached;
+        }
+        return cached;
+      }
+      const consulta = (async () => {
+        try {
+          const usuarioDoc = await db.collection('usuarios').doc(uid).get();
+          const dadosUsuario = usuarioDoc.exists ? usuarioDoc.data() || {} : {};
+          const respEmail = String(dadosUsuario.responsavelFinanceiroEmail || '').trim();
+          if (!respEmail) return { baseResp: null, respEmail: null };
+          let responsavelUid = null;
+          const respSnap = await db.collection('usuarios').where('email', '==', respEmail).limit(1).get();
+          if (!respSnap.empty) {
+            const respDoc = respSnap.docs[0];
+            responsavelUid = respDoc.data()?.uid || respDoc.id;
+          }
+          if (!responsavelUid) {
+            const altSnap = await db.collection('uid').where('email', '==', respEmail).limit(1).get();
+            if (!altSnap.empty) {
+              const altDoc = altSnap.docs[0];
+              responsavelUid = altDoc.data()?.uid || altDoc.id;
+            }
+          }
+          if (!responsavelUid) return { baseResp: null, respEmail };
+          const baseResp = db.collection('uid').doc(responsavelUid).collection('uid').doc(uid);
+          return { baseResp, respEmail };
+        } catch (erro) {
+          console.error('Erro ao obter base do responsável financeiro para exclusão:', erro);
+          return { baseResp: null, respEmail: null };
+        }
+      })();
+      controleVendasBaseCache.set(uid, consulta);
+      const resultado = await consulta;
+      controleVendasBaseCache.set(uid, resultado);
+      return resultado;
+    }
+
+    async function excluirControleVendasSelecionados() {
+      if (!controleVendasSelecao.size) {
+        mostrarErro('Selecione ao menos um dia para excluir.');
+        return;
+      }
+      const selecionados = Array.from(controleVendasSelecao.values());
+      const quantidade = selecionados.length;
+      const mensagem = quantidade === 1
+        ? `Deseja realmente excluir o registro do dia ${selecionados[0].dia}?`
+        : `Deseja realmente excluir ${quantidade} registros de dias diferentes?`;
+      let confirmado = true;
+      if (typeof Swal !== 'undefined' && Swal.fire) {
+        const resultado = await Swal.fire({
+          title: 'Confirmar exclusão',
+          text: mensagem,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, excluir',
+          cancelButtonText: 'Cancelar'
+        });
+        confirmado = resultado.isConfirmed;
+      } else {
+        confirmado = window.confirm(mensagem);
+      }
+      if (!confirmado) return;
+
+      const botao = document.getElementById('btnExcluirControleVendasSelecionados');
+      if (botao) {
+        botao.disabled = true;
+        toggleLoading(botao, 'Excluir selecionados');
+      }
+
+      const erros = [];
+      try {
+        const agrupadoPorUid = selecionados.reduce((acc, item) => {
+          if (!acc[item.uid]) acc[item.uid] = [];
+          acc[item.uid].push(item.dia);
+          return acc;
+        }, {});
+
+        for (const [uid, dias] of Object.entries(agrupadoPorUid)) {
+          const { baseResp } = await obterBaseResponsavelFinanceiroPorUid(uid);
+          for (const dia of dias) {
+            try {
+              const docRef = db.collection('uid').doc(uid).collection('skusVendidos').doc(dia);
+              await excluirDocumentosSubcolecao(docRef, 'lista');
+              await docRef.delete();
+            } catch (erro) {
+              console.error('Erro ao excluir registro de vendas:', erro);
+              erros.push(dia);
+              continue;
+            }
+            if (baseResp) {
+              try {
+                const destinoDoc = baseResp.collection('skusVendidos').doc(dia);
+                await excluirDocumentosSubcolecao(destinoDoc, 'lista');
+                await destinoDoc.delete();
+              } catch (erro) {
+                console.warn('Erro ao excluir cópia para o responsável financeiro:', erro);
+              }
+            }
+          }
+        }
+      } finally {
+        if (botao) {
+          toggleLoading(botao, 'Excluir selecionados');
+          botao.disabled = false;
+        }
+      }
+
+      if (erros.length) {
+        mostrarErro('Alguns registros não puderam ser excluídos. Verifique o console para mais detalhes.');
+      } else {
+        mostrarSucesso('Registros de vendas excluídos com sucesso.');
+      }
+      limparSelecaoControleVendas();
+      await carregarControleVendas();
+    }
 
     function toggleLoading(botao, texto) {
       const btnText = botao.querySelector('span') || botao;
@@ -10288,6 +10484,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const resumoContainer = document.getElementById("resumoMensalVendas");
       const projecaoContainer = document.getElementById("cardsProjecao");
       const filtroMes = document.getElementById("filtroMesVendas")?.value;
+      registrarEventosControleVendas();
+      limparSelecaoControleVendas();
+      if (!container) return;
       container.innerHTML = "🔄 Carregando...";
       if (resumoContainer) resumoContainer.innerHTML = "";
       if (projecaoContainer) projecaoContainer.innerHTML = "🔄 Carregando...";
@@ -10377,19 +10576,27 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         const card = document.createElement("div");
         card.className = "bg-white rounded-lg shadow p-4 border border-gray-200";
         card.innerHTML = `
-          <div class="text-center font-bold bg-blue-100 text-blue-800 py-2 rounded mb-2">${dataDoc}</div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" class="controle-vendas-checkbox h-4 w-4" data-dia="${dataDoc}" data-uid="${ownerUid}">
+              <div class="text-center font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded">${dataDoc}</div>
+            </div>
+            <button type="button" onclick="verDetalhesDia('${dataDoc}')" class="text-blue-600 text-sm hover:underline">🔍 Ver mais</button>
+          </div>
           <div class="mb-2 text-sm text-gray-600">🧾 Total do dia: <strong>${totalDia}</strong> unidades</div>
           ${htmlSKUs}
-          <div class="text-right mt-2">
-        <button onclick="verDetalhesDia('${dataDoc}')" class="text-blue-600 text-sm underline">🔍 Ver mais</button>
-      </div>
         `;
         container.appendChild(card);
+        const checkbox = card.querySelector('.controle-vendas-checkbox');
+        if (checkbox) {
+          checkbox.addEventListener('change', () => atualizarSelecaoControleVendas(checkbox));
+        }
       }
 
       if (container.innerHTML === "") {
         container.innerHTML = `<p class="text-gray-500">Nenhum dado encontrado para o período selecionado.</p>`;
       }
+      atualizarPainelSelecaoControleVendas();
       if (resumoContainer) {
         if (Object.keys(totaisSku).length) {
           const cards = Object.entries(totaisSku)
