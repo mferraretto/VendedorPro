@@ -54,6 +54,7 @@ const modalPreco = document.getElementById('catalogDetailsPreco');
 const modalDescricao = document.getElementById('catalogDetailsDescricao');
 const modalMedidas = document.getElementById('catalogDetailsMedidas');
 const modalFotos = document.getElementById('catalogDetailsFotos');
+const modalVariacoes = document.getElementById('catalogDetailsVariacoes');
 
 const nameInput = document.getElementById('catalogProductName');
 const skuInput = document.getElementById('catalogProductSku');
@@ -65,6 +66,24 @@ const measuresInput = document.getElementById('catalogProductMeasures');
 const photosInput = document.getElementById('catalogProductPhotos');
 const photoUrlsInput = document.getElementById('catalogProductPhotoUrls');
 const submitBtn = form?.querySelector('button[type="submit"]');
+const colorVariationsContainer = document.getElementById(
+  'catalogColorVariationsContainer',
+);
+const colorVariationsEmpty = document.getElementById(
+  'catalogColorVariationsEmpty',
+);
+const addColorVariationBtn = document.getElementById(
+  'catalogAddColorVariationBtn',
+);
+const editingBanner = document.getElementById('catalogEditingBanner');
+const editingBannerText = document.getElementById('catalogEditingBannerText');
+const editingCancelBtn = document.getElementById('catalogEditingCancelBtn');
+
+const submitBtnDefaultContent = submitBtn?.innerHTML || '';
+const submitBtnEditingContent =
+  '<i class="fa-solid fa-arrows-rotate"></i><span>Atualizar produto</span>';
+
+const editingBannerDefaultText = 'Editando o produto selecionado.';
 
 let currentUser = null;
 let currentProfile = null;
@@ -73,6 +92,8 @@ let responsavelInfo = null;
 let canEdit = false;
 let catalogUnsub = null;
 let isSubmitting = false;
+let editingProductId = null;
+let editingProductData = null;
 const productCache = new Map();
 
 function normalizePerfil(perfil) {
@@ -143,6 +164,8 @@ function clearForm() {
   form?.reset();
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
+  setColorVariationsInForm([]);
+  cancelEditing();
 }
 
 function getFileNameFromUrl(url) {
@@ -157,6 +180,205 @@ function getFileNameFromUrl(url) {
     console.warn('URL inválida fornecida para foto:', url, err);
     return '';
   }
+}
+
+function updateColorVariationsEmptyState() {
+  if (!colorVariationsContainer || !colorVariationsEmpty) return;
+  const hasRows = Boolean(
+    colorVariationsContainer.querySelector('[data-variation-row="true"]'),
+  );
+  if (hasRows) {
+    colorVariationsEmpty.classList.add('hidden');
+  } else {
+    colorVariationsEmpty.classList.remove('hidden');
+  }
+}
+
+function createColorVariationRow(data = {}) {
+  if (!colorVariationsContainer) return null;
+  const row = document.createElement('div');
+  row.className =
+    'flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-end';
+  row.dataset.variationRow = 'true';
+
+  const colorWrapper = document.createElement('div');
+  colorWrapper.className = 'flex-1';
+  const colorLabel = document.createElement('span');
+  colorLabel.className = 'text-xs font-medium text-gray-500';
+  colorLabel.textContent = 'Cor';
+  const colorInput = document.createElement('input');
+  colorInput.type = 'text';
+  colorInput.className =
+    'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  colorInput.placeholder = 'Ex.: Azul Marinho';
+  colorInput.value = data.cor || '';
+  colorInput.dataset.role = 'color-name';
+  colorWrapper.appendChild(colorLabel);
+  colorWrapper.appendChild(colorInput);
+
+  const urlWrapper = document.createElement('div');
+  urlWrapper.className = 'flex-1';
+  const urlLabel = document.createElement('span');
+  urlLabel.className = 'text-xs font-medium text-gray-500';
+  urlLabel.textContent = 'URL da foto';
+  const urlInput = document.createElement('input');
+  urlInput.type = 'url';
+  urlInput.className =
+    'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  urlInput.placeholder = 'https://exemplo.com/imagem.jpg';
+  urlInput.value = data.fotoUrl || data.url || '';
+  urlInput.dataset.role = 'color-photo-url';
+  urlWrapper.appendChild(urlLabel);
+  urlWrapper.appendChild(urlInput);
+
+  const actionsWrapper = document.createElement('div');
+  actionsWrapper.className = 'flex items-center justify-end sm:w-auto';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className =
+    'inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50';
+  removeBtn.innerHTML =
+    '<i class="fa-solid fa-trash-can"></i><span>Remover</span>';
+  removeBtn.addEventListener('click', () => {
+    row.remove();
+    updateColorVariationsEmptyState();
+  });
+  actionsWrapper.appendChild(removeBtn);
+
+  row.appendChild(colorWrapper);
+  row.appendChild(urlWrapper);
+  row.appendChild(actionsWrapper);
+
+  colorVariationsContainer.appendChild(row);
+  updateColorVariationsEmptyState();
+
+  return row;
+}
+
+function setColorVariationsInForm(variations) {
+  if (!colorVariationsContainer) return;
+  const rows = colorVariationsContainer.querySelectorAll(
+    '[data-variation-row="true"]',
+  );
+  rows.forEach((row) => row.remove());
+  if (Array.isArray(variations) && variations.length) {
+    variations.forEach((variacao) => createColorVariationRow(variacao));
+  }
+  updateColorVariationsEmptyState();
+}
+
+function getColorVariationsFromForm() {
+  if (!colorVariationsContainer) return { variations: [], isValid: true };
+  const rows = Array.from(
+    colorVariationsContainer.querySelectorAll('[data-variation-row="true"]'),
+  );
+  const variations = [];
+  let hasError = false;
+
+  rows.forEach((row) => {
+    const colorInput = row.querySelector('input[data-role="color-name"]');
+    const urlInput = row.querySelector('input[data-role="color-photo-url"]');
+    const cor = colorInput?.value.trim() || '';
+    const fotoUrl = urlInput?.value.trim() || '';
+    if (!cor && !fotoUrl) {
+      return;
+    }
+    if (!cor || !fotoUrl) {
+      hasError = true;
+      row.classList.add('border-red-300', 'bg-red-50');
+      setTimeout(() => {
+        row.classList.remove('border-red-300', 'bg-red-50');
+      }, 2000);
+      return;
+    }
+    variations.push({ cor, fotoUrl });
+  });
+
+  if (hasError) {
+    showToast(
+      'Preencha a cor e a URL da foto para cada variação adicionada.',
+      'warning',
+    );
+    return { variations: [], isValid: false };
+  }
+
+  return { variations, isValid: true };
+}
+
+function updateFormEditingState() {
+  const isEditing = Boolean(editingProductId);
+  if (editingBanner) {
+    editingBanner.classList.toggle('hidden', !isEditing);
+  }
+  if (editingBannerText && !isEditing) {
+    editingBannerText.textContent = editingBannerDefaultText;
+  }
+  if (submitBtn) {
+    submitBtn.innerHTML = isEditing
+      ? submitBtnEditingContent
+      : submitBtnDefaultContent;
+  }
+}
+
+function cancelEditing() {
+  editingProductId = null;
+  editingProductData = null;
+  updateFormEditingState();
+}
+
+function populateFormWithProduct(produto) {
+  if (!form || !produto) return;
+  form.reset();
+  if (nameInput) nameInput.value = produto.nome || '';
+  if (skuInput) skuInput.value = produto.sku || '';
+  if (costInput) {
+    costInput.value =
+      typeof produto.custo === 'number' && !Number.isNaN(produto.custo)
+        ? produto.custo
+        : produto.custo || '';
+  }
+  if (priceInput) {
+    priceInput.value =
+      typeof produto.precoSugerido === 'number' &&
+      !Number.isNaN(produto.precoSugerido)
+        ? produto.precoSugerido
+        : produto.precoSugerido || '';
+  }
+  if (categoryInput) categoryInput.value = produto.categoria || '';
+  if (descriptionInput) descriptionInput.value = produto.descricao || '';
+  if (measuresInput) measuresInput.value = produto.medidas || '';
+  if (photoUrlsInput) {
+    const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
+    const urls = fotos
+      .map((foto) => foto?.url)
+      .filter(Boolean)
+      .join('\n');
+    photoUrlsInput.value = urls;
+  }
+  if (photosInput) {
+    photosInput.value = '';
+  }
+  setColorVariationsInForm(
+    Array.isArray(produto.variacoesCor) ? produto.variacoesCor : [],
+  );
+}
+
+function startEditProduct(produto) {
+  if (!canEdit || !produto) return;
+  editingProductId = produto.id;
+  editingProductData = produto;
+  populateFormWithProduct(produto);
+  toggleForm(true);
+  if (editingBannerText) {
+    const parts = [produto.nome, produto.sku]
+      .filter((valor) => Boolean(valor))
+      .join(' • ');
+    editingBannerText.textContent = parts
+      ? `Editando: ${parts}`
+      : editingBannerDefaultText;
+  }
+  updateFormEditingState();
+  form?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function closeModal() {
@@ -203,6 +425,68 @@ function openModal(produto) {
     });
   }
 
+  if (modalVariacoes) {
+    modalVariacoes.innerHTML = '';
+    const variacoes = Array.isArray(produto.variacoesCor)
+      ? produto.variacoesCor
+      : [];
+    if (!variacoes.length) {
+      const empty = document.createElement('p');
+      empty.className = 'text-sm text-gray-500';
+      empty.textContent = 'Nenhuma variação de cor cadastrada.';
+      modalVariacoes.appendChild(empty);
+    } else {
+      variacoes.forEach((variacao) => {
+        const item = document.createElement('div');
+        item.className =
+          'flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-3 shadow-sm';
+
+        const thumb = document.createElement('div');
+        thumb.className =
+          'flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gray-100';
+        const variacaoUrl = variacao?.fotoUrl || variacao?.url;
+        if (variacaoUrl) {
+          const img = document.createElement('img');
+          img.src = variacaoUrl;
+          img.alt = variacao?.cor
+            ? `Foto da variação ${variacao.cor}`
+            : 'Foto da variação';
+          img.className = 'h-full w-full object-cover';
+          thumb.appendChild(img);
+        } else {
+          thumb.innerHTML = '<i class="fa-solid fa-image text-gray-400"></i>';
+        }
+
+        const info = document.createElement('div');
+        info.className = 'flex flex-col';
+        const corNome = document.createElement('p');
+        corNome.className = 'text-sm font-semibold text-gray-900';
+        corNome.textContent = variacao?.cor || 'Cor não informada';
+        info.appendChild(corNome);
+
+        if (variacaoUrl) {
+          const link = document.createElement('a');
+          link.href = variacaoUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.className =
+            'text-xs font-medium text-blue-600 transition hover:text-blue-700';
+          link.textContent = 'Abrir foto da variação';
+          info.appendChild(link);
+        } else {
+          const placeholder = document.createElement('p');
+          placeholder.className = 'text-xs text-gray-500';
+          placeholder.textContent = 'Sem URL cadastrada.';
+          info.appendChild(placeholder);
+        }
+
+        item.appendChild(thumb);
+        item.appendChild(info);
+        modalVariacoes.appendChild(item);
+      });
+    }
+  }
+
   modal.classList.remove('hidden');
   document.body.classList.add('overflow-hidden');
 }
@@ -239,6 +523,9 @@ function renderProducts(produtos) {
   } else {
     if (emptyStateEl) emptyStateEl.classList.add('hidden');
     sorted.forEach((produto) => {
+      if (editingProductId === produto.id) {
+        editingProductData = produto;
+      }
       const card = document.createElement('div');
       card.className =
         'flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md';
@@ -282,19 +569,56 @@ function renderProducts(produtos) {
       categoryEl.className = 'mt-1 text-sm text-gray-500';
       categoryEl.textContent = produto.categoria || 'Sem categoria';
 
+      let variationsWrap = null;
+      if (Array.isArray(produto.variacoesCor) && produto.variacoesCor.length) {
+        variationsWrap = document.createElement('div');
+        variationsWrap.className = 'mt-3 flex flex-wrap gap-2';
+        const maxTags = 4;
+        produto.variacoesCor.slice(0, maxTags).forEach((variacao, index) => {
+          const tag = document.createElement('span');
+          tag.className =
+            'inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700';
+          tag.textContent = variacao?.cor || `Variação ${index + 1}`;
+          variationsWrap.appendChild(tag);
+        });
+        if (produto.variacoesCor.length > maxTags) {
+          const moreTag = document.createElement('span');
+          moreTag.className =
+            'inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700';
+          moreTag.textContent = `+${produto.variacoesCor.length - maxTags}`;
+          variationsWrap.appendChild(moreTag);
+        }
+      }
+
+      const actionsContainer = document.createElement('div');
+      actionsContainer.className = 'mt-auto flex flex-wrap gap-2 pt-4';
+
       const detailsBtn = document.createElement('button');
       detailsBtn.type = 'button';
       detailsBtn.className =
-        'mt-auto inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700';
+        'inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700';
       detailsBtn.innerHTML =
         '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
       detailsBtn.addEventListener('click', () => openModal(produto));
+      actionsContainer.appendChild(detailsBtn);
+
+      if (canEdit) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className =
+          'inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
+        editBtn.innerHTML =
+          '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
+        editBtn.addEventListener('click', () => startEditProduct(produto));
+        actionsContainer.appendChild(editBtn);
+      }
 
       body.appendChild(skuLabel);
       body.appendChild(skuValue);
       body.appendChild(nameEl);
       body.appendChild(categoryEl);
-      body.appendChild(detailsBtn);
+      if (variationsWrap) body.appendChild(variationsWrap);
+      body.appendChild(actionsContainer);
       card.appendChild(body);
 
       cardsContainer?.appendChild(card);
@@ -420,6 +744,12 @@ async function handleSubmit(event) {
     return;
   }
 
+  const isEditing = Boolean(editingProductId);
+  const produtoAnterior =
+    isEditing && editingProductId
+      ? productCache.get(editingProductId) || editingProductData
+      : null;
+
   const nome = nameInput?.value.trim();
   const sku = skuInput?.value.trim();
   const custoValor = costInput?.value.trim();
@@ -435,6 +765,12 @@ async function handleSubmit(event) {
         .map((linha) => linha.trim())
         .filter(Boolean)
     : [];
+
+  const { variations: colorVariations, isValid: colorVariationsValid } =
+    getColorVariationsFromForm();
+  if (!colorVariationsValid) {
+    return;
+  }
 
   if (!nome || !sku) {
     showToast('Preencha os campos obrigatórios (nome e SKU).', 'warning');
@@ -466,19 +802,23 @@ async function handleSubmit(event) {
     descricao: descricao || null,
     medidas: medidas || null,
     fotos: [],
-    createdAt: serverTimestamp(),
+    variacoesCor: colorVariations,
     updatedAt: serverTimestamp(),
-    criadoPorUid: currentUser.uid,
-    criadoPorEmail: currentUser.email,
-    criadoPorNome:
-      currentProfile?.nome || currentUser.displayName || currentUser.email,
-    responsavelUid: responsavel?.uid || scopeUid,
-    responsavelEmail: responsavel?.email || null,
-    responsavelNome: responsavel?.nome || null,
   };
 
+  if (!isEditing) {
+    payload.createdAt = serverTimestamp();
+    payload.criadoPorUid = currentUser.uid;
+    payload.criadoPorEmail = currentUser.email;
+    payload.criadoPorNome =
+      currentProfile?.nome || currentUser.displayName || currentUser.email;
+    payload.responsavelUid = responsavel?.uid || scopeUid;
+    payload.responsavelEmail = responsavel?.email || null;
+    payload.responsavelNome = responsavel?.nome || null;
+  }
+
   const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
-  const docRef = doc(colRef);
+  const docRef = isEditing ? doc(colRef, editingProductId) : doc(colRef);
 
   try {
     isSubmitting = true;
@@ -488,6 +828,21 @@ async function handleSubmit(event) {
     }
 
     const fotosSalvas = [];
+    const fotosRegistradas = new Set();
+    const adicionarFoto = (foto) => {
+      if (!foto?.url || fotosRegistradas.has(foto.url)) return;
+      fotosSalvas.push(foto);
+      fotosRegistradas.add(foto.url);
+    };
+    const existingPhotoMap = new Map();
+    if (produtoAnterior && Array.isArray(produtoAnterior.fotos)) {
+      produtoAnterior.fotos.forEach((foto) => {
+        if (foto?.url) {
+          existingPhotoMap.set(foto.url, foto);
+        }
+      });
+    }
+
     const errosUpload = [];
     for (const arquivo of arquivos) {
       if (!(arquivo instanceof File)) continue;
@@ -496,7 +851,7 @@ async function handleSubmit(event) {
         const storageRef = ref(storage, path);
         await uploadBytes(storageRef, arquivo);
         const url = await getDownloadURL(storageRef);
-        fotosSalvas.push({ nome: arquivo.name, url, storagePath: path });
+        adicionarFoto({ nome: arquivo.name, url, storagePath: path });
       } catch (err) {
         console.error('Não foi possível enviar uma foto para o Storage:', err);
         errosUpload.push(arquivo.name);
@@ -504,13 +859,26 @@ async function handleSubmit(event) {
     }
 
     fotosUrls.forEach((url, index) => {
-      const nome = getFileNameFromUrl(url) || `Foto ${index + 1}`;
-      fotosSalvas.push({ nome, url });
+      const existente = existingPhotoMap.get(url);
+      if (existente) {
+        adicionarFoto(existente);
+      } else {
+        const nome = getFileNameFromUrl(url) || `Foto ${index + 1}`;
+        adicionarFoto({ nome, url });
+      }
     });
     payload.fotos = fotosSalvas;
 
-    await setDoc(docRef, payload);
-    showToast('Produto cadastrado no catálogo com sucesso!');
+    if (isEditing) {
+      await setDoc(docRef, payload, { merge: true });
+    } else {
+      await setDoc(docRef, payload);
+    }
+    showToast(
+      isEditing
+        ? 'Produto atualizado com sucesso!'
+        : 'Produto cadastrado no catálogo com sucesso!',
+    );
     if (errosUpload.length) {
       showToast(
         'Algumas fotos não puderam ser enviadas. Considere usar URLs externas.',
@@ -520,8 +888,13 @@ async function handleSubmit(event) {
     clearForm();
     toggleForm(false);
   } catch (err) {
-    console.error('Erro ao cadastrar produto no catálogo:', err);
-    showToast('Erro ao cadastrar produto. Tente novamente.', 'error');
+    console.error('Erro ao salvar produto no catálogo:', err);
+    showToast(
+      isEditing
+        ? 'Erro ao atualizar o produto. Tente novamente.'
+        : 'Erro ao cadastrar produto. Tente novamente.',
+      'error',
+    );
   } finally {
     isSubmitting = false;
     if (submitBtn) {
@@ -532,10 +905,22 @@ async function handleSubmit(event) {
 }
 
 function setupEventListeners() {
-  addItemBtn?.addEventListener('click', () => toggleForm(true));
+  addItemBtn?.addEventListener('click', () => {
+    clearForm();
+    toggleForm(true);
+  });
   cancelFormBtn?.addEventListener('click', () => {
     clearForm();
     toggleForm(false);
+  });
+  addColorVariationBtn?.addEventListener('click', () => {
+    createColorVariationRow();
+  });
+  editingCancelBtn?.addEventListener('click', () => {
+    clearForm();
+    if (formWrapper && formWrapper.classList.contains('hidden')) {
+      toggleForm(true);
+    }
   });
   form?.addEventListener('submit', handleSubmit);
   modalCloseBtn?.addEventListener('click', closeModal);
@@ -545,6 +930,8 @@ function setupEventListeners() {
       closeModal();
     }
   });
+  updateColorVariationsEmptyState();
+  updateFormEditingState();
 }
 
 setupEventListeners();

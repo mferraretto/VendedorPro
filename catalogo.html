@@ -106,6 +106,21 @@
           </div>
           <div id="catalogFormWrapper" class="card-body hidden">
             <form id="catalogProductForm" class="space-y-6">
+              <div
+                id="catalogEditingBanner"
+                class="hidden items-start justify-between gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 sm:flex-row sm:items-center"
+              >
+                <p id="catalogEditingBannerText" class="font-medium">
+                  Editando o produto selecionado.
+                </p>
+                <button
+                  type="button"
+                  id="catalogEditingCancelBtn"
+                  class="text-sm font-semibold text-yellow-900 transition hover:text-yellow-700"
+                >
+                  Cancelar edição
+                </button>
+              </div>
               <div class="grid gap-4 sm:grid-cols-2">
                 <div class="flex flex-col">
                   <label
@@ -238,6 +253,36 @@
                   <p class="mt-1 text-xs text-gray-500">
                     Utilize esta opção caso prefira referenciar imagens hospedadas externamente.
                   </p>
+                </div>
+                <div class="flex flex-col">
+                  <label
+                    class="text-sm font-medium text-gray-700"
+                    for="catalogColorVariationsContainer"
+                    >Variações de cor</label
+                  >
+                  <p class="mt-1 text-xs text-gray-500">
+                    Adicione variações de cor e informe a URL da foto correspondente.
+                  </p>
+                  <div
+                    id="catalogColorVariationsContainer"
+                    class="mt-3 space-y-3"
+                  >
+                    <p
+                      id="catalogColorVariationsEmpty"
+                      class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500"
+                    >
+                      Nenhuma variação adicionada. Utilize o botão abaixo para incluir
+                      variações.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="catalogAddColorVariationBtn"
+                    class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+                  >
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Adicionar variação de cor</span>
+                  </button>
                 </div>
               </div>
               <div class="flex items-center justify-end gap-3">
@@ -377,6 +422,15 @@
                 <div
                   id="catalogDetailsFotos"
                   class="mt-3 grid gap-3 sm:grid-cols-3"
+                ></div>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Variações de cor
+                </p>
+                <div
+                  id="catalogDetailsVariacoes"
+                  class="mt-3 space-y-3"
                 ></div>
               </div>
             </div>
