@@ -65,6 +65,8 @@ const measuresInput = document.getElementById('catalogProductMeasures');
 const photosInput = document.getElementById('catalogProductPhotos');
 const photoUrlsInput = document.getElementById('catalogProductPhotoUrls');
 const submitBtn = form?.querySelector('button[type="submit"]');
+const exportPdfBtn = document.getElementById('catalogExportPdf');
+const exportExcelBtn = document.getElementById('catalogExportExcel');
 
 let currentUser = null;
 let currentProfile = null;
@@ -227,6 +229,133 @@ function updateSummary(produtos) {
   if (todayEl) todayEl.textContent = todayCount.toString();
 }
 
+function formatCurrencyForExport(value) {
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return formatCurrency(value);
+  }
+  if (typeof value === 'string') {
+    const direct = Number(value);
+    if (!Number.isNaN(direct)) {
+      return formatCurrency(direct);
+    }
+    const normalized = Number(
+      value
+        .replace(/R\$/gi, '')
+        .replace(/\s+/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.'),
+    );
+    if (!Number.isNaN(normalized)) {
+      return formatCurrency(normalized);
+    }
+    return value;
+  }
+  return '';
+}
+
+function getCatalogExportData() {
+  const produtos = Array.from(productCache.values());
+  const headers = [
+    'SKU',
+    'Nome',
+    'Categoria',
+    'Custo',
+    'Preço sugerido',
+    'Descrição',
+    'Medidas',
+    'Fotos (URLs)',
+  ];
+  const linhas = produtos.map((produto) => {
+    const fotos = Array.isArray(produto.fotos)
+      ? produto.fotos
+          .map((foto) => foto?.url)
+          .filter(Boolean)
+          .join('\n')
+      : '';
+    return [
+      produto.sku || '',
+      produto.nome || '',
+      produto.categoria || '',
+      formatCurrencyForExport(produto.custo),
+      formatCurrencyForExport(produto.precoSugerido),
+      produto.descricao || '',
+      produto.medidas || '',
+      fotos,
+    ];
+  });
+  return { headers, linhas };
+}
+
+function updateExportButtons(hasProducts) {
+  const disabled = !hasProducts;
+  [exportPdfBtn, exportExcelBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.disabled = disabled;
+    if (disabled) {
+      btn.classList.add('opacity-60', 'cursor-not-allowed');
+    } else {
+      btn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+  });
+}
+
+function exportCatalogToExcel() {
+  const { headers, linhas } = getCatalogExportData();
+  if (!linhas.length) {
+    showToast('Não há produtos para exportar.', 'warning');
+    return;
+  }
+  if (typeof XLSX === 'undefined') {
+    showToast('Biblioteca de planilhas não foi carregada.', 'error');
+    return;
+  }
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...linhas]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Catálogo');
+  const nomeArquivo = `catalogo_produtos_${new Date()
+    .toISOString()
+    .slice(0, 10)}.xlsx`;
+  XLSX.writeFile(workbook, nomeArquivo);
+}
+
+function exportCatalogToPdf() {
+  const { headers, linhas } = getCatalogExportData();
+  if (!linhas.length) {
+    showToast('Não há produtos para exportar.', 'warning');
+    return;
+  }
+  if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+    showToast('Biblioteca de PDF não foi carregada.', 'error');
+    return;
+  }
+  const doc = new window.jspdf.jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+  if (typeof doc.autoTable !== 'function') {
+    showToast('Extensão de tabelas para PDF não foi carregada.', 'error');
+    return;
+  }
+  doc.setFontSize(12);
+  doc.text('Catálogo de Produtos', 14, 15);
+  doc.autoTable({
+    head: [headers],
+    body: linhas,
+    startY: 20,
+    styles: { fontSize: 8, cellWidth: 'wrap' },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+    columnStyles: {
+      3: { halign: 'right' },
+      4: { halign: 'right' },
+    },
+  });
+  const nomeArquivo = `catalogo_produtos_${new Date()
+    .toISOString()
+    .slice(0, 10)}.pdf`;
+  doc.save(nomeArquivo);
+}
+
 function renderProducts(produtos) {
   productCache.clear();
   if (cardsContainer) cardsContainer.innerHTML = '';
@@ -302,6 +431,7 @@ function renderProducts(produtos) {
   }
 
   updateSummary(sorted);
+  updateExportButtons(sorted.length > 0);
 }
 
 function subscribeToCatalog(uid) {
@@ -545,9 +675,12 @@ function setupEventListeners() {
       closeModal();
     }
   });
+  exportExcelBtn?.addEventListener('click', exportCatalogToExcel);
+  exportPdfBtn?.addEventListener('click', exportCatalogToPdf);
 }
 
 setupEventListeners();
+updateExportButtons(false);
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
