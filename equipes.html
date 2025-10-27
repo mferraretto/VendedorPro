@@ -183,6 +183,69 @@
         white-space: nowrap;
       }
 
+      .flow-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .flow-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: color-mix(in srgb, var(--primary, #4262ff) 10%, transparent);
+        color: var(--primary, #4262ff);
+      }
+
+      .flow-status-pill i {
+        font-size: 0.75rem;
+      }
+
+      .flow-status-pill.status-done {
+        background: rgba(16, 185, 129, 0.15);
+        color: #047857;
+      }
+
+      .flow-status-pill.status-pending {
+        background: rgba(234, 179, 8, 0.15);
+        color: #b45309;
+      }
+
+      .flow-status-pill.status-issue {
+        background: rgba(239, 68, 68, 0.12);
+        color: #b91c1c;
+      }
+
+      .flow-status-control {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        font-size: 0.85rem;
+        color: var(--text-light, #4b5563);
+      }
+
+      .flow-status-control select {
+        min-width: 160px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--border-color, #d1d5db);
+        background: var(--card-bg, #ffffff);
+        font-weight: 600;
+        color: inherit;
+        cursor: pointer;
+      }
+
+      .flow-status-control select:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+
       .flow-notes {
         margin: 0;
         color: var(--text-light, #4b5563);
@@ -832,6 +895,7 @@
         orderBy,
         query,
         serverTimestamp,
+        updateDoc,
         where
       } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
@@ -870,6 +934,16 @@
       const scheduleResponsibleSelect = document.getElementById('scheduleResponsible');
       const scheduleFlowContainer = document.getElementById('scheduleFlowContainer');
       const scheduleDateFilter = document.getElementById('scheduleDateFilter');
+
+      const SCHEDULE_STATUS_OPTIONS = [
+        { value: 'nao_feito', label: 'Não feito', className: 'status-pending', icon: 'fa-circle' },
+        { value: 'feito', label: 'Feito', className: 'status-done', icon: 'fa-check' },
+        { value: 'problema', label: 'Problema', className: 'status-issue', icon: 'fa-triangle-exclamation' }
+      ];
+      const scheduleStatusMap = SCHEDULE_STATUS_OPTIONS.reduce((acc, option) => {
+        acc[option.value] = option;
+        return acc;
+      }, {});
 
       const updateForm = document.getElementById('updateForm');
       const updateStatus = document.getElementById('updateStatus');
@@ -1216,6 +1290,22 @@
                 const responsibleLabel = resolveMemberName(ownerUid, entry.responsibleEmail);
                 const notes = entry.notes ? `<p class="flow-notes">${entry.notes.replace(/\n/g, '<br>')}</p>` : '';
                 const timeRange = [formatTime(entry.startTime), formatTime(entry.endTime)].filter(Boolean).join(' → ');
+                const statusInfo = scheduleStatusMap[entry.status] || scheduleStatusMap.nao_feito;
+                const statusPill = statusInfo
+                  ? `<span class="flow-status-pill ${statusInfo.className}"><i class="fas ${statusInfo.icon}" aria-hidden="true"></i>${statusInfo.label}</span>`
+                  : '';
+                const normalizedResponsible = (entry.responsibleEmail || '').toLowerCase();
+                const canUpdateStatus = ownerUid === currentUser?.uid
+                  || isManagerForOwner(ownerUid)
+                  || normalizedResponsible === normalizedEmail;
+                const statusControl = canUpdateStatus
+                  ? `<div class="flow-status-control">
+                      <span>Status da etapa:</span>
+                      <select data-action="update-schedule-status" data-id="${entry.id}" data-owner="${ownerUid}" data-current-status="${entry.status || 'nao_feito'}">
+                        ${SCHEDULE_STATUS_OPTIONS.map((option) => `<option value="${option.value}" ${option.value === (entry.status || 'nao_feito') ? 'selected' : ''}>${option.label}</option>`).join('')}
+                      </select>
+                    </div>`
+                  : '';
                 return `
                   <article class="flow-step" data-schedule-id="${entry.id}" data-owner="${ownerUid}">
                     <div class="flow-step-index" aria-hidden="true">${index + 1}</div>
@@ -1223,11 +1313,15 @@
                       <header>
                         <div>
                           <h3>${entry.title || 'Etapa'}</h3>
-                          <div class="tag"><i class="fas fa-user"></i>${responsibleLabel}</div>
+                          <div class="flow-meta">
+                            <div class="tag"><i class="fas fa-user"></i>${responsibleLabel}</div>
+                            ${statusPill}
+                          </div>
                         </div>
                         ${timeRange ? `<span class="flow-time">${timeRange}</span>` : ''}
                       </header>
                       ${notes}
+                      ${statusControl}
                       ${ownerUid === currentUser?.uid
                         ? `<footer class="card-footer"><button type="button" data-action="delete-schedule" data-id="${entry.id}"><i class="fas fa-trash"></i> Remover</button></footer>`
                         : ''}
@@ -1384,6 +1478,7 @@
                 endTime: data.endTime || '',
                 notes: data.notes || '',
                 responsibleEmail: data.responsibleEmail || '',
+                status: data.status || 'nao_feito'
               };
             });
             schedulesByOwner.set(ownerUid, entries);
@@ -1679,6 +1774,8 @@
             endTime,
             responsibleEmail: responsible,
             notes,
+            status: 'nao_feito',
+            statusUpdatedAt: serverTimestamp(),
             ownerUid: currentUser.uid,
             ownerEmail: currentUser.email || null,
             createdBy: currentUser.email || currentUser.uid,
@@ -1714,6 +1811,37 @@
         } catch (error) {
           console.error('Erro ao remover etapa do cronograma:', error);
           showStatus(scheduleStatus, 'Não foi possível remover a etapa.', 'error');
+        }
+      });
+
+      scheduleFlowContainer?.addEventListener('change', async (event) => {
+        const select = event.target.closest('select[data-action="update-schedule-status"]');
+        if (!select || !db || !currentUser) return;
+        const scheduleId = select.dataset.id;
+        const ownerUid = select.dataset.owner;
+        const previousStatus = select.dataset.currentStatus || 'nao_feito';
+        const newStatus = select.value;
+        if (!scheduleId || !ownerUid || !newStatus) {
+          return;
+        }
+        if (newStatus === previousStatus) {
+          return;
+        }
+
+        select.disabled = true;
+        try {
+          await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'dailySchedules', scheduleId), {
+            status: newStatus,
+            statusUpdatedAt: serverTimestamp(),
+          });
+          select.dataset.currentStatus = newStatus;
+          showStatus(scheduleStatus, 'Status atualizado!');
+        } catch (error) {
+          console.error('Erro ao atualizar status do cronograma:', error);
+          showStatus(scheduleStatus, 'Não foi possível atualizar o status da etapa.', 'error');
+          select.value = previousStatus;
+        } finally {
+          select.disabled = false;
         }
       });
 
