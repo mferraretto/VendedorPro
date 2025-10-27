@@ -327,6 +327,30 @@
           </div>
           <div class="card-body">
             <div
+              class="mb-4 flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p
+                id="catalogKitSelectionInfo"
+                class="text-sm text-gray-600"
+              >
+                Selecione os produtos para montar um kit e calcule os valores
+                totais.
+              </p>
+              <button
+                id="catalogCalculateKit"
+                type="button"
+                disabled
+                class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <i class="fa-solid fa-calculator"></i>
+                <span>Calcular kit</span>
+              </button>
+            </div>
+            <div
+              id="catalogKitResult"
+              class="mb-4 hidden rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800"
+            ></div>
+            <div
               id="catalogCards"
               class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
             ></div>

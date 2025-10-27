@@ -78,6 +78,9 @@ const editingCancelBtn = document.getElementById('catalogEditingCancel');
 const submitBtn = form?.querySelector('button[type="submit"]');
 const exportPdfBtn = document.getElementById('catalogExportPdf');
 const exportExcelBtn = document.getElementById('catalogExportExcel');
+const kitCalculateBtn = document.getElementById('catalogCalculateKit');
+const kitSelectionInfoEl = document.getElementById('catalogKitSelectionInfo');
+const kitResultEl = document.getElementById('catalogKitResult');
 
 let currentUser = null;
 let currentProfile = null;
@@ -89,6 +92,7 @@ let isSubmitting = false;
 const productCache = new Map();
 let editingProductId = null;
 let editingProductData = null;
+const selectedProducts = new Set();
 
 function normalizePerfil(perfil) {
   const base = (perfil || '')
@@ -131,6 +135,132 @@ function formatCurrency(value) {
   } catch (err) {
     console.warn('Não foi possível formatar o valor:', err);
     return value.toFixed(2);
+  }
+}
+
+function parseNumericValue(value) {
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const normalized = Number(
+      trimmed
+        .replace(/R\$/gi, '')
+        .replace(/\s+/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.'),
+    );
+    if (!Number.isNaN(normalized)) return normalized;
+  }
+  return null;
+}
+
+function getProductCost(produto) {
+  const valores = [
+    produto?.custo,
+    produto?.custoUnitario,
+    produto?.valorCusto,
+    produto?.custoTotal,
+  ];
+  for (const valor of valores) {
+    const parsed = parseNumericValue(valor);
+    if (parsed !== null) return parsed;
+  }
+  return 0;
+}
+
+function getProductPrice(produto) {
+  const valores = [
+    produto?.precoSugerido,
+    produto?.preco,
+    produto?.valorVenda,
+    produto?.precoUnitario,
+  ];
+  for (const valor of valores) {
+    const parsed = parseNumericValue(valor);
+    if (parsed !== null) return parsed;
+  }
+  return 0;
+}
+
+function setCardSelectedState(card, selected) {
+  if (!card) return;
+  const classes = ['ring-2', 'ring-indigo-300', 'border-indigo-400'];
+  if (selected) {
+    card.classList.add(...classes);
+  } else {
+    card.classList.remove(...classes);
+  }
+}
+
+function updateKitControlsState() {
+  const count = selectedProducts.size;
+  if (kitCalculateBtn) {
+    kitCalculateBtn.disabled = count === 0;
+    if (count === 0) {
+      kitCalculateBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    } else {
+      kitCalculateBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+  }
+  if (kitSelectionInfoEl) {
+    kitSelectionInfoEl.textContent =
+      count === 0
+        ? 'Selecione os produtos para montar um kit.'
+        : `${count} produto${count > 1 ? 's' : ''} selecionado${
+            count > 1 ? 's' : ''
+          }.`;
+  }
+  if (count === 0 && kitResultEl) {
+    kitResultEl.classList.add('hidden');
+    kitResultEl.textContent = '';
+  }
+}
+
+function handleProductSelection(productId, isSelected) {
+  if (!productId) return;
+  if (isSelected) {
+    selectedProducts.add(productId);
+  } else {
+    selectedProducts.delete(productId);
+  }
+  if (kitResultEl && !kitResultEl.classList.contains('hidden')) {
+    kitResultEl.classList.add('hidden');
+    kitResultEl.textContent = '';
+  }
+  updateKitControlsState();
+}
+
+function handleCalculateKit() {
+  if (!selectedProducts.size) {
+    showToast('Selecione ao menos um produto para montar o kit.', 'warning');
+    return;
+  }
+  let totalCost = 0;
+  let totalPrice = 0;
+  selectedProducts.forEach((productId) => {
+    const produto = productCache.get(productId);
+    if (!produto) return;
+    totalCost += getProductCost(produto);
+    totalPrice += getProductPrice(produto);
+  });
+  if (kitResultEl) {
+    const count = selectedProducts.size;
+    const partes = [
+      `<p class="font-semibold">Kit com ${count} produto${
+        count > 1 ? 's' : ''
+      } selecionado${count > 1 ? 's' : ''}.</p>`,
+      `<p class="mt-1">Custo total: <span class="font-semibold">${formatCurrency(
+        totalCost,
+      )}</span></p>`,
+      `<p class="mt-1">Valor de venda total: <span class="font-semibold">${formatCurrency(
+        totalPrice,
+      )}</span></p>`,
+    ];
+    kitResultEl.innerHTML = partes.join('');
+    kitResultEl.classList.remove('hidden');
   }
 }
 
@@ -732,6 +862,14 @@ function renderProducts(produtos) {
   const sorted = [...produtos];
   sorted.forEach((produto) => productCache.set(produto.id, produto));
 
+  const validIds = new Set(sorted.map((produto) => produto.id));
+  Array.from(selectedProducts).forEach((id) => {
+    if (!validIds.has(id)) {
+      selectedProducts.delete(id);
+    }
+  });
+  updateKitControlsState();
+
   if (!sorted.length) {
     if (emptyStateEl) emptyStateEl.classList.remove('hidden');
   } else {
@@ -740,6 +878,7 @@ function renderProducts(produtos) {
       const card = document.createElement('div');
       card.className =
         'flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md';
+      card.dataset.productId = produto.id || '';
 
       const media = document.createElement('div');
       media.className = 'relative h-40 w-full bg-gray-100';
@@ -758,6 +897,23 @@ function renderProducts(produtos) {
         placeholder.innerHTML = '<i class="fa-solid fa-image text-4xl"></i>';
         media.appendChild(placeholder);
       }
+
+      const selectionWrapper = document.createElement('label');
+      selectionWrapper.className =
+        'absolute left-2 top-2 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-gray-700 shadow';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className =
+        'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+      checkbox.checked = selectedProducts.has(produto.id);
+      checkbox.addEventListener('change', (event) => {
+        handleProductSelection(produto.id, event.target.checked);
+        setCardSelectedState(card, selectedProducts.has(produto.id));
+      });
+      const checkboxLabel = document.createElement('span');
+      checkboxLabel.textContent = 'Selecionar';
+      selectionWrapper.append(checkbox, checkboxLabel);
+      media.appendChild(selectionWrapper);
       card.appendChild(media);
 
       const body = document.createElement('div');
@@ -824,6 +980,7 @@ function renderProducts(produtos) {
       body.appendChild(actions);
       card.appendChild(body);
 
+      setCardSelectedState(card, selectedProducts.has(produto.id));
       cardsContainer?.appendChild(card);
     });
   }
@@ -1136,9 +1293,11 @@ function setupEventListeners() {
     clearForm();
     toggleForm(false);
   });
+  kitCalculateBtn?.addEventListener('click', handleCalculateKit);
 }
 
 setupEventListeners();
+updateKitControlsState();
 updateExportButtons(false);
 updateSubmitButtonLabel();
 updateEditingNotice();
