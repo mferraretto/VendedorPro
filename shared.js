@@ -652,6 +652,7 @@ document.addEventListener('sidebarLoaded', async () => {
         'menu-painel-atualizacoes-gerais',
         'menu-painel-atualizacoes-mentorados',
         'menu-saques',
+        'menu-catalogo',
         'menu-equipes',
       ].includes(id),
   );
@@ -665,6 +666,7 @@ document.addEventListener('sidebarLoaded', async () => {
     'menu-precificacao',
     'menu-expedicao',
     'menu-comunicacao',
+    'menu-catalogo',
     'menu-equipes',
     'menu-configuracoes',
   ];
