@@ -111,6 +111,7 @@ const EXPEDICAO_ALLOWED_MENU_IDS = [
   'menu-configuracoes',
   'menu-painel-atualizacoes-gerais',
   'menu-equipes',
+  'menu-catalogo',
 ];
 const CASAROSA_ALLOWED_MENU_IDS = [
   'menu-casarosa-controle-vendas',
@@ -125,6 +126,7 @@ const CASAROSA_ALLOWED_MENU_IDS = [
   'menu-casarosa-conferir-sobras',
   'menu-casarosa-equipes',
   'menu-casarosa-painel-atualizacoes',
+  'menu-catalogo',
 ];
 const SELLER_ALLOWED_MENU_IDS = [
   'menu-seller-expedicao',
@@ -569,6 +571,7 @@ function normalizePerfil(perfil) {
       'responsavel',
       'gestor financeiro',
       'responsavel financeiro',
+      'gerente',
     ].includes(base)
   )
     return 'gestor';
@@ -618,6 +621,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-comunicacao',
       'menu-painel-atualizacoes-gerais',
       'menu-painel-atualizacoes-mentorados',
+      'menu-catalogo',
     ],
     cliente: [
       'menu-vendas',
@@ -629,6 +633,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-comunicacao',
       'menu-painel-atualizacoes-gerais',
       'menu-painel-atualizacoes-mentorados',
+      'menu-catalogo',
     ],
     gestor: [
       'menu-atualizacoes',
@@ -648,6 +653,7 @@ function applyPerfilRestrictions(perfil) {
       'menu-acompanhamento-gestor',
       'menu-sku-associado',
       'menu-desempenho',
+      'menu-catalogo',
     ],
     seller: SELLER_ALLOWED_MENU_IDS,
     posvendas: POSVENDAS_ALLOWED_MENU_IDS,
