@@ -8962,23 +8962,253 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const filtroResponsavelValor =
         obterFiltroResponsavelProdutosVendidosValor();
 
-      return produtosVendidosResumo.filter((item) => {
-        const passaSku =
-          !filtroSkuValor ||
-          item.todosSkus.some((sku) =>
-            String(sku || '').toLowerCase().includes(filtroSkuValor),
-          );
+      const normalizarTexto = (valor) =>
+        String(valor || '').trim().toLowerCase();
 
-        const passaResponsavel =
-          !filtroResponsavelValor ||
-          (Array.isArray(item.usuarios) &&
-            item.usuarios.some(([nome]) =>
-              String(nome || '').trim().toLowerCase() ===
-              filtroResponsavelValor,
-            ));
+      const atendeFiltroSku = (sku) => {
+        if (!filtroSkuValor) return true;
+        return normalizarTexto(sku).includes(filtroSkuValor);
+      };
 
-        return passaSku && passaResponsavel;
-      });
+      const reconstruirDetalhesPorUsuario = (item) => {
+        if (!Array.isArray(item.detalhesPorUsuario)) return new Map();
+        return new Map(
+          item.detalhesPorUsuario.map((detalhe) => {
+            const nome = detalhe?.nome ?? '';
+            const mapaSkus = Array.isArray(detalhe?.skus)
+              ? new Map(
+                  detalhe.skus.map((skuInfo) => [
+                    skuInfo?.sku ?? '',
+                    {
+                      total: Number(skuInfo?.total || 0),
+                      valorLiquido: Number(skuInfo?.valorLiquido || 0),
+                    },
+                  ]),
+                )
+              : new Map();
+            return [
+              nome,
+              {
+                total: Number(detalhe?.total || 0),
+                valorLiquido: Number(detalhe?.valorLiquido || 0),
+                skus: mapaSkus,
+              },
+            ];
+          }),
+        );
+      };
+
+      const reconstruirDetalhesPorSku = (item) => {
+        if (!Array.isArray(item.detalhesPorSku)) return new Map();
+        return new Map(
+          item.detalhesPorSku.map((detalhe) => {
+            const mapaUsuarios = Array.isArray(detalhe?.usuarios)
+              ? new Map(
+                  detalhe.usuarios.map((usuarioInfo) => [
+                    usuarioInfo?.nome ?? '',
+                    {
+                      total: Number(usuarioInfo?.total || 0),
+                      valorLiquido: Number(usuarioInfo?.valorLiquido || 0),
+                    },
+                  ]),
+                )
+              : new Map();
+            return [
+              detalhe?.sku ?? '',
+              {
+                total: Number(detalhe?.total || 0),
+                valorLiquido: Number(detalhe?.valorLiquido || 0),
+                usuarios: mapaUsuarios,
+              },
+            ];
+          }),
+        );
+      };
+
+      const encontrarDetalhesUsuario = (mapa, referencia) => {
+        const referenciaNormalizada = normalizarTexto(referencia);
+        for (const [nome, dados] of mapa.entries()) {
+          if (normalizarTexto(nome) === referenciaNormalizada) {
+            return { nome, dados };
+          }
+        }
+        return null;
+      };
+
+      const mapaParafusos = (item) =>
+        new Map(
+          Array.isArray(item.parafusosPorSku)
+            ? item.parafusosPorSku
+            : [],
+        );
+
+      return produtosVendidosResumo
+        .map((item) => {
+          const todosSkus = Array.isArray(item.todosSkus) ? item.todosSkus : [];
+          const possuiSkuCompativel =
+            !filtroSkuValor || todosSkus.some((sku) => atendeFiltroSku(sku));
+          if (!possuiSkuCompativel) {
+            return null;
+          }
+
+          const usuariosOriginais = Array.isArray(item.usuarios)
+            ? item.usuarios
+            : [];
+          const usuariosSelecionados = filtroResponsavelValor
+            ? usuariosOriginais.filter(
+                ([nome]) => normalizarTexto(nome) === filtroResponsavelValor,
+              )
+            : usuariosOriginais;
+          if (filtroResponsavelValor && !usuariosSelecionados.length) {
+            return null;
+          }
+
+          const detalhesUsuarios = reconstruirDetalhesPorUsuario(item);
+          const detalhesSkus = reconstruirDetalhesPorSku(item);
+
+          const acumuladoSkus = new Map();
+          const acumuladoUsuarios = new Map();
+          let total = 0;
+          let valorLiquido = 0;
+
+          const adicionarVenda = (sku, quantidade, valor, nomeUsuario) => {
+            const qtdNumero = Number(quantidade || 0);
+            if (!sku || !Number.isFinite(qtdNumero) || qtdNumero <= 0) {
+              return;
+            }
+            if (!atendeFiltroSku(sku)) {
+              return;
+            }
+            const valorNumero = Number(valor || 0);
+            total += qtdNumero;
+            valorLiquido += Number.isFinite(valorNumero) ? valorNumero : 0;
+            acumuladoSkus.set(
+              sku,
+              (acumuladoSkus.get(sku) || 0) + qtdNumero,
+            );
+            if (nomeUsuario) {
+              acumuladoUsuarios.set(
+                nomeUsuario,
+                (acumuladoUsuarios.get(nomeUsuario) || 0) + qtdNumero,
+              );
+            }
+          };
+
+          if (filtroResponsavelValor) {
+            usuariosSelecionados.forEach(([nomeReferencia]) => {
+              const encontrado = encontrarDetalhesUsuario(
+                detalhesUsuarios,
+                nomeReferencia,
+              );
+              if (!encontrado) return;
+              const { nome, dados } = encontrado;
+              if (!(dados.skus instanceof Map)) return;
+              dados.skus.forEach((info, sku) => {
+                adicionarVenda(
+                  sku,
+                  info?.total,
+                  info?.valorLiquido,
+                  nome,
+                );
+              });
+            });
+          } else {
+            detalhesSkus.forEach((dadosSku, sku) => {
+              adicionarVenda(sku, dadosSku?.total, dadosSku?.valorLiquido);
+              if (!(dadosSku.usuarios instanceof Map)) return;
+              dadosSku.usuarios.forEach((infoUsuario, nomeUsuario) => {
+                const qtdUsuario = Number(infoUsuario?.total || 0);
+                if (!Number.isFinite(qtdUsuario) || qtdUsuario <= 0) {
+                  return;
+                }
+                if (!atendeFiltroSku(sku)) {
+                  return;
+                }
+                acumuladoUsuarios.set(
+                  nomeUsuario,
+                  (acumuladoUsuarios.get(nomeUsuario) || 0) + qtdUsuario,
+                );
+              });
+            });
+          }
+
+          if (!total) {
+            return null;
+          }
+
+          const vendidosPorSkuOrdenados = [];
+          const skusAdicionados = new Set();
+          const vendidosOriginais = Array.isArray(item.vendidosPorSku)
+            ? item.vendidosPorSku
+            : [];
+          vendidosOriginais.forEach(([sku]) => {
+            const quantidade = acumuladoSkus.get(sku);
+            if (!quantidade || quantidade <= 0) return;
+            vendidosPorSkuOrdenados.push([sku, quantidade]);
+            skusAdicionados.add(sku);
+          });
+          acumuladoSkus.forEach((quantidade, sku) => {
+            if (skusAdicionados.has(sku)) return;
+            if (!quantidade || quantidade <= 0) return;
+            vendidosPorSkuOrdenados.push([sku, quantidade]);
+          });
+
+          const usuariosOrdenados = [];
+          const usuariosAdicionados = new Set();
+          usuariosOriginais.forEach(([nome]) => {
+            const quantidade = acumuladoUsuarios.get(nome);
+            if (!quantidade || quantidade <= 0) return;
+            usuariosOrdenados.push([nome, quantidade]);
+            usuariosAdicionados.add(normalizarTexto(nome));
+          });
+          acumuladoUsuarios.forEach((quantidade, nome) => {
+            if (!quantidade || quantidade <= 0) return;
+            const normalizado = normalizarTexto(nome);
+            if (usuariosAdicionados.has(normalizado)) return;
+            usuariosOrdenados.push([nome, quantidade]);
+          });
+
+          const principaisDetalhesOriginais = Array.isArray(
+            item.principaisVinculadosDetalhes,
+          )
+            ? item.principaisVinculadosDetalhes
+            : [];
+          const mapaParafusosItem = mapaParafusos(item);
+          const principaisDetalhes = [];
+          const principaisAdicionados = new Set();
+
+          principaisDetalhesOriginais.forEach((detalhe) => {
+            const quantidade = acumuladoSkus.get(detalhe?.sku);
+            if (!quantidade || quantidade <= 0) return;
+            if (!atendeFiltroSku(detalhe?.sku)) return;
+            principaisDetalhes.push({
+              ...detalhe,
+              quantidade,
+            });
+            principaisAdicionados.add(detalhe?.sku);
+          });
+
+          acumuladoSkus.forEach((quantidade, sku) => {
+            if (!quantidade || quantidade <= 0) return;
+            if (!atendeFiltroSku(sku)) return;
+            if (principaisAdicionados.has(sku)) return;
+            principaisDetalhes.push({
+              sku,
+              quantidade,
+              parafusos: mapaParafusosItem.get(sku),
+            });
+          });
+
+          return {
+            ...item,
+            total,
+            valorLiquido,
+            vendidosPorSku: vendidosPorSkuOrdenados,
+            usuarios: usuariosOrdenados,
+            principaisVinculadosDetalhes: principaisDetalhes,
+          };
+        })
+        .filter(Boolean);
     }
 
     function popularFiltroResponsavelProdutosVendidos() {
@@ -9662,6 +9892,8 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                       new Set(),
                     principaisVinculadosQuantidades: new Map(),
                     parafusosPorSku: new Map(),
+                    detalhesPorUsuario: new Map(),
+                    detalhesPorSku: new Map(),
                   });
                 }
 
@@ -9677,6 +9909,68 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                   skuOriginal,
                   (registro.vendidosPorSku.get(skuOriginal) || 0) + total,
                 );
+
+                if (!(registro.detalhesPorUsuario instanceof Map)) {
+                  registro.detalhesPorUsuario = new Map(
+                    registro.detalhesPorUsuario || [],
+                  );
+                }
+                if (!(registro.detalhesPorSku instanceof Map)) {
+                  registro.detalhesPorSku = new Map(
+                    registro.detalhesPorSku || [],
+                  );
+                }
+
+                const detalhesUsuarioAtual = registro.detalhesPorUsuario.get(
+                  nomeUsuario,
+                );
+                const detalhesUsuario = detalhesUsuarioAtual || {
+                  total: 0,
+                  valorLiquido: 0,
+                  skus: new Map(),
+                };
+                detalhesUsuario.total += total;
+                detalhesUsuario.valorLiquido += valorLiquidoNumero;
+                if (!(detalhesUsuario.skus instanceof Map)) {
+                  detalhesUsuario.skus = new Map(detalhesUsuario.skus || []);
+                }
+                const detalhesSkuUsuarioAtual = detalhesUsuario.skus.get(
+                  skuOriginal,
+                );
+                const detalhesSkuUsuario = detalhesSkuUsuarioAtual || {
+                  total: 0,
+                  valorLiquido: 0,
+                };
+                detalhesSkuUsuario.total += total;
+                detalhesSkuUsuario.valorLiquido += valorLiquidoNumero;
+                detalhesUsuario.skus.set(skuOriginal, detalhesSkuUsuario);
+                registro.detalhesPorUsuario.set(nomeUsuario, detalhesUsuario);
+
+                const detalhesSkuAtual = registro.detalhesPorSku.get(
+                  skuOriginal,
+                );
+                const detalhesSku = detalhesSkuAtual || {
+                  total: 0,
+                  valorLiquido: 0,
+                  usuarios: new Map(),
+                };
+                detalhesSku.total += total;
+                detalhesSku.valorLiquido += valorLiquidoNumero;
+                if (!(detalhesSku.usuarios instanceof Map)) {
+                  detalhesSku.usuarios = new Map(detalhesSku.usuarios || []);
+                }
+                const detalhesSkuUsuarioResumoAtual = detalhesSku.usuarios.get(
+                  nomeUsuario,
+                );
+                const detalhesSkuUsuarioResumo =
+                  detalhesSkuUsuarioResumoAtual || {
+                    total: 0,
+                    valorLiquido: 0,
+                  };
+                detalhesSkuUsuarioResumo.total += total;
+                detalhesSkuUsuarioResumo.valorLiquido += valorLiquidoNumero;
+                detalhesSku.usuarios.set(nomeUsuario, detalhesSkuUsuarioResumo);
+                registro.detalhesPorSku.set(skuOriginal, detalhesSku);
 
                 if (!(registro.parafusosPorSku instanceof Map)) {
                   registro.parafusosPorSku = new Map(
@@ -9831,6 +10125,76 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             ]),
           ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+          const converterDetalhesPorUsuario = (origem) => {
+            if (origem instanceof Map) {
+              return Array.from(origem.entries()).map(([nome, dados]) => ({
+                nome,
+                total: Number(dados?.total || 0),
+                valorLiquido: Number(dados?.valorLiquido || 0),
+                skus:
+                  dados?.skus instanceof Map
+                    ? Array.from(dados.skus.entries()).map(
+                        ([skuDetalhe, valores]) => ({
+                          sku: skuDetalhe,
+                          total: Number(valores?.total || 0),
+                          valorLiquido: Number(valores?.valorLiquido || 0),
+                        }),
+                      )
+                    : [],
+              }));
+            }
+            if (Array.isArray(origem)) {
+              return origem.map((detalhe) => ({
+                nome: detalhe?.nome ?? '',
+                total: Number(detalhe?.total || 0),
+                valorLiquido: Number(detalhe?.valorLiquido || 0),
+                skus: Array.isArray(detalhe?.skus)
+                  ? detalhe.skus.map((skuInfo) => ({
+                      sku: skuInfo?.sku ?? '',
+                      total: Number(skuInfo?.total || 0),
+                      valorLiquido: Number(skuInfo?.valorLiquido || 0),
+                    }))
+                  : [],
+              }));
+            }
+            return [];
+          };
+
+          const converterDetalhesPorSku = (origem) => {
+            if (origem instanceof Map) {
+              return Array.from(origem.entries()).map(([skuDetalhe, dados]) => ({
+                sku: skuDetalhe,
+                total: Number(dados?.total || 0),
+                valorLiquido: Number(dados?.valorLiquido || 0),
+                usuarios:
+                  dados?.usuarios instanceof Map
+                    ? Array.from(dados.usuarios.entries()).map(
+                        ([nomeUsuario, valores]) => ({
+                          nome: nomeUsuario,
+                          total: Number(valores?.total || 0),
+                          valorLiquido: Number(valores?.valorLiquido || 0),
+                        }),
+                      )
+                    : [],
+              }));
+            }
+            if (Array.isArray(origem)) {
+              return origem.map((detalhe) => ({
+                sku: detalhe?.sku ?? '',
+                total: Number(detalhe?.total || 0),
+                valorLiquido: Number(detalhe?.valorLiquido || 0),
+                usuarios: Array.isArray(detalhe?.usuarios)
+                  ? detalhe.usuarios.map((usuarioInfo) => ({
+                      nome: usuarioInfo?.nome ?? '',
+                      total: Number(usuarioInfo?.total || 0),
+                      valorLiquido: Number(usuarioInfo?.valorLiquido || 0),
+                    }))
+                  : [],
+              }));
+            }
+            return [];
+          };
+
           return {
             sku: item.sku,
             total: item.total,
@@ -9843,6 +10207,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             principaisVinculadosDetalhes,
             quantidadeParafusosPrincipal,
             parafusosPorSku: parafusosPorSkuEntries,
+            detalhesPorUsuario: converterDetalhesPorUsuario(
+              item.detalhesPorUsuario,
+            ),
+            detalhesPorSku: converterDetalhesPorSku(item.detalhesPorSku),
           };
         });
 
