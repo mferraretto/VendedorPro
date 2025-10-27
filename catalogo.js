@@ -63,6 +63,7 @@ const categoryInput = document.getElementById('catalogProductCategory');
 const descriptionInput = document.getElementById('catalogProductDescription');
 const measuresInput = document.getElementById('catalogProductMeasures');
 const photosInput = document.getElementById('catalogProductPhotos');
+const photoUrlsInput = document.getElementById('catalogProductPhotoUrls');
 const submitBtn = form?.querySelector('button[type="submit"]');
 
 let currentUser = null;
@@ -141,6 +142,21 @@ function toggleForm(visible) {
 function clearForm() {
   form?.reset();
   if (photosInput) photosInput.value = '';
+  if (photoUrlsInput) photoUrlsInput.value = '';
+}
+
+function getFileNameFromUrl(url) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname || '';
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length) return segments[segments.length - 1];
+    return parsed.hostname || '';
+  } catch (err) {
+    console.warn('URL inválida fornecida para foto:', url, err);
+    return '';
+  }
 }
 
 function closeModal() {
@@ -412,6 +428,13 @@ async function handleSubmit(event) {
   const descricao = descriptionInput?.value.trim();
   const medidas = measuresInput?.value.trim();
   const arquivos = photosInput?.files ? Array.from(photosInput.files) : [];
+  const fotosUrlsBruto = photoUrlsInput?.value.trim();
+  const fotosUrls = fotosUrlsBruto
+    ? fotosUrlsBruto
+        .split(/\n+/)
+        .map((linha) => linha.trim())
+        .filter(Boolean)
+    : [];
 
   if (!nome || !sku) {
     showToast('Preencha os campos obrigatórios (nome e SKU).', 'warning');
@@ -465,18 +488,35 @@ async function handleSubmit(event) {
     }
 
     const fotosSalvas = [];
+    const errosUpload = [];
     for (const arquivo of arquivos) {
       if (!(arquivo instanceof File)) continue;
-      const path = `catalogo/${scopeUid}/${docRef.id}/${Date.now()}-${arquivo.name}`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, arquivo);
-      const url = await getDownloadURL(storageRef);
-      fotosSalvas.push({ nome: arquivo.name, url, storagePath: path });
+      try {
+        const path = `catalogo/${scopeUid}/${docRef.id}/${Date.now()}-${arquivo.name}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, arquivo);
+        const url = await getDownloadURL(storageRef);
+        fotosSalvas.push({ nome: arquivo.name, url, storagePath: path });
+      } catch (err) {
+        console.error('Não foi possível enviar uma foto para o Storage:', err);
+        errosUpload.push(arquivo.name);
+      }
     }
+
+    fotosUrls.forEach((url, index) => {
+      const nome = getFileNameFromUrl(url) || `Foto ${index + 1}`;
+      fotosSalvas.push({ nome, url });
+    });
     payload.fotos = fotosSalvas;
 
     await setDoc(docRef, payload);
     showToast('Produto cadastrado no catálogo com sucesso!');
+    if (errosUpload.length) {
+      showToast(
+        'Algumas fotos não puderam ser enviadas. Considere usar URLs externas.',
+        'warning',
+      );
+    }
     clearForm();
     toggleForm(false);
   } catch (err) {
