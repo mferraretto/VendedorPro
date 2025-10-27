@@ -1,113 +1,377 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Catálogo</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20240826">
-</head>
-<body class="bg-gray-100 text-gray-800">
-  <div class="app-container">
-    <div id="sidebar-container"></div>
-    <div id="navbar-container"></div>
-    <main class="main-content p-4 space-y-6">
-      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 class="text-2xl font-semibold text-gray-900">Catálogo de Produtos</h1>
-          <p class="text-gray-600">Organize os itens que precisam ter etiquetas preparadas para a expedição.</p>
-        </div>
-        <a
-          href="/expedicao.html"
-          class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow hover:bg-blue-700 transition"
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Catálogo</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="app-container">
+      <div id="sidebar-container"></div>
+      <div id="navbar-container"></div>
+      <main class="main-content p-4 space-y-6">
+        <header
+          class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
-          <i class="fa-solid fa-box"></i>
-          <span>Ir para Expedição</span>
-        </a>
-      </header>
-
-      <section class="card">
-        <div class="card-header">
-          <h2 class="text-lg font-semibold">Resumo rápido</h2>
-        </div>
-        <div class="card-body grid gap-4 sm:grid-cols-3">
-          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p class="text-sm text-gray-500">Produtos aguardando etiqueta</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900" id="catalogAwaiting">--</p>
-          </div>
-          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p class="text-sm text-gray-500">Etiquetas impressas hoje</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900" id="catalogPrintedToday">--</p>
-          </div>
-          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p class="text-sm text-gray-500">Responsável de expedição</p>
-            <p class="mt-2 text-base font-medium text-gray-900" id="catalogManager">--</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 class="text-lg font-semibold">Itens do catálogo</h2>
-            <p class="text-sm text-gray-600">Cadastre aqui os produtos que precisam de preparação especial.</p>
+            <h1 class="text-2xl font-semibold text-gray-900">
+              Catálogo de Produtos
+            </h1>
+            <p class="text-gray-600">
+              Organize os itens que precisam ter etiquetas preparadas para a
+              expedição.
+            </p>
           </div>
-          <button
-            id="catalogAddItemBtn"
-            class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow hover:bg-green-700 transition"
+          <a
+            href="/expedicao.html"
+            class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow transition hover:bg-blue-700"
           >
-            <i class="fa-solid fa-plus"></i>
-            <span>Novo item</span>
-          </button>
-        </div>
-        <div class="card-body">
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Produto</th>
-                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SKU</th>
-                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                  <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Observações</th>
-                </tr>
-              </thead>
-              <tbody id="catalogTableBody" class="divide-y divide-gray-100 bg-white">
-                <tr>
-                  <td class="px-4 py-3 text-sm text-gray-600" colspan="4">
-                    Nenhum item cadastrado ainda. Utilize o botão "Novo item" para começar.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <i class="fa-solid fa-box"></i>
+            <span>Ir para Expedição</span>
+          </a>
+        </header>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="text-lg font-semibold">Resumo rápido</h2>
+          </div>
+          <div class="card-body grid gap-4 sm:grid-cols-3">
+            <div
+              class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <p class="text-sm text-gray-500">Produtos cadastrados</p>
+              <p
+                class="mt-2 text-2xl font-semibold text-gray-900"
+                id="catalogTotal"
+              >
+                --
+              </p>
+            </div>
+            <div
+              class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <p class="text-sm text-gray-500">Novos produtos hoje</p>
+              <p
+                class="mt-2 text-2xl font-semibold text-gray-900"
+                id="catalogToday"
+              >
+                --
+              </p>
+            </div>
+            <div
+              class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <p class="text-sm text-gray-500">Responsável pelo catálogo</p>
+              <p
+                class="mt-2 text-base font-medium text-gray-900"
+                id="catalogManager"
+              >
+                --
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div
+            class="card-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <h2 class="text-lg font-semibold">Cadastro de produtos</h2>
+              <p class="text-sm text-gray-600">
+                Cadastre os itens que devem ser compartilhados com os usuários
+                da sua equipe.
+              </p>
+            </div>
+            <button
+              id="catalogAddItemBtn"
+              class="inline-flex hidden items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow transition hover:bg-green-700"
+            >
+              <i class="fa-solid fa-plus"></i>
+              <span>Novo produto</span>
+            </button>
+          </div>
+          <div id="catalogFormWrapper" class="card-body hidden">
+            <form id="catalogProductForm" class="space-y-6">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div class="flex flex-col">
+                  <label
+                    for="catalogProductName"
+                    class="text-sm font-medium text-gray-700"
+                    >Nome do produto *</label
+                  >
+                  <input
+                    id="catalogProductName"
+                    type="text"
+                    required
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Nome que identifica o produto"
+                  />
+                </div>
+                <div class="flex flex-col">
+                  <label
+                    for="catalogProductSku"
+                    class="text-sm font-medium text-gray-700"
+                    >SKU *</label
+                  >
+                  <input
+                    id="catalogProductSku"
+                    type="text"
+                    required
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Código ou referência"
+                  />
+                </div>
+                <div class="flex flex-col">
+                  <label
+                    for="catalogProductCost"
+                    class="text-sm font-medium text-gray-700"
+                    >Custo</label
+                  >
+                  <input
+                    id="catalogProductCost"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="0,00"
+                  />
+                </div>
+                <div class="flex flex-col">
+                  <label
+                    for="catalogProductPrice"
+                    class="text-sm font-medium text-gray-700"
+                    >Preço de venda sugerido</label
+                  >
+                  <input
+                    id="catalogProductPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="0,00"
+                  />
+                </div>
+                <div class="flex flex-col sm:col-span-2">
+                  <label
+                    for="catalogProductCategory"
+                    class="text-sm font-medium text-gray-700"
+                    >Categoria</label
+                  >
+                  <input
+                    id="catalogProductCategory"
+                    type="text"
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Ex.: Utilidades, Moda, Acessórios"
+                  />
+                </div>
+              </div>
+              <div class="grid gap-4">
+                <div class="flex flex-col">
+                  <label
+                    for="catalogProductDescription"
+                    class="text-sm font-medium text-gray-700"
+                    >Descrição</label
+                  >
+                  <textarea
+                    id="catalogProductDescription"
+                    rows="3"
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Detalhes importantes sobre o produto"
+                  ></textarea>
+                </div>
+                <div class="flex flex-col">
+                  <label
+                    for="catalogProductMeasures"
+                    class="text-sm font-medium text-gray-700"
+                    >Medidas</label
+                  >
+                  <textarea
+                    id="catalogProductMeasures"
+                    rows="2"
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Tamanho, peso, dimensões, etc."
+                  ></textarea>
+                </div>
+                <div class="flex flex-col">
+                  <label
+                    for="catalogProductPhotos"
+                    class="text-sm font-medium text-gray-700"
+                    >Fotos</label
+                  >
+                  <input
+                    id="catalogProductPhotos"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    class="mt-1 text-sm text-gray-700"
+                  />
+                  <p class="mt-1 text-xs text-gray-500">
+                    Utilize imagens em formato JPG ou PNG com até 10 MB.
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  id="catalogCancelForm"
+                  class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-green-700"
+                >
+                  <i class="fa-solid fa-floppy-disk"></i>
+                  <span>Salvar produto</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="text-lg font-semibold">Produtos cadastrados</h2>
+            <p class="text-sm text-gray-600">
+              Os produtos cadastrados ficam visíveis para todos os usuários
+              vinculados ao responsável financeiro.
+            </p>
+          </div>
+          <div class="card-body">
+            <div
+              id="catalogCards"
+              class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            ></div>
+            <p
+              id="catalogEmptyState"
+              class="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500"
+            >
+              Nenhum produto cadastrado ainda. Utilize o botão "Novo produto"
+              para adicionar itens ao catálogo.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <div
+        id="catalogDetailsModal"
+        class="fixed inset-0 z-50 hidden"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          id="catalogDetailsBackdrop"
+          class="absolute inset-0 bg-black bg-opacity-50"
+        ></div>
+        <div class="relative mx-auto mt-20 w-full max-w-3xl px-4">
+          <div class="overflow-hidden rounded-lg bg-white shadow-xl">
+            <div
+              class="flex items-center justify-between border-b border-gray-200 px-6 py-4"
+            >
+              <h3
+                class="text-lg font-semibold text-gray-900"
+                id="catalogDetailsTitle"
+              >
+                Detalhes do produto
+              </h3>
+              <button
+                id="catalogDetailsClose"
+                class="text-gray-500 transition hover:text-gray-700"
+                aria-label="Fechar"
+              >
+                <i class="fa-solid fa-xmark text-xl"></i>
+              </button>
+            </div>
+            <div class="space-y-5 px-6 py-5">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p class="text-xs font-semibold uppercase text-gray-500">
+                    SKU
+                  </p>
+                  <p
+                    class="mt-1 text-sm font-medium text-gray-900"
+                    id="catalogDetailsSku"
+                  ></p>
+                </div>
+                <div>
+                  <p class="text-xs font-semibold uppercase text-gray-500">
+                    Categoria
+                  </p>
+                  <p
+                    class="mt-1 text-sm font-medium text-gray-900"
+                    id="catalogDetailsCategoria"
+                  ></p>
+                </div>
+                <div>
+                  <p class="text-xs font-semibold uppercase text-gray-500">
+                    Custo
+                  </p>
+                  <p
+                    class="mt-1 text-sm font-medium text-gray-900"
+                    id="catalogDetailsCusto"
+                  ></p>
+                </div>
+                <div>
+                  <p class="text-xs font-semibold uppercase text-gray-500">
+                    Preço sugerido
+                  </p>
+                  <p
+                    class="mt-1 text-sm font-medium text-gray-900"
+                    id="catalogDetailsPreco"
+                  ></p>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Descrição
+                </p>
+                <p
+                  class="mt-1 whitespace-pre-line text-sm text-gray-700"
+                  id="catalogDetailsDescricao"
+                ></p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Medidas
+                </p>
+                <p
+                  class="mt-1 whitespace-pre-line text-sm text-gray-700"
+                  id="catalogDetailsMedidas"
+                ></p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Fotos
+                </p>
+                <div
+                  id="catalogDetailsFotos"
+                  class="mt-3 grid gap-3 sm:grid-cols-3"
+                ></div>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
-    </main>
-    <script src="shared.js"></script>
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="login.js"></script>
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        const awaitingEl = document.getElementById('catalogAwaiting');
-        const printedEl = document.getElementById('catalogPrintedToday');
-        const managerEl = document.getElementById('catalogManager');
-        const addItemBtn = document.getElementById('catalogAddItemBtn');
+      </div>
 
-        const updatePlaceholders = () => {
-          awaitingEl.textContent = '0';
-          printedEl.textContent = '0';
-          managerEl.textContent = 'Defina na Configuração de Perfil';
-        };
-
-        updatePlaceholders();
-
-        addItemBtn?.addEventListener('click', () => {
-          window.showToast?.('Em breve você poderá cadastrar itens do catálogo.', 'info');
-        });
-      });
-    </script>
-  </div>
-</body>
+      <script src="shared.js"></script>
+      <script type="module" src="firebase-config.js"></script>
+      <script type="module" src="login.js"></script>
+      <script type="module" src="catalogo.js"></script>
+    </div>
+  </body>
 </html>
