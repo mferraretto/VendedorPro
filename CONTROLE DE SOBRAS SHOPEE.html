@@ -456,6 +456,53 @@ function obterMesIsoAtual() {
   return `${ano}-${mes}`;
 }
 
+function obterSemanaIso(date) {
+  const data = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const diaSemana = data.getUTCDay() || 7;
+  data.setUTCDate(data.getUTCDate() + 4 - diaSemana);
+  const ano = data.getUTCFullYear();
+  const inicioAno = new Date(Date.UTC(ano, 0, 1));
+  const semana = Math.ceil(((data - inicioAno) / 86400000 + 1) / 7);
+  return { ano, semana };
+}
+
+function obterSemanaIsoAtual() {
+  const { ano, semana } = obterSemanaIso(new Date());
+  return `${ano}-W${String(semana).padStart(2, '0')}`;
+}
+
+function calcularIntervaloSemana(semanaIso) {
+  if (!semanaIso || typeof semanaIso !== 'string' || !semanaIso.includes('-W')) {
+    return null;
+  }
+
+  const [anoStr, semanaStr] = semanaIso.split('-W');
+  const ano = Number(anoStr);
+  const semana = Number(semanaStr);
+
+  if (!Number.isInteger(ano) || !Number.isInteger(semana) || semana <= 0 || semana > 53) {
+    return null;
+  }
+
+  const janQuatro = new Date(Date.UTC(ano, 0, 4));
+  const diaJanQuatro = janQuatro.getUTCDay() || 7;
+  const primeiraSegunda = new Date(janQuatro);
+  primeiraSegunda.setUTCDate(janQuatro.getUTCDate() - (diaJanQuatro - 1));
+
+  const inicio = new Date(primeiraSegunda);
+  inicio.setUTCDate(primeiraSegunda.getUTCDate() + (semana - 1) * 7);
+
+  const fim = new Date(inicio);
+  fim.setUTCDate(inicio.getUTCDate() + 6);
+
+  const formatar = (data) => data.toISOString().slice(0, 10);
+
+  return {
+    inicio: formatar(inicio),
+    fim: formatar(fim),
+  };
+}
+
 function formatarNumeroPadrao(valor) {
   const numero = Number(valor) || 0;
   return new Intl.NumberFormat('pt-BR').format(numero);
@@ -12606,6 +12653,11 @@ async function inicializarAbaDiaria() {
     resumoMes.value = obterMesIsoAtual();
   }
 
+  const resumoSemana = document.getElementById('diarioResumoSemana');
+  if (resumoSemana && !resumoSemana.value) {
+    resumoSemana.value = obterSemanaIsoAtual();
+  }
+
   const salvarBtn = document.getElementById('diarioSalvar');
   if (salvarBtn && !salvarBtn.dataset.bound) {
     salvarBtn.addEventListener('click', salvarAcompanhamentoDiario);
@@ -12639,6 +12691,12 @@ async function inicializarAbaDiaria() {
   if (resumoMes && !resumoMes.dataset.bound) {
     resumoMes.addEventListener('change', carregarResumoDiario);
     resumoMes.dataset.bound = 'true';
+  }
+
+  const exportarSemanaBtn = document.getElementById('diarioResumoExportarSemana');
+  if (exportarSemanaBtn && !exportarSemanaBtn.dataset.bound) {
+    exportarSemanaBtn.addEventListener('click', exportarResumoDiarioSemana);
+    exportarSemanaBtn.dataset.bound = 'true';
   }
 
   const botoes = document.querySelectorAll('#diariamente [data-diario-sub]');
@@ -12799,6 +12857,101 @@ async function carregarResumoDiario() {
   } catch (error) {
     console.error('Erro ao carregar acompanhamento diário', error);
     tabelaBody.innerHTML = '<tr><td colspan="9" class="text-center text-red-500">Erro ao carregar os dados.</td></tr>';
+  }
+}
+
+async function exportarResumoDiarioSemana() {
+  if (typeof XLSX === 'undefined') {
+    mostrarErro('Biblioteca de exportação indisponível no momento.');
+    return;
+  }
+
+  if (!db || !usuarioLogado?.uid) {
+    mostrarErro('Não foi possível identificar o usuário logado.');
+    return;
+  }
+
+  const semanaValor = document.getElementById('diarioResumoSemana')?.value || '';
+  if (!semanaValor) {
+    mostrarErro('Selecione uma semana para exportar.');
+    return;
+  }
+
+  const intervalo = calcularIntervaloSemana(semanaValor);
+  if (!intervalo) {
+    mostrarErro('Semana selecionada inválida para exportação.');
+    return;
+  }
+
+  try {
+    const ref = db.collection('uid').doc(usuarioLogado.uid).collection('acompanhamentoDiario');
+    const snap = await ref.get();
+    const registros = [];
+
+    snap.forEach((doc) => {
+      const dados = doc.data() || {};
+      const dataRegistro = String(dados.data || '');
+      if (!dataRegistro) return;
+      if (dataRegistro < intervalo.inicio || dataRegistro > intervalo.fim) return;
+      registros.push(dados);
+    });
+
+    if (!registros.length) {
+      mostrarErro('Nenhum registro encontrado para a semana selecionada.');
+      return;
+    }
+
+    const { linhas } = agruparRegistrosDiariosUsuario(registros);
+    if (!linhas.length) {
+      mostrarErro('Não há informações para exportar na semana selecionada.');
+      return;
+    }
+
+    const cabecalho = [
+      'Plataforma',
+      'Loja',
+      'Abertas',
+      'Respondidas',
+      'Encerradas',
+      '% Reclamação',
+      '% Mediação',
+      '% Atraso',
+      '% Cancelado',
+    ];
+
+    const formatarPercentual = (valor) => {
+      if (valor === null || valor === undefined || Number.isNaN(Number(valor))) {
+        return '-';
+      }
+      return `${Number(valor).toFixed(2)}%`;
+    };
+
+    const linhasPlanilha = linhas.map((linha) => [
+      linha.plataforma,
+      linha.nomeLoja,
+      Number(linha.reclamacoesAbertas || 0),
+      Number(linha.reclamacoesRespondidas || 0),
+      Number(linha.reclamacoesEncerradas || 0),
+      formatarPercentual(linha.porcentagemReclamacoes),
+      formatarPercentual(linha.porcentagemMediacao),
+      formatarPercentual(linha.porcentagemAtraso),
+      formatarPercentual(linha.porcentagemCancelamento),
+    ]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([cabecalho, ...linhasPlanilha]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Resumo semanal');
+
+    const periodoArquivo =
+      intervalo.inicio === intervalo.fim
+        ? intervalo.inicio
+        : `${intervalo.inicio}_a_${intervalo.fim}`;
+
+    XLSX.writeFile(workbook, `acompanhamento-diario-semanal-${periodoArquivo}.xlsx`);
+    mostrarSucesso('Resultado semanal exportado com sucesso.');
+  } catch (erro) {
+    console.error('Erro ao exportar resultado semanal do acompanhamento diário', erro);
+    mostrarErro('Não foi possível exportar o resultado semanal no momento.');
   }
 }
 
@@ -13556,6 +13709,7 @@ window.aplicarFiltroLogistica = aplicarFiltroLogistica;
 window.toggleExportMenu = toggleExportMenu;
 window.salvarAcompanhamentoDiario = salvarAcompanhamentoDiario;
 window.carregarResumoDiario = carregarResumoDiario;
+window.exportarResumoDiarioSemana = exportarResumoDiarioSemana;
 window.alternarSubPaginaDiaria = alternarSubPaginaDiaria;
 window.carregarDiarioGestor = carregarDiarioGestor;
 window.inicializarAbaDiaria = inicializarAbaDiaria;
