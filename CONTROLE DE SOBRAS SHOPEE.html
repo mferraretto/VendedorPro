@@ -8500,6 +8500,28 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       detalhesEl.innerHTML = html;
     }
 
+    async function excluirDocumentosSubcolecao(docRef, nomeColecao, limite = 500) {
+      const subRef = docRef.collection(nomeColecao);
+      while (true) {
+        const snapshot = await subRef.limit(limite).get();
+        if (snapshot.empty) break;
+
+        const batch = db.batch();
+        snapshot.docs.forEach((subDoc) => batch.delete(subDoc.ref));
+        await batch.commit();
+
+        if (snapshot.size < limite) break;
+      }
+    }
+
+    async function excluirDocumentoFaturamento(docRef) {
+      const subColecoes = ['lojas'];
+      for (const nome of subColecoes) {
+        await excluirDocumentosSubcolecao(docRef, nome);
+      }
+      await docRef.delete();
+    }
+
     async function excluirRegistrosFaturamento(dias) {
       const isAdmin = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase());
 
@@ -8509,10 +8531,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             .where(firebase.firestore.FieldPath.documentId(), '==', data)
             .get();
           for (const doc of snap.docs) {
-            await db.collection(`uid/${doc.ref.parent.parent.id}/faturamento`).doc(data).delete();
+            await excluirDocumentoFaturamento(doc.ref);
           }
         } else {
-          await db.collection('uid').doc(usuarioLogado.uid).collection('faturamento').doc(data).delete();
+          const docRef = db.collection('uid').doc(usuarioLogado.uid).collection('faturamento').doc(data);
+          await excluirDocumentoFaturamento(docRef);
         }
       }
     }
