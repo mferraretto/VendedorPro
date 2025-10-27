@@ -140,8 +140,9 @@ function formatarNumeroPadrao(valor) {
 }
 
 function formatarPercentualPadrao(valor) {
+  if (valor === null || valor === undefined || valor === '') return '-';
   const numero = Number(valor);
-  if (!Number.isFinite(numero)) return '0%';
+  if (!Number.isFinite(numero)) return '-';
   return `${numero.toFixed(2)}%`;
 }
 
@@ -398,12 +399,19 @@ function normalizarNumeroDiario(valor) {
   return Number.isFinite(numero) ? numero : 0;
 }
 
+function normalizarPercentualResumo(valor) {
+  if (valor === null || valor === undefined || valor === '') return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
+
 function criarAcumuladorPercentual() {
   return { soma: 0, total: 0 };
 }
 
 function adicionarPercentual(acumulador, valor) {
   if (!acumulador) return;
+  if (valor === null || valor === undefined || valor === '') return;
   const numero = Number(valor);
   if (!Number.isFinite(numero)) return;
   acumulador.soma += numero;
@@ -411,7 +419,7 @@ function adicionarPercentual(acumulador, valor) {
 }
 
 function mediaPercentual(acumulador) {
-  if (!acumulador || !acumulador.total) return 0;
+  if (!acumulador || !acumulador.total) return null;
   return acumulador.soma / acumulador.total;
 }
 
@@ -426,7 +434,35 @@ function obterNumeroDiarioCompat(registro, chaveNova, chaveLegado) {
   return 0;
 }
 
+function obterPercentualDiarioCompat(registro, chaveNova, chaveLegado) {
+  if (!registro) return null;
+  if (chaveNova && registro[chaveNova] !== undefined) {
+    const valor = normalizarPercentualResumo(registro[chaveNova]);
+    if (valor !== null) return valor;
+  }
+  if (chaveLegado && registro[chaveLegado] !== undefined) {
+    const valor = normalizarPercentualResumo(registro[chaveLegado]);
+    if (valor !== null) return valor;
+  }
+  return null;
+}
+
 function agruparRegistrosDiariosGestor(registros) {
+  const criarPercentuaisConjunto = () => ({
+    fim: {
+      reclamacoes: criarAcumuladorPercentual(),
+      cancelamento: criarAcumuladorPercentual(),
+      atraso: criarAcumuladorPercentual(),
+      mediacao: criarAcumuladorPercentual(),
+    },
+    inicio: {
+      reclamacoes: criarAcumuladorPercentual(),
+      cancelamento: criarAcumuladorPercentual(),
+      atraso: criarAcumuladorPercentual(),
+      mediacao: criarAcumuladorPercentual(),
+    },
+  });
+
   const mapa = new Map();
   const totaisPorUsuario = new Map();
   const totaisGerais = {
@@ -434,12 +470,7 @@ function agruparRegistrosDiariosGestor(registros) {
     reclamacoesAbertas: 0,
     reclamacoesRespondidas: 0,
     reclamacoesEncerradas: 0,
-    percentuais: {
-      reclamacoes: criarAcumuladorPercentual(),
-      cancelamento: criarAcumuladorPercentual(),
-      atraso: criarAcumuladorPercentual(),
-      mediacao: criarAcumuladorPercentual(),
-    },
+    percentuais: criarPercentuaisConjunto(),
   };
 
   registros.forEach((registro) => {
@@ -460,12 +491,7 @@ function agruparRegistrosDiariosGestor(registros) {
         reclamacoesAbertas: 0,
         reclamacoesRespondidas: 0,
         reclamacoesEncerradas: 0,
-        percentuais: {
-          reclamacoes: criarAcumuladorPercentual(),
-          cancelamento: criarAcumuladorPercentual(),
-          atraso: criarAcumuladorPercentual(),
-          mediacao: criarAcumuladorPercentual(),
-        },
+        percentuais: criarPercentuaisConjunto(),
       });
     }
     const item = mapa.get(chave);
@@ -478,12 +504,7 @@ function agruparRegistrosDiariosGestor(registros) {
         reclamacoesAbertas: 0,
         reclamacoesRespondidas: 0,
         reclamacoesEncerradas: 0,
-        percentuais: {
-          reclamacoes: criarAcumuladorPercentual(),
-          cancelamento: criarAcumuladorPercentual(),
-          atraso: criarAcumuladorPercentual(),
-          mediacao: criarAcumuladorPercentual(),
-        },
+        percentuais: criarPercentuaisConjunto(),
       });
     }
     const totalUsuario = totaisPorUsuario.get(usuarioUid);
@@ -505,6 +526,47 @@ function agruparRegistrosDiariosGestor(registros) {
       'reclamacoesRecusadas',
     );
 
+    const percReclamacoesFim = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemReclamacoesFim',
+      'porcentagemReclamacoes',
+    );
+    const percReclamacoesInicio = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemReclamacoesInicio',
+      null,
+    );
+    const percCancelamentoFim = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemCancelamentoFim',
+      'porcentagemCancelamento',
+    );
+    const percCancelamentoInicio = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemCancelamentoInicio',
+      null,
+    );
+    const percAtrasoFim = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemAtrasoFim',
+      'porcentagemAtraso',
+    );
+    const percAtrasoInicio = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemAtrasoInicio',
+      null,
+    );
+    const percMediacaoFim = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemMediacaoFim',
+      'porcentagemMediacao',
+    );
+    const percMediacaoInicio = obterPercentualDiarioCompat(
+      registro,
+      'porcentagemMediacaoInicio',
+      null,
+    );
+
     item.pedidosNaoEnviados += pedidos;
     item.reclamacoesAbertas += abertas;
     item.reclamacoesRespondidas += respondidas;
@@ -520,52 +582,73 @@ function agruparRegistrosDiariosGestor(registros) {
     totaisGerais.reclamacoesRespondidas += respondidas;
     totaisGerais.reclamacoesEncerradas += encerradas;
 
+    adicionarPercentual(item.percentuais.fim.reclamacoes, percReclamacoesFim);
+    adicionarPercentual(item.percentuais.fim.cancelamento, percCancelamentoFim);
+    adicionarPercentual(item.percentuais.fim.atraso, percAtrasoFim);
+    adicionarPercentual(item.percentuais.fim.mediacao, percMediacaoFim);
     adicionarPercentual(
-      item.percentuais.reclamacoes,
-      registro.porcentagemReclamacoes,
+      item.percentuais.inicio.reclamacoes,
+      percReclamacoesInicio,
     );
     adicionarPercentual(
-      item.percentuais.cancelamento,
-      registro.porcentagemCancelamento,
+      item.percentuais.inicio.cancelamento,
+      percCancelamentoInicio,
     );
-    adicionarPercentual(item.percentuais.atraso, registro.porcentagemAtraso);
+    adicionarPercentual(item.percentuais.inicio.atraso, percAtrasoInicio);
+    adicionarPercentual(item.percentuais.inicio.mediacao, percMediacaoInicio);
+
     adicionarPercentual(
-      item.percentuais.mediacao,
-      registro.porcentagemMediacao,
+      totalUsuario.percentuais.fim.reclamacoes,
+      percReclamacoesFim,
+    );
+    adicionarPercentual(
+      totalUsuario.percentuais.fim.cancelamento,
+      percCancelamentoFim,
+    );
+    adicionarPercentual(totalUsuario.percentuais.fim.atraso, percAtrasoFim);
+    adicionarPercentual(totalUsuario.percentuais.fim.mediacao, percMediacaoFim);
+    adicionarPercentual(
+      totalUsuario.percentuais.inicio.reclamacoes,
+      percReclamacoesInicio,
+    );
+    adicionarPercentual(
+      totalUsuario.percentuais.inicio.cancelamento,
+      percCancelamentoInicio,
+    );
+    adicionarPercentual(
+      totalUsuario.percentuais.inicio.atraso,
+      percAtrasoInicio,
+    );
+    adicionarPercentual(
+      totalUsuario.percentuais.inicio.mediacao,
+      percMediacaoInicio,
     );
 
     adicionarPercentual(
-      totalUsuario.percentuais.reclamacoes,
-      registro.porcentagemReclamacoes,
+      totaisGerais.percentuais.fim.reclamacoes,
+      percReclamacoesFim,
     );
     adicionarPercentual(
-      totalUsuario.percentuais.cancelamento,
-      registro.porcentagemCancelamento,
+      totaisGerais.percentuais.fim.cancelamento,
+      percCancelamentoFim,
+    );
+    adicionarPercentual(totaisGerais.percentuais.fim.atraso, percAtrasoFim);
+    adicionarPercentual(totaisGerais.percentuais.fim.mediacao, percMediacaoFim);
+    adicionarPercentual(
+      totaisGerais.percentuais.inicio.reclamacoes,
+      percReclamacoesInicio,
     );
     adicionarPercentual(
-      totalUsuario.percentuais.atraso,
-      registro.porcentagemAtraso,
+      totaisGerais.percentuais.inicio.cancelamento,
+      percCancelamentoInicio,
     );
     adicionarPercentual(
-      totalUsuario.percentuais.mediacao,
-      registro.porcentagemMediacao,
-    );
-
-    adicionarPercentual(
-      totaisGerais.percentuais.reclamacoes,
-      registro.porcentagemReclamacoes,
+      totaisGerais.percentuais.inicio.atraso,
+      percAtrasoInicio,
     );
     adicionarPercentual(
-      totaisGerais.percentuais.cancelamento,
-      registro.porcentagemCancelamento,
-    );
-    adicionarPercentual(
-      totaisGerais.percentuais.atraso,
-      registro.porcentagemAtraso,
-    );
-    adicionarPercentual(
-      totaisGerais.percentuais.mediacao,
-      registro.porcentagemMediacao,
+      totaisGerais.percentuais.inicio.mediacao,
+      percMediacaoInicio,
     );
   });
 
@@ -579,10 +662,22 @@ function agruparRegistrosDiariosGestor(registros) {
       reclamacoesAbertas: item.reclamacoesAbertas,
       reclamacoesRespondidas: item.reclamacoesRespondidas,
       reclamacoesEncerradas: item.reclamacoesEncerradas,
-      porcentagemReclamacoes: mediaPercentual(item.percentuais.reclamacoes),
-      porcentagemCancelamento: mediaPercentual(item.percentuais.cancelamento),
-      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
-      porcentagemMediacao: mediaPercentual(item.percentuais.mediacao),
+      porcentagemReclamacoes: mediaPercentual(item.percentuais.fim.reclamacoes),
+      porcentagemCancelamento: mediaPercentual(
+        item.percentuais.fim.cancelamento,
+      ),
+      porcentagemAtraso: mediaPercentual(item.percentuais.fim.atraso),
+      porcentagemMediacao: mediaPercentual(item.percentuais.fim.mediacao),
+      porcentagemReclamacoesInicio: mediaPercentual(
+        item.percentuais.inicio.reclamacoes,
+      ),
+      porcentagemCancelamentoInicio: mediaPercentual(
+        item.percentuais.inicio.cancelamento,
+      ),
+      porcentagemAtrasoInicio: mediaPercentual(item.percentuais.inicio.atraso),
+      porcentagemMediacaoInicio: mediaPercentual(
+        item.percentuais.inicio.mediacao,
+      ),
     }))
     .sort((a, b) => {
       const cmpUsuario = a.usuarioNome.localeCompare(b.usuarioNome, 'pt-BR');
@@ -598,13 +693,25 @@ function agruparRegistrosDiariosGestor(registros) {
     reclamacoesRespondidas: totaisGerais.reclamacoesRespondidas,
     reclamacoesEncerradas: totaisGerais.reclamacoesEncerradas,
     porcentagemReclamacoes: mediaPercentual(
-      totaisGerais.percentuais.reclamacoes,
+      totaisGerais.percentuais.fim.reclamacoes,
     ),
     porcentagemCancelamento: mediaPercentual(
-      totaisGerais.percentuais.cancelamento,
+      totaisGerais.percentuais.fim.cancelamento,
     ),
-    porcentagemAtraso: mediaPercentual(totaisGerais.percentuais.atraso),
-    porcentagemMediacao: mediaPercentual(totaisGerais.percentuais.mediacao),
+    porcentagemAtraso: mediaPercentual(totaisGerais.percentuais.fim.atraso),
+    porcentagemMediacao: mediaPercentual(totaisGerais.percentuais.fim.mediacao),
+    porcentagemReclamacoesInicio: mediaPercentual(
+      totaisGerais.percentuais.inicio.reclamacoes,
+    ),
+    porcentagemCancelamentoInicio: mediaPercentual(
+      totaisGerais.percentuais.inicio.cancelamento,
+    ),
+    porcentagemAtrasoInicio: mediaPercentual(
+      totaisGerais.percentuais.inicio.atraso,
+    ),
+    porcentagemMediacaoInicio: mediaPercentual(
+      totaisGerais.percentuais.inicio.mediacao,
+    ),
   };
 
   const totaisUsuarios = Array.from(totaisPorUsuario.values())
@@ -615,10 +722,22 @@ function agruparRegistrosDiariosGestor(registros) {
       reclamacoesAbertas: item.reclamacoesAbertas,
       reclamacoesRespondidas: item.reclamacoesRespondidas,
       reclamacoesEncerradas: item.reclamacoesEncerradas,
-      porcentagemReclamacoes: mediaPercentual(item.percentuais.reclamacoes),
-      porcentagemCancelamento: mediaPercentual(item.percentuais.cancelamento),
-      porcentagemAtraso: mediaPercentual(item.percentuais.atraso),
-      porcentagemMediacao: mediaPercentual(item.percentuais.mediacao),
+      porcentagemReclamacoes: mediaPercentual(item.percentuais.fim.reclamacoes),
+      porcentagemCancelamento: mediaPercentual(
+        item.percentuais.fim.cancelamento,
+      ),
+      porcentagemAtraso: mediaPercentual(item.percentuais.fim.atraso),
+      porcentagemMediacao: mediaPercentual(item.percentuais.fim.mediacao),
+      porcentagemReclamacoesInicio: mediaPercentual(
+        item.percentuais.inicio.reclamacoes,
+      ),
+      porcentagemCancelamentoInicio: mediaPercentual(
+        item.percentuais.inicio.cancelamento,
+      ),
+      porcentagemAtrasoInicio: mediaPercentual(item.percentuais.inicio.atraso),
+      porcentagemMediacaoInicio: mediaPercentual(
+        item.percentuais.inicio.mediacao,
+      ),
     }))
     .sort((a, b) => a.usuarioNome.localeCompare(b.usuarioNome, 'pt-BR'));
 
@@ -658,6 +777,10 @@ function renderDiarioTotais(totais, totaisUsuarios, label) {
   const container = document.getElementById('diarioTotais');
   if (!container) return;
   const periodo = label ? escapeHtml(label) : 'Período selecionado';
+  const formatarPercentualDetalhe = (valor) =>
+    valor === null || valor === undefined
+      ? '-'
+      : formatarPercentualPadrao(valor);
   const usuariosHtml = totaisUsuarios.length
     ? `<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         ${totaisUsuarios
@@ -693,11 +816,21 @@ function renderDiarioTotais(totais, totaisUsuarios, label) {
                     <p class="text-sm font-semibold text-gray-700">${formatarPercentualPadrao(
                       usuario.porcentagemReclamacoes,
                     )}</p>
+                    <p class="text-xs text-gray-400">Início: ${escapeHtml(
+                      formatarPercentualDetalhe(
+                        usuario.porcentagemReclamacoesInicio,
+                      ),
+                    )}</p>
                   </div>
                   <div>
                     <p class="text-xs text-gray-500 uppercase">% Mediação</p>
                     <p class="text-sm font-semibold text-gray-700">${formatarPercentualPadrao(
                       usuario.porcentagemMediacao,
+                    )}</p>
+                    <p class="text-xs text-gray-400">Início: ${escapeHtml(
+                      formatarPercentualDetalhe(
+                        usuario.porcentagemMediacaoInicio,
+                      ),
                     )}</p>
                   </div>
                   <div>
@@ -705,11 +838,21 @@ function renderDiarioTotais(totais, totaisUsuarios, label) {
                     <p class="text-sm font-semibold text-gray-700">${formatarPercentualPadrao(
                       usuario.porcentagemAtraso,
                     )}</p>
+                    <p class="text-xs text-gray-400">Início: ${escapeHtml(
+                      formatarPercentualDetalhe(
+                        usuario.porcentagemAtrasoInicio,
+                      ),
+                    )}</p>
                   </div>
                   <div>
                     <p class="text-xs text-gray-500 uppercase">% Cancelado</p>
                     <p class="text-sm font-semibold text-gray-700">${formatarPercentualPadrao(
                       usuario.porcentagemCancelamento,
+                    )}</p>
+                    <p class="text-xs text-gray-400">Início: ${escapeHtml(
+                      formatarPercentualDetalhe(
+                        usuario.porcentagemCancelamentoInicio,
+                      ),
                     )}</p>
                   </div>
                 </div>
@@ -759,11 +902,17 @@ function renderDiarioTotais(totais, totaisUsuarios, label) {
             <p class="mt-2 text-xl font-bold text-pink-700">${formatarPercentualPadrao(
               totais.porcentagemReclamacoes,
             )}</p>
+            <p class="text-xs text-pink-600/80">Início: ${escapeHtml(
+              formatarPercentualDetalhe(totais.porcentagemReclamacoesInicio),
+            )}</p>
           </div>
           <div class="rounded-2xl border border-purple-200 bg-purple-100 p-4">
             <p class="text-xs uppercase text-purple-600">Mediação</p>
             <p class="mt-2 text-xl font-bold text-purple-700">${formatarPercentualPadrao(
               totais.porcentagemMediacao,
+            )}</p>
+            <p class="text-xs text-purple-600/80">Início: ${escapeHtml(
+              formatarPercentualDetalhe(totais.porcentagemMediacaoInicio),
             )}</p>
           </div>
           <div class="rounded-2xl border border-sky-200 bg-sky-100 p-4">
@@ -771,11 +920,17 @@ function renderDiarioTotais(totais, totaisUsuarios, label) {
             <p class="mt-2 text-xl font-bold text-sky-700">${formatarPercentualPadrao(
               totais.porcentagemAtraso,
             )}</p>
+            <p class="text-xs text-sky-600/80">Início: ${escapeHtml(
+              formatarPercentualDetalhe(totais.porcentagemAtrasoInicio),
+            )}</p>
           </div>
           <div class="rounded-2xl border border-fuchsia-200 bg-fuchsia-100 p-4">
             <p class="text-xs uppercase text-fuchsia-600">Cancelado</p>
             <p class="mt-2 text-xl font-bold text-fuchsia-700">${formatarPercentualPadrao(
               totais.porcentagemCancelamento,
+            )}</p>
+            <p class="text-xs text-fuchsia-600/80">Início: ${escapeHtml(
+              formatarPercentualDetalhe(totais.porcentagemCancelamentoInicio),
             )}</p>
           </div>
         </div>
@@ -896,26 +1051,36 @@ async function carregarResumoDiarioEquipe(periodo, listaUsuarios) {
       porcentagemCancelamento: 0,
       porcentagemAtraso: 0,
       porcentagemMediacao: 0,
+      porcentagemReclamacoesInicio: 0,
+      porcentagemCancelamentoInicio: 0,
+      porcentagemAtrasoInicio: 0,
+      porcentagemMediacaoInicio: 0,
     },
     [],
     '',
   );
   try {
-    const registros = [];
+    const registrosResumo = [];
     await Promise.all(
       listaUsuarios.map(async (usuario) => {
-        const colRef = collection(
+        const colResumo = collection(
           db,
-          `uid/${usuario.uid}/acompanhamentoDiario`,
+          `uid/${usuario.uid}/acompanhamentoDiarioResumo`,
         );
-        const snap = await getDocs(colRef);
-        snap.forEach((docSnap) => {
+        const constraintsResumo = buildDateConstraints(
+          periodo.start,
+          periodo.end,
+        );
+        const snapResumo = await getDocs(
+          query(colResumo, ...constraintsResumo),
+        );
+        snapResumo.forEach((docSnap) => {
           const dados = docSnap.data() || {};
           const dataRegistro = String(dados.data || docSnap.id || '');
           if (!dataRegistro) return;
           if (periodo.start && dataRegistro < periodo.start) return;
           if (periodo.end && dataRegistro > periodo.end) return;
-          registros.push({
+          registrosResumo.push({
             ...dados,
             usuarioUid: usuario.uid,
             usuarioNome: usuario.nome || usuario.email || usuario.uid,
@@ -924,6 +1089,33 @@ async function carregarResumoDiarioEquipe(periodo, listaUsuarios) {
         });
       }),
     );
+
+    const registros = registrosResumo.length ? registrosResumo : [];
+
+    if (!registros.length) {
+      await Promise.all(
+        listaUsuarios.map(async (usuario) => {
+          const colRef = collection(
+            db,
+            `uid/${usuario.uid}/acompanhamentoDiario`,
+          );
+          const snap = await getDocs(colRef);
+          snap.forEach((docSnap) => {
+            const dados = docSnap.data() || {};
+            const dataRegistro = String(dados.data || docSnap.id || '');
+            if (!dataRegistro) return;
+            if (periodo.start && dataRegistro < periodo.start) return;
+            if (periodo.end && dataRegistro > periodo.end) return;
+            registros.push({
+              ...dados,
+              usuarioUid: usuario.uid,
+              usuarioNome: usuario.nome || usuario.email || usuario.uid,
+              usuarioEmail: usuario.email || '',
+            });
+          });
+        }),
+      );
+    }
 
     if (!registros.length) {
       atualizarStatus(
@@ -941,6 +1133,10 @@ async function carregarResumoDiarioEquipe(periodo, listaUsuarios) {
           porcentagemCancelamento: 0,
           porcentagemAtraso: 0,
           porcentagemMediacao: 0,
+          porcentagemReclamacoesInicio: 0,
+          porcentagemCancelamentoInicio: 0,
+          porcentagemAtrasoInicio: 0,
+          porcentagemMediacaoInicio: 0,
         },
         [],
         periodo.label || periodo.descricao || '',

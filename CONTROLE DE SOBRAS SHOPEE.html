@@ -562,6 +562,13 @@ function gerarIdDiario(data, plataforma, loja) {
   return `${data}_${segmentoPlataforma}_${segmentoLoja}`;
 }
 
+function gerarIdDiarioTurno(data, plataforma, loja, momento) {
+  const base = gerarIdDiario(data, plataforma, loja);
+  const turno = (momento || '').toString().trim().toLowerCase();
+  if (!turno) return `${base}__turno`;
+  return `${base}__${turno}`;
+}
+
 async function obterBasesUsuario() {
   const usuarioDoc = await db.collection('usuarios').doc(usuarioLogado.uid).get();
   const dadosUsuario = usuarioDoc.data() || {};
@@ -12275,6 +12282,63 @@ function normalizarPercentualDiario(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
+function inferirMomentoDiarioPadrao() {
+  const agora = new Date();
+  const hora = agora.getHours();
+  return hora < 12 ? 'inicio' : 'fim';
+}
+
+function obterTimestampReferencia(dados = {}) {
+  if (!dados) return null;
+  if (dados.atualizadoEm) return dados.atualizadoEm;
+  if (dados.criadoEm) return dados.criadoEm;
+  return null;
+}
+
+function calcularResumoTurnoDiario(dataRegistro, inicioDados = {}, fimDados = {}) {
+  const diffPositivo = (campo) => {
+    const fimValor = normalizarNumeroDiario(fimDados?.[campo]);
+    const inicioValor = normalizarNumeroDiario(inicioDados?.[campo]);
+    const delta = fimValor - inicioValor;
+    return delta > 0 ? delta : 0;
+  };
+
+  const percentualInicio = (campo) =>
+    normalizarPercentualDiario(inicioDados?.[campo]);
+  const percentualFim = (campo) => {
+    const fimValor = normalizarPercentualDiario(fimDados?.[campo]);
+    if (fimValor !== null && fimValor !== undefined) return fimValor;
+    return normalizarPercentualDiario(inicioDados?.[campo]);
+  };
+
+  const resumo = {
+    data: dataRegistro,
+    plataforma: String(fimDados?.plataforma || inicioDados?.plataforma || 'shopee'),
+    nomeLoja: String(fimDados?.nomeLoja || inicioDados?.nomeLoja || ''),
+    reclamacoesAbertas: diffPositivo('reclamacoesAbertas'),
+    reclamacoesRespondidas: diffPositivo('reclamacoesRespondidas'),
+    reclamacoesEncerradas: diffPositivo('reclamacoesEncerradas'),
+    pedidosNaoEnviados: diffPositivo('pedidosNaoEnviados'),
+    porcentagemReclamacoesInicio: percentualInicio('porcentagemReclamacoes'),
+    porcentagemReclamacoesFim: percentualFim('porcentagemReclamacoes'),
+    porcentagemCancelamentoInicio: percentualInicio('porcentagemCancelamento'),
+    porcentagemCancelamentoFim: percentualFim('porcentagemCancelamento'),
+    porcentagemAtrasoInicio: percentualInicio('porcentagemAtraso'),
+    porcentagemAtrasoFim: percentualFim('porcentagemAtraso'),
+    porcentagemMediacaoInicio: percentualInicio('porcentagemMediacao'),
+    porcentagemMediacaoFim: percentualFim('porcentagemMediacao'),
+    porcentagemReclamacoes: percentualFim('porcentagemReclamacoes') ?? 0,
+    porcentagemCancelamento: percentualFim('porcentagemCancelamento') ?? 0,
+    porcentagemAtraso: percentualFim('porcentagemAtraso') ?? 0,
+    porcentagemMediacao: percentualFim('porcentagemMediacao') ?? 0,
+    inicioRegistradoEm: obterTimestampReferencia(inicioDados),
+    fimRegistradoEm: obterTimestampReferencia(fimDados),
+    turnoResumo: 'automatico',
+  };
+
+  return resumo;
+}
+
 function criarAcumuladorPercentual() {
   return { sum: 0, count: 0 };
 }
@@ -12957,6 +13021,9 @@ async function salvarAcompanhamentoDiario() {
   }
 
   const ref = db.collection('uid').doc(usuarioLogado.uid).collection('acompanhamentoDiario');
+  const turnosRef = db.collection('uid').doc(usuarioLogado.uid).collection('acompanhamentoDiarioTurnos');
+  const resumoRef = db.collection('uid').doc(usuarioLogado.uid).collection('acompanhamentoDiarioResumo');
+  const momentoRegistro = inferirMomentoDiarioPadrao();
   const timestamp = (typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp)
     ? () => firebase.firestore.FieldValue.serverTimestamp()
     : () => new Date().toISOString();
@@ -12975,7 +13042,7 @@ async function salvarAcompanhamentoDiario() {
     console.warn('Não foi possível carregar as bases adicionais para o acompanhamento diário', erroBases);
   }
 
-  registros.forEach((registro) => {
+  for (const registro of registros) {
     const plataforma = registro.plataforma || 'shopee';
     const docId = gerarIdDiario(dataRegistro, plataforma, registro.nomeLoja);
     idsMantidos.add(docId);
@@ -13020,13 +13087,96 @@ async function salvarAcompanhamentoDiario() {
     if (registro.docId && registro.docId !== docId) {
       diarioCadastroRemovidos.add(registro.docId);
     }
-  });
+    const turnoDocId = gerarIdDiarioTurno(dataRegistro, plataforma, registro.nomeLoja, momentoRegistro);
+    const turnoDocRef = turnosRef.doc(turnoDocId);
+    const turnoSnap = await turnoDocRef.get();
+    const payloadTurno = {
+      data: dataRegistro,
+      plataforma,
+      nomeLoja: registro.nomeLoja,
+      momento: momentoRegistro,
+      reclamacoesAbertas: registro.reclamacoesAbertas,
+      reclamacoesRespondidas: registro.reclamacoesRespondidas,
+      reclamacoesEncerradas: registro.reclamacoesEncerradas,
+      porcentagemReclamacoes: registro.porcentagemReclamacoes,
+      porcentagemMediacao: registro.porcentagemMediacao,
+      porcentagemAtraso: registro.porcentagemAtraso,
+      porcentagemCancelamento: registro.porcentagemCancelamento,
+      reclamacoesRecorridas: registro.reclamacoesRespondidas,
+      reclamacoesRecusadas: registro.reclamacoesEncerradas,
+      uid: usuarioLogado.uid,
+      atualizadoEm: timestamp(),
+    };
+    if (!turnoSnap.exists) {
+      payloadTurno.criadoEm = timestamp();
+    }
+    operacoes.push(turnoDocRef.set(payloadTurno, { merge: true }));
+
+    if (baseResp && respEmail) {
+      const payloadTurnoGestor = {
+        ...payloadTurno,
+        atualizadoEm: timestamp(),
+        origemUid: usuarioLogado.uid,
+        responsavelFinanceiroEmail: respEmail,
+      };
+      if (!turnoSnap.exists) {
+        payloadTurnoGestor.criadoEm = timestamp();
+      }
+      operacoes.push(
+        baseResp.collection('acompanhamentoDiarioTurnos').doc(turnoDocId).set(payloadTurnoGestor, { merge: true }),
+      );
+    }
+
+    if (momentoRegistro === 'fim') {
+      const turnoInicioId = gerarIdDiarioTurno(dataRegistro, plataforma, registro.nomeLoja, 'inicio');
+      const inicioSnap = await turnosRef.doc(turnoInicioId).get();
+      if (inicioSnap.exists) {
+        const inicioDados = inicioSnap.data() || {};
+        const resumoCalculo = calcularResumoTurnoDiario(dataRegistro, inicioDados, payloadTurno);
+        resumoCalculo.uid = usuarioLogado.uid;
+        resumoCalculo.usuarioUid = usuarioLogado.uid;
+        resumoCalculo.usuarioEmail = usuarioLogado.email || '';
+        resumoCalculo.plataforma = plataforma;
+        resumoCalculo.nomeLoja = registro.nomeLoja;
+        resumoCalculo.atualizadoEm = timestamp();
+        const resumoDocRef = resumoRef.doc(docId);
+        const resumoSnap = await resumoDocRef.get();
+        if (!resumoSnap.exists) {
+          resumoCalculo.criadoEm = timestamp();
+        }
+        operacoes.push(resumoDocRef.set(resumoCalculo, { merge: true }));
+
+        if (baseResp && respEmail) {
+          const payloadResumoGestor = {
+            ...resumoCalculo,
+            atualizadoEm: timestamp(),
+            origemUid: usuarioLogado.uid,
+            responsavelFinanceiroEmail: respEmail,
+          };
+          if (!resumoSnap.exists) {
+            payloadResumoGestor.criadoEm = timestamp();
+          }
+          operacoes.push(
+            baseResp.collection('acompanhamentoDiarioResumo').doc(docId).set(payloadResumoGestor, { merge: true }),
+          );
+        }
+      }
+    }
+  }
 
   const idsParaExcluir = new Set([...existentes, ...diarioCadastroRemovidos].filter((id) => !idsMantidos.has(id)));
   idsParaExcluir.forEach((docId) => {
     operacoes.push(ref.doc(docId).delete());
     if (baseResp && respEmail) {
       operacoes.push(baseResp.collection('acompanhamentoDiario').doc(docId).delete());
+    }
+    operacoes.push(turnosRef.doc(`${docId}__inicio`).delete());
+    operacoes.push(turnosRef.doc(`${docId}__fim`).delete());
+    operacoes.push(resumoRef.doc(docId).delete());
+    if (baseResp && respEmail) {
+      operacoes.push(baseResp.collection('acompanhamentoDiarioTurnos').doc(`${docId}__inicio`).delete());
+      operacoes.push(baseResp.collection('acompanhamentoDiarioTurnos').doc(`${docId}__fim`).delete());
+      operacoes.push(baseResp.collection('acompanhamentoDiarioResumo').doc(docId).delete());
     }
   });
 
