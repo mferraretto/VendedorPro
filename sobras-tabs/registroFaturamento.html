@@ -17,6 +17,10 @@
       <button onclick="exportarFaturamentoExcel()" class="btn-success">
         <i class="fas fa-file-excel mr-2"></i> Exportar Excel
       </button>
+      <button id="btnExcluirRegistrosSelecionados" onclick="excluirFaturamentosSelecionados()"
+        class="btn btn-danger disabled:opacity-60 disabled:cursor-not-allowed" disabled>
+        <i class="fas fa-trash-alt mr-2"></i> Excluir Selecionados
+      </button>
       <button id="btnAtualizarRespFinRegistro" onclick="atualizarResponsavelFinanceiro(this)"
         class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition duration-150">
         <i class="fas fa-user-check"></i> Atualizar Responsável

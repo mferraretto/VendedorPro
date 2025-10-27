@@ -8355,8 +8355,19 @@ await db
         console.error("Erro ao exportar CSV:", error);
       }
     }
+    const registrosFaturamentoSelecionados = new Set();
+
+    function atualizarBotaoExcluirRegistrosSelecionados() {
+      const btn = document.getElementById('btnExcluirRegistrosSelecionados');
+      if (!btn) return;
+      const temSelecao = registrosFaturamentoSelecionados.size > 0;
+      btn.disabled = !temSelecao;
+      btn.classList.toggle('opacity-60', !temSelecao);
+      btn.classList.toggle('cursor-not-allowed', !temSelecao);
+    }
+
     async function carregarRegistrosFaturamento(idContainer = "listaFaturamento", idFiltroMes = "filtroMes") {
- let ref;
+      let ref;
       if (["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())) {
         ref = db.collectionGroup('faturamento');
       } else {
@@ -8365,6 +8376,9 @@ await db
       const snap = await ref.get();
       const container = document.getElementById(idContainer);
       container.innerHTML = "";
+
+      registrosFaturamentoSelecionados.clear();
+      atualizarBotaoExcluirRegistrosSelecionados();
 
       const filtroMes = document.getElementById(idFiltroMes)?.value;
 
@@ -8400,10 +8414,19 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         const card = document.createElement("div");
         card.className = "bg-white rounded-2xl shadow-lg p-4 border border-gray-200 hover:shadow-xl transition";
 
+        const selecionado = registrosFaturamentoSelecionados.has(docData.id);
+
         card.innerHTML = `
-          <div class="text-sm text-gray-500 mb-2 flex items-center gap-2">
-            <i class="fas fa-calendar-alt text-blue-600"></i>
-            <span class="font-semibold">${docData.id}</span>
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm text-gray-500 flex items-center gap-2">
+              <i class="fas fa-calendar-alt text-blue-600"></i>
+              <span class="font-semibold">${docData.id}</span>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input type="checkbox" class="form-checkbox h-4 w-4 text-blue-600" ${selecionado ? 'checked' : ''}
+                onchange="alternarSelecaoFaturamento(this, '${docData.id}')">
+              Selecionar
+            </label>
           </div>
 
           <div class="text-2xl font-bold text-blue-800 mb-1">💰 Bruto: R$ ${bruto.toLocaleString('pt-BR')}</div>
@@ -8477,9 +8500,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       detalhesEl.innerHTML = html;
     }
 
-    async function excluirFaturamento(data) {
-        if (!confirm(`Tem certeza que deseja excluir o faturamento do dia ${data}?`)) return;
-        if (["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())) {
+    async function excluirRegistrosFaturamento(dias) {
+      const isAdmin = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase());
+
+      for (const data of dias) {
+        if (isAdmin) {
           const snap = await db.collectionGroup('faturamento')
             .where(firebase.firestore.FieldPath.documentId(), '==', data)
             .get();
@@ -8489,9 +8514,55 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         } else {
           await db.collection('uid').doc(usuarioLogado.uid).collection('faturamento').doc(data).delete();
         }
-        mostrarSucesso("Registro excluído com sucesso.");
-        carregarRegistrosFaturamento();
       }
+    }
+
+    async function excluirFaturamento(data) {
+        if (!confirm(`Tem certeza que deseja excluir o faturamento do dia ${data}?`)) return;
+        try {
+          await excluirRegistrosFaturamento([data]);
+          mostrarSucesso("Registro excluído com sucesso.");
+          carregarRegistrosFaturamento();
+        } catch (erro) {
+          console.error('Erro ao excluir faturamento:', erro);
+          mostrarErro('Não foi possível excluir o registro selecionado. Tente novamente.');
+        }
+      }
+
+    function alternarSelecaoFaturamento(checkbox, dia) {
+      if (checkbox.checked) {
+        registrosFaturamentoSelecionados.add(dia);
+      } else {
+        registrosFaturamentoSelecionados.delete(dia);
+      }
+      atualizarBotaoExcluirRegistrosSelecionados();
+    }
+
+    async function excluirFaturamentosSelecionados() {
+      const dias = Array.from(registrosFaturamentoSelecionados);
+      if (!dias.length) return;
+
+      const mensagemConfirmacao = dias.length === 1
+        ? `Tem certeza que deseja excluir o faturamento do dia ${dias[0]}?`
+        : `Tem certeza que deseja excluir os faturamentos dos dias:\n${dias.join(', ')}?`;
+
+      if (!confirm(mensagemConfirmacao)) return;
+
+      try {
+        await excluirRegistrosFaturamento(dias);
+        registrosFaturamentoSelecionados.clear();
+        atualizarBotaoExcluirRegistrosSelecionados();
+
+        mostrarSucesso(dias.length === 1
+          ? "Registro excluído com sucesso."
+          : "Registros excluídos com sucesso.");
+
+        carregarRegistrosFaturamento();
+      } catch (erro) {
+        console.error('Erro ao excluir faturamentos selecionados:', erro);
+        mostrarErro('Não foi possível excluir os registros selecionados. Tente novamente.');
+      }
+    }
 
     function exportarJSON() {
       if (pedidosProcessados.length === 0) {
@@ -13466,6 +13537,8 @@ window.exportarVendasMes = exportarVendasMes;
 window.mostrarDetalhesVendas = mostrarDetalhesVendas;
 window.mostrarDetalhesSobra = mostrarDetalhesSobra;
 window.mostrarDetalhesFaturamento = mostrarDetalhesFaturamento;
+window.alternarSelecaoFaturamento = alternarSelecaoFaturamento;
+window.excluirFaturamentosSelecionados = excluirFaturamentosSelecionados;
 window.excluirFaturamento = excluirFaturamento;
 window.analisarSobrasIA = analisarSobrasIA;
 window.exportarCSV = exportarCSV;
