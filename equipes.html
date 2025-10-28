@@ -159,6 +159,33 @@
         padding-left: 16px;
       }
 
+      .flow-video-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--primary, #4262ff);
+        color: #fff;
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      .flow-video-button:hover,
+      .flow-video-button:focus {
+        background: color-mix(in srgb, var(--primary, #4262ff) 85%, black 15%);
+        transform: translateY(-1px);
+      }
+
+      .flow-video-button i {
+        color: inherit;
+      }
+
+      .flow-video {
+        margin-top: 12px;
+      }
+
       .schedule-flow::before {
         content: '';
         position: absolute;
@@ -1030,6 +1057,18 @@
                 </div>
               </div>
               <div>
+                <label for="scheduleVideoUrl">Vídeo passo a passo</label>
+                <input
+                  id="scheduleVideoUrl"
+                  name="scheduleVideoUrl"
+                  type="url"
+                  placeholder="https://exemplo.com/video"
+                  inputmode="url"
+                  pattern="https?://.+"
+                />
+                <p class="form-hint">Opcional: compartilhe um link de vídeo com o passo a passo desta etapa.</p>
+              </div>
+              <div>
                 <label for="scheduleNotes">Detalhes e observações</label>
                 <textarea
                   id="scheduleNotes"
@@ -1739,7 +1778,12 @@
             const steps = visibleEntries
               .map((entry, index) => {
                 const responsibleLabel = resolveMemberName(ownerUid, entry.responsibleEmail);
-                const notes = entry.notes ? `<p class="flow-notes">${entry.notes.replace(/\n/g, '<br>')}</p>` : '';
+                const notesBlock = entry.notes ? `<p class="flow-notes">${entry.notes.replace(/\n/g, '<br>')}</p>` : '';
+                const normalizedVideoUrl = typeof entry.videoUrl === 'string' ? entry.videoUrl.trim() : '';
+                const hasVideo = /^https?:\/\//i.test(normalizedVideoUrl);
+                const videoBlock = hasVideo
+                  ? `<div class="flow-video"><a class="flow-video-button" href="${normalizedVideoUrl}" target="_blank" rel="noopener noreferrer"><i class="fas fa-circle-play" aria-hidden="true"></i> Assistir passo a passo</a></div>`
+                  : '';
                 const timeRange = [formatTime(entry.startTime), formatTime(entry.endTime)].filter(Boolean).join(' → ');
                 const statusInfo = scheduleStatusMap[entry.status] || scheduleStatusMap.nao_feito;
                 const statusPill = statusInfo
@@ -1777,7 +1821,8 @@
                         </div>
                         ${timeRange ? `<span class="flow-time">${timeRange}</span>` : ''}
                       </header>
-                      ${notes}
+                      ${notesBlock}
+                      ${videoBlock}
                       ${statusControl}
                       ${ownerUid === currentUser?.uid
                         ? `<footer class="card-footer"><button type="button" data-action="delete-schedule" data-id="${entry.id}"><i class="fas fa-trash"></i> Remover</button></footer>`
@@ -1946,6 +1991,7 @@
                 notes: data.notes || '',
                 responsibleEmail: data.responsibleEmail || '',
                 status: data.status || 'nao_feito',
+                videoUrl: data.videoUrl || '',
                 repeatWeekly: !!data.repeatWeekly,
                 repeatDays: Array.isArray(data.repeatDays) ? data.repeatDays.map((value) => value.toString()) : [],
               };
@@ -2315,6 +2361,7 @@
         const startTime = (formData.get('scheduleStart') || '').toString();
         const endTime = (formData.get('scheduleEnd') || '').toString();
         const responsible = (formData.get('scheduleResponsible') || '').toString();
+        const videoUrl = (formData.get('scheduleVideoUrl') || '').toString().trim();
         const notes = (formData.get('scheduleNotes') || '').toString();
         const repeatWeekly = formData.has('scheduleRepeatToggle');
         const repeatDays = repeatWeekly ? formData.getAll('scheduleRepeatDays').map((value) => value.toString()) : [];
@@ -2337,6 +2384,7 @@
             startTime,
             endTime,
             responsibleEmail: responsible,
+            videoUrl: videoUrl || null,
             notes,
             status: 'nao_feito',
             statusUpdatedAt: serverTimestamp(),
