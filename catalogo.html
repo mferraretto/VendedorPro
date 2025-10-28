@@ -333,6 +333,30 @@
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+              <div
+                class="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white p-1 shadow-sm"
+                role="group"
+                aria-label="Alternar visualização do catálogo"
+              >
+                <button
+                  id="catalogViewCard"
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+                  aria-pressed="true"
+                >
+                  <i class="fa-solid fa-border-all"></i>
+                  <span>Cards</span>
+                </button>
+                <button
+                  id="catalogViewList"
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+                  aria-pressed="false"
+                >
+                  <i class="fa-solid fa-list"></i>
+                  <span>Lista</span>
+                </button>
+              </div>
               <button
                 id="catalogExportPdf"
                 type="button"
@@ -396,6 +420,28 @@
               id="catalogCards"
               class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
             ></div>
+            <div
+              id="catalogList"
+              class="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white"
+            >
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                  <tr>
+                    <th scope="col" class="px-3 py-3 text-left">Selecionar</th>
+                    <th scope="col" class="px-3 py-3 text-left">SKU</th>
+                    <th scope="col" class="px-3 py-3 text-left">Produto</th>
+                    <th scope="col" class="px-3 py-3 text-left">Categoria</th>
+                    <th scope="col" class="px-3 py-3 text-right">Custo</th>
+                    <th scope="col" class="px-3 py-3 text-right">Venda</th>
+                    <th scope="col" class="px-3 py-3 text-left">Ações</th>
+                  </tr>
+                </thead>
+                <tbody
+                  id="catalogListBody"
+                  class="divide-y divide-gray-200 text-sm text-gray-700"
+                ></tbody>
+              </table>
+            </div>
             <p
               id="catalogEmptyState"
               class="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500"
