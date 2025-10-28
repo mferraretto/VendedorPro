@@ -56,6 +56,9 @@ const modalDescricao = document.getElementById('catalogDetailsDescricao');
 const modalMedidas = document.getElementById('catalogDetailsMedidas');
 const modalFotos = document.getElementById('catalogDetailsFotos');
 const modalVariacoes = document.getElementById('catalogDetailsVariacoes');
+const copyTitleBtn = document.getElementById('catalogCopyTitleBtn');
+const copyDescriptionBtn = document.getElementById('catalogCopyDescriptionBtn');
+const downloadImagesBtn = document.getElementById('catalogDownloadImagesBtn');
 
 const nameInput = document.getElementById('catalogProductName');
 const skuInput = document.getElementById('catalogProductSku');
@@ -93,6 +96,9 @@ const productCache = new Map();
 let editingProductId = null;
 let editingProductData = null;
 const selectedProducts = new Set();
+let currentModalProduct = null;
+let isDownloadingImages = false;
+const downloadImagesBtnDefaultContent = downloadImagesBtn?.innerHTML || '';
 
 function normalizePerfil(perfil) {
   const base = (perfil || '')
@@ -410,14 +416,152 @@ function getFileNameFromUrl(url) {
   }
 }
 
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return successful;
+  } catch (err) {
+    console.error('Erro ao copiar texto para a área de transferência:', err);
+    return false;
+  }
+}
+
+async function copyProductField(
+  value,
+  {
+    successMessage = 'Copiado para a área de transferência!',
+    emptyMessage = 'Nada para copiar.',
+  } = {},
+) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) {
+    showToast(emptyMessage, 'warning');
+    return;
+  }
+
+  const copied = await copyTextToClipboard(text);
+  if (copied) {
+    showToast(successMessage, 'success');
+  } else {
+    showToast('Não foi possível copiar o conteúdo. Tente novamente.', 'error');
+  }
+}
+
+function setDownloadImagesLoading(isLoading) {
+  if (!downloadImagesBtn) return;
+  if (isLoading) {
+    downloadImagesBtn.disabled = true;
+    downloadImagesBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    downloadImagesBtn.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin text-xs"></i><span>Baixando...</span>';
+  } else {
+    downloadImagesBtn.disabled = false;
+    downloadImagesBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    if (downloadImagesBtnDefaultContent) {
+      downloadImagesBtn.innerHTML = downloadImagesBtnDefaultContent;
+    }
+  }
+}
+
+async function downloadProductImages() {
+  if (isDownloadingImages) return;
+
+  const produto = currentModalProduct;
+  if (!produto) {
+    showToast('Nenhum produto selecionado.', 'warning');
+    return;
+  }
+
+  const fotos = Array.isArray(produto.fotos)
+    ? produto.fotos.filter((foto) => foto?.url)
+    : [];
+
+  if (!fotos.length) {
+    showToast('Nenhuma imagem disponível para download.', 'warning');
+    return;
+  }
+
+  isDownloadingImages = true;
+  setDownloadImagesLoading(true);
+
+  const falhas = [];
+
+  try {
+    for (let index = 0; index < fotos.length; index += 1) {
+      const foto = fotos[index];
+      const rawName = getFileNameFromUrl(foto.url);
+      let fileName = rawName ? decodeURIComponent(rawName) : '';
+      if (fileName.includes('/')) {
+        const partes = fileName.split('/');
+        fileName = partes[partes.length - 1];
+      }
+      if (!fileName || !fileName.includes('.')) {
+        fileName = `imagem-${index + 1}.jpg`;
+      }
+
+      try {
+        const response = await fetch(foto.url);
+        if (!response.ok) {
+          throw new Error(`Status ${response.status}`);
+        }
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+      } catch (err) {
+        console.error('Erro ao baixar imagem do produto:', foto.url, err);
+        falhas.push(fileName);
+      }
+    }
+
+    if (falhas.length === fotos.length) {
+      showToast('Não foi possível baixar as imagens do produto.', 'error');
+    } else if (falhas.length > 0) {
+      showToast(
+        `Algumas imagens não puderam ser baixadas (${falhas.length}).`,
+        'warning',
+      );
+    } else {
+      showToast('Todas as imagens foram baixadas com sucesso!');
+    }
+  } finally {
+    isDownloadingImages = false;
+    setDownloadImagesLoading(false);
+  }
+}
+
 function closeModal() {
   if (!modal) return;
   modal.classList.add('hidden');
   document.body.classList.remove('overflow-hidden');
+  currentModalProduct = null;
+  isDownloadingImages = false;
+  setDownloadImagesLoading(false);
 }
 
 function openModal(produto) {
   if (!modal || !produto) return;
+  currentModalProduct = produto;
+  isDownloadingImages = false;
+  setDownloadImagesLoading(false);
   modalTitle.textContent = produto.nome || 'Detalhes do produto';
   modalSku.textContent = produto.sku || '--';
   modalCategoria.textContent = produto.categoria || 'Sem categoria';
@@ -1294,6 +1438,19 @@ function setupEventListeners() {
     toggleForm(false);
   });
   kitCalculateBtn?.addEventListener('click', handleCalculateKit);
+  copyTitleBtn?.addEventListener('click', () => {
+    copyProductField(currentModalProduct?.nome, {
+      successMessage: 'Título copiado para a área de transferência!',
+      emptyMessage: 'Título não disponível para copiar.',
+    });
+  });
+  copyDescriptionBtn?.addEventListener('click', () => {
+    copyProductField(currentModalProduct?.descricao, {
+      successMessage: 'Descrição copiada para a área de transferência!',
+      emptyMessage: 'Descrição não disponível para copiar.',
+    });
+  });
+  downloadImagesBtn?.addEventListener('click', downloadProductImages);
 }
 
 setupEventListeners();
