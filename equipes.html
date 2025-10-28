@@ -944,6 +944,15 @@
 
           <div class="card">
             <h2>Tarefas compartilhadas</h2>
+            <div class="actions-row" style="justify-content: flex-end; gap: 12px; align-items: center;">
+              <label for="taskStatusFilter" style="font-weight: 600; color: var(--text-light, #4b5563);">Filtrar status</label>
+              <select id="taskStatusFilter" name="taskStatusFilter" style="min-width: 180px;">
+                <option value="aberta" selected>Tarefas abertas</option>
+                <option value="em_andamento">Tarefas em andamento</option>
+                <option value="feita">Tarefas concluídas</option>
+                <option value="todas">Todas as tarefas</option>
+              </select>
+            </div>
             <div id="tasksContainer" class="stack">
               <div class="empty-state">As tarefas cadastradas aqui aparecerão para toda a equipe.</div>
             </div>
@@ -1160,6 +1169,7 @@
       const taskSubmitBtn = document.getElementById('taskSubmitBtn');
       const taskResponsibleSelect = document.getElementById('taskResponsible');
       const tasksContainer = document.getElementById('tasksContainer');
+      const taskStatusFilter = document.getElementById('taskStatusFilter');
       const openTaskModalBtn = document.getElementById('openTaskModal');
       const closeTaskModalBtn = document.getElementById('closeTaskModal');
       const cancelTaskModalBtn = document.getElementById('cancelTaskModal');
@@ -1226,6 +1236,8 @@
       const tasksByOwner = new Map();
       const schedulesByOwner = new Map();
       const updatesByOwner = new Map();
+
+      let currentTaskStatusFilter = 'aberta';
 
       const memberUnsubs = new Map();
       const taskUnsubs = new Map();
@@ -1519,7 +1531,15 @@
 
         const sections = owners
           .map((ownerUid) => {
-            const tasks = (tasksByOwner.get(ownerUid) || []).slice().sort((a, b) => {
+            const selectedStatus = currentTaskStatusFilter || 'aberta';
+            const filteredTasks = (tasksByOwner.get(ownerUid) || []).filter((task) => {
+              if (selectedStatus === 'todas') {
+                return true;
+              }
+              return (task.status || 'aberta') === selectedStatus;
+            });
+
+            const tasks = filteredTasks.slice().sort((a, b) => {
               const aDate = a.dueDate ? new Date(`${a.dueDate}T${a.dueTime || '00:00'}`) : null;
               const bDate = b.dueDate ? new Date(`${b.dueDate}T${b.dueTime || '00:00'}`) : null;
               if (aDate && bDate) return aDate - bDate;
@@ -1589,10 +1609,14 @@
               })
               .join('');
 
+            const emptyMessage = selectedStatus === 'todas'
+              ? 'Nenhuma tarefa cadastrada para esta equipe.'
+              : 'Nenhuma tarefa encontrada para o filtro selecionado.';
+
             return `
               <section class="stack">
                 <h3>${resolveOwnerLabel(ownerUid)}</h3>
-                ${cards || '<div class="empty-state">Nenhuma tarefa cadastrada para esta equipe.</div>'}
+                ${cards || `<div class="empty-state">${emptyMessage}</div>`}
               </section>
             `;
           })
@@ -2164,6 +2188,14 @@
           closeTaskFormModal({ focusTrigger: true });
         }
       });
+
+      if (taskStatusFilter) {
+        currentTaskStatusFilter = taskStatusFilter.value || 'aberta';
+        taskStatusFilter.addEventListener('change', () => {
+          currentTaskStatusFilter = taskStatusFilter.value || 'aberta';
+          renderTasks();
+        });
+      }
 
       openScheduleFormBtn?.addEventListener('click', () => {
         openScheduleForm();
