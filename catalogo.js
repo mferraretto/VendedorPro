@@ -40,6 +40,7 @@ const todayEl = document.getElementById('catalogToday');
 const managerEl = document.getElementById('catalogManager');
 const cardsContainer = document.getElementById('catalogCards');
 const emptyStateEl = document.getElementById('catalogEmptyState');
+const searchInput = document.getElementById('catalogSearchInput');
 const addItemBtn = document.getElementById('catalogAddItemBtn');
 const formWrapper = document.getElementById('catalogFormWrapper');
 const form = document.getElementById('catalogProductForm');
@@ -92,6 +93,7 @@ const exportExcelBtn = document.getElementById('catalogExportExcel');
 const kitCalculateBtn = document.getElementById('catalogCalculateKit');
 const kitSelectionInfoEl = document.getElementById('catalogKitSelectionInfo');
 const kitResultEl = document.getElementById('catalogKitResult');
+const defaultEmptyStateMessage = emptyStateEl?.innerHTML || '';
 
 let currentUser = null;
 let currentProfile = null;
@@ -107,6 +109,8 @@ const selectedProducts = new Set();
 let currentModalProduct = null;
 let isDownloadingImages = false;
 const downloadImagesBtnDefaultContent = downloadImagesBtn?.innerHTML || '';
+let allProducts = [];
+let currentSearchTerm = '';
 
 function normalizePerfil(perfil) {
   const base = (perfil || '')
@@ -136,6 +140,34 @@ function normalizePerfil(perfil) {
     return 'posvendas';
   if (['casarosa', 'casa rosa', 'casa-rosa'].includes(base)) return 'casarosa';
   return base;
+}
+
+function normalizeSearchValue(value) {
+  if (value === null || value === undefined) return '';
+  let normalized = value.toString();
+  if (typeof normalized.normalize === 'function') {
+    normalized = normalized.normalize('NFD');
+  }
+  normalized = normalized.replace(/[\u0300-\u036f]/g, '');
+  return normalized.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function filterProductsBySearch(produtos, termo) {
+  const collection = Array.isArray(produtos) ? produtos : [];
+  const normalizedTerm = normalizeSearchValue(termo);
+  if (!normalizedTerm) {
+    return [...collection];
+  }
+  return collection.filter((produto) => {
+    const nome = normalizeSearchValue(produto?.nome || '');
+    const sku = normalizeSearchValue(produto?.sku || '');
+    return nome.includes(normalizedTerm) || sku.includes(normalizedTerm);
+  });
+}
+
+function refreshCatalogView() {
+  const filtered = filterProductsBySearch(allProducts, currentSearchTerm);
+  renderProducts(filtered, allProducts);
 }
 
 function formatCurrency(value) {
@@ -1022,14 +1054,20 @@ async function exportCatalogToPdf() {
   }
 }
 
-function renderProducts(produtos) {
-  productCache.clear();
+function renderProducts(produtos, fullCollection = produtos) {
   if (cardsContainer) cardsContainer.innerHTML = '';
 
-  const sorted = [...produtos];
-  sorted.forEach((produto) => productCache.set(produto.id, produto));
+  const displayItems = Array.isArray(produtos) ? [...produtos] : [];
+  const collection = Array.isArray(fullCollection) ? [...fullCollection] : [];
 
-  const validIds = new Set(sorted.map((produto) => produto.id));
+  productCache.clear();
+  collection.forEach((produto) => {
+    if (produto) {
+      productCache.set(produto.id, produto);
+    }
+  });
+
+  const validIds = new Set(collection.map((produto) => produto?.id));
   Array.from(selectedProducts).forEach((id) => {
     if (!validIds.has(id)) {
       selectedProducts.delete(id);
@@ -1037,11 +1075,27 @@ function renderProducts(produtos) {
   });
   updateKitControlsState();
 
-  if (!sorted.length) {
-    if (emptyStateEl) emptyStateEl.classList.remove('hidden');
+  const hasProducts = collection.length > 0;
+  const isSearching =
+    typeof currentSearchTerm === 'string' &&
+    currentSearchTerm.trim().length > 0;
+
+  if (!displayItems.length) {
+    if (emptyStateEl) {
+      if (isSearching && hasProducts) {
+        emptyStateEl.textContent = 'Nenhum produto encontrado para a busca.';
+      } else {
+        emptyStateEl.innerHTML = defaultEmptyStateMessage;
+      }
+      emptyStateEl.classList.remove('hidden');
+    }
   } else {
-    if (emptyStateEl) emptyStateEl.classList.add('hidden');
-    sorted.forEach((produto) => {
+    if (emptyStateEl) {
+      emptyStateEl.innerHTML = defaultEmptyStateMessage;
+      emptyStateEl.classList.add('hidden');
+    }
+    displayItems.forEach((produto) => {
+      if (!produto) return;
       const card = document.createElement('div');
       card.className =
         'flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md';
@@ -1166,8 +1220,8 @@ function renderProducts(produtos) {
     });
   }
 
-  updateSummary(sorted);
-  updateExportButtons(sorted.length > 0);
+  updateSummary(collection);
+  updateExportButtons(hasProducts);
 }
 
 function subscribeToCatalog(uid) {
@@ -1175,7 +1229,13 @@ function subscribeToCatalog(uid) {
     catalogUnsub();
     catalogUnsub = null;
   }
-  if (!uid) return;
+  if (!uid) {
+    allProducts = [];
+    refreshCatalogView();
+    return;
+  }
+  allProducts = [];
+  refreshCatalogView();
   const colRef = collection(db, 'usuarios', uid, 'catalogoProdutos');
   const q = query(colRef, orderBy('createdAt', 'desc'));
   catalogUnsub = onSnapshot(
@@ -1186,7 +1246,8 @@ function subscribeToCatalog(uid) {
         const data = docSnap.data() || {};
         produtos.push({ id: docSnap.id, ...data });
       });
-      renderProducts(produtos);
+      allProducts = produtos;
+      refreshCatalogView();
     },
     (error) => {
       console.error('Erro ao carregar catálogo:', error);
@@ -1480,6 +1541,15 @@ function setupEventListeners() {
     toggleForm(false);
   });
   kitCalculateBtn?.addEventListener('click', handleCalculateKit);
+  searchInput?.addEventListener('input', (event) => {
+    const target = event.target;
+    if (target && typeof target.value === 'string') {
+      currentSearchTerm = target.value;
+    } else {
+      currentSearchTerm = searchInput.value || '';
+    }
+    refreshCatalogView();
+  });
   copyTitleBtn?.addEventListener('click', () => {
     copyProductField(currentModalProduct?.nome, {
       successMessage: 'Título copiado para a área de transferência!',
