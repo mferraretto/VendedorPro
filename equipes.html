@@ -544,6 +544,71 @@
         color: #047857;
       }
 
+      .task-status-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .task-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: color-mix(in srgb, var(--primary, #4262ff) 12%, transparent);
+        color: var(--primary, #4262ff);
+      }
+
+      .task-status-badge.status-open {
+        background: color-mix(in srgb, #2563eb 14%, transparent);
+        color: #1d4ed8;
+      }
+
+      .task-status-badge.status-progress {
+        background: color-mix(in srgb, #f59e0b 18%, transparent);
+        color: #b45309;
+      }
+
+      .task-status-badge.status-complete {
+        background: color-mix(in srgb, #10b981 18%, transparent);
+        color: #047857;
+      }
+
+      .task-status-select select {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--primary, #4262ff) 22%, transparent);
+        background: color-mix(in srgb, var(--card-bg, #ffffff) 94%, transparent);
+        font-weight: 600;
+        cursor: pointer;
+        color: inherit;
+      }
+
+      .task-status-select select:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
       .tag {
         display: inline-flex;
         align-items: center;
@@ -1116,6 +1181,11 @@
         { value: 'feito', label: 'Feito', className: 'status-done', icon: 'fa-check' },
         { value: 'problema', label: 'Problema', className: 'status-issue', icon: 'fa-triangle-exclamation' }
       ];
+      const TASK_STATUS_OPTIONS = [
+        { value: 'aberta', label: 'Aberta', className: 'status-open', icon: 'fa-inbox' },
+        { value: 'em_andamento', label: 'Em andamento', className: 'status-progress', icon: 'fa-circle-notch' },
+        { value: 'feita', label: 'Feita', className: 'status-complete', icon: 'fa-check' }
+      ];
       const WEEKDAY_OPTIONS = [
         { value: 'domingo', label: 'Domingo', shortLabel: 'Dom' },
         { value: 'segunda', label: 'Segunda-feira', shortLabel: 'Seg' },
@@ -1126,6 +1196,10 @@
         { value: 'sabado', label: 'Sábado', shortLabel: 'Sáb' },
       ];
       const scheduleStatusMap = SCHEDULE_STATUS_OPTIONS.reduce((acc, option) => {
+        acc[option.value] = option;
+        return acc;
+      }, {});
+      const taskStatusMap = TASK_STATUS_OPTIONS.reduce((acc, option) => {
         acc[option.value] = option;
         return acc;
       }, {});
@@ -1469,9 +1543,29 @@
                       .map((email) => `<span class="tag"><i class="fas fa-user"></i>${resolveMemberName(ownerUid, email)}</span>`)
                       .join('')
                   : '<span class="tag"><i class="fas fa-user"></i>Não atribuído</span>';
+                const currentStatusValue = task.status || 'aberta';
+                const statusInfo = taskStatusMap[currentStatusValue] || taskStatusMap.aberta || TASK_STATUS_OPTIONS[0];
+                const statusBadge = statusInfo
+                  ? `<span class="task-status-badge ${statusInfo.className || ''}"><i class="fas ${statusInfo.icon}" aria-hidden="true"></i>${statusInfo.label}</span>`
+                  : '';
+                const statusOptions = TASK_STATUS_OPTIONS.map((option) => {
+                  const selected = option.value === currentStatusValue ? 'selected' : '';
+                  return `<option value="${option.value}" ${selected}>${option.label}</option>`;
+                }).join('');
+                const statusControls = `
+                  <div class="task-status-row">
+                    ${statusBadge}
+                    <label class="task-status-select">
+                      <span class="sr-only">Atualizar status da tarefa</span>
+                      <select data-action="update-task-status" data-id="${task.id}" data-owner="${ownerUid}" data-current-status="${currentStatusValue}" aria-label="Atualizar status da tarefa">
+                        ${statusOptions}
+                      </select>
+                    </label>
+                  </div>
+                `;
 
                 return `
-                  <article class="task-card" data-task-id="${task.id}" data-owner="${ownerUid}">
+                  <article class="task-card" data-task-id="${task.id}" data-owner="${ownerUid}" data-status="${currentStatusValue}">
                     <header>
                       <div>
                         <h3 style="margin: 0 0 4px;">${task.title || 'Tarefa sem título'}</h3>
@@ -1485,6 +1579,7 @@
                       ${tips}
                       ${material}
                     </div>
+                    ${statusControls}
                     <div class="card-footer">
                       <span>Registrado por ${task.createdBy || 'Equipe'}${task.createdAt ? ` em ${formatDate(task.createdAt)}` : ''}</span>
                       ${ownerUid === currentUser?.uid ? `<button type="button" data-action="delete-task" data-id="${task.id}">Excluir</button>` : ''}
@@ -1790,6 +1885,7 @@
                 dueDate: data.dueDate || '',
                 dueTime: data.dueTime || '',
                 priority: data.priority || 'baixa',
+                status: data.status || 'aberta',
                 tips: data.tips || '',
                 supportMaterial: data.supportMaterial || '',
                 responsibleEmails: Array.isArray(data.responsibleEmails)
@@ -2117,6 +2213,7 @@
             dueDate,
             dueTime,
             priority,
+            status: 'aberta',
             tips,
             supportMaterial: support,
             responsibleEmails: responsibles,
@@ -2134,6 +2231,31 @@
           showStatus(taskFormStatus, 'Não foi possível salvar a tarefa.', 'error');
         } finally {
           setButtonLoading(taskSubmitBtn, false);
+        }
+      });
+
+      tasksContainer?.addEventListener('change', async (event) => {
+        const select = event.target.closest('select[data-action="update-task-status"]');
+        if (!select || !db) return;
+        const newStatus = select.value;
+        const taskId = select.dataset.id;
+        const ownerUid = select.dataset.owner;
+        if (!newStatus || !taskId || !ownerUid) return;
+
+        const previousStatus = select.dataset.currentStatus || newStatus;
+        select.disabled = true;
+        try {
+          await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'tasks', taskId), {
+            status: newStatus,
+          });
+          select.dataset.currentStatus = newStatus;
+          showStatus(taskCardStatus, 'Status da tarefa atualizado.');
+        } catch (error) {
+          console.error('Erro ao atualizar status da tarefa:', error);
+          showStatus(taskCardStatus, 'Não foi possível atualizar o status da tarefa.', 'error');
+          select.value = previousStatus;
+        } finally {
+          select.disabled = false;
         }
       });
 
