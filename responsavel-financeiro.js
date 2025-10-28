@@ -37,10 +37,21 @@ export async function fetchResponsavelFinanceiroUsuarios(db, email) {
       } catch (_) {}
     }
     const emailUser = dados.email || '';
+    const cargo = dados.cargo || dados.perfil || '';
+    const responsavelFinanceiroEmail = dados.responsavelFinanceiroEmail || null;
+    const responsavelExpedicaoEmail =
+      dados.responsavelExpedicaoEmail ||
+      (Array.isArray(dados.gestoresExpedicaoEmails)
+        ? dados.gestoresExpedicaoEmails[0]
+        : null);
     usuarios.push({
       uid: d.id,
       nome: nome || emailUser || d.id,
       email: emailUser,
+      cargo,
+      perfil: dados.perfil || '',
+      responsavelFinanceiroEmail,
+      responsavelExpedicaoEmail,
     });
   }
   return usuarios;

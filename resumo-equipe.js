@@ -15,6 +15,10 @@ import {
   getAuth,
   onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
+import {
+  getFunctions,
+  httpsCallable,
+} from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-functions.js';
 import { firebaseConfig, getPassphrase } from './firebase-config.js';
 import { decryptString } from './crypto.js';
 import { carregarUsuariosFinanceiros } from './responsavel-financeiro.js';
@@ -22,9 +26,28 @@ import { carregarUsuariosFinanceiros } from './responsavel-financeiro.js';
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const FUNCTIONS_REGION = 'us-central1';
+const functions = getFunctions(app, FUNCTIONS_REGION);
+const registerTeamMemberFn = httpsCallable(functions, 'registerTeamMember');
 
 let usuariosEquipe = [];
 let carregando = false;
+let authUser = null;
+let isResponsavelFinanceiroAtivo = false;
+
+const CARGO_LIMITES = {
+  vendedor: 10,
+  gestor_expedicao: 2,
+  posvendas: 3,
+  usuario: 5,
+};
+
+const CARGO_LABELS = {
+  vendedor: 'Vendedor',
+  gestor_expedicao: 'Gestor de expedição',
+  posvendas: 'Pós-vendas',
+  usuario: 'Usuário',
+};
 
 function toLocalIsoDate(date) {
   const d = new Date(date);
@@ -155,6 +178,256 @@ function formatCurrency(valor) {
   });
 }
 
+function normalizeCargo(valor) {
+  const base = (valor || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  if (!base) return '';
+  if (
+    ['vendedor', 'seller', 'usuario completo', 'usuario', 'completo'].includes(
+      base,
+    )
+  )
+    return 'vendedor';
+  if (['gestor expedicao', 'gestor de expedicao', 'expedicao'].includes(base))
+    return 'gestor_expedicao';
+  if (['posvendas', 'pos vendas', 'pos-vendas'].includes(base))
+    return 'posvendas';
+  if (['usuario basico', 'basico', 'cliente'].includes(base)) return 'usuario';
+  return '';
+}
+
+function obterIntegrantesEquipe() {
+  const atualUid = authUser?.uid;
+  return usuariosEquipe.filter((usuario) => {
+    if (!usuario || !usuario.uid) return false;
+    if (atualUid && usuario.uid === atualUid) return false;
+    return true;
+  });
+}
+
+function calcularContagemCargos() {
+  const contagem = {
+    vendedor: 0,
+    gestor_expedicao: 0,
+    posvendas: 0,
+    usuario: 0,
+  };
+  obterIntegrantesEquipe().forEach((usuario) => {
+    const cargo = normalizeCargo(usuario.cargo || usuario.perfil || '');
+    if (cargo && contagem[cargo] !== undefined) contagem[cargo] += 1;
+  });
+  return contagem;
+}
+
+function atualizarContadoresCargos() {
+  const contagem = calcularContagemCargos();
+  Object.entries(CARGO_LIMITES).forEach(([cargo, limite]) => {
+    const elemento = document.querySelector(`[data-cargo-count="${cargo}"]`);
+    if (!elemento) return;
+    const usado = contagem[cargo] || 0;
+    elemento.textContent = `${usado}/${limite}`;
+    elemento.classList.toggle('text-red-600', usado >= limite);
+  });
+}
+
+function renderizarTabelaEquipe() {
+  const corpo = document.getElementById('cadastroEquipeTabela');
+  const vazio = document.getElementById('cadastroEquipeVazio');
+  if (!corpo) return;
+  corpo.innerHTML = '';
+  const membros = obterIntegrantesEquipe().sort((a, b) =>
+    (a.nome || '').localeCompare(b.nome || '', 'pt-BR'),
+  );
+  if (!membros.length) {
+    if (vazio) vazio.classList.remove('hidden');
+    return;
+  }
+  if (vazio) vazio.classList.add('hidden');
+  const frag = document.createDocumentFragment();
+  membros.forEach((membro) => {
+    const linha = document.createElement('tr');
+    const cargoKey = normalizeCargo(membro.cargo || membro.perfil || '');
+    const cargoLabel =
+      CARGO_LABELS[cargoKey] || membro.cargo || membro.perfil || '—';
+    const respExp = membro.responsavelExpedicaoEmail || '—';
+
+    const celulas = [
+      membro.nome || membro.email || membro.uid,
+      cargoLabel,
+      membro.email || '—',
+      respExp,
+    ];
+    celulas.forEach((valor) => {
+      const td = document.createElement('td');
+      td.className = 'px-4 py-2 text-left text-gray-700';
+      td.textContent = valor;
+      linha.appendChild(td);
+    });
+    frag.appendChild(linha);
+  });
+  corpo.appendChild(frag);
+}
+
+function atualizarCadastroEquipeUI() {
+  if (!isResponsavelFinanceiroAtivo) return;
+  atualizarContadoresCargos();
+  renderizarTabelaEquipe();
+}
+
+function toggleCadastroEquipeTab(visible) {
+  const botao = document.getElementById('tabBtnCadastroEquipe');
+  const painel = document.getElementById('tab-cadastro');
+  if (botao) botao.classList.toggle('hidden', !visible);
+  if (!painel) return;
+  if (!visible) {
+    if (!painel.classList.contains('hidden')) {
+      painel.classList.add('hidden');
+      const primeiro = document.querySelector('.tab-btn[data-tab="diario"]');
+      primeiro?.click();
+    }
+    setStatusCadastro('');
+    return;
+  }
+  atualizarCadastroEquipeUI();
+}
+
+function setStatusCadastro(mensagem, tipo = 'info') {
+  const status = document.getElementById('cadastroEquipeStatus');
+  if (!status) return;
+  status.textContent = mensagem || '';
+  status.classList.remove('text-gray-500', 'text-red-500', 'text-emerald-600');
+  if (!mensagem) {
+    status.classList.add('text-gray-500');
+    return;
+  }
+  if (tipo === 'erro') {
+    status.classList.add('text-red-500');
+  } else if (tipo === 'sucesso') {
+    status.classList.add('text-emerald-600');
+  } else {
+    status.classList.add('text-gray-500');
+  }
+}
+
+function setCadastroLoading(loading) {
+  const form = document.getElementById('cadastroEquipeForm');
+  if (!form) return;
+  const botao = form.querySelector('button[type="submit"]');
+  if (!botao) return;
+  botao.disabled = loading;
+  botao.classList.toggle('opacity-60', loading);
+  botao.classList.toggle('cursor-not-allowed', loading);
+}
+
+async function recarregarEquipeFinanceiro(preservarSelecao = true) {
+  if (!authUser) return;
+  try {
+    const resultado = await carregarUsuariosFinanceiros(db, authUser);
+    usuariosEquipe = resultado.usuarios || [];
+    isResponsavelFinanceiroAtivo = !!resultado.isResponsavelFinanceiro;
+    toggleCadastroEquipeTab(isResponsavelFinanceiroAtivo);
+    popularUsuariosSelect(preservarSelecao);
+    if (isResponsavelFinanceiroAtivo) atualizarCadastroEquipeUI();
+  } catch (erro) {
+    console.error('Erro ao atualizar equipe financeira', erro);
+    setStatusCadastro('Não foi possível atualizar a equipe.', 'erro');
+  }
+}
+
+async function handleCadastroEquipeSubmit(event) {
+  event.preventDefault();
+  if (!isResponsavelFinanceiroAtivo) {
+    setStatusCadastro(
+      'Seu usuário não possui permissão para cadastrar integrantes.',
+      'erro',
+    );
+    return;
+  }
+  const nome = document.getElementById('cadastroEquipeNome')?.value?.trim();
+  const cargoSelecionado = document
+    .getElementById('cadastroEquipeCargo')
+    ?.value?.trim();
+  const email = document.getElementById('cadastroEquipeEmail')?.value?.trim();
+  const senha = document.getElementById('cadastroEquipeSenha')?.value || '';
+  const respExpInput = document
+    .getElementById('cadastroEquipeResponsavelExpedicao')
+    ?.value?.trim();
+  const cargo = normalizeCargo(cargoSelecionado);
+  if (!nome || !email || !senha || !cargo) {
+    setStatusCadastro('Preencha todos os campos obrigatórios.', 'erro');
+    return;
+  }
+  if (senha.length < 6) {
+    setStatusCadastro('A senha deve ter pelo menos 6 caracteres.', 'erro');
+    return;
+  }
+  const limite = CARGO_LIMITES[cargo];
+  if (!limite) {
+    setStatusCadastro('Cargo selecionado é inválido.', 'erro');
+    return;
+  }
+  const contagem = calcularContagemCargos();
+  if ((contagem[cargo] || 0) >= limite) {
+    setStatusCadastro(
+      `Limite atingido para ${CARGO_LABELS[cargo] || 'o cargo selecionado'}.`,
+      'erro',
+    );
+    return;
+  }
+  let responsavelExpedicaoEmail = respExpInput || '';
+  if (!responsavelExpedicaoEmail && cargo !== 'gestor_expedicao') {
+    setStatusCadastro(
+      'Informe o e-mail do responsável de expedição para este integrante.',
+      'erro',
+    );
+    return;
+  }
+  if (!responsavelExpedicaoEmail && cargo === 'gestor_expedicao') {
+    responsavelExpedicaoEmail = email;
+  }
+
+  setCadastroLoading(true);
+  setStatusCadastro('Cadastrando integrante...');
+  try {
+    await registerTeamMemberFn({
+      nome,
+      email,
+      senha,
+      cargo,
+      responsavelExpedicaoEmail: responsavelExpedicaoEmail || null,
+    });
+    setStatusCadastro('Integrante cadastrado com sucesso.', 'sucesso');
+    event.target.reset();
+    const cargoSelect = document.getElementById('cadastroEquipeCargo');
+    if (cargoSelect) cargoSelect.value = 'vendedor';
+    await recarregarEquipeFinanceiro();
+  } catch (error) {
+    console.error('Erro ao cadastrar integrante da equipe', error);
+    const mensagemDetalhe =
+      error?.details?.message ||
+      error?.message ||
+      'Erro ao cadastrar integrante.';
+    const texto = mensagemDetalhe.replace(
+      /^functions\.httpsCallable\s*:\s*/i,
+      '',
+    );
+    setStatusCadastro(texto || 'Erro ao cadastrar integrante.', 'erro');
+  } finally {
+    setCadastroLoading(false);
+  }
+}
+
+function configurarCadastroEquipeForm() {
+  const form = document.getElementById('cadastroEquipeForm');
+  if (!form) return;
+  form.addEventListener('submit', handleCadastroEquipeSubmit);
+  form.addEventListener('input', () => setStatusCadastro(''));
+}
+
 function atualizarStatus(id, mensagem, tipo = 'info') {
   const el = document.getElementById(id);
   if (!el) return;
@@ -175,6 +448,7 @@ function configurarTabs() {
     diario: document.getElementById('tab-diario'),
     vendas: document.getElementById('tab-vendas'),
     problemas: document.getElementById('tab-problemas'),
+    cadastro: document.getElementById('tab-cadastro'),
   };
   botoes.forEach((botao) => {
     botao.addEventListener('click', () => {
@@ -215,9 +489,10 @@ function configurarTipoPeriodo() {
   });
 }
 
-function popularUsuariosSelect() {
+function popularUsuariosSelect(preservarSelecao = false) {
   const select = document.getElementById('resumoFiltroUsuario');
   if (!select) return;
+  const valorAtual = preservarSelecao ? select.value : 'todos';
   select.innerHTML = '';
   const optTodos = document.createElement('option');
   optTodos.value = 'todos';
@@ -232,7 +507,10 @@ function popularUsuariosSelect() {
       opt.textContent = usuario.nome || usuario.email || usuario.uid;
       select.appendChild(opt);
     });
-  select.value = 'todos';
+  const possuiValorAtual =
+    valorAtual &&
+    Array.from(select.options).some((opt) => String(opt.value) === valorAtual);
+  select.value = possuiValorAtual ? valorAtual : 'todos';
 }
 
 function definirValoresPadraoFiltro() {
@@ -1364,6 +1642,7 @@ async function aplicarFiltros() {
 document.addEventListener('DOMContentLoaded', () => {
   configurarTabs();
   configurarTipoPeriodo();
+  configurarCadastroEquipeForm();
   document
     .getElementById('resumoFiltroAplicar')
     ?.addEventListener('click', aplicarFiltros);
@@ -1374,9 +1653,12 @@ onAuthStateChanged(auth, async (user) => {
     window.location.href = 'index.html?login=1';
     return;
   }
+  authUser = user;
   try {
-    const { usuarios } = await carregarUsuariosFinanceiros(db, user);
+    const { usuarios, isResponsavelFinanceiro } =
+      await carregarUsuariosFinanceiros(db, user);
     usuariosEquipe = usuarios || [];
+    isResponsavelFinanceiroAtivo = !!isResponsavelFinanceiro;
   } catch (err) {
     console.error('Erro ao carregar usuários financeiros', err);
     usuariosEquipe = [
@@ -1386,8 +1668,11 @@ onAuthStateChanged(auth, async (user) => {
         email: user.email || '',
       },
     ];
+    isResponsavelFinanceiroAtivo = false;
   }
+  toggleCadastroEquipeTab(isResponsavelFinanceiroAtivo);
   popularUsuariosSelect();
   definirValoresPadraoFiltro();
   await aplicarFiltros();
+  if (isResponsavelFinanceiroAtivo) atualizarCadastroEquipeUI();
 });
