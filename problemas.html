@@ -318,116 +318,294 @@
           </div>
           <div id="tab-pecas" class="tab-panel hidden space-y-6">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <form id="pecasForm" class="card space-y-6 lg:col-span-2">
-                <div>
-                  <h2 class="text-lg font-semibold text-slate-700">
+              <div class="card space-y-4 lg:col-span-2">
+                <div
+                  class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                >
+                  <div>
+                    <h2 class="text-lg font-semibold text-slate-700">
+                      Registrar Peça Faltante
+                    </h2>
+                    <p class="text-xs text-slate-500">
+                      Informe os dados da peça quando necessário
+                    </p>
+                  </div>
+                  <button
+                    id="togglePecasForm"
+                    type="button"
+                    class="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 transition hover:bg-violet-100"
+                  >
                     Registrar Peça Faltante
-                  </h2>
-                  <p class="text-xs text-slate-500">Informe os dados da peça</p>
+                  </button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div class="flex flex-col">
-                    <label
-                      for="data"
-                      class="block text-sm font-medium text-slate-600"
-                      >Data</label
-                    >
-                    <input
-                      type="date"
-                      id="data"
-                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
-                    />
+                <form
+                  id="pecasForm"
+                  class="space-y-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6 hidden"
+                >
+                  <div
+                    class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+                  >
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="data"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >Data</label
+                      >
+                      <input
+                        type="date"
+                        id="data"
+                        name="data"
+                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="numero"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >Número do Pedido</label
+                      >
+                      <input
+                        type="text"
+                        id="numero"
+                        name="numero"
+                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="apelido"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >Apelido</label
+                      >
+                      <input
+                        type="text"
+                        id="apelido"
+                        name="apelido"
+                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="nomeCliente"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >Nome do Comprador</label
+                      >
+                      <input
+                        type="text"
+                        id="nomeCliente"
+                        name="nomeCliente"
+                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="nf"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >NF</label
+                      >
+                      <input
+                        type="text"
+                        id="nf"
+                        name="nf"
+                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="loja"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >Loja</label
+                      >
+                      <input
+                        type="text"
+                        id="loja"
+                        name="loja"
+                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="peca"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >Peça Faltante</label
+                      >
+                      <input
+                        type="text"
+                        id="peca"
+                        name="peca"
+                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label
+                        for="valorGasto"
+                        class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        >Valor Gasto</label
+                      >
+                      <div class="relative">
+                        <span
+                          class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-xs font-semibold text-slate-400"
+                          >R$</span
+                        >
+                        <input
+                          type="number"
+                          step="0.01"
+                          inputmode="decimal"
+                          id="valorGasto"
+                          name="valorGasto"
+                          class="w-full rounded-xl border border-slate-200 px-3 py-2 pl-8 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div class="flex flex-col">
-                    <label
-                      for="numero"
-                      class="block text-sm font-medium text-slate-600"
-                      >Número</label
+                  <div class="space-y-4">
+                    <div class="space-y-2">
+                      <h3 class="text-sm font-semibold text-slate-600">
+                        Endereço
+                      </h3>
+                      <p class="text-xs text-slate-500">
+                        Informe o local para envio ou retirada da peça
+                      </p>
+                    </div>
+                    <div
+                      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"
                     >
-                    <input
-                      type="text"
-                      id="numero"
-                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
-                    />
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="cep"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >CEP</label
+                        >
+                        <input
+                          type="text"
+                          id="cep"
+                          name="cep"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="rua"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >Rua</label
+                        >
+                        <input
+                          type="text"
+                          id="rua"
+                          name="rua"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="numeroEndereco"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >Número</label
+                        >
+                        <input
+                          type="text"
+                          id="numeroEndereco"
+                          name="numeroEndereco"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="bairro"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >Bairro</label
+                        >
+                        <input
+                          type="text"
+                          id="bairro"
+                          name="bairro"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="cidade"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >Cidade</label
+                        >
+                        <input
+                          type="text"
+                          id="cidade"
+                          name="cidade"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="estado"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >Estado</label
+                        >
+                        <input
+                          type="text"
+                          id="estado"
+                          name="estado"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="complemento"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >Complemento</label
+                        >
+                        <input
+                          type="text"
+                          id="complemento"
+                          name="complemento"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <label
+                          for="referencia"
+                          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >Ponto de Referência</label
+                        >
+                        <input
+                          type="text"
+                          id="referencia"
+                          name="referencia"
+                          class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div class="flex flex-col">
-                    <label
-                      for="apelido"
-                      class="block text-sm font-medium text-slate-600"
-                      >Apelido</label
-                    >
-                    <input
-                      type="text"
-                      id="apelido"
-                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
-                    />
-                  </div>
-                  <div class="flex flex-col">
-                    <label
-                      for="nf"
-                      class="block text-sm font-medium text-slate-600"
-                      >NF</label
-                    >
-                    <input
-                      type="text"
-                      id="nf"
-                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
-                    />
-                  </div>
-                  <div class="flex flex-col">
-                    <label
-                      for="loja"
-                      class="block text-sm font-medium text-slate-600"
-                      >Loja</label
-                    >
-                    <input
-                      type="text"
-                      id="loja"
-                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
-                    />
-                  </div>
-                  <div class="flex flex-col">
-                    <label
-                      for="peca"
-                      class="block text-sm font-medium text-slate-600"
-                      >Peça Faltante</label
-                    >
-                    <input
-                      type="text"
-                      id="peca"
-                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
-                    />
-                  </div>
-                  <div class="flex flex-col md:col-span-2">
+                  <div class="flex flex-col gap-1">
                     <label
                       for="informacoes"
-                      class="block text-sm font-medium text-slate-600"
-                      >Informações</label
+                      class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                      >Informações adicionais</label
                     >
                     <textarea
                       id="informacoes"
                       name="informacoes"
-                      rows="2"
-                      class="mt-1 w-full rounded-xl border-slate-300 focus:border-violet-500 focus:ring-violet-500"
+                      rows="3"
+                      class="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"
                     ></textarea>
                   </div>
-                </div>
-                <div class="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    id="limparPecas"
-                    class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700"
-                  >
-                    Limpar
-                  </button>
-                  <button
-                    type="submit"
-                    class="px-4 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700"
-                  >
-                    Salvar
-                  </button>
-                </div>
-              </form>
+                  <div class="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      id="limparPecas"
+                      class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700"
+                    >
+                      Limpar
+                    </button>
+                    <button
+                      type="submit"
+                      class="px-4 py-2 rounded-xl bg-violet-600 text-white transition hover:bg-violet-700"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                </form>
+              </div>
               <div class="card space-y-4 lg:col-span-1 lg:sticky lg:top-4">
                 <h2 class="text-lg font-semibold text-slate-700">Filtros</h2>
                 <div class="space-y-4">
@@ -497,10 +675,19 @@
                 </div>
               </div>
             </div>
-            <div class="card overflow-x-auto space-y-4">
+            <div class="card space-y-4">
               <div
-                class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2"
+                class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
+                <div>
+                  <h2 class="text-lg font-semibold text-slate-700">
+                    Peças registradas
+                  </h2>
+                  <p class="text-xs text-slate-500">
+                    Acompanhe o andamento das peças faltantes e visualize os
+                    endereços completos
+                  </p>
+                </div>
                 <button
                   id="exportCsv"
                   class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 w-full sm:w-auto"
@@ -508,27 +695,13 @@
                   Exportar CSV
                 </button>
               </div>
-              <table class="min-w-full text-sm data-table">
-                <thead class="bg-slate-50 sticky top-0 z-10">
-                  <tr class="text-left">
-                    <th class="p-2">Data</th>
-                    <th class="p-2">Nome do Comprador</th>
-                    <th class="p-2">Apelido</th>
-                    <th class="p-2">Número</th>
-                    <th class="p-2">Loja</th>
-                    <th class="p-2">Peça Faltante</th>
-                    <th class="p-2">NF</th>
-                    <th class="p-2">Informações</th>
-                    <th class="p-2 text-right">Valor Gasto</th>
-                    <th class="p-2">Status</th>
-                    <th class="p-2 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody
-                  id="pecasTableBody"
-                  class="divide-y divide-slate-100"
-                ></tbody>
-              </table>
+              <div id="pecasListContainer" class="space-y-4"></div>
+              <div
+                id="pecasEmptyState"
+                class="hidden rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center text-sm text-slate-500"
+              >
+                Nenhum registro encontrado com os filtros atuais.
+              </div>
             </div>
           </div>
         </div>

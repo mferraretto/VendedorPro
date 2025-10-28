@@ -47,7 +47,23 @@ onAuthStateChanged(auth, (user) => {
   if (dataInput) dataInput.value = new Date().toISOString().split('T')[0];
   const dataRInput = document.getElementById('dataR');
   if (dataRInput) dataRInput.value = new Date().toISOString().split('T')[0];
-  document.getElementById('pecasForm')?.addEventListener('submit', salvarPeca);
+  const pecasForm = document.getElementById('pecasForm');
+  const togglePecasForm = document.getElementById('togglePecasForm');
+  if (togglePecasForm && pecasForm) {
+    togglePecasForm.setAttribute('aria-expanded', 'false');
+    togglePecasForm.addEventListener('click', () => {
+      const hidden = pecasForm.classList.toggle('hidden');
+      togglePecasForm.textContent = hidden
+        ? 'Registrar Peça Faltante'
+        : 'Ocultar formulário';
+      togglePecasForm.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+      if (!hidden) {
+        pecasForm.querySelector('input, textarea, select')?.focus();
+        pecasForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
+  pecasForm?.addEventListener('submit', salvarPeca);
   document
     .getElementById('reembolsosForm')
     ?.addEventListener('submit', salvarReembolso);
@@ -104,6 +120,8 @@ onAuthStateChanged(auth, (user) => {
     form?.reset();
     const di = document.getElementById('data');
     if (di) di.value = new Date().toISOString().split('T')[0];
+    const valor = document.getElementById('valorGasto');
+    if (valor) valor.value = '';
   });
   document.getElementById('limparFiltros')?.addEventListener('click', (ev) => {
     ev.preventDefault();
@@ -125,17 +143,29 @@ onAuthStateChanged(auth, (user) => {
 async function salvarPeca(ev) {
   ev.preventDefault();
   const form = ev.target;
+  const valorBruto = (form.valorGasto?.value || '').replace(',', '.');
+  const valorConvertido = Number.parseFloat(valorBruto);
   const registro = {
     data: form.data.value,
-    nomeCliente: '',
+    nomeCliente: form.nomeCliente?.value.trim() || '',
     numero: form.numero.value.trim(),
     apelido: form.apelido.value.trim(),
     nf: form.nf.value.trim(),
     loja: form.loja.value.trim(),
     peca: form.peca.value.trim(),
-    valorGasto: 0,
+    valorGasto: Number.isFinite(valorConvertido) ? valorConvertido : 0,
     status: 'NÃO FEITO',
     informacoes: form.informacoes?.value.trim() || '',
+    endereco: {
+      cep: form.cep?.value.trim() || '',
+      rua: form.rua?.value.trim() || '',
+      numero: form.numeroEndereco?.value.trim() || '',
+      bairro: form.bairro?.value.trim() || '',
+      cidade: form.cidade?.value.trim() || '',
+      estado: form.estado?.value.trim() || '',
+      complemento: form.complemento?.value.trim() || '',
+      referencia: form.referencia?.value.trim() || '',
+    },
   };
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'pecasfaltando');
   const colRef = collection(baseDoc, 'itens');
@@ -144,6 +174,12 @@ async function salvarPeca(ev) {
   form.reset();
   const dataInput = document.getElementById('data');
   if (dataInput) dataInput.value = new Date().toISOString().split('T')[0];
+  const togglePecasForm = document.getElementById('togglePecasForm');
+  if (togglePecasForm) {
+    togglePecasForm.textContent = 'Registrar Peça Faltante';
+    togglePecasForm.setAttribute('aria-expanded', 'false');
+  }
+  form.classList.add('hidden');
   carregarPecas();
 }
 
@@ -153,116 +189,312 @@ async function carregarPecas() {
   pecasColRef = collection(baseDoc, 'itens');
   const snap = await getDocs(pecasColRef);
   pecasCache = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
+    .map((d) => {
+      const dados = d.data();
+      const valorNumerico = Number.isFinite(Number(dados.valorGasto))
+        ? Number(dados.valorGasto)
+        : Number.parseFloat(dados.valorGasto) || 0;
+      return {
+        id: d.id,
+        ...dados,
+        valorGasto: valorNumerico,
+        status: dados.status || 'NÃO FEITO',
+        endereco: normalizarEndereco(dados.endereco),
+      };
+    })
     .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
   renderPecas();
 }
 
 function renderPecas() {
-  const tbody = document.getElementById('pecasTableBody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  const container = document.getElementById('pecasListContainer');
+  const emptyState = document.getElementById('pecasEmptyState');
+  if (!container) return;
+  container.innerHTML = '';
   const filtroDataInicio = document.getElementById('filtroDataInicio')?.value;
   const filtroDataFim = document.getElementById('filtroDataFim')?.value;
   const filtroStatus = document.getElementById('filtroStatus')?.value;
   const busca =
-    document.getElementById('searchPecas')?.value.toLowerCase() || '';
+    document.getElementById('searchPecas')?.value.toLowerCase().trim() || '';
   pecasFiltradas = pecasCache.filter((d) => {
     const data = d.data || '';
     const dataInicioOk = filtroDataInicio ? data >= filtroDataInicio : true;
     const dataFimOk = filtroDataFim ? data <= filtroDataFim : true;
     const dataOk = dataInicioOk && dataFimOk;
     const statusOk = filtroStatus ? d.status === filtroStatus : true;
-    const searchOk = busca
-      ? Object.values(d).some((v) => String(v).toLowerCase().includes(busca))
-      : true;
-    return dataOk && statusOk && searchOk;
+    if (!busca) return dataOk && statusOk;
+    const enderecoValores = Object.values(d.endereco || {});
+    const valoresPesquisa = [
+      d.data,
+      d.numero,
+      d.apelido,
+      d.nomeCliente,
+      d.loja,
+      d.peca,
+      d.nf,
+      d.informacoes,
+      d.status,
+      d.valorGasto,
+      ...enderecoValores,
+    ];
+    const buscaOk = valoresPesquisa.some((valor) =>
+      String(valor || '')
+        .toLowerCase()
+        .includes(busca),
+    );
+    return dataOk && statusOk && buscaOk;
   });
+  if (emptyState) {
+    if (!pecasFiltradas.length) {
+      emptyState.classList.remove('hidden');
+    } else {
+      emptyState.classList.add('hidden');
+    }
+  }
   pecasFiltradas.forEach((d) => {
-    const tr = document.createElement('tr');
-    tr.className =
-      'border-t border-slate-100 hover:bg-slate-50 odd:bg-white even:bg-slate-50';
+    const endereco = normalizarEndereco(d.endereco);
+    const card = document.createElement('article');
+    card.className =
+      'space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-6';
 
-    const baseInputClass =
-      'w-full rounded-xl border-slate-300 p-1 focus:border-violet-500 focus:ring-violet-500';
+    const header = document.createElement('div');
+    header.className =
+      'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between';
 
-    tr.appendChild(
-      criarCelulaInput({
+    const headerInfo = document.createElement('div');
+    headerInfo.className = 'space-y-2';
+
+    const titulo = document.createElement('h3');
+    titulo.className = 'text-base font-semibold text-slate-700';
+    titulo.textContent = d.peca || 'Peça não informada';
+    headerInfo.appendChild(titulo);
+
+    const chips = document.createElement('div');
+    chips.className = 'flex flex-wrap gap-2 text-xs font-medium text-slate-600';
+    if (d.data) {
+      chips.appendChild(
+        criarChip('fa-regular fa-calendar-days', formatarData(d.data)),
+      );
+    }
+    if (d.numero) {
+      chips.appendChild(
+        criarChip('fa-solid fa-hashtag', `Pedido #${d.numero}`),
+      );
+    }
+    if (d.nf) {
+      chips.appendChild(criarChip('fa-regular fa-file-lines', `NF ${d.nf}`));
+    }
+    if (d.loja) {
+      chips.appendChild(criarChip('fa-solid fa-store', d.loja));
+    }
+    headerInfo.appendChild(chips);
+    header.appendChild(headerInfo);
+
+    const headerActions = document.createElement('div');
+    headerActions.className = 'flex flex-col items-stretch gap-2 sm:items-end';
+
+    const statusContainer = document.createElement('div');
+    statusContainer.className =
+      'flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500';
+    const statusLabel = document.createElement('span');
+    statusLabel.textContent = 'Status';
+    statusContainer.appendChild(statusLabel);
+    const statusSelect = document.createElement('select');
+    statusSelect.className =
+      'status-select rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide focus:border-violet-500 focus:ring-violet-500';
+    const opcoes = [
+      { valor: 'NÃO FEITO', texto: 'Não feito' },
+      { valor: 'EM ANDAMENTO', texto: 'Em andamento' },
+      { valor: 'RESOLVIDO', texto: 'Resolvido' },
+    ];
+    opcoes.forEach(({ valor, texto }) => {
+      const option = document.createElement('option');
+      option.value = valor;
+      option.textContent = texto;
+      if (d.status === valor) option.selected = true;
+      statusSelect.appendChild(option);
+    });
+    aplicarCorStatus(statusSelect, d.status);
+    statusSelect.addEventListener('change', async (ev) => {
+      const novoStatus = ev.target.value;
+      await atualizarPeca(d, { status: novoStatus });
+      aplicarCorStatus(statusSelect, novoStatus);
+    });
+    statusContainer.appendChild(statusSelect);
+    headerActions.appendChild(statusContainer);
+
+    const excluirBtn = document.createElement('button');
+    excluirBtn.type = 'button';
+    excluirBtn.textContent = 'Excluir';
+    excluirBtn.className =
+      'inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50';
+    excluirBtn.addEventListener('click', async () => {
+      const confirma = window.confirm('Deseja excluir este registro?');
+      if (!confirma) return;
+      await excluirPeca(d.id);
+    });
+    headerActions.appendChild(excluirBtn);
+
+    header.appendChild(headerActions);
+    card.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.className = 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3';
+
+    grid.appendChild(
+      criarCampoEditavel('Data', {
         tipo: 'date',
         valor: d.data || '',
         onChange: (valor) => atualizarPeca(d, { data: valor }),
-        classe: baseInputClass,
       }),
     );
 
-    tr.appendChild(
-      criarCelulaInput({
-        tipo: 'text',
+    grid.appendChild(
+      criarCampoEditavel('Nome do Comprador', {
         valor: d.nomeCliente || '',
         onChange: (valor) => atualizarPeca(d, { nomeCliente: valor.trim() }),
-        classe: baseInputClass,
       }),
     );
 
-    tr.appendChild(
-      criarCelulaInput({
-        tipo: 'text',
+    grid.appendChild(
+      criarCampoEditavel('Apelido', {
         valor: d.apelido || '',
         onChange: (valor) => atualizarPeca(d, { apelido: valor.trim() }),
-        classe: baseInputClass,
       }),
     );
 
-    tr.appendChild(
-      criarCelulaInput({
-        tipo: 'text',
+    grid.appendChild(
+      criarCampoEditavel('Número do Pedido', {
         valor: d.numero || '',
         onChange: (valor) => atualizarPeca(d, { numero: valor.trim() }),
-        classe: baseInputClass,
       }),
     );
 
-    tr.appendChild(
-      criarCelulaInput({
-        tipo: 'text',
+    grid.appendChild(
+      criarCampoEditavel('Loja', {
         valor: d.loja || '',
         onChange: (valor) => atualizarPeca(d, { loja: valor.trim() }),
-        classe: baseInputClass,
       }),
     );
 
-    tr.appendChild(
-      criarCelulaInput({
-        tipo: 'text',
-        valor: d.peca || '',
-        onChange: (valor) => atualizarPeca(d, { peca: valor.trim() }),
-        classe: baseInputClass,
-      }),
-    );
-
-    tr.appendChild(
-      criarCelulaInput({
-        tipo: 'text',
+    grid.appendChild(
+      criarCampoEditavel('NF', {
         valor: d.nf || '',
         onChange: (valor) => atualizarPeca(d, { nf: valor.trim() }),
-        classe: baseInputClass,
       }),
     );
 
-    tr.appendChild(
-      criarCelulaTextarea({
-        valor: d.informacoes || '',
-        onChange: (valor) => atualizarPeca(d, { informacoes: valor.trim() }),
+    grid.appendChild(
+      criarCampoEditavel('Peça Faltante', {
+        valor: d.peca || '',
+        onChange: (valor) => atualizarPeca(d, { peca: valor.trim() }),
       }),
     );
 
-    tr.appendChild(criarCelulaValor(d));
+    grid.appendChild(
+      criarCampoEditavel('Valor Gasto', {
+        tipo: 'number',
+        passo: '0.01',
+        valor: formatarNumero(d.valorGasto),
+        prefixo: 'R$',
+        onChange: async (valor, input) => {
+          const convertido = Number.parseFloat(String(valor).replace(',', '.'));
+          const numerico = Number.isFinite(convertido) ? convertido : 0;
+          await atualizarPeca(d, { valorGasto: numerico });
+          if (input) input.value = formatarNumero(numerico);
+        },
+      }),
+    );
 
-    tr.appendChild(criarCelulaStatus(d));
+    card.appendChild(grid);
 
-    tr.appendChild(criarCelulaAcoes(d, 'peca'));
+    const infoField = document.createElement('label');
+    infoField.className = 'flex flex-col gap-2 text-sm';
+    const infoSpan = document.createElement('span');
+    infoSpan.className =
+      'text-xs font-semibold uppercase tracking-wide text-slate-500';
+    infoSpan.textContent = 'Informações adicionais';
+    infoField.appendChild(infoSpan);
+    const infoTextarea = document.createElement('textarea');
+    infoTextarea.rows = 3;
+    infoTextarea.value = d.informacoes || '';
+    infoTextarea.className =
+      'rounded-2xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500';
+    infoTextarea.addEventListener('change', async (ev) => {
+      await atualizarPeca(d, { informacoes: ev.target.value.trim() });
+    });
+    infoField.appendChild(infoTextarea);
+    card.appendChild(infoField);
 
-    tbody.appendChild(tr);
+    const enderecoWrapper = document.createElement('div');
+    enderecoWrapper.className = 'space-y-3';
+    const verMaisBtn = document.createElement('button');
+    verMaisBtn.type = 'button';
+    verMaisBtn.className =
+      'inline-flex items-center gap-2 text-sm font-semibold text-violet-600 transition hover:text-violet-700';
+    verMaisBtn.innerHTML =
+      '<i class="fa-solid fa-location-dot"></i><span>Ver endereço</span>';
+    const verMaisTexto = verMaisBtn.querySelector('span');
+    const enderecoSection = document.createElement('div');
+    enderecoSection.className =
+      'hidden rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5';
+
+    const enderecoGrid = document.createElement('div');
+    enderecoGrid.className =
+      'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4';
+
+    const criarCampoEndereco = (rotulo, chave) => {
+      const campo = document.createElement('label');
+      campo.className = 'flex flex-col gap-1 text-sm';
+      const span = document.createElement('span');
+      span.className =
+        'text-xs font-semibold uppercase tracking-wide text-slate-500';
+      span.textContent = rotulo;
+      campo.appendChild(span);
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = endereco[chave] || '';
+      input.className =
+        'rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500';
+      input.addEventListener('change', async (ev) => {
+        const atualizado = normalizarEndereco({
+          ...endereco,
+          [chave]: ev.target.value.trim(),
+        });
+        await atualizarPeca(d, { endereco: atualizado });
+        Object.assign(endereco, atualizado);
+      });
+      campo.appendChild(input);
+      return campo;
+    };
+
+    enderecoGrid.appendChild(criarCampoEndereco('CEP', 'cep'));
+    enderecoGrid.appendChild(criarCampoEndereco('Rua', 'rua'));
+    enderecoGrid.appendChild(criarCampoEndereco('Número', 'numero'));
+    enderecoGrid.appendChild(criarCampoEndereco('Bairro', 'bairro'));
+    enderecoGrid.appendChild(criarCampoEndereco('Cidade', 'cidade'));
+    enderecoGrid.appendChild(criarCampoEndereco('Estado', 'estado'));
+    enderecoGrid.appendChild(criarCampoEndereco('Complemento', 'complemento'));
+    enderecoGrid.appendChild(
+      criarCampoEndereco('Ponto de Referência', 'referencia'),
+    );
+
+    enderecoSection.appendChild(enderecoGrid);
+
+    verMaisBtn.addEventListener('click', () => {
+      const escondido = enderecoSection.classList.toggle('hidden');
+      if (verMaisTexto) {
+        verMaisTexto.textContent = escondido
+          ? 'Ver endereço'
+          : 'Ocultar endereço';
+      }
+    });
+
+    enderecoWrapper.appendChild(verMaisBtn);
+    enderecoWrapper.appendChild(enderecoSection);
+    card.appendChild(enderecoWrapper);
+
+    container.appendChild(card);
   });
 }
 
@@ -279,6 +511,14 @@ function exportarCsv() {
     'Informações',
     'Valor Gasto',
     'Status',
+    'CEP',
+    'Rua',
+    'Número Endereço',
+    'Bairro',
+    'Cidade',
+    'Estado',
+    'Complemento',
+    'Referência',
   ];
   const rows = pecasFiltradas.map((d) => [
     formatarData(d.data),
@@ -291,6 +531,14 @@ function exportarCsv() {
     d.informacoes || '',
     (Number(d.valorGasto) || 0).toFixed(2).replace('.', ','),
     d.status || '',
+    d.endereco?.cep || '',
+    d.endereco?.rua || '',
+    d.endereco?.numero || '',
+    d.endereco?.bairro || '',
+    d.endereco?.cidade || '',
+    d.endereco?.estado || '',
+    d.endereco?.complemento || '',
+    d.endereco?.referencia || '',
   ]);
   const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -538,6 +786,88 @@ function formatarData(str) {
 
 function formatarNumero(valor) {
   return (Number(valor) || 0).toFixed(2);
+}
+
+function criarChip(iconClass, texto) {
+  const chip = document.createElement('span');
+  chip.className =
+    'inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600';
+  if (iconClass) {
+    const icon = document.createElement('i');
+    icon.className = `${iconClass} text-slate-500`;
+    chip.appendChild(icon);
+  }
+  const textoSpan = document.createElement('span');
+  textoSpan.textContent = texto;
+  chip.appendChild(textoSpan);
+  return chip;
+}
+
+function criarCampoEditavel(
+  rotulo,
+  { tipo = 'text', valor = '', onChange, prefixo, passo },
+) {
+  const wrapper = document.createElement('label');
+  wrapper.className = 'flex flex-col gap-1 text-sm';
+  const span = document.createElement('span');
+  span.className =
+    'text-xs font-semibold uppercase tracking-wide text-slate-500';
+  span.textContent = rotulo;
+  wrapper.appendChild(span);
+  const input = document.createElement('input');
+  input.type = tipo;
+  input.value = valor ?? '';
+  input.className =
+    'rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500';
+  if (passo) input.step = passo;
+  if (tipo === 'number') input.inputMode = 'decimal';
+  const handleChange = async (ev) => {
+    if (!onChange) return;
+    const resultado = onChange(ev.target.value, ev.target);
+    if (resultado instanceof Promise) {
+      await resultado;
+    }
+  };
+  input.addEventListener('change', handleChange);
+  if (prefixo) {
+    input.classList.add('pl-8');
+    const container = document.createElement('div');
+    container.className = 'relative';
+    const prefixSpan = document.createElement('span');
+    prefixSpan.className =
+      'pointer-events-none absolute inset-y-0 left-3 flex items-center text-xs font-semibold text-slate-400';
+    prefixSpan.textContent = prefixo;
+    container.appendChild(prefixSpan);
+    container.appendChild(input);
+    wrapper.appendChild(container);
+  } else {
+    wrapper.appendChild(input);
+  }
+  return wrapper;
+}
+
+function normalizarEndereco(endereco) {
+  const campos = [
+    'cep',
+    'rua',
+    'numero',
+    'bairro',
+    'cidade',
+    'estado',
+    'complemento',
+    'referencia',
+  ];
+  const base = {};
+  campos.forEach((campo) => {
+    base[campo] = '';
+  });
+  if (!endereco || typeof endereco !== 'object') {
+    return base;
+  }
+  campos.forEach((campo) => {
+    base[campo] = endereco[campo] ? String(endereco[campo]) : '';
+  });
+  return base;
 }
 
 function criarCelulaInput({ tipo, valor, onChange, classe }) {
