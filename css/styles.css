@@ -1272,6 +1272,20 @@ body.dark-mode .table tr:nth-child(2n) {
   backdrop-filter: blur(4px);
   animation: 0.3s fadeIn;
 }
+
+dialog.modal[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+}
+
+dialog.modal::backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
 .modal-content {
   background-color: var(--background);
   margin: 5% auto;
