@@ -56,6 +56,13 @@ const modalDescricao = document.getElementById('catalogDetailsDescricao');
 const modalMedidas = document.getElementById('catalogDetailsMedidas');
 const modalFotos = document.getElementById('catalogDetailsFotos');
 const modalVariacoes = document.getElementById('catalogDetailsVariacoes');
+const modalDriveLinkSection = document.getElementById(
+  'catalogDetailsDriveLinkSection',
+);
+const modalDriveLinkBtn = document.getElementById('catalogDetailsDriveLink');
+const modalDriveLinkEmpty = document.getElementById(
+  'catalogDetailsDriveLinkEmpty',
+);
 const copyTitleBtn = document.getElementById('catalogCopyTitleBtn');
 const copyDescriptionBtn = document.getElementById('catalogCopyDescriptionBtn');
 const downloadImagesBtn = document.getElementById('catalogDownloadImagesBtn');
@@ -66,6 +73,7 @@ const costInput = document.getElementById('catalogProductCost');
 const priceInput = document.getElementById('catalogProductPrice');
 const categoryInput = document.getElementById('catalogProductCategory');
 const descriptionInput = document.getElementById('catalogProductDescription');
+const driveLinkInput = document.getElementById('catalogProductDriveLink');
 const measuresInput = document.getElementById('catalogProductMeasures');
 const photosInput = document.getElementById('catalogProductPhotos');
 const photoUrlsInput = document.getElementById('catalogProductPhotoUrls');
@@ -395,6 +403,7 @@ function clearForm() {
   form?.reset();
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
+  if (driveLinkInput) driveLinkInput.value = '';
   setColorVariations([]);
   editingProductId = null;
   editingProductData = null;
@@ -569,6 +578,20 @@ function openModal(produto) {
   modalPreco.textContent = formatCurrency(produto.precoSugerido);
   modalDescricao.textContent = produto.descricao || 'Sem descrição cadastrada.';
   modalMedidas.textContent = produto.medidas || 'Sem medidas cadastradas.';
+
+  const driveLink =
+    produto.driveFolderLink || produto.driveLink || produto.linkDrive || '';
+  if (modalDriveLinkSection && modalDriveLinkBtn && modalDriveLinkEmpty) {
+    if (driveLink) {
+      modalDriveLinkBtn.href = driveLink;
+      modalDriveLinkSection.classList.remove('hidden');
+      modalDriveLinkEmpty.classList.add('hidden');
+    } else {
+      modalDriveLinkBtn.removeAttribute('href');
+      modalDriveLinkSection.classList.add('hidden');
+      modalDriveLinkEmpty.classList.remove('hidden');
+    }
+  }
 
   modalFotos.innerHTML = '';
   const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
@@ -1099,7 +1122,7 @@ function renderProducts(produtos) {
 
       const actions = document.createElement('div');
       actions.className =
-        'mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between';
+        'mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2';
 
       const detailsBtn = document.createElement('button');
       detailsBtn.type = 'button';
@@ -1109,6 +1132,20 @@ function renderProducts(produtos) {
         '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
       detailsBtn.addEventListener('click', () => openModal(produto));
       actions.appendChild(detailsBtn);
+
+      const cardDriveLink =
+        produto.driveFolderLink || produto.driveLink || produto.linkDrive;
+      if (cardDriveLink) {
+        const driveBtn = document.createElement('a');
+        driveBtn.href = cardDriveLink;
+        driveBtn.target = '_blank';
+        driveBtn.rel = 'noopener noreferrer';
+        driveBtn.className =
+          'inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100';
+        driveBtn.innerHTML =
+          '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta no Drive</span>';
+        actions.appendChild(driveBtn);
+      }
 
       if (canEdit) {
         const editBtn = document.createElement('button');
@@ -1255,6 +1292,7 @@ async function handleSubmit(event) {
   const precoValor = priceInput?.value.trim();
   const categoria = categoryInput?.value.trim();
   const descricao = descriptionInput?.value.trim();
+  const driveFolderLink = driveLinkInput?.value.trim();
   const medidas = measuresInput?.value.trim();
   const arquivos = photosInput?.files ? Array.from(photosInput.files) : [];
   const fotosUrlsBruto = photoUrlsInput?.value.trim();
@@ -1299,6 +1337,7 @@ async function handleSubmit(event) {
       typeof preco === 'number' && !Number.isNaN(preco) ? preco : null,
     categoria: categoria || null,
     descricao: descricao || null,
+    driveFolderLink: driveFolderLink || null,
     medidas: medidas || null,
     variacoesCor,
     updatedAt: serverTimestamp(),
@@ -1400,6 +1439,9 @@ function startEditingProduct(produto) {
         : produto.precoSugerido || '';
   if (categoryInput) categoryInput.value = produto.categoria || '';
   if (descriptionInput) descriptionInput.value = produto.descricao || '';
+  if (driveLinkInput)
+    driveLinkInput.value =
+      produto.driveFolderLink || produto.driveLink || produto.linkDrive || '';
   if (measuresInput) measuresInput.value = produto.medidas || '';
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
