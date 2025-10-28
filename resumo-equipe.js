@@ -328,14 +328,69 @@ function criarChavesDescriptografia(uid, passphrasePadrao) {
   return candidatos.filter(Boolean);
 }
 
-async function calcularFaturamentoDia(uid, dia, passphrasePadrao) {
+async function obterResumoFaturamentoDoc(dadosDoc, candidatos) {
+  if (!dadosDoc) return null;
+  let payload = dadosDoc;
+  if (dadosDoc.encrypted) {
+    const texto = await tentarDescriptografar(dadosDoc.encrypted, candidatos);
+    if (!texto) return null;
+    try {
+      payload = JSON.parse(texto);
+    } catch (err) {
+      console.warn('Não foi possível interpretar resumo de faturamento', err);
+      return null;
+    }
+  }
+  if (!payload || typeof payload !== 'object') return null;
+  const bruto = normalizarNumero(
+    payload.valorBruto ?? payload.bruto ?? payload.totalBruto ?? 0,
+  );
+  const liquido = normalizarNumero(
+    payload.valorLiquido ??
+      payload.liquido ??
+      payload.valor ??
+      payload.totalLiquido ??
+      payload.total ??
+      0,
+  );
+  let unidades = normalizarNumero(
+    payload.vendas ??
+      payload.qtdVendas ??
+      payload.quantidade ??
+      payload.totalVendas ??
+      payload.vendasTotais ??
+      payload.totalUnidades ??
+      0,
+  );
+  if (!unidades && Array.isArray(payload.resumoPorDia)) {
+    unidades = payload.resumoPorDia.reduce(
+      (acc, item) =>
+        acc +
+        normalizarNumero(
+          item?.vendas ??
+            item?.qtdVendas ??
+            item?.quantidade ??
+            item?.total ??
+            0,
+        ),
+      0,
+    );
+  }
+  return { bruto, liquido, unidades };
+}
+
+async function calcularFaturamentoDia(uid, docSnap, passphrasePadrao) {
+  const dia = docSnap?.id;
+  if (!dia) return { bruto: 0, liquido: 0, unidadesResumo: 0 };
   let bruto = 0;
   let liquido = 0;
   const candidatos = criarChavesDescriptografia(uid, passphrasePadrao);
   const lojasSnap = await getDocs(
     collection(db, `uid/${uid}/faturamento/${dia}/lojas`),
   );
+  let possuiLojas = false;
   for (const lojaDoc of lojasSnap.docs) {
+    possuiLojas = true;
     let dados = lojaDoc.data() || {};
     if (dados.encrypted) {
       const texto = await tentarDescriptografar(dados.encrypted, candidatos);
@@ -353,7 +408,22 @@ async function calcularFaturamentoDia(uid, dia, passphrasePadrao) {
     liquido += normalizarNumero(dados.valorLiquido ?? dados.valor);
     bruto += normalizarNumero(dados.valorBruto);
   }
-  return { bruto, liquido };
+
+  if (possuiLojas) {
+    return { bruto, liquido, unidadesResumo: 0 };
+  }
+
+  const docDados = docSnap?.data?.() || null;
+  const resumo = await obterResumoFaturamentoDoc(docDados, candidatos);
+  if (resumo) {
+    return {
+      bruto: resumo.bruto,
+      liquido: resumo.liquido,
+      unidadesResumo: resumo.unidades,
+    };
+  }
+
+  return { bruto: 0, liquido: 0, unidadesResumo: 0 };
 }
 
 async function carregarSkusDia(uid, dia, skuMap, passphrasePadrao) {
@@ -1191,9 +1261,9 @@ async function carregarResumoVendasEquipe(periodo, listaUsuarios) {
 
       for (const docSnap of fatSnap.docs) {
         const dia = docSnap.id;
-        const { bruto, liquido } = await calcularFaturamentoDia(
+        const { bruto, liquido, unidadesResumo } = await calcularFaturamentoDia(
           uid,
-          dia,
+          docSnap,
           passphrase,
         );
         brutoUsuario += bruto;
@@ -1207,8 +1277,9 @@ async function carregarResumoVendasEquipe(periodo, listaUsuarios) {
           skuMap,
           passphrase,
         );
-        unidadesUsuario += resultadoSkus.unidades;
-        totalUnidadesGerais += resultadoSkus.unidades;
+        const unidadesDia = resultadoSkus.unidades || unidadesResumo || 0;
+        unidadesUsuario += unidadesDia;
+        totalUnidadesGerais += unidadesDia;
       }
 
       usuariosResumo.push({
