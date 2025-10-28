@@ -255,43 +255,51 @@ function renderPecas() {
     const endereco = normalizarEndereco(d.endereco);
     const card = document.createElement('article');
     card.className =
-      'space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-6';
+      'space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-6';
 
-    const header = document.createElement('div');
-    header.className =
-      'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between';
+    const detalhes = document.createElement('div');
+    detalhes.className = 'hidden space-y-5 border-t border-slate-200 pt-4';
 
-    const headerInfo = document.createElement('div');
-    headerInfo.className = 'space-y-2';
+    const resumo = document.createElement('div');
+    resumo.className =
+      'flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between';
 
-    const titulo = document.createElement('h3');
-    titulo.className = 'text-base font-semibold text-slate-700';
-    titulo.textContent = d.peca || 'Peça não informada';
-    headerInfo.appendChild(titulo);
+    const infoGrid = document.createElement('div');
+    infoGrid.className =
+      'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:gap-6';
 
-    const chips = document.createElement('div');
-    chips.className = 'flex flex-wrap gap-2 text-xs font-medium text-slate-600';
-    if (d.data) {
-      chips.appendChild(
-        criarChip('fa-regular fa-calendar-days', formatarData(d.data)),
-      );
-    }
-    if (d.numero) {
-      chips.appendChild(
-        criarChip('fa-solid fa-hashtag', `Pedido #${d.numero}`),
-      );
-    }
-    if (d.nf) {
-      chips.appendChild(criarChip('fa-regular fa-file-lines', `NF ${d.nf}`));
-    }
-    if (d.loja) {
-      chips.appendChild(criarChip('fa-solid fa-store', d.loja));
-    }
-    headerInfo.appendChild(chips);
-    header.appendChild(headerInfo);
+    const camposResumo = [
+      { rotulo: 'Cliente', valor: d.nomeCliente || '—' },
+      { rotulo: 'Apelido', valor: d.apelido || '—' },
+      { rotulo: 'Produto', valor: d.peca || '—' },
+      { rotulo: 'Número do Pedido', valor: d.numero || '—' },
+      { rotulo: 'Loja', valor: d.loja || '—' },
+      {
+        rotulo: 'Data',
+        valor: d.data ? formatarData(d.data) : '—',
+      },
+    ];
 
-    const headerActions = document.createElement('div');
-    headerActions.className = 'flex flex-col items-stretch gap-2 sm:items-end';
+    camposResumo.forEach(({ rotulo, valor }) => {
+      const item = document.createElement('div');
+      item.className = 'space-y-1';
+      const chip = document.createElement('span');
+      chip.className =
+        'inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600';
+      chip.textContent = rotulo;
+      const valorTexto = document.createElement('p');
+      valorTexto.className = 'text-sm font-medium text-slate-700';
+      valorTexto.textContent = valor;
+      item.appendChild(chip);
+      item.appendChild(valorTexto);
+      infoGrid.appendChild(item);
+    });
+
+    resumo.appendChild(infoGrid);
+
+    const resumoAcoes = document.createElement('div');
+    resumoAcoes.className =
+      'flex flex-col items-stretch gap-2 sm:flex-row sm:items-center lg:flex-col lg:items-end';
 
     const statusContainer = document.createElement('div');
     statusContainer.className =
@@ -321,7 +329,19 @@ function renderPecas() {
       aplicarCorStatus(statusSelect, novoStatus);
     });
     statusContainer.appendChild(statusSelect);
-    headerActions.appendChild(statusContainer);
+    resumoAcoes.appendChild(statusContainer);
+
+    const verMaisBtn = document.createElement('button');
+    verMaisBtn.type = 'button';
+    verMaisBtn.className =
+      'inline-flex items-center justify-center rounded-xl border border-violet-200 px-3 py-1.5 text-sm font-medium text-violet-600 transition hover:bg-violet-50';
+    verMaisBtn.textContent = 'Ver mais';
+    verMaisBtn.addEventListener('click', () => {
+      const estaOculto = detalhes.classList.contains('hidden');
+      detalhes.classList.toggle('hidden');
+      verMaisBtn.textContent = estaOculto ? 'Ver menos' : 'Ver mais';
+    });
+    resumoAcoes.appendChild(verMaisBtn);
 
     const excluirBtn = document.createElement('button');
     excluirBtn.type = 'button';
@@ -333,10 +353,10 @@ function renderPecas() {
       if (!confirma) return;
       await excluirPeca(d.id);
     });
-    headerActions.appendChild(excluirBtn);
+    resumoAcoes.appendChild(excluirBtn);
 
-    header.appendChild(headerActions);
-    card.appendChild(header);
+    resumo.appendChild(resumoAcoes);
+    card.appendChild(resumo);
 
     const grid = document.createElement('div');
     grid.className = 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3';
@@ -406,7 +426,7 @@ function renderPecas() {
       }),
     );
 
-    card.appendChild(grid);
+    detalhes.appendChild(grid);
 
     const infoField = document.createElement('label');
     infoField.className = 'flex flex-col gap-2 text-sm';
@@ -424,17 +444,17 @@ function renderPecas() {
       await atualizarPeca(d, { informacoes: ev.target.value.trim() });
     });
     infoField.appendChild(infoTextarea);
-    card.appendChild(infoField);
+    detalhes.appendChild(infoField);
 
     const enderecoWrapper = document.createElement('div');
     enderecoWrapper.className = 'space-y-3';
-    const verMaisBtn = document.createElement('button');
-    verMaisBtn.type = 'button';
-    verMaisBtn.className =
+    const enderecoBtn = document.createElement('button');
+    enderecoBtn.type = 'button';
+    enderecoBtn.className =
       'inline-flex items-center gap-2 text-sm font-semibold text-violet-600 transition hover:text-violet-700';
-    verMaisBtn.innerHTML =
+    enderecoBtn.innerHTML =
       '<i class="fa-solid fa-location-dot"></i><span>Ver endereço</span>';
-    const verMaisTexto = verMaisBtn.querySelector('span');
+    const enderecoTexto = enderecoBtn.querySelector('span');
     const enderecoSection = document.createElement('div');
     enderecoSection.className =
       'hidden rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5';
@@ -481,18 +501,20 @@ function renderPecas() {
 
     enderecoSection.appendChild(enderecoGrid);
 
-    verMaisBtn.addEventListener('click', () => {
+    enderecoBtn.addEventListener('click', () => {
       const escondido = enderecoSection.classList.toggle('hidden');
-      if (verMaisTexto) {
-        verMaisTexto.textContent = escondido
+      if (enderecoTexto) {
+        enderecoTexto.textContent = escondido
           ? 'Ver endereço'
           : 'Ocultar endereço';
       }
     });
 
-    enderecoWrapper.appendChild(verMaisBtn);
+    enderecoWrapper.appendChild(enderecoBtn);
     enderecoWrapper.appendChild(enderecoSection);
-    card.appendChild(enderecoWrapper);
+    detalhes.appendChild(enderecoWrapper);
+
+    card.appendChild(detalhes);
 
     container.appendChild(card);
   });
