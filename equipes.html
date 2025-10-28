@@ -854,7 +854,13 @@
               Defina as etapas do dia da equipe em sequência para garantir o alinhamento das atividades e responsáveis.
             </p>
             <div id="scheduleStatus" class="status-message" role="status" aria-live="polite"></div>
-            <form id="scheduleForm">
+            <div class="actions-row" style="justify-content: flex-start;">
+              <button type="button" class="primary-button" id="openScheduleForm" aria-controls="scheduleForm" aria-expanded="false">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                Adicionar novo cronograma
+              </button>
+            </div>
+            <form id="scheduleForm" hidden>
               <div>
                 <label for="scheduleTitle">
                   Etapa ou atividade <span class="required" aria-hidden="true">*</span>
@@ -902,6 +908,9 @@
                 ></textarea>
               </div>
               <div class="actions-row">
+                <button type="button" class="secondary-button" id="cancelScheduleForm">
+                  Cancelar
+                </button>
                 <button type="submit" id="scheduleSubmitBtn">
                   <i class="fas fa-plus" aria-hidden="true"></i>
                   Adicionar etapa ao fluxo
@@ -1041,6 +1050,8 @@
       const scheduleResponsibleSelect = document.getElementById('scheduleResponsible');
       const scheduleFlowContainer = document.getElementById('scheduleFlowContainer');
       const scheduleDateFilter = document.getElementById('scheduleDateFilter');
+      const openScheduleFormBtn = document.getElementById('openScheduleForm');
+      const cancelScheduleFormBtn = document.getElementById('cancelScheduleForm');
 
       const SCHEDULE_STATUS_OPTIONS = [
         { value: 'nao_feito', label: 'Não feito', className: 'status-pending', icon: 'fa-circle' },
@@ -1121,6 +1132,44 @@
         showStatus(taskFormStatus, '');
         if (focusTrigger) {
           openTaskModalBtn?.focus();
+        }
+      }
+
+      function openScheduleForm({ focusField = true } = {}) {
+        if (!scheduleForm) return;
+        scheduleForm.hidden = false;
+        if (openScheduleFormBtn) {
+          openScheduleFormBtn.hidden = true;
+          openScheduleFormBtn.setAttribute('aria-expanded', 'true');
+        }
+        const scheduleDateInput = document.getElementById('scheduleDate');
+        if (scheduleDateInput && !scheduleDateInput.value) {
+          if (scheduleDateFilter?.value) {
+            scheduleDateInput.value = scheduleDateFilter.value;
+          }
+        }
+        if (focusField) {
+          const firstField = scheduleForm.querySelector('input, select, textarea');
+          firstField?.focus();
+        }
+      }
+
+      function closeScheduleForm({ focusTrigger = false, resetForm = false } = {}) {
+        if (!scheduleForm) return;
+        if (resetForm) {
+          scheduleForm.reset();
+          const scheduleDateInput = document.getElementById('scheduleDate');
+          if (scheduleDateInput && scheduleDateFilter?.value) {
+            scheduleDateInput.value = scheduleDateFilter.value;
+          }
+        }
+        scheduleForm.hidden = true;
+        if (openScheduleFormBtn) {
+          openScheduleFormBtn.hidden = false;
+          openScheduleFormBtn.setAttribute('aria-expanded', 'false');
+        }
+        if (focusTrigger) {
+          openScheduleFormBtn?.focus();
         }
       }
 
@@ -1906,6 +1955,23 @@
           closeTaskFormModal({ focusTrigger: true });
         }
       });
+
+      openScheduleFormBtn?.addEventListener('click', () => {
+        openScheduleForm();
+      });
+
+      cancelScheduleFormBtn?.addEventListener('click', () => {
+        closeScheduleForm({ focusTrigger: true, resetForm: true });
+        showStatus(scheduleStatus, '');
+      });
+
+      if (scheduleForm) {
+        if (scheduleForm.hidden === false) {
+          openScheduleForm({ focusField: false });
+        } else {
+          closeScheduleForm();
+        }
+      }
 
       taskForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
