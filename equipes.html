@@ -114,6 +114,44 @@
         gap: 16px;
       }
 
+      .repeat-section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        border: 1px dashed color-mix(in srgb, var(--primary, #4262ff) 35%, transparent);
+        padding: 16px;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--card-bg, #ffffff) 92%, transparent);
+      }
+
+      .repeat-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .repeat-days {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .repeat-days-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 8px;
+      }
+
+      .repeat-days-grid label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+
       .schedule-flow {
         position: relative;
         display: grid;
@@ -899,6 +937,24 @@
                   <option value="" disabled selected>Cadastre a equipe para selecionar um responsável</option>
                 </select>
               </div>
+              <div class="repeat-section">
+                <label for="scheduleRepeatToggle" class="repeat-toggle">
+                  <input type="checkbox" id="scheduleRepeatToggle" name="scheduleRepeatToggle" />
+                  Repetir semanalmente
+                </label>
+                <div id="scheduleRepeatDays" class="repeat-days" hidden>
+                  <span class="text-sm" style="color: var(--text-light, #4b5563);">Selecione os dias da semana em que esta etapa deve se repetir.</span>
+                  <div class="repeat-days-grid">
+                    <label><input type="checkbox" name="scheduleRepeatDays" value="domingo" />Domingo</label>
+                    <label><input type="checkbox" name="scheduleRepeatDays" value="segunda" />Segunda-feira</label>
+                    <label><input type="checkbox" name="scheduleRepeatDays" value="terca" />Terça-feira</label>
+                    <label><input type="checkbox" name="scheduleRepeatDays" value="quarta" />Quarta-feira</label>
+                    <label><input type="checkbox" name="scheduleRepeatDays" value="quinta" />Quinta-feira</label>
+                    <label><input type="checkbox" name="scheduleRepeatDays" value="sexta" />Sexta-feira</label>
+                    <label><input type="checkbox" name="scheduleRepeatDays" value="sabado" />Sábado</label>
+                  </div>
+                </div>
+              </div>
               <div>
                 <label for="scheduleNotes">Detalhes e observações</label>
                 <textarea
@@ -1052,16 +1108,32 @@
       const scheduleDateFilter = document.getElementById('scheduleDateFilter');
       const openScheduleFormBtn = document.getElementById('openScheduleForm');
       const cancelScheduleFormBtn = document.getElementById('cancelScheduleForm');
+      const scheduleRepeatToggle = document.getElementById('scheduleRepeatToggle');
+      const scheduleRepeatDaysContainer = document.getElementById('scheduleRepeatDays');
 
       const SCHEDULE_STATUS_OPTIONS = [
         { value: 'nao_feito', label: 'Não feito', className: 'status-pending', icon: 'fa-circle' },
         { value: 'feito', label: 'Feito', className: 'status-done', icon: 'fa-check' },
         { value: 'problema', label: 'Problema', className: 'status-issue', icon: 'fa-triangle-exclamation' }
       ];
+      const WEEKDAY_OPTIONS = [
+        { value: 'domingo', label: 'Domingo', shortLabel: 'Dom' },
+        { value: 'segunda', label: 'Segunda-feira', shortLabel: 'Seg' },
+        { value: 'terca', label: 'Terça-feira', shortLabel: 'Ter' },
+        { value: 'quarta', label: 'Quarta-feira', shortLabel: 'Qua' },
+        { value: 'quinta', label: 'Quinta-feira', shortLabel: 'Qui' },
+        { value: 'sexta', label: 'Sexta-feira', shortLabel: 'Sex' },
+        { value: 'sabado', label: 'Sábado', shortLabel: 'Sáb' },
+      ];
       const scheduleStatusMap = SCHEDULE_STATUS_OPTIONS.reduce((acc, option) => {
         acc[option.value] = option;
         return acc;
       }, {});
+      const weekdayMap = WEEKDAY_OPTIONS.reduce((acc, option) => {
+        acc[option.value] = option;
+        return acc;
+      }, {});
+      const weekdayIndexToValue = WEEKDAY_OPTIONS.map((option) => option.value);
 
       const updateForm = document.getElementById('updateForm');
       const updateStatus = document.getElementById('updateStatus');
@@ -1135,6 +1207,12 @@
         }
       }
 
+      function updateRepeatDaysVisibility() {
+        if (!scheduleRepeatDaysContainer) return;
+        const isActive = !!scheduleRepeatToggle?.checked;
+        scheduleRepeatDaysContainer.hidden = !isActive;
+      }
+
       function openScheduleForm({ focusField = true } = {}) {
         if (!scheduleForm) return;
         scheduleForm.hidden = false;
@@ -1148,6 +1226,7 @@
             scheduleDateInput.value = scheduleDateFilter.value;
           }
         }
+        updateRepeatDaysVisibility();
         if (focusField) {
           const firstField = scheduleForm.querySelector('input, select, textarea');
           firstField?.focus();
@@ -1162,6 +1241,7 @@
           if (scheduleDateInput && scheduleDateFilter?.value) {
             scheduleDateInput.value = scheduleDateFilter.value;
           }
+          updateRepeatDaysVisibility();
         }
         scheduleForm.hidden = true;
         if (openScheduleFormBtn) {
@@ -1190,6 +1270,14 @@
         } catch (e) {
           return timeString;
         }
+      }
+
+      function parseISODateString(value) {
+        if (!value) return null;
+        const [year, month, day] = value.split('-').map((part) => parseInt(part, 10));
+        if (!year || !month || !day) return null;
+        const date = new Date(year, month - 1, day);
+        return Number.isNaN(date.getTime()) ? null : date;
       }
 
       function resolveOwnerLabel(ownerUid) {
@@ -1487,7 +1575,8 @@
         if (!scheduleFlowContainer) return;
         const owners = Array.from(trackedOwners);
         const targetDate = (scheduleDateFilter?.value || '').trim();
-        if (!owners.length || !targetDate) {
+        const targetDateObj = parseISODateString(targetDate);
+        if (!owners.length || !targetDate || !targetDateObj) {
           scheduleFlowContainer.innerHTML = '<div class="empty-state">Cadastre etapas para ver o fluxo diário da equipe.</div>';
           return;
         }
@@ -1495,7 +1584,23 @@
         const sections = owners
           .map((ownerUid) => {
             const entries = (schedulesByOwner.get(ownerUid) || [])
-              .filter((entry) => entry.scheduledDate === targetDate)
+              .filter((entry) => {
+                if (entry.scheduledDate === targetDate) {
+                  return true;
+                }
+                if (!entry.repeatWeekly || !entry.repeatDays?.length) {
+                  return false;
+                }
+                const entryDate = parseISODateString(entry.scheduledDate);
+                if (entryDate && entryDate > targetDateObj) {
+                  return false;
+                }
+                const weekdayKey = weekdayIndexToValue[targetDateObj.getDay()];
+                if (!weekdayKey) {
+                  return false;
+                }
+                return entry.repeatDays.includes(weekdayKey);
+              })
               .sort((a, b) => {
                 const aTime = `${a.startTime || ''}`;
                 const bTime = `${b.startTime || ''}`;
@@ -1521,6 +1626,11 @@
                 const statusPill = statusInfo
                   ? `<span class="flow-status-pill ${statusInfo.className}"><i class="fas ${statusInfo.icon}" aria-hidden="true"></i>${statusInfo.label}</span>`
                   : '';
+                const repeatTag = entry.repeatWeekly && entry.repeatDays?.length
+                  ? `<div class="tag"><i class="fas fa-arrows-rotate"></i>${entry.repeatDays
+                      .map((day) => weekdayMap[day]?.shortLabel || weekdayMap[day]?.label || day)
+                      .join(', ')}</div>`
+                  : '';
                 const normalizedResponsible = (entry.responsibleEmail || '').toLowerCase();
                 const canUpdateStatus = ownerUid === currentUser?.uid
                   || isManagerForOwner(ownerUid)
@@ -1542,6 +1652,7 @@
                           <h3>${entry.title || 'Etapa'}</h3>
                           <div class="flow-meta">
                             <div class="tag"><i class="fas fa-user"></i>${responsibleLabel}</div>
+                            ${repeatTag}
                             ${statusPill}
                           </div>
                         </div>
@@ -1714,7 +1825,9 @@
                 endTime: data.endTime || '',
                 notes: data.notes || '',
                 responsibleEmail: data.responsibleEmail || '',
-                status: data.status || 'nao_feito'
+                status: data.status || 'nao_feito',
+                repeatWeekly: !!data.repeatWeekly,
+                repeatDays: Array.isArray(data.repeatDays) ? data.repeatDays.map((value) => value.toString()) : [],
               };
             });
             schedulesByOwner.set(ownerUid, entries);
@@ -2049,9 +2162,16 @@
         const endTime = (formData.get('scheduleEnd') || '').toString();
         const responsible = (formData.get('scheduleResponsible') || '').toString();
         const notes = (formData.get('scheduleNotes') || '').toString();
+        const repeatWeekly = formData.has('scheduleRepeatToggle');
+        const repeatDays = repeatWeekly ? formData.getAll('scheduleRepeatDays').map((value) => value.toString()) : [];
 
         if (!title || !scheduledDate || !startTime || !responsible) {
           showStatus(scheduleStatus, 'Preencha os campos obrigatórios da etapa.', 'error');
+          return;
+        }
+
+        if (repeatWeekly && !repeatDays.length) {
+          showStatus(scheduleStatus, 'Selecione pelo menos um dia da semana para a repetição.', 'error');
           return;
         }
 
@@ -2070,6 +2190,8 @@
             ownerEmail: currentUser.email || null,
             createdBy: currentUser.email || currentUser.uid,
             createdAt: serverTimestamp(),
+            repeatWeekly: repeatWeekly && repeatDays.length > 0,
+            repeatDays: repeatDays,
           });
           scheduleForm.reset();
           const scheduleDateInput = document.getElementById('scheduleDate');
@@ -2079,6 +2201,7 @@
           if (scheduleDateFilter && scheduleDateFilter.value !== scheduledDate) {
             scheduleDateFilter.value = scheduledDate;
           }
+          updateRepeatDaysVisibility();
           renderSchedule();
           showStatus(scheduleStatus, 'Etapa adicionada ao cronograma!');
         } catch (error) {
@@ -2143,6 +2266,15 @@
         renderSchedule();
       });
 
+      scheduleRepeatToggle?.addEventListener('change', () => {
+        updateRepeatDaysVisibility();
+        if (!scheduleRepeatToggle.checked && scheduleRepeatDaysContainer) {
+          scheduleRepeatDaysContainer.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+            input.checked = false;
+          });
+        }
+      });
+
       updateForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (!db || !currentUser) return;
@@ -2196,6 +2328,7 @@
       });
 
       initializeAuth();
+      updateRepeatDaysVisibility();
       renderSchedule();
     </script>
   </body>
