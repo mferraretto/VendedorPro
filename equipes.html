@@ -189,6 +189,14 @@
         margin-top: 12px;
       }
 
+      .task-video {
+        margin-top: 8px;
+      }
+
+      .task-video-button {
+        text-decoration: none;
+      }
+
       .schedule-flow::before {
         content: '';
         position: absolute;
@@ -960,6 +968,18 @@
                     ></textarea>
                   </div>
                   <div>
+                    <label for="taskVideoUrl">Vídeo passo a passo</label>
+                    <input
+                      id="taskVideoUrl"
+                      name="taskVideoUrl"
+                      type="url"
+                      inputmode="url"
+                      placeholder="https://..."
+                      pattern="https?://.+"
+                    />
+                    <p class="form-hint">Opcional: compartilhe um link de vídeo para orientar a equipe.</p>
+                  </div>
+                  <div>
                     <label for="taskResponsible">
                       Responsáveis <span class="required" aria-hidden="true">*</span>
                     </label>
@@ -1609,6 +1629,11 @@
                 const tips = task.tips
                   ? `<div><strong>Dicas:</strong> ${task.tips.replace(/\n/g, '<br>')}</div>`
                   : '';
+                const normalizedVideoUrl = typeof task.videoUrl === 'string' ? task.videoUrl.trim() : '';
+                const hasVideo = /^https?:\/\//i.test(normalizedVideoUrl);
+                const videoBlock = hasVideo
+                  ? `<div class="task-video"><a class="flow-video-button task-video-button" href="${normalizedVideoUrl}" target="_blank" rel="noopener noreferrer"><i class="fas fa-circle-play" aria-hidden="true"></i> Assistir passo a passo</a></div>`
+                  : '';
                 const responsibleEmails = normalizeEmailList(task.responsibleEmails, task.responsibleEmail);
                 const responsibleTags = responsibleEmails.length
                   ? responsibleEmails
@@ -1650,6 +1675,7 @@
                       <div><strong>Horário:</strong> ${formatTime(task.dueTime)}</div>
                       ${tips}
                       ${material}
+                      ${videoBlock}
                     </div>
                     ${statusControls}
                     <div class="card-footer">
@@ -1970,6 +1996,7 @@
                 status: data.status || 'aberta',
                 tips: data.tips || '',
                 supportMaterial: data.supportMaterial || '',
+                videoUrl: data.videoUrl || '',
                 responsibleEmails: Array.isArray(data.responsibleEmails)
                   ? normalizeEmailList(data.responsibleEmails)
                   : normalizeEmailList(data.responsibleEmail),
@@ -2287,6 +2314,7 @@
         const priority = (formData.get('taskPriority') || '').toString();
         const tips = (formData.get('taskTips') || '').toString();
         const support = (formData.get('taskSupport') || '').toString();
+        const videoUrl = (formData.get('taskVideoUrl') || '').toString().trim();
         const responsibles = formData
           .getAll('taskResponsible')
           .map((value) => (value || '').toString().trim())
@@ -2307,6 +2335,7 @@
             status: 'aberta',
             tips,
             supportMaterial: support,
+            videoUrl: videoUrl || null,
             responsibleEmails: responsibles,
             responsibleEmail: responsibles[0] || '',
             ownerUid: currentUser.uid,
