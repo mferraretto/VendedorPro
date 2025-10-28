@@ -111,8 +111,13 @@
                 class="hidden flex-col gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-yellow-800 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p class="text-sm font-semibold">Editando produto do catálogo</p>
-                  <p id="catalogEditingName" class="text-xs text-yellow-700"></p>
+                  <p class="text-sm font-semibold">
+                    Editando produto do catálogo
+                  </p>
+                  <p
+                    id="catalogEditingName"
+                    class="text-xs text-yellow-700"
+                  ></p>
                 </div>
                 <button
                   type="button"
@@ -222,7 +227,8 @@
                     placeholder="https://drive.google.com/..."
                   />
                   <p class="mt-1 text-xs text-gray-500">
-                    Informe o link da pasta com as fotos e vídeos do produto no Google Drive.
+                    Informe o link da pasta com as fotos e vídeos do produto no
+                    Google Drive.
                   </p>
                 </div>
                 <div class="flex flex-col">
@@ -259,7 +265,7 @@
                   <label
                     for="catalogProductPhotoUrls"
                     class="text-sm font-medium text-gray-700"
-                  >URLs das fotos</label
+                    >URLs das fotos</label
                   >
                   <textarea
                     id="catalogProductPhotoUrls"
@@ -268,11 +274,14 @@
                     placeholder="Cole uma URL por linha (ex.: https://exemplo.com/imagem.jpg)"
                   ></textarea>
                   <p class="mt-1 text-xs text-gray-500">
-                    Utilize esta opção caso prefira referenciar imagens hospedadas externamente.
+                    Utilize esta opção caso prefira referenciar imagens
+                    hospedadas externamente.
                   </p>
                 </div>
                 <div class="space-y-3">
-                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div
+                    class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                  >
                     <label class="text-sm font-medium text-gray-700"
                       >Variações de cor</label
                     >
@@ -286,7 +295,8 @@
                     </button>
                   </div>
                   <p class="text-xs text-gray-500">
-                    Informe o nome da cor e a URL da foto específica de cada variação.
+                    Informe o nome da cor e a URL da foto específica de cada
+                    variação.
                   </p>
                   <div id="catalogColorVariations" class="space-y-3"></div>
                 </div>
@@ -342,13 +352,29 @@
             </div>
           </div>
           <div class="card-body">
+            <div class="mb-4">
+              <label for="catalogSearchInput" class="sr-only"
+                >Buscar no catálogo</label
+              >
+              <div class="relative">
+                <span
+                  class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400"
+                >
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                </span>
+                <input
+                  id="catalogSearchInput"
+                  type="search"
+                  placeholder="Buscar por nome ou SKU"
+                  autocomplete="off"
+                  class="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
             <div
               class="mb-4 flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <p
-                id="catalogKitSelectionInfo"
-                class="text-sm text-gray-600"
-              >
+              <p id="catalogKitSelectionInfo" class="text-sm text-gray-600">
                 Selecione os produtos para montar um kit e calcule os valores
                 totais.
               </p>
@@ -491,19 +517,13 @@
                 <p class="text-xs font-semibold uppercase text-gray-500">
                   Variações de cor
                 </p>
-                <div
-                  id="catalogDetailsVariacoes"
-                  class="mt-3 space-y-2"
-                ></div>
+                <div id="catalogDetailsVariacoes" class="mt-3 space-y-2"></div>
               </div>
               <div>
                 <p class="text-xs font-semibold uppercase text-gray-500">
                   Pasta de mídia
                 </p>
-                <div
-                  id="catalogDetailsDriveLinkSection"
-                  class="mt-3 hidden"
-                >
+                <div id="catalogDetailsDriveLinkSection" class="mt-3 hidden">
                   <a
                     id="catalogDetailsDriveLink"
                     href="#"
