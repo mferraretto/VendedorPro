@@ -39,6 +39,8 @@ const totalEl = document.getElementById('catalogTotal');
 const todayEl = document.getElementById('catalogToday');
 const managerEl = document.getElementById('catalogManager');
 const cardsContainer = document.getElementById('catalogCards');
+const listContainer = document.getElementById('catalogList');
+const listBody = document.getElementById('catalogListBody');
 const emptyStateEl = document.getElementById('catalogEmptyState');
 const searchInput = document.getElementById('catalogSearchInput');
 const addItemBtn = document.getElementById('catalogAddItemBtn');
@@ -67,6 +69,8 @@ const modalDriveLinkEmpty = document.getElementById(
 const copyTitleBtn = document.getElementById('catalogCopyTitleBtn');
 const copyDescriptionBtn = document.getElementById('catalogCopyDescriptionBtn');
 const downloadImagesBtn = document.getElementById('catalogDownloadImagesBtn');
+const viewCardBtn = document.getElementById('catalogViewCard');
+const viewListBtn = document.getElementById('catalogViewList');
 
 const nameInput = document.getElementById('catalogProductName');
 const skuInput = document.getElementById('catalogProductSku');
@@ -110,6 +114,7 @@ let currentModalProduct = null;
 let isDownloadingImages = false;
 const downloadImagesBtnDefaultContent = downloadImagesBtn?.innerHTML || '';
 let allProducts = [];
+let currentViewMode = 'card';
 let currentSearchTerm = '';
 
 function normalizePerfil(perfil) {
@@ -233,6 +238,15 @@ function getProductPrice(produto) {
 
 function setCardSelectedState(card, selected) {
   if (!card) return;
+  if (card.dataset.viewType === 'list') {
+    const listClasses = ['bg-indigo-50'];
+    if (selected) {
+      card.classList.add(...listClasses);
+    } else {
+      card.classList.remove(...listClasses);
+    }
+    return;
+  }
   const classes = ['ring-2', 'ring-indigo-300', 'border-indigo-400'];
   if (selected) {
     card.classList.add(...classes);
@@ -892,6 +906,25 @@ async function exportCatalogToPdf() {
     format: 'a4',
   });
 
+  try {
+    if (currentViewMode === 'list') {
+      await generateListPdf(doc, grupos);
+    } else {
+      await generateCardPdf(doc, grupos);
+    }
+    const nomeArquivo = `catalogo_produtos_${new Date()
+      .toISOString()
+      .slice(0, 10)}.pdf`;
+    doc.save(nomeArquivo);
+  } catch (error) {
+    console.error('Erro ao gerar PDF do catálogo:', error);
+    showToast('Não foi possível gerar o PDF do catálogo.', 'error');
+  } finally {
+    updateExportButtons(productCache.size > 0);
+  }
+}
+
+async function generateCardPdf(doc, grupos) {
   const margem = 15;
   const espacamentoEntreCartoes = 8;
   const colunas = 2;
@@ -919,143 +952,515 @@ async function exportCatalogToPdf() {
     posicaoYAtual += alturaCabecalho + 2;
   };
 
-  try {
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Catálogo de Produtos', margem, posicaoYAtual);
-    posicaoYAtual += 10;
-    doc.setFont('helvetica', 'normal');
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Catálogo de Produtos', margem, posicaoYAtual);
+  posicaoYAtual += 10;
+  doc.setFont('helvetica', 'normal');
 
-    for (const grupo of grupos) {
-      const categoriaTitulo = grupo.categoria || 'Sem categoria';
-      adicionarCabecalhoCategoria(categoriaTitulo);
+  for (const grupo of grupos) {
+    const categoriaTitulo = grupo.categoria || 'Sem categoria';
+    adicionarCabecalhoCategoria(categoriaTitulo);
 
-      const produtosPreparados = await Promise.all(
-        grupo.produtos.map(async (produto) => {
-          const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
-          const primeiraFoto = fotos.find((foto) => foto?.url)?.url;
-          const imagemDataUrl = await carregarImagemComoDataUrl(primeiraFoto);
-          return { produto, imagemDataUrl };
-        }),
-      );
+    const produtosPreparados = await Promise.all(
+      grupo.produtos.map(async (produto) => {
+        const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
+        const primeiraFoto = fotos.find((foto) => foto?.url)?.url;
+        const imagemDataUrl = await carregarImagemComoDataUrl(primeiraFoto);
+        return { produto, imagemDataUrl };
+      }),
+    );
 
-      let colunaAtual = 0;
-      let yLinhaAtual = posicaoYAtual;
+    let colunaAtual = 0;
+    let yLinhaAtual = posicaoYAtual;
 
-      for (const { produto, imagemDataUrl } of produtosPreparados) {
-        if (colunaAtual === 0) {
-          yLinhaAtual = posicaoYAtual;
-          if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
-            doc.addPage();
-            posicaoYAtual = margem;
-            adicionarCabecalhoCategoria(categoriaTitulo);
-            yLinhaAtual = posicaoYAtual;
-          }
-        } else if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
+    for (const { produto, imagemDataUrl } of produtosPreparados) {
+      if (colunaAtual === 0) {
+        yLinhaAtual = posicaoYAtual;
+        if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
           doc.addPage();
           posicaoYAtual = margem;
           adicionarCabecalhoCategoria(categoriaTitulo);
           yLinhaAtual = posicaoYAtual;
-          colunaAtual = 0;
         }
+      } else if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
+        doc.addPage();
+        posicaoYAtual = margem;
+        adicionarCabecalhoCategoria(categoriaTitulo);
+        yLinhaAtual = posicaoYAtual;
+        colunaAtual = 0;
+      }
 
-        const posicaoX =
-          margem + colunaAtual * (larguraCartao + espacamentoEntreCartoes);
+      const posicaoX =
+        margem + colunaAtual * (larguraCartao + espacamentoEntreCartoes);
 
-        doc.setDrawColor(200);
-        doc.setLineWidth(0.2);
-        doc.roundedRect(
-          posicaoX,
-          yLinhaAtual,
-          larguraCartao,
-          alturaCartao,
-          3,
-          3,
-        );
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(posicaoX, yLinhaAtual, larguraCartao, alturaCartao, 3, 3);
 
-        if (imagemDataUrl) {
-          try {
-            doc.addImage(
-              imagemDataUrl,
-              undefined,
-              posicaoX + paddingCartao,
-              yLinhaAtual + paddingCartao,
-              larguraImagem,
-              alturaImagem,
-            );
-          } catch (erro) {
-            console.warn('Não foi possível adicionar imagem ao PDF:', erro);
-          }
-        }
-
-        let textoY = yLinhaAtual + paddingCartao + alturaImagem + 5;
-        const textoX = posicaoX + paddingCartao;
-
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(produto.nome || 'Produto sem nome', textoX, textoY, {
-          maxWidth: larguraCartao - paddingCartao * 2,
-        });
-        textoY += 6;
-
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`SKU: ${produto.sku || '--'}`, textoX, textoY);
-        textoY += 5;
-
-        doc.text(
-          `Categoria: ${produto.categoria || 'Sem categoria'}`,
-          textoX,
-          textoY,
-          {
-            maxWidth: larguraCartao - paddingCartao * 2,
-          },
-        );
-        textoY += 5;
-
-        doc.text(
-          `Custo: ${formatCurrencyForExport(produto.custo)}`,
-          textoX,
-          textoY,
-        );
-        textoY += 5;
-
-        doc.text(
-          `Venda: ${formatCurrencyForExport(
-            produto.precoSugerido ?? produto.preco ?? produto.valorVenda,
-          )}`,
-          textoX,
-          textoY,
-        );
-
-        colunaAtual += 1;
-        if (colunaAtual >= colunas) {
-          colunaAtual = 0;
-          posicaoYAtual = yLinhaAtual + alturaCartao + espacamentoEntreCartoes;
+      if (imagemDataUrl) {
+        try {
+          doc.addImage(
+            imagemDataUrl,
+            undefined,
+            posicaoX + paddingCartao,
+            yLinhaAtual + paddingCartao,
+            larguraImagem,
+            alturaImagem,
+          );
+        } catch (erro) {
+          console.warn('Não foi possível adicionar imagem ao PDF:', erro);
         }
       }
 
-      if (colunaAtual > 0) {
+      let textoY = yLinhaAtual + paddingCartao + alturaImagem + 5;
+      const textoX = posicaoX + paddingCartao;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(produto.nome || 'Produto sem nome', textoX, textoY, {
+        maxWidth: larguraCartao - paddingCartao * 2,
+      });
+      textoY += 6;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`SKU: ${produto.sku || '--'}`, textoX, textoY);
+      textoY += 5;
+
+      doc.text(
+        `Categoria: ${produto.categoria || 'Sem categoria'}`,
+        textoX,
+        textoY,
+        {
+          maxWidth: larguraCartao - paddingCartao * 2,
+        },
+      );
+      textoY += 5;
+
+      doc.text(
+        `Custo: ${formatCurrencyForExport(getProductCost(produto))}`,
+        textoX,
+        textoY,
+      );
+      textoY += 5;
+
+      doc.text(
+        `Venda: ${formatCurrencyForExport(getProductPrice(produto))}`,
+        textoX,
+        textoY,
+      );
+
+      colunaAtual += 1;
+      if (colunaAtual >= colunas) {
+        colunaAtual = 0;
         posicaoYAtual = yLinhaAtual + alturaCartao + espacamentoEntreCartoes;
       }
-
-      posicaoYAtual += 4;
     }
 
-    const nomeArquivo = `catalogo_produtos_${new Date()
-      .toISOString()
-      .slice(0, 10)}.pdf`;
-    doc.save(nomeArquivo);
-  } catch (error) {
-    console.error('Erro ao gerar PDF do catálogo:', error);
-    showToast('Não foi possível gerar o PDF do catálogo.', 'error');
-  } finally {
-    updateExportButtons(productCache.size > 0);
+    if (colunaAtual > 0) {
+      posicaoYAtual = yLinhaAtual + alturaCartao + espacamentoEntreCartoes;
+    }
+
+    posicaoYAtual += 4;
   }
 }
 
+function generateListPdf(doc, grupos) {
+  const margem = 15;
+  const larguraPagina = doc.internal.pageSize.getWidth();
+  const alturaPagina = doc.internal.pageSize.getHeight();
+  const larguraUtil = larguraPagina - margem * 2;
+  const lineHeight = 5;
+
+  const colSkuWidth = 25;
+  const colCategoriaWidth = 35;
+  const colCustoWidth = 20;
+  const colVendaWidth = 20;
+  const colProdutoWidth =
+    larguraUtil -
+    (colSkuWidth + colCategoriaWidth + colCustoWidth + colVendaWidth);
+
+  const columns = [
+    { label: 'SKU', width: colSkuWidth, align: 'left' },
+    { label: 'Produto', width: colProdutoWidth, align: 'left' },
+    { label: 'Categoria', width: colCategoriaWidth, align: 'left' },
+    { label: 'Custo', width: colCustoWidth, align: 'right' },
+    { label: 'Venda', width: colVendaWidth, align: 'right' },
+  ];
+
+  const columnPositions = [];
+  let position = margem;
+  columns.forEach((col) => {
+    columnPositions.push(position);
+    position += col.width;
+  });
+
+  let y = margem;
+
+  const initializePage = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Catálogo de Produtos - Lista', margem, y);
+    y += 10;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+  };
+
+  const startNewPage = () => {
+    doc.addPage();
+    y = margem;
+    initializePage();
+  };
+
+  const drawTableHeader = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    const headerY = y + lineHeight;
+    columns.forEach((col, index) => {
+      const baseX = columnPositions[index];
+      if (col.align === 'right') {
+        doc.text(col.label, baseX + col.width - 1, headerY, { align: 'right' });
+      } else {
+        doc.text(col.label, baseX, headerY);
+      }
+    });
+    y += lineHeight + 2;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+  };
+
+  initializePage();
+
+  for (const grupo of grupos) {
+    const categoriaTitulo = grupo.categoria || 'Sem categoria';
+    if (y + lineHeight * 2 > alturaPagina - margem) {
+      startNewPage();
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(categoriaTitulo, margem, y);
+    y += lineHeight + 1;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    if (y + lineHeight * 2 > alturaPagina - margem) {
+      startNewPage();
+    }
+    drawTableHeader();
+
+    for (const produto of grupo.produtos) {
+      const variacoes = Array.isArray(produto.variacoesCor)
+        ? produto.variacoesCor.filter((item) => item && item.cor)
+        : [];
+      let nomeTexto = produto.nome || 'Produto sem nome';
+      if (variacoes.length) {
+        nomeTexto = `${nomeTexto}\nCores: ${variacoes
+          .map((item) => item.cor)
+          .join(', ')}`;
+      }
+      const nomeLinhas = doc.splitTextToSize(nomeTexto, columns[1].width - 2);
+      const categoriaLinhas = doc.splitTextToSize(
+        produto.categoria || 'Sem categoria',
+        columns[2].width - 2,
+      );
+
+      const linhasNecessarias = Math.max(
+        nomeLinhas.length,
+        categoriaLinhas.length,
+        1,
+      );
+      const alturaLinha = linhasNecessarias * lineHeight + 2;
+
+      if (y + alturaLinha > alturaPagina - margem) {
+        startNewPage();
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(categoriaTitulo, margem, y);
+        y += lineHeight + 1;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        drawTableHeader();
+      }
+
+      const baseY = y + lineHeight;
+
+      doc.text(produto.sku || '--', columnPositions[0], baseY);
+      nomeLinhas.forEach((linha, indice) => {
+        doc.text(linha, columnPositions[1], baseY + lineHeight * indice);
+      });
+      categoriaLinhas.forEach((linha, indice) => {
+        doc.text(linha, columnPositions[2], baseY + lineHeight * indice);
+      });
+
+      const custoTexto = formatCurrencyForExport(getProductCost(produto));
+      const vendaTexto = formatCurrencyForExport(getProductPrice(produto));
+
+      doc.text(custoTexto, columnPositions[3] + columns[3].width - 1, baseY, {
+        align: 'right',
+      });
+      doc.text(vendaTexto, columnPositions[4] + columns[4].width - 1, baseY, {
+        align: 'right',
+      });
+
+      y += alturaLinha;
+    }
+
+    y += lineHeight;
+  }
+}
+
+function renderCardView(displayItems) {
+  if (!cardsContainer) return;
+  displayItems.forEach((produto) => {
+    if (!produto) return;
+    const card = document.createElement('div');
+    card.className =
+      'flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md';
+    card.dataset.productId = produto.id || '';
+    card.dataset.viewType = 'card';
+
+    const media = document.createElement('div');
+    media.className = 'relative h-40 w-full bg-gray-100';
+    const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
+    const primeiraFoto = fotos.find((foto) => foto?.url);
+    if (primeiraFoto) {
+      const img = document.createElement('img');
+      img.src = primeiraFoto.url;
+      img.alt = produto.nome || primeiraFoto.nome || 'Produto';
+      img.className = 'h-full w-full object-cover';
+      media.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className =
+        'flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-100 text-gray-400';
+      placeholder.innerHTML = '<i class="fa-solid fa-image text-4xl"></i>';
+      media.appendChild(placeholder);
+    }
+
+    const selectionWrapper = document.createElement('label');
+    selectionWrapper.className =
+      'catalog-select-toggle absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-gray-700 shadow-sm';
+    selectionWrapper.title = 'Selecionar produto';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className =
+      'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+    checkbox.checked = selectedProducts.has(produto.id);
+    checkbox.addEventListener('change', (event) => {
+      handleProductSelection(produto.id, event.target.checked);
+      setCardSelectedState(card, selectedProducts.has(produto.id));
+    });
+    const checkboxLabel = document.createElement('span');
+    checkboxLabel.textContent = 'Selecionar';
+    selectionWrapper.append(checkbox, checkboxLabel);
+    media.appendChild(selectionWrapper);
+    card.appendChild(media);
+
+    const body = document.createElement('div');
+    body.className = 'flex flex-1 flex-col px-4 py-4';
+
+    const skuLabel = document.createElement('p');
+    skuLabel.className =
+      'text-xs font-semibold uppercase tracking-wide text-gray-500';
+    skuLabel.textContent = 'SKU';
+
+    const skuValue = document.createElement('p');
+    skuValue.className = 'text-sm font-semibold text-gray-900';
+    skuValue.textContent = produto.sku || '--';
+
+    const nameEl = document.createElement('h3');
+    nameEl.className = 'mt-2 text-lg font-semibold text-gray-900';
+    nameEl.textContent = produto.nome || 'Produto sem nome';
+
+    const categoryEl = document.createElement('p');
+    categoryEl.className = 'mt-1 text-sm text-gray-500';
+    categoryEl.textContent = produto.categoria || 'Sem categoria';
+
+    body.appendChild(skuLabel);
+    body.appendChild(skuValue);
+    body.appendChild(nameEl);
+    body.appendChild(categoryEl);
+
+    const variacoes = Array.isArray(produto.variacoesCor)
+      ? produto.variacoesCor.filter((item) => item && item.cor)
+      : [];
+    if (variacoes.length) {
+      const variacoesEl = document.createElement('p');
+      variacoesEl.className = 'mt-2 text-xs text-gray-500';
+      variacoesEl.textContent = `Cores: ${variacoes
+        .map((item) => item.cor)
+        .join(', ')}`;
+      body.appendChild(variacoesEl);
+    }
+
+    const actions = document.createElement('div');
+    actions.className =
+      'mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2';
+
+    const detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.className =
+      'inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700';
+    detailsBtn.innerHTML =
+      '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
+    detailsBtn.addEventListener('click', () => openModal(produto));
+    actions.appendChild(detailsBtn);
+
+    const cardDriveLink =
+      produto.driveFolderLink || produto.driveLink || produto.linkDrive;
+    if (cardDriveLink) {
+      const driveBtn = document.createElement('a');
+      driveBtn.href = cardDriveLink;
+      driveBtn.target = '_blank';
+      driveBtn.rel = 'noopener noreferrer';
+      driveBtn.className =
+        'inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100';
+      driveBtn.innerHTML =
+        '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta no Drive</span>';
+      actions.appendChild(driveBtn);
+    }
+
+    if (canEdit) {
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className =
+        'inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700';
+      editBtn.innerHTML =
+        '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
+      editBtn.addEventListener('click', () => startEditingProduct(produto));
+      actions.appendChild(editBtn);
+    }
+
+    body.appendChild(actions);
+    card.appendChild(body);
+
+    setCardSelectedState(card, selectedProducts.has(produto.id));
+    cardsContainer?.appendChild(card);
+  });
+}
+
+function renderListView(displayItems) {
+  if (!listBody) return;
+  listBody.innerHTML = '';
+  displayItems.forEach((produto) => {
+    if (!produto) return;
+    const row = document.createElement('tr');
+    row.className = 'transition-colors hover:bg-gray-50';
+    row.dataset.productId = produto.id || '';
+    row.dataset.viewType = 'list';
+
+    const selectionCell = document.createElement('td');
+    selectionCell.className = 'px-3 py-3 text-center';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className =
+      'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+    checkbox.checked = selectedProducts.has(produto.id);
+    checkbox.addEventListener('change', (event) => {
+      handleProductSelection(produto.id, event.target.checked);
+      setCardSelectedState(row, selectedProducts.has(produto.id));
+    });
+    selectionCell.appendChild(checkbox);
+    row.appendChild(selectionCell);
+
+    const skuCell = document.createElement('td');
+    skuCell.className = 'px-3 py-3 font-semibold text-gray-900';
+    skuCell.textContent = produto.sku || '--';
+    row.appendChild(skuCell);
+
+    const nameCell = document.createElement('td');
+    nameCell.className = 'px-3 py-3';
+    const nameWrapper = document.createElement('div');
+    nameWrapper.className = 'flex flex-col';
+    const nameTitle = document.createElement('span');
+    nameTitle.className = 'font-semibold text-gray-900';
+    nameTitle.textContent = produto.nome || 'Produto sem nome';
+    nameWrapper.appendChild(nameTitle);
+    const variacoes = Array.isArray(produto.variacoesCor)
+      ? produto.variacoesCor.filter((item) => item && item.cor)
+      : [];
+    if (variacoes.length) {
+      const variacoesInfo = document.createElement('span');
+      variacoesInfo.className = 'text-xs text-gray-500';
+      variacoesInfo.textContent = `Cores: ${variacoes
+        .map((item) => item.cor)
+        .join(', ')}`;
+      nameWrapper.appendChild(variacoesInfo);
+    }
+    nameCell.appendChild(nameWrapper);
+    row.appendChild(nameCell);
+
+    const categoriaCell = document.createElement('td');
+    categoriaCell.className = 'px-3 py-3 text-gray-600';
+    categoriaCell.textContent = produto.categoria || 'Sem categoria';
+    row.appendChild(categoriaCell);
+
+    const custoCell = document.createElement('td');
+    custoCell.className = 'px-3 py-3 text-right font-medium text-gray-900';
+    custoCell.textContent = formatCurrency(getProductCost(produto));
+    row.appendChild(custoCell);
+
+    const vendaCell = document.createElement('td');
+    vendaCell.className = 'px-3 py-3 text-right font-medium text-gray-900';
+    vendaCell.textContent = formatCurrency(getProductPrice(produto));
+    row.appendChild(vendaCell);
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'px-3 py-3';
+    const actionsWrapper = document.createElement('div');
+    actionsWrapper.className =
+      'flex flex-wrap items-center gap-2 text-sm font-semibold';
+
+    const detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.className =
+      'inline-flex items-center gap-1 text-red-600 hover:text-red-700';
+    detailsBtn.innerHTML =
+      '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
+    detailsBtn.addEventListener('click', () => openModal(produto));
+    actionsWrapper.appendChild(detailsBtn);
+
+    const listDriveLink =
+      produto.driveFolderLink || produto.driveLink || produto.linkDrive;
+    if (listDriveLink) {
+      const driveBtn = document.createElement('a');
+      driveBtn.href = listDriveLink;
+      driveBtn.target = '_blank';
+      driveBtn.rel = 'noopener noreferrer';
+      driveBtn.className =
+        'inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-1 text-green-700 hover:bg-green-100';
+      driveBtn.innerHTML =
+        '<i class="fa-solid fa-folder-open"></i><span>Drive</span>';
+      actionsWrapper.appendChild(driveBtn);
+    }
+
+    if (canEdit) {
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className =
+        'inline-flex items-center gap-1 text-blue-600 hover:text-blue-700';
+      editBtn.innerHTML =
+        '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
+      editBtn.addEventListener('click', () => startEditingProduct(produto));
+      actionsWrapper.appendChild(editBtn);
+    }
+
+    actionsCell.appendChild(actionsWrapper);
+    row.appendChild(actionsCell);
+
+    setCardSelectedState(row, selectedProducts.has(produto.id));
+    listBody.appendChild(row);
+  });
+}
+
 function renderProducts(produtos, fullCollection = produtos) {
-  if (cardsContainer) cardsContainer.innerHTML = '';
+  if (cardsContainer) {
+    cardsContainer.innerHTML = '';
+  }
+  if (currentViewMode !== 'list' && listBody) {
+    listBody.innerHTML = '';
+  }
 
   const displayItems = Array.isArray(produtos) ? [...produtos] : [];
   const collection = Array.isArray(fullCollection) ? [...fullCollection] : [];
@@ -1079,8 +1484,18 @@ function renderProducts(produtos, fullCollection = produtos) {
   const isSearching =
     typeof currentSearchTerm === 'string' &&
     currentSearchTerm.trim().length > 0;
+  const hasItemsToDisplay = displayItems.length > 0;
 
-  if (!displayItems.length) {
+  if (cardsContainer) {
+    const shouldShowCards = currentViewMode === 'card' && hasItemsToDisplay;
+    cardsContainer.classList.toggle('hidden', !shouldShowCards);
+  }
+  if (listContainer) {
+    const shouldShowList = currentViewMode === 'list' && hasItemsToDisplay;
+    listContainer.classList.toggle('hidden', !shouldShowList);
+  }
+
+  if (!hasItemsToDisplay) {
     if (emptyStateEl) {
       if (isSearching && hasProducts) {
         emptyStateEl.textContent = 'Nenhum produto encontrado para a busca.';
@@ -1094,134 +1509,47 @@ function renderProducts(produtos, fullCollection = produtos) {
       emptyStateEl.innerHTML = defaultEmptyStateMessage;
       emptyStateEl.classList.add('hidden');
     }
-    displayItems.forEach((produto) => {
-      if (!produto) return;
-      const card = document.createElement('div');
-      card.className =
-        'flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md';
-      card.dataset.productId = produto.id || '';
-
-      const media = document.createElement('div');
-      media.className = 'relative h-40 w-full bg-gray-100';
-      const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
-      const primeiraFoto = fotos.find((foto) => foto?.url);
-      if (primeiraFoto) {
-        const img = document.createElement('img');
-        img.src = primeiraFoto.url;
-        img.alt = produto.nome || primeiraFoto.nome || 'Produto';
-        img.className = 'h-full w-full object-cover';
-        media.appendChild(img);
-      } else {
-        const placeholder = document.createElement('div');
-        placeholder.className =
-          'flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-100 text-gray-400';
-        placeholder.innerHTML = '<i class="fa-solid fa-image text-4xl"></i>';
-        media.appendChild(placeholder);
-      }
-
-      const selectionWrapper = document.createElement('label');
-      selectionWrapper.className =
-        'absolute left-2 top-2 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-gray-700 shadow';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.className =
-        'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
-      checkbox.checked = selectedProducts.has(produto.id);
-      checkbox.addEventListener('change', (event) => {
-        handleProductSelection(produto.id, event.target.checked);
-        setCardSelectedState(card, selectedProducts.has(produto.id));
-      });
-      const checkboxLabel = document.createElement('span');
-      checkboxLabel.textContent = 'Selecionar';
-      selectionWrapper.append(checkbox, checkboxLabel);
-      media.appendChild(selectionWrapper);
-      card.appendChild(media);
-
-      const body = document.createElement('div');
-      body.className = 'flex flex-1 flex-col px-4 py-4';
-
-      const skuLabel = document.createElement('p');
-      skuLabel.className =
-        'text-xs font-semibold uppercase tracking-wide text-gray-500';
-      skuLabel.textContent = 'SKU';
-
-      const skuValue = document.createElement('p');
-      skuValue.className = 'text-sm font-semibold text-gray-900';
-      skuValue.textContent = produto.sku || '--';
-
-      const nameEl = document.createElement('h3');
-      nameEl.className = 'mt-2 text-lg font-semibold text-gray-900';
-      nameEl.textContent = produto.nome || 'Produto sem nome';
-
-      const categoryEl = document.createElement('p');
-      categoryEl.className = 'mt-1 text-sm text-gray-500';
-      categoryEl.textContent = produto.categoria || 'Sem categoria';
-
-      body.appendChild(skuLabel);
-      body.appendChild(skuValue);
-      body.appendChild(nameEl);
-      body.appendChild(categoryEl);
-
-      const variacoes = Array.isArray(produto.variacoesCor)
-        ? produto.variacoesCor.filter((item) => item && item.cor)
-        : [];
-      if (variacoes.length) {
-        const variacoesEl = document.createElement('p');
-        variacoesEl.className = 'mt-2 text-xs text-gray-500';
-        variacoesEl.textContent = `Cores: ${variacoes
-          .map((item) => item.cor)
-          .join(', ')}`;
-        body.appendChild(variacoesEl);
-      }
-
-      const actions = document.createElement('div');
-      actions.className =
-        'mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2';
-
-      const detailsBtn = document.createElement('button');
-      detailsBtn.type = 'button';
-      detailsBtn.className =
-        'inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700';
-      detailsBtn.innerHTML =
-        '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
-      detailsBtn.addEventListener('click', () => openModal(produto));
-      actions.appendChild(detailsBtn);
-
-      const cardDriveLink =
-        produto.driveFolderLink || produto.driveLink || produto.linkDrive;
-      if (cardDriveLink) {
-        const driveBtn = document.createElement('a');
-        driveBtn.href = cardDriveLink;
-        driveBtn.target = '_blank';
-        driveBtn.rel = 'noopener noreferrer';
-        driveBtn.className =
-          'inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100';
-        driveBtn.innerHTML =
-          '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta no Drive</span>';
-        actions.appendChild(driveBtn);
-      }
-
-      if (canEdit) {
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className =
-          'inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700';
-        editBtn.innerHTML =
-          '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
-        editBtn.addEventListener('click', () => startEditingProduct(produto));
-        actions.appendChild(editBtn);
-      }
-
-      body.appendChild(actions);
-      card.appendChild(body);
-
-      setCardSelectedState(card, selectedProducts.has(produto.id));
-      cardsContainer?.appendChild(card);
-    });
+    if (currentViewMode === 'list') {
+      renderListView(displayItems);
+    } else {
+      renderCardView(displayItems);
+    }
   }
 
   updateSummary(collection);
   updateExportButtons(hasProducts);
+}
+
+function updateViewToggleState() {
+  if (viewCardBtn) {
+    const isCard = currentViewMode === 'card';
+    viewCardBtn.classList.toggle('bg-indigo-600', isCard);
+    viewCardBtn.classList.toggle('text-white', isCard);
+    viewCardBtn.classList.toggle('shadow-sm', isCard);
+    viewCardBtn.classList.toggle('bg-white', !isCard);
+    viewCardBtn.classList.toggle('text-gray-700', !isCard);
+    viewCardBtn.setAttribute('aria-pressed', isCard ? 'true' : 'false');
+  }
+  if (viewListBtn) {
+    const isList = currentViewMode === 'list';
+    viewListBtn.classList.toggle('bg-indigo-600', isList);
+    viewListBtn.classList.toggle('text-white', isList);
+    viewListBtn.classList.toggle('shadow-sm', isList);
+    viewListBtn.classList.toggle('bg-white', !isList);
+    viewListBtn.classList.toggle('text-gray-700', !isList);
+    viewListBtn.setAttribute('aria-pressed', isList ? 'true' : 'false');
+  }
+}
+
+function setViewMode(mode) {
+  if (mode !== 'card' && mode !== 'list') return;
+  if (currentViewMode === mode) {
+    updateViewToggleState();
+    return;
+  }
+  currentViewMode = mode;
+  updateViewToggleState();
+  refreshCatalogView();
 }
 
 function subscribeToCatalog(uid) {
@@ -1563,8 +1891,11 @@ function setupEventListeners() {
     });
   });
   downloadImagesBtn?.addEventListener('click', downloadProductImages);
+  viewCardBtn?.addEventListener('click', () => setViewMode('card'));
+  viewListBtn?.addEventListener('click', () => setViewMode('list'));
 }
 
+updateViewToggleState();
 setupEventListeners();
 updateKitControlsState();
 updateExportButtons(false);
