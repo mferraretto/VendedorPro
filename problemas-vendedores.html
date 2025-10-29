@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Problemas Vendedores</title>
+    <script src="https://cdn.tailwindcss.com/3.3.5"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
+    <link rel="stylesheet" href="css/tabs-mobile.css?v=20240826" />
+  </head>
+  <body class="min-h-screen bg-slate-50 text-slate-700">
+    <div class="app-container">
+      <div id="sidebar-container"></div>
+      <div id="navbar-container"></div>
+      <main class="main-content px-4 sm:px-6 lg:px-8 py-6">
+        <div class="max-w-7xl mx-auto space-y-6">
+          <header class="space-y-2">
+            <h1 class="text-2xl font-semibold text-slate-800">
+              Problemas Vendedores
+            </h1>
+            <p class="text-sm text-slate-500">
+              Consulte e atualize os reembolsos e peças faltantes dos mentorados
+              que indicaram você como responsável de pós-vendas.
+            </p>
+          </header>
+
+          <section class="card">
+            <div class="card-body grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div class="space-y-1">
+                <p class="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Mentorados vinculados
+                </p>
+                <p id="resumoMentorados" class="text-xl font-semibold text-slate-800">
+                  Carregando...
+                </p>
+              </div>
+              <div class="space-y-1 md:col-span-2">
+                <label
+                  for="filtroUsuario"
+                  class="block text-xs font-semibold uppercase tracking-wide text-slate-500"
+                  >Filtrar mentorado</label
+                >
+                <select id="filtroUsuario" class="form-control">
+                  <option value="">Todos os mentorados</option>
+                </select>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Situação do carregamento
+                </p>
+                <span
+                  id="statusGlobal"
+                  class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+                >
+                  <i class="fa-solid fa-circle-notch fa-spin"></i>
+                  Preparando dados...
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <nav
+            class="border-b border-slate-200 flex space-x-6 text-sm font-medium"
+          >
+            <button
+              class="tab-btn pb-2 -mb-px border-b-2 border-violet-600 text-violet-600"
+              data-tab="tab-pecas"
+            >
+              Peças faltantes
+            </button>
+            <button
+              class="tab-btn pb-2 -mb-px border-b-2 border-transparent text-slate-500"
+              data-tab="tab-reembolsos"
+            >
+              Reembolsos
+            </button>
+          </nav>
+
+          <section id="tab-pecas" class="tab-panel space-y-6">
+            <div
+              class="card"
+            >
+              <div
+                class="card-body grid gap-4 md:grid-cols-2 lg:grid-cols-5 items-end"
+              >
+                <div class="space-y-1">
+                  <label
+                    for="pecasInicio"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Data inicial</label
+                  >
+                  <input type="date" id="pecasInicio" class="form-control" />
+                </div>
+                <div class="space-y-1">
+                  <label
+                    for="pecasFim"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Data final</label
+                  >
+                  <input type="date" id="pecasFim" class="form-control" />
+                </div>
+                <div class="space-y-1">
+                  <label
+                    for="pecasStatus"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Status</label
+                  >
+                  <select id="pecasStatus" class="form-control">
+                    <option value="">Todos</option>
+                    <option value="NÃO FEITO">Não feito</option>
+                    <option value="EM ANDAMENTO">Em andamento</option>
+                    <option value="RESOLVIDO">Resolvido</option>
+                  </select>
+                </div>
+                <div class="space-y-1 md:col-span-2">
+                  <label
+                    for="pecasBusca"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Buscar</label
+                  >
+                  <input
+                    type="search"
+                    id="pecasBusca"
+                    class="form-control"
+                    placeholder="Filtre por cliente, apelido, loja ou endereço"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              id="pecasStatusMsg"
+              class="hidden rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
+            ></div>
+
+            <div id="pecasListContainer" class="space-y-4"></div>
+            <div
+              id="pecasEmptyState"
+              class="hidden rounded-2xl border border-dashed border-slate-200 bg-white/60 p-6 text-center text-sm text-slate-500"
+            >
+              Nenhum registro encontrado com os filtros atuais.
+            </div>
+          </section>
+
+          <section id="tab-reembolsos" class="tab-panel hidden space-y-6">
+            <div class="card">
+              <div class="card-body grid gap-4 md:grid-cols-2 lg:grid-cols-5 items-end">
+                <div class="space-y-1">
+                  <label
+                    for="reembolsosInicio"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Data inicial</label
+                  >
+                  <input type="date" id="reembolsosInicio" class="form-control" />
+                </div>
+                <div class="space-y-1">
+                  <label
+                    for="reembolsosFim"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Data final</label
+                  >
+                  <input type="date" id="reembolsosFim" class="form-control" />
+                </div>
+                <div class="space-y-1">
+                  <label
+                    for="reembolsosStatus"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Status</label
+                  >
+                  <select id="reembolsosStatus" class="form-control">
+                    <option value="">Todos</option>
+                    <option value="AGUARDANDO PIX">Aguardando PIX</option>
+                    <option value="AGUARDANDO MERCADO">Aguardando Mercado</option>
+                    <option value="AGUARDANDO">Aguardando</option>
+                    <option value="FEITO">Feito</option>
+                    <option value="FEITO PIX">Feito PIX</option>
+                    <option value="FEITO MERCADO">Feito Mercado</option>
+                    <option value="CANCELADO">Cancelado</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label
+                    for="reembolsosBusca"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Buscar</label
+                  >
+                  <input
+                    type="search"
+                    id="reembolsosBusca"
+                    class="form-control"
+                    placeholder="Filtre por apelido, loja ou número"
+                  />
+                </div>
+                <div class="space-y-1">
+                  <label
+                    for="reembolsosBuscaPix"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >Buscar PIX</label
+                  >
+                  <input
+                    type="search"
+                    id="reembolsosBuscaPix"
+                    class="form-control"
+                    placeholder="Filtre por chave PIX"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              id="reembolsosStatusMsg"
+              class="hidden rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
+            ></div>
+
+            <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow">
+              <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3 text-left">Mentorado</th>
+                    <th class="px-4 py-3 text-left">Data</th>
+                    <th class="px-4 py-3 text-left">Número</th>
+                    <th class="px-4 py-3 text-left">Loja</th>
+                    <th class="px-4 py-3 text-left">Apelido</th>
+                    <th class="px-4 py-3 text-left">Problema</th>
+                    <th class="px-4 py-3 text-left">NF</th>
+                    <th class="px-4 py-3 text-left">PIX</th>
+                    <th class="px-4 py-3 text-right">Valor</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="reembolsosTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+              <div
+                id="reembolsosEmptyState"
+                class="hidden px-6 py-8 text-center text-sm text-slate-500"
+              >
+                Nenhum reembolso encontrado para os filtros atuais.
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+      <script type="module" src="firebase-config.js"></script>
+      <script type="module" src="problemas-vendedores.js"></script>
+      <script>
+        window.CUSTOM_SIDEBAR_PATH = '/partials/sidebar.html';
+      </script>
+      <script src="shared.js"></script>
+    </div>
+  </body>
+</html>
