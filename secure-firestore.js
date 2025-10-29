@@ -125,15 +125,47 @@ export async function loadSecureDocFromSnap(docSnap, passphrase) {
 }
 
 // Helpers enforcing the standard `uid/<uid>/collection` pattern
-export async function setDocWithCopy(ref, data, uid, responsavelUid) {
+export async function setDocWithCopy(
+  ref,
+  data,
+  uid,
+  responsavelUid,
+  extraOptions = {},
+) {
   await setDoc(ref, data);
-  const respUid =
-    responsavelUid ||
-    (typeof window !== 'undefined' && window.responsavelFinanceiro?.uid);
-  if (respUid && respUid !== uid) {
-    const segments = ref.path.split('/');
-    const relative = segments.slice(2).join('/');
-    const copyRef = doc(ref.firestore, `uid/${respUid}/uid/${uid}/${relative}`);
+  if (!uid) return;
+
+  const recipientUids = new Set();
+
+  if (responsavelUid) recipientUids.add(responsavelUid);
+
+  if (extraOptions) {
+    if (Array.isArray(extraOptions.extraUids)) {
+      extraOptions.extraUids.forEach((id) => id && recipientUids.add(id));
+    }
+    if (extraOptions.posVendasUid) {
+      recipientUids.add(extraOptions.posVendasUid);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const financeiroUid = window.responsavelFinanceiro?.uid;
+    if (financeiroUid) recipientUids.add(financeiroUid);
+    const posVendasUid = window.responsavelPosVendas?.uid;
+    if (posVendasUid) recipientUids.add(posVendasUid);
+  }
+
+  recipientUids.delete(uid);
+  if (!recipientUids.size) return;
+
+  const segments = ref.path.split('/');
+  const relative = segments.slice(2).join('/');
+
+  for (const recipientUid of recipientUids) {
+    const copyRef = doc(
+      ref.firestore,
+      `uid/${recipientUid}/uid/${uid}/${relative}`,
+    );
     await setDoc(copyRef, data);
   }
 }
@@ -146,6 +178,7 @@ export async function saveUserDoc(
   data,
   passphrase,
   responsavelUid,
+  extraOptions = {},
 ) {
   await saveSecureDoc(
     db,
@@ -154,13 +187,35 @@ export async function saveUserDoc(
     { ...data, uid },
     passphrase,
   );
-  const respUid =
-    responsavelUid ||
-    (typeof window !== 'undefined' && window.responsavelFinanceiro?.uid);
-  if (respUid && respUid !== uid) {
+  if (!uid) return;
+
+  const recipientUids = new Set();
+
+  if (responsavelUid) recipientUids.add(responsavelUid);
+
+  if (extraOptions) {
+    if (Array.isArray(extraOptions.extraUids)) {
+      extraOptions.extraUids.forEach((id) => id && recipientUids.add(id));
+    }
+    if (extraOptions.posVendasUid) {
+      recipientUids.add(extraOptions.posVendasUid);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const financeiroUid = window.responsavelFinanceiro?.uid;
+    if (financeiroUid) recipientUids.add(financeiroUid);
+    const posVendasUid = window.responsavelPosVendas?.uid;
+    if (posVendasUid) recipientUids.add(posVendasUid);
+  }
+
+  recipientUids.delete(uid);
+  if (!recipientUids.size) return;
+
+  for (const recipientUid of recipientUids) {
     await saveSecureDoc(
       db,
-      `uid/${respUid}/uid/${uid}/${collection}`,
+      `uid/${recipientUid}/uid/${uid}/${collection}`,
       id,
       { ...data, uid },
       passphrase,
