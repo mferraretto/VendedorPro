@@ -8,6 +8,9 @@ import {
   doc,
   getDocs,
   deleteDoc,
+  query,
+  where,
+  getDoc,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getAuth,
@@ -15,6 +18,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
 import { setDocWithCopy } from './secure-firestore.js';
+import { loadUserProfile } from './login.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -26,6 +30,51 @@ let pecasFiltradas = [];
 let pecasColRef = null;
 let reembolsosCache = [];
 let reembolsosColRef = null;
+let responsavelPosVendasUid = null;
+
+async function carregarResponsavelPosVendas(uid) {
+  responsavelPosVendasUid = null;
+  if (typeof window !== 'undefined') {
+    window.responsavelPosVendas = null;
+  }
+  if (!uid) return;
+  try {
+    const profile = await loadUserProfile(uid);
+    let posEmail =
+      profile?.responsavelPosVendasEmail ||
+      profile?.perfilMentorado?.responsavelPosVendasEmail ||
+      null;
+
+    if (!posEmail) {
+      try {
+        const auxSnap = await getDoc(doc(db, 'uid', uid));
+        if (auxSnap.exists()) {
+          const auxData = auxSnap.data();
+          posEmail = auxData?.responsavelPosVendasEmail || posEmail;
+        }
+      } catch (auxErr) {
+        console.error('Erro ao buscar dados auxiliares do usuário:', auxErr);
+      }
+    }
+
+    if (!posEmail) return;
+
+    const posQuery = query(
+      collection(db, 'usuarios'),
+      where('email', '==', posEmail),
+    );
+    const posDocs = await getDocs(posQuery);
+    if (posDocs.empty) return;
+
+    const docSnap = posDocs.docs[0];
+    responsavelPosVendasUid = docSnap.id;
+    if (typeof window !== 'undefined') {
+      window.responsavelPosVendas = { uid: docSnap.id, ...docSnap.data() };
+    }
+  } catch (err) {
+    console.error('Erro ao carregar responsável pós-vendas do usuário:', err);
+  }
+}
 
 const REEMBOLSO_STATUS_OPCOES = [
   { valor: 'AGUARDANDO PIX', texto: 'Aguardando PIX' },
@@ -37,12 +86,13 @@ const REEMBOLSO_STATUS_OPCOES = [
   { valor: 'CANCELADO', texto: 'Cancelado' },
 ];
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = 'index.html?login=1';
     return;
   }
   uidAtual = user.uid;
+  await carregarResponsavelPosVendas(uidAtual);
   const dataInput = document.getElementById('data');
   if (dataInput) dataInput.value = new Date().toISOString().split('T')[0];
   const dataRInput = document.getElementById('dataR');
@@ -170,7 +220,9 @@ async function salvarPeca(ev) {
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'pecasfaltando');
   const colRef = collection(baseDoc, 'itens');
   const ref = doc(colRef);
-  await setDocWithCopy(ref, registro, uidAtual);
+  await setDocWithCopy(ref, registro, uidAtual, undefined, {
+    posVendasUid: responsavelPosVendasUid,
+  });
   form.reset();
   const dataInput = document.getElementById('data');
   if (dataInput) dataInput.value = new Date().toISOString().split('T')[0];
@@ -589,7 +641,9 @@ async function salvarReembolso(ev) {
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'reembolsos');
   const colRef = collection(baseDoc, 'itens');
   const ref = doc(colRef);
-  await setDocWithCopy(ref, registro, uidAtual);
+  await setDocWithCopy(ref, registro, uidAtual, undefined, {
+    posVendasUid: responsavelPosVendasUid,
+  });
   form.reset();
   const dataRInput = document.getElementById('dataR');
   if (dataRInput) dataRInput.value = new Date().toISOString().split('T')[0];
@@ -1026,7 +1080,9 @@ async function atualizarPeca(dado, atualizacoes) {
   const ref = doc(pecasColRef, dado.id);
   const atualizado = { ...dado, ...atualizacoes };
   const { id, ...payload } = atualizado;
-  await setDocWithCopy(ref, payload, uidAtual);
+  await setDocWithCopy(ref, payload, uidAtual, undefined, {
+    posVendasUid: responsavelPosVendasUid,
+  });
   Object.assign(dado, atualizacoes);
   const original = pecasCache.find((item) => item.id === dado.id);
   if (original) Object.assign(original, atualizacoes);
@@ -1037,7 +1093,9 @@ async function atualizarReembolso(dado, atualizacoes) {
   const ref = doc(reembolsosColRef, dado.id);
   const atualizado = { ...dado, ...atualizacoes };
   const { id, ...payload } = atualizado;
-  await setDocWithCopy(ref, payload, uidAtual);
+  await setDocWithCopy(ref, payload, uidAtual, undefined, {
+    posVendasUid: responsavelPosVendasUid,
+  });
   Object.assign(dado, atualizacoes);
   const original = reembolsosCache.find((item) => item.id === dado.id);
   if (original) Object.assign(original, atualizacoes);
@@ -1068,6 +1126,7 @@ async function deleteDocWithCopy(ref) {
     if (financeiroUid) destinatarios.add(financeiroUid);
     if (posVendasUid) destinatarios.add(posVendasUid);
   }
+  if (responsavelPosVendasUid) destinatarios.add(responsavelPosVendasUid);
 
   destinatarios.delete(uidAtual);
   if (!destinatarios.size) return;
