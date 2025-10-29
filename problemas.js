@@ -14,7 +14,7 @@ import {
   onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
-import { setDocWithCopy, getObserverUids } from './secure-firestore.js';
+import { setDocWithCopy } from './secure-firestore.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -1061,19 +1061,17 @@ async function excluirReembolso(id) {
 
 async function deleteDocWithCopy(ref) {
   await deleteDoc(ref);
-  const observers = getObserverUids(uidAtual);
-  if (!observers.length) return;
-  const segmentos = ref.path.split('/');
-  const relativo = segmentos.slice(2).join('/');
-  await Promise.all(
-    observers.map((targetUid) => {
-      const copiaRef = doc(
-        ref.firestore,
-        `uid/${targetUid}/uid/${uidAtual}/${relativo}`,
-      );
-      return deleteDoc(copiaRef).catch(() => {});
-    }),
-  );
+  const responsavelUid =
+    typeof window !== 'undefined' && window.responsavelFinanceiro?.uid;
+  if (responsavelUid && responsavelUid !== uidAtual) {
+    const segmentos = ref.path.split('/');
+    const relativo = segmentos.slice(2).join('/');
+    const copiaRef = doc(
+      ref.firestore,
+      `uid/${responsavelUid}/uid/${uidAtual}/${relativo}`,
+    );
+    await deleteDoc(copiaRef);
+  }
 }
 
 // Tabs
