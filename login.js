@@ -170,6 +170,7 @@ let navbarMeetingsCombinedDocs = [];
 let navbarMeetingsTimer = null;
 window.isFinanceiroResponsavel = false;
 window.responsavelFinanceiro = null;
+window.responsavelPosVendas = null;
 
 window.savePassphrase = () => {
   const input = document.getElementById('passphraseInput');
@@ -315,9 +316,11 @@ async function showUserArea(user) {
   }
 
   let perfilFallback = '';
+  let uidDocData = null;
   try {
     const uidSnap = await getDoc(doc(db, 'uid', user.uid));
     const uidData = uidSnap.data();
+    uidDocData = uidData || null;
     if (nameEl && uidData?.nome) {
       nameEl.textContent = uidData.nome;
     }
@@ -388,9 +391,11 @@ async function showUserArea(user) {
     try {
       let respEmail = profile?.responsavelFinanceiroEmail;
       if (!respEmail) {
-        const altDoc = await getDoc(doc(db, 'uid', user.uid));
-        if (altDoc.exists())
-          respEmail = altDoc.data().responsavelFinanceiroEmail;
+        if (!uidDocData) {
+          const altDoc = await getDoc(doc(db, 'uid', user.uid));
+          uidDocData = altDoc.exists() ? altDoc.data() : null;
+        }
+        respEmail = uidDocData?.responsavelFinanceiroEmail;
       }
       if (respEmail) {
         const respQuery = query(
@@ -407,13 +412,43 @@ async function showUserArea(user) {
       console.error('Erro ao localizar responsável financeiro do usuário:', e);
     }
 
+    try {
+      let posEmail = profile?.responsavelPosVendasEmail;
+      if (!posEmail) {
+        if (!uidDocData) {
+          const altDoc = await getDoc(doc(db, 'uid', user.uid));
+          uidDocData = altDoc.exists() ? altDoc.data() : null;
+        }
+        posEmail = uidDocData?.responsavelPosVendasEmail;
+      }
+      if (posEmail) {
+        const posQuery = query(
+          collection(db, 'usuarios'),
+          where('email', '==', posEmail),
+        );
+        const posDocs = await getDocs(posQuery);
+        if (!posDocs.empty) {
+          const d = posDocs.docs[0];
+          window.responsavelPosVendas = { uid: d.id, ...d.data() };
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao localizar responsável pós-vendas do usuário:', e);
+    }
+
     // 4) verifica se usuário é responsável financeiro e garante acesso às sobras
     try {
       const respUsuarios = await fetchResponsavelFinanceiroUsuarios(
         db,
         user.email,
       );
-      window.isFinanceiroResponsavel = respUsuarios.length > 0;
+      const meuEmail = (user.email || '').toLowerCase();
+      const possuiFinanceiro = respUsuarios.some((item) =>
+        Array.isArray(item.vinculos)
+          ? item.vinculos.includes('financeiro')
+          : (item.responsavelFinanceiroEmail || '').toLowerCase() === meuEmail,
+      );
+      window.isFinanceiroResponsavel = possuiFinanceiro;
       ensureFinanceiroMenu();
     } catch (e) {
       console.error('Erro ao verificar responsável financeiro:', e);

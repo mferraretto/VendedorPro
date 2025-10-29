@@ -10,6 +10,26 @@ function buildRef(db, collectionPath, id) {
   return doc(db, ...segments, id);
 }
 
+function collectObserverUids(ownerUid, explicitUid) {
+  const observers = new Set();
+  if (explicitUid && explicitUid !== ownerUid) observers.add(explicitUid);
+  if (typeof window !== 'undefined') {
+    const financeiroUid = window.responsavelFinanceiro?.uid;
+    if (financeiroUid && financeiroUid !== ownerUid) {
+      observers.add(financeiroUid);
+    }
+    const posVendasUid = window.responsavelPosVendas?.uid;
+    if (posVendasUid && posVendasUid !== ownerUid) {
+      observers.add(posVendasUid);
+    }
+  }
+  return Array.from(observers);
+}
+
+export function getObserverUids(ownerUid, explicitUid) {
+  return collectObserverUids(ownerUid, explicitUid);
+}
+
 export async function saveSecureDoc(db, collectionName, id, data, passphrase) {
   // Store the UID outside the encrypted payload so we can query by owner
   const { uid, ...rest } = data || {};
@@ -127,15 +147,19 @@ export async function loadSecureDocFromSnap(docSnap, passphrase) {
 // Helpers enforcing the standard `uid/<uid>/collection` pattern
 export async function setDocWithCopy(ref, data, uid, responsavelUid) {
   await setDoc(ref, data);
-  const respUid =
-    responsavelUid ||
-    (typeof window !== 'undefined' && window.responsavelFinanceiro?.uid);
-  if (respUid && respUid !== uid) {
-    const segments = ref.path.split('/');
-    const relative = segments.slice(2).join('/');
-    const copyRef = doc(ref.firestore, `uid/${respUid}/uid/${uid}/${relative}`);
-    await setDoc(copyRef, data);
-  }
+  const observers = collectObserverUids(uid, responsavelUid);
+  if (!observers.length) return;
+  const segments = ref.path.split('/');
+  const relative = segments.slice(2).join('/');
+  await Promise.all(
+    observers.map((targetUid) => {
+      const copyRef = doc(
+        ref.firestore,
+        `uid/${targetUid}/uid/${uid}/${relative}`,
+      );
+      return setDoc(copyRef, data);
+    }),
+  );
 }
 
 export async function saveUserDoc(
@@ -154,18 +178,18 @@ export async function saveUserDoc(
     { ...data, uid },
     passphrase,
   );
-  const respUid =
-    responsavelUid ||
-    (typeof window !== 'undefined' && window.responsavelFinanceiro?.uid);
-  if (respUid && respUid !== uid) {
-    await saveSecureDoc(
-      db,
-      `uid/${respUid}/uid/${uid}/${collection}`,
-      id,
-      { ...data, uid },
-      passphrase,
-    );
-  }
+  const observers = collectObserverUids(uid, responsavelUid);
+  await Promise.all(
+    observers.map((targetUid) =>
+      saveSecureDoc(
+        db,
+        `uid/${targetUid}/uid/${uid}/${collection}`,
+        id,
+        { ...data, uid },
+        passphrase,
+      ),
+    ),
+  );
 }
 
 export async function loadUserDoc(db, uid, collection, id, passphrase) {

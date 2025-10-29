@@ -8,31 +8,69 @@ import {
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 
 export async function fetchResponsavelFinanceiroUsuarios(db, email) {
-  const [snapUsuarios, snapUid] = await Promise.all([
-    getDocs(
-      query(
-        collection(db, 'usuarios'),
-        where('responsavelFinanceiroEmail', '==', email),
+  const [snapUsuarios, snapUid, snapPosUsuarios, snapPosUid] =
+    await Promise.all([
+      getDocs(
+        query(
+          collection(db, 'usuarios'),
+          where('responsavelFinanceiroEmail', '==', email),
+        ),
       ),
-    ),
-    getDocs(
-      query(
-        collection(db, 'uid'),
-        where('responsavelFinanceiroEmail', '==', email),
+      getDocs(
+        query(
+          collection(db, 'uid'),
+          where('responsavelFinanceiroEmail', '==', email),
+        ),
       ),
-    ),
-  ]);
-  const vistos = new Set();
+      getDocs(
+        query(
+          collection(db, 'usuarios'),
+          where('responsavelPosVendasEmail', '==', email),
+        ),
+      ),
+      getDocs(
+        query(
+          collection(db, 'uid'),
+          where('responsavelPosVendasEmail', '==', email),
+        ),
+      ),
+    ]);
+
+  const agregados = new Map();
+  const anexar = (snap, motivo) => {
+    snap?.forEach((docSnap) => {
+      const id = docSnap.id;
+      const dados = docSnap.data() || {};
+      const existente = agregados.get(id) || {
+        dados: {},
+        vinculos: new Set(),
+      };
+      existente.dados = { ...existente.dados, ...dados };
+      existente.vinculos.add(motivo);
+      agregados.set(id, existente);
+    });
+  };
+
+  anexar(snapUsuarios, 'financeiro');
+  anexar(snapUid, 'financeiro');
+  anexar(snapPosUsuarios, 'posvendas');
+  anexar(snapPosUid, 'posvendas');
+
   const usuarios = [];
-  const docs = [...snapUsuarios.docs, ...snapUid.docs];
-  for (const d of docs) {
-    if (vistos.has(d.id)) continue;
-    vistos.add(d.id);
-    const dados = d.data();
+  for (const [id, entry] of agregados.entries()) {
+    let dados = entry.dados || {};
+    if (!dados.email || !dados.nome) {
+      try {
+        const usuarioDoc = await getDoc(doc(db, 'usuarios', id));
+        if (usuarioDoc.exists()) {
+          dados = { ...usuarioDoc.data(), ...dados };
+        }
+      } catch (_) {}
+    }
     let nome = dados.nome;
     if (!nome) {
       try {
-        const perfilDoc = await getDoc(doc(db, 'perfilMentorado', d.id));
+        const perfilDoc = await getDoc(doc(db, 'perfilMentorado', id));
         if (perfilDoc.exists()) nome = perfilDoc.data().nome;
       } catch (_) {}
     }
@@ -44,14 +82,17 @@ export async function fetchResponsavelFinanceiroUsuarios(db, email) {
       (Array.isArray(dados.gestoresExpedicaoEmails)
         ? dados.gestoresExpedicaoEmails[0]
         : null);
+    const responsavelPosVendasEmail = dados.responsavelPosVendasEmail || null;
     usuarios.push({
-      uid: d.id,
-      nome: nome || emailUser || d.id,
+      uid: id,
+      nome: nome || emailUser || id,
       email: emailUser,
       cargo,
       perfil: dados.perfil || '',
       responsavelFinanceiroEmail,
       responsavelExpedicaoEmail,
+      responsavelPosVendasEmail,
+      vinculos: Array.from(entry.vinculos),
     });
   }
   return usuarios;
@@ -84,11 +125,34 @@ export async function carregarUsuariosFinanceiros(db, user) {
     : '';
   const perfil = normalizePerfil(rawPerfil);
   const extras = await fetchResponsavelFinanceiroUsuarios(db, user.email);
-  const isResponsavelFinanceiro = extras.length > 0 || perfil === 'gestor';
+  const extrasFinanceiro = extras.filter((item) =>
+    Array.isArray(item.vinculos)
+      ? item.vinculos.includes('financeiro')
+      : (item.responsavelFinanceiroEmail || '').toLowerCase() ===
+        (user.email || '').toLowerCase(),
+  );
+  const extrasPosVendas = extras.filter((item) =>
+    Array.isArray(item.vinculos)
+      ? item.vinculos.includes('posvendas')
+      : (item.responsavelPosVendasEmail || '').toLowerCase() ===
+        (user.email || '').toLowerCase(),
+  );
+  const isResponsavelFinanceiro =
+    extrasFinanceiro.length > 0 || perfil === 'gestor';
+  const isResponsavelPosVendas =
+    extrasPosVendas.length > 0 || perfil === 'posvendas';
   const isGestor = perfil === 'gestor';
   const usuarios = [
     { uid: user.uid, nome: user.displayName || user.email, email: user.email },
     ...extras,
   ];
-  return { usuarios, isGestor, isResponsavelFinanceiro, perfil };
+  return {
+    usuarios,
+    isGestor,
+    isResponsavelFinanceiro,
+    perfil,
+    isResponsavelPosVendas,
+    extrasFinanceiro,
+    extrasPosVendas,
+  };
 }
