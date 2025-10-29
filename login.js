@@ -140,6 +140,7 @@ const POSVENDAS_ALLOWED_MENU_IDS = [
   'menu-painel-atualizacoes-gerais',
   'menu-acompanhamento-diario',
   'menu-expedicao',
+  'menu-problemas-vendedores',
   'menu-acompanhamento-problemas',
   'menu-acompanhamento',
   'menu-catalogo',
