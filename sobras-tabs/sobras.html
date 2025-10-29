@@ -3,19 +3,49 @@
     <i class="fas fa-exclamation-circle"></i>
     <h3>Pedidos com Sobra</h3>
   </div>
+  <div class="p-4 border-b border-gray-200 bg-gray-50">
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <label class="flex flex-col gap-1 text-sm font-medium text-gray-600">
+        Data Inicial
+        <input type="date" id="filtroSobrasDataInicio" class="border border-gray-300 rounded px-2 py-1 text-gray-700" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm font-medium text-gray-600">
+        Data Final
+        <input type="date" id="filtroSobrasDataFim" class="border border-gray-300 rounded px-2 py-1 text-gray-700" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm font-medium text-gray-600">
+        Usuário
+        <select id="filtroSobrasUsuario" class="border border-gray-300 rounded px-2 py-1 text-gray-700">
+          <option value="todos">Todos</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm font-medium text-gray-600">
+        Loja
+        <select id="filtroSobrasLoja" class="border border-gray-300 rounded px-2 py-1 text-gray-700">
+          <option value="todos">Todas</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm font-medium text-gray-600 md:col-span-2 lg:col-span-4">
+        SKU
+        <select id="filtroSobrasSku" class="border border-gray-300 rounded px-2 py-1 text-gray-700">
+          <option value="todos">Todos</option>
+        </select>
+      </label>
+    </div>
+  </div>
   <div class="overflow-x-auto">
     <table class="data-table min-w-full text-sm text-left">
       <thead>
         <tr>
-          <th class="py-2 px-4">Usuário</th>
-          <th class="py-2 px-4">Dia</th>
-          <th class="py-2 px-4">Loja</th>
-          <th class="py-2 px-4">ID Pedido</th>
-          <th class="py-2 px-4">SKU</th>
-          <th class="py-2 px-4">Quantidade</th>
-          <th class="py-2 px-4">Subtotal</th>
-          <th class="py-2 px-4">Sobra Real</th>
-          <th class="py-2 px-4">Sobra Esperada</th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="usuario">Usuário <span data-sobras-indicador="usuario" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="dia">Dia <span data-sobras-indicador="dia" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="loja">Loja <span data-sobras-indicador="loja" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="pedido">ID Pedido <span data-sobras-indicador="pedido" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="sku">SKU <span data-sobras-indicador="sku" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="quantidade">Quantidade <span data-sobras-indicador="quantidade" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="subtotal">Subtotal <span data-sobras-indicador="subtotal" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="sobraReal">Sobra Real <span data-sobras-indicador="sobraReal" class="text-xs"></span></th>
+          <th class="py-2 px-4 cursor-pointer select-none" data-sobras-ordenar="sobraEsperada">Sobra Esperada <span data-sobras-indicador="sobraEsperada" class="text-xs"></span></th>
         </tr>
       </thead>
       <tbody id="listaSobras" class="divide-y divide-gray-200"></tbody>

@@ -10948,6 +10948,291 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       }
     }
 
+    const sobrasEstado = {
+      pedidos: [],
+      filtros: {
+        dataInicio: '',
+        dataFim: '',
+        loja: 'todos',
+        sku: 'todos',
+        usuario: 'todos'
+      },
+      ordenacao: {
+        coluna: '',
+        asc: true
+      },
+      eventosInicializados: false
+    };
+
+    function normalizarTextoSobras(valor) {
+      return (valor ?? '').toString().trim();
+    }
+
+    function normalizarDataSobras(valor) {
+      if (!valor) return null;
+      if (valor instanceof Date) {
+        return Number.isNaN(valor.getTime()) ? null : valor;
+      }
+      if (typeof valor === 'number') {
+        const data = new Date(valor);
+        return Number.isNaN(data.getTime()) ? null : data;
+      }
+      const texto = normalizarTextoSobras(valor);
+      if (!texto) return null;
+      let data = new Date(texto);
+      if (!Number.isNaN(data.getTime())) return data;
+      if (texto.includes('/')) {
+        const partes = texto.split(/[\\/]/);
+        if (partes.length === 3) {
+          const [dia, mes, ano] = partes;
+          data = new Date(`${ano}-${mes}-${dia}`);
+          if (!Number.isNaN(data.getTime())) return data;
+        }
+      }
+      if (/^\d{8}$/.test(texto)) {
+        const ano = texto.slice(0, 4);
+        const mes = texto.slice(4, 6);
+        const dia = texto.slice(6, 8);
+        data = new Date(`${ano}-${mes}-${dia}`);
+        if (!Number.isNaN(data.getTime())) return data;
+      }
+      return null;
+    }
+
+    function normalizarNumeroSobras(valor) {
+      if (typeof valor === 'number') {
+        return Number.isFinite(valor) ? valor : 0;
+      }
+      const texto = normalizarTextoSobras(valor);
+      if (!texto) return 0;
+      let normalizado = texto.replace(/[^\d,.-]/g, '');
+      if (!normalizado) return 0;
+      const temVirgula = normalizado.includes(',');
+      const totalPontos = (normalizado.match(/\./g) || []).length;
+      if (temVirgula) {
+        normalizado = normalizado.replace(/\./g, '').replace(',', '.');
+      } else if (totalPontos > 1) {
+        normalizado = normalizado.replace(/\./g, '');
+      }
+      normalizado = normalizado.replace(/,/g, '.');
+      const numero = Number(normalizado);
+      return Number.isFinite(numero) ? numero : 0;
+    }
+
+    function preencherSelectSobras(select, valores, valorAtual) {
+      if (!select) return;
+      const labelPadrao = select.id === 'filtroSobrasLoja' ? 'Todas' : 'Todos';
+      const lista = Array.from(valores).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+      select.innerHTML = `<option value="todos">${labelPadrao}</option>` + lista.map(item => `<option value="${item}">${item}</option>`).join('');
+      if (valorAtual && valorAtual !== 'todos' && lista.includes(valorAtual)) {
+        select.value = valorAtual;
+      } else {
+        select.value = 'todos';
+      }
+    }
+
+    function atualizarSobrasFiltrosDisponiveis() {
+      const usuarios = new Set();
+      const lojas = new Set();
+      const skus = new Set();
+      sobrasEstado.pedidos.forEach(item => {
+        const usuario = normalizarTextoSobras(item.usuario || item.user || item.email || item.nomeUsuario);
+        if (usuario) usuarios.add(usuario);
+        const loja = normalizarTextoSobras(item.loja || item.shop || item.nomeLoja);
+        if (loja) lojas.add(loja);
+        const sku = normalizarTextoSobras(item.sku || item.idSku || item.codigoSku);
+        if (sku) skus.add(sku);
+      });
+      const usuarioSelect = document.getElementById('filtroSobrasUsuario');
+      const lojaSelect = document.getElementById('filtroSobrasLoja');
+      const skuSelect = document.getElementById('filtroSobrasSku');
+      preencherSelectSobras(usuarioSelect, usuarios, sobrasEstado.filtros.usuario);
+      preencherSelectSobras(lojaSelect, lojas, sobrasEstado.filtros.loja);
+      preencherSelectSobras(skuSelect, skus, sobrasEstado.filtros.sku);
+      if (usuarioSelect) sobrasEstado.filtros.usuario = usuarioSelect.value;
+      if (lojaSelect) sobrasEstado.filtros.loja = lojaSelect.value;
+      if (skuSelect) sobrasEstado.filtros.sku = skuSelect.value;
+    }
+
+    function obterDadosFiltradosSobras() {
+      const { filtros, pedidos } = sobrasEstado;
+      let dataInicio = filtros.dataInicio ? normalizarDataSobras(filtros.dataInicio) : null;
+      let dataFim = filtros.dataFim ? normalizarDataSobras(filtros.dataFim) : null;
+      if (dataInicio) dataInicio.setHours(0, 0, 0, 0);
+      if (dataFim) dataFim.setHours(23, 59, 59, 999);
+      const usuarioFiltro = filtros.usuario !== 'todos' ? filtros.usuario.toLowerCase() : null;
+      const lojaFiltro = filtros.loja !== 'todos' ? filtros.loja.toLowerCase() : null;
+      const skuFiltro = filtros.sku !== 'todos' ? filtros.sku.toLowerCase() : null;
+      return pedidos.filter(item => {
+        if (usuarioFiltro) {
+          const usuario = normalizarTextoSobras(item.usuario || item.user || item.email || item.nomeUsuario).toLowerCase();
+          if (usuario !== usuarioFiltro) return false;
+        }
+        if (lojaFiltro) {
+          const loja = normalizarTextoSobras(item.loja || item.shop || item.nomeLoja).toLowerCase();
+          if (loja !== lojaFiltro) return false;
+        }
+        if (skuFiltro) {
+          const sku = normalizarTextoSobras(item.sku || item.idSku || item.codigoSku).toLowerCase();
+          if (sku !== skuFiltro) return false;
+        }
+        if (dataInicio || dataFim) {
+          const dataPedido = normalizarDataSobras(item.dia || item.data || item.dataPedido || item.dataPedidoShopee);
+          if (dataInicio && (!dataPedido || dataPedido < dataInicio)) return false;
+          if (dataFim && (!dataPedido || dataPedido > dataFim)) return false;
+        }
+        return true;
+      });
+    }
+
+    function obterValorOrdenacaoSobras(item, coluna) {
+      switch (coluna) {
+        case 'usuario':
+          return normalizarTextoSobras(item.usuario || item.user || item.email || item.nomeUsuario);
+        case 'dia':
+          return normalizarDataSobras(item.dia || item.data || item.dataPedido || item.dataPedidoShopee);
+        case 'loja':
+          return normalizarTextoSobras(item.loja || item.shop || item.nomeLoja);
+        case 'pedido':
+          return normalizarTextoSobras(item.pedido || item.idPedido || item.numeroPedido || item.id);
+        case 'sku':
+          return normalizarTextoSobras(item.sku || item.idSku || item.codigoSku);
+        case 'quantidade':
+          return normalizarNumeroSobras(item.quantidade ?? item.qtd ?? item.qtdVendida ?? 0);
+        case 'subtotal':
+          return normalizarNumeroSobras(item.subtotal ?? item.valorSubtotal ?? 0);
+        case 'sobraReal':
+          return normalizarNumeroSobras(item.sobraReal ?? item.totalLiquido ?? 0);
+        case 'sobraEsperada':
+          return normalizarNumeroSobras(item.sobraEsperada ?? item.metaEsperada ?? 0);
+        default:
+          return normalizarTextoSobras(item[coluna]);
+      }
+    }
+
+    function aplicarOrdenacaoSobras(dados) {
+      const { coluna, asc } = sobrasEstado.ordenacao;
+      if (!coluna) return dados.slice();
+      const fator = asc ? 1 : -1;
+      return dados.slice().sort((a, b) => {
+        const valorA = obterValorOrdenacaoSobras(a, coluna);
+        const valorB = obterValorOrdenacaoSobras(b, coluna);
+        if (valorA instanceof Date || valorB instanceof Date) {
+          const tempoA = valorA instanceof Date ? valorA.getTime() : Number.NEGATIVE_INFINITY;
+          const tempoB = valorB instanceof Date ? valorB.getTime() : Number.NEGATIVE_INFINITY;
+          if (tempoA === tempoB) return 0;
+          return tempoA > tempoB ? fator : -fator;
+        }
+        if (typeof valorA === 'number' || typeof valorB === 'number') {
+          const numA = typeof valorA === 'number' && Number.isFinite(valorA) ? valorA : Number.NEGATIVE_INFINITY;
+          const numB = typeof valorB === 'number' && Number.isFinite(valorB) ? valorB : Number.NEGATIVE_INFINITY;
+          if (numA === numB) return 0;
+          return numA > numB ? fator : -fator;
+        }
+        const textoA = normalizarTextoSobras(valorA).toLowerCase();
+        const textoB = normalizarTextoSobras(valorB).toLowerCase();
+        if (textoA === textoB) return 0;
+        return textoA.localeCompare(textoB, 'pt-BR') * fator;
+      });
+    }
+
+    function atualizarIndicadoresOrdenacaoSobras() {
+      const { coluna, asc } = sobrasEstado.ordenacao;
+      document.querySelectorAll('[data-sobras-indicador]').forEach(span => {
+        const key = span.getAttribute('data-sobras-indicador');
+        if (key === coluna) {
+          span.textContent = asc ? '▲' : '▼';
+        } else {
+          span.textContent = '';
+        }
+      });
+    }
+
+    function atualizarSobrasTabela() {
+      const tbody = document.getElementById('listaSobras');
+      if (!tbody) return;
+      const dadosFiltrados = obterDadosFiltradosSobras();
+      const dadosOrdenados = aplicarOrdenacaoSobras(dadosFiltrados);
+      const formatarMoeda = valor => `R$ ${normalizarNumeroSobras(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+      if (!dadosOrdenados.length) {
+        const mensagem = sobrasEstado.pedidos.length
+          ? 'Nenhum pedido encontrado com os filtros selecionados.'
+          : 'Sem pedidos';
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-gray-500">${mensagem}</td></tr>`;
+        atualizarIndicadoresOrdenacaoSobras();
+        return;
+      }
+      tbody.innerHTML = '';
+      dadosOrdenados.forEach(dado => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${normalizarTextoSobras(dado.usuario || dado.user || dado.email || dado.nomeUsuario)}</td>
+          <td>${normalizarTextoSobras(dado.dia || dado.data || dado.dataPedido || '')}</td>
+          <td>${normalizarTextoSobras(dado.loja || dado.shop || dado.nomeLoja)}</td>
+          <td>${normalizarTextoSobras(dado.pedido || dado.idPedido || dado.numeroPedido || dado.id)}</td>
+          <td>${normalizarTextoSobras(dado.sku || dado.idSku || dado.codigoSku)}</td>
+          <td>${normalizarNumeroSobras(dado.quantidade ?? dado.qtd ?? dado.qtdVendida ?? 0)}</td>
+          <td>${formatarMoeda(dado.subtotal ?? dado.valorSubtotal)}</td>
+          <td>${formatarMoeda(dado.sobraReal ?? dado.totalLiquido)}</td>
+          <td>${formatarMoeda(dado.sobraEsperada ?? dado.metaEsperada)}</td>`;
+        tbody.appendChild(tr);
+      });
+      atualizarIndicadoresOrdenacaoSobras();
+    }
+
+    function inicializarSobrasEventos() {
+      if (sobrasEstado.eventosInicializados) return;
+      sobrasEstado.eventosInicializados = true;
+      const dataInicio = document.getElementById('filtroSobrasDataInicio');
+      const dataFim = document.getElementById('filtroSobrasDataFim');
+      const usuarioSelect = document.getElementById('filtroSobrasUsuario');
+      const lojaSelect = document.getElementById('filtroSobrasLoja');
+      const skuSelect = document.getElementById('filtroSobrasSku');
+      if (dataInicio) {
+        dataInicio.addEventListener('change', event => {
+          sobrasEstado.filtros.dataInicio = event.target.value;
+          atualizarSobrasTabela();
+        });
+      }
+      if (dataFim) {
+        dataFim.addEventListener('change', event => {
+          sobrasEstado.filtros.dataFim = event.target.value;
+          atualizarSobrasTabela();
+        });
+      }
+      if (usuarioSelect) {
+        usuarioSelect.addEventListener('change', event => {
+          sobrasEstado.filtros.usuario = event.target.value;
+          atualizarSobrasTabela();
+        });
+      }
+      if (lojaSelect) {
+        lojaSelect.addEventListener('change', event => {
+          sobrasEstado.filtros.loja = event.target.value;
+          atualizarSobrasTabela();
+        });
+      }
+      if (skuSelect) {
+        skuSelect.addEventListener('change', event => {
+          sobrasEstado.filtros.sku = event.target.value;
+          atualizarSobrasTabela();
+        });
+      }
+      document.querySelectorAll('[data-sobras-ordenar]').forEach(th => {
+        th.addEventListener('click', () => {
+          const coluna = th.getAttribute('data-sobras-ordenar');
+          if (!coluna) return;
+          if (sobrasEstado.ordenacao.coluna === coluna) {
+            sobrasEstado.ordenacao.asc = !sobrasEstado.ordenacao.asc;
+          } else {
+            sobrasEstado.ordenacao.coluna = coluna;
+            sobrasEstado.ordenacao.asc = true;
+          }
+          atualizarSobrasTabela();
+        });
+      });
+    }
+
     async function carregarSobras() {
       await tabsLoaded;
       if (!usuarioLogado.uid) {
@@ -10969,21 +11254,14 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           const errSnap = await db.collection('uid').doc(docSnap.id).collection('pedidosErrados').get();
           addPedidos(errSnap, nome);
         }
-        if (tbody) {
-          if (!pedidos.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-gray-500">Sem pedidos</td></tr>';
-            return;
-          }
-          const format = v => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-          tbody.innerHTML = '';
-          pedidos.forEach(d => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${d.usuario || ''}</td><td>${d.dia || ''}</td><td>${d.loja || d.shop || ''}</td><td>${d.pedido || d.idPedido || d.numeroPedido || ''}</td><td>${d.sku || ''}</td><td>${d.quantidade || d.qtd || 0}</td><td>R$ ${format(d.subtotal)}</td><td>R$ ${format(d.sobraReal || d.totalLiquido)}</td><td>R$ ${format(d.sobraEsperada || d.metaEsperada)}</td>`;
-            tbody.appendChild(tr);
-          });
-        }
+        sobrasEstado.pedidos = pedidos;
+        atualizarSobrasFiltrosDisponiveis();
+        atualizarSobrasTabela();
+        inicializarSobrasEventos();
       } catch (e) {
         console.error('Erro ao carregar sobras', e);
+        sobrasEstado.pedidos = [];
+        atualizarSobrasTabela();
         if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="text-red-500">Erro ao carregar dados</td></tr>';
       }
     }
