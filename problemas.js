@@ -37,6 +37,11 @@ const REEMBOLSO_STATUS_OPCOES = [
   { valor: 'CANCELADO', texto: 'Cancelado' },
 ];
 
+function obterPosVendasUid() {
+  if (typeof window === 'undefined') return null;
+  return window.responsavelPosVendas?.uid || null;
+}
+
 onAuthStateChanged(auth, (user) => {
   if (!user) {
     window.location.href = 'index.html?login=1';
@@ -170,7 +175,9 @@ async function salvarPeca(ev) {
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'pecasfaltando');
   const colRef = collection(baseDoc, 'itens');
   const ref = doc(colRef);
-  await setDocWithCopy(ref, registro, uidAtual);
+  await setDocWithCopy(ref, registro, uidAtual, null, {
+    posVendasUid: obterPosVendasUid(),
+  });
   form.reset();
   const dataInput = document.getElementById('data');
   if (dataInput) dataInput.value = new Date().toISOString().split('T')[0];
@@ -589,7 +596,9 @@ async function salvarReembolso(ev) {
   const baseDoc = doc(db, 'uid', uidAtual, 'problemas', 'reembolsos');
   const colRef = collection(baseDoc, 'itens');
   const ref = doc(colRef);
-  await setDocWithCopy(ref, registro, uidAtual);
+  await setDocWithCopy(ref, registro, uidAtual, null, {
+    posVendasUid: obterPosVendasUid(),
+  });
   form.reset();
   const dataRInput = document.getElementById('dataR');
   if (dataRInput) dataRInput.value = new Date().toISOString().split('T')[0];
@@ -1026,7 +1035,9 @@ async function atualizarPeca(dado, atualizacoes) {
   const ref = doc(pecasColRef, dado.id);
   const atualizado = { ...dado, ...atualizacoes };
   const { id, ...payload } = atualizado;
-  await setDocWithCopy(ref, payload, uidAtual);
+  await setDocWithCopy(ref, payload, uidAtual, null, {
+    posVendasUid: obterPosVendasUid(),
+  });
   Object.assign(dado, atualizacoes);
   const original = pecasCache.find((item) => item.id === dado.id);
   if (original) Object.assign(original, atualizacoes);
@@ -1037,7 +1048,9 @@ async function atualizarReembolso(dado, atualizacoes) {
   const ref = doc(reembolsosColRef, dado.id);
   const atualizado = { ...dado, ...atualizacoes };
   const { id, ...payload } = atualizado;
-  await setDocWithCopy(ref, payload, uidAtual);
+  await setDocWithCopy(ref, payload, uidAtual, null, {
+    posVendasUid: obterPosVendasUid(),
+  });
   Object.assign(dado, atualizacoes);
   const original = reembolsosCache.find((item) => item.id === dado.id);
   if (original) Object.assign(original, atualizacoes);
