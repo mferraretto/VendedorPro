@@ -83,6 +83,7 @@ let pecasCache = [];
 let reembolsosCache = [];
 let usuarioSelecionado = '';
 let currentUser = null;
+let usarNamespacePosVendas = false;
 
 const pecasSelecionados = new Set();
 const reembolsosSelecionados = new Set();
@@ -102,6 +103,8 @@ onAuthStateChanged(auth, async (user) => {
   try {
     const resposta = await carregarUsuariosFinanceiros(db, user);
     usuarios = resposta.usuarios || [];
+    usarNamespacePosVendas =
+      resposta.isResponsavelPosVendas || resposta.perfil === 'posvendas';
   } catch (err) {
     console.error('Erro ao carregar usuários financeiros:', err);
     usuarios = [
@@ -111,6 +114,7 @@ onAuthStateChanged(auth, async (user) => {
         email: user.email || '',
       },
     ];
+    usarNamespacePosVendas = false;
   }
   preencherSelectUsuarios();
   atualizarMensagensUsuarios();
@@ -290,10 +294,27 @@ async function carregarReembolsos() {
 async function carregarColecaoProblemas(usuario, tipo) {
   if (!usuario?.uid) return [];
   try {
-    const itensRef = collection(
-      doc(db, 'uid', usuario.uid, 'problemas', tipo),
-      'itens',
-    );
+    let docRef;
+    const responsavelUid = currentUser?.uid;
+    if (
+      usarNamespacePosVendas &&
+      responsavelUid &&
+      usuario.uid !== responsavelUid
+    ) {
+      docRef = doc(
+        db,
+        'uid',
+        responsavelUid,
+        'uid',
+        usuario.uid,
+        'problemas',
+        tipo,
+      );
+    } else {
+      docRef = doc(db, 'uid', usuario.uid, 'problemas', tipo);
+    }
+
+    const itensRef = collection(docRef, 'itens');
     const snap = await getDocs(itensRef);
     return snap.docs.map((docSnap) => ({
       id: docSnap.id,
