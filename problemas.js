@@ -1061,11 +1061,21 @@ async function excluirReembolso(id) {
 
 async function deleteDocWithCopy(ref) {
   await deleteDoc(ref);
-  const responsavelUid =
-    typeof window !== 'undefined' && window.responsavelFinanceiro?.uid;
-  if (responsavelUid && responsavelUid !== uidAtual) {
-    const segmentos = ref.path.split('/');
-    const relativo = segmentos.slice(2).join('/');
+  const destinatarios = new Set();
+  if (typeof window !== 'undefined') {
+    const financeiroUid = window.responsavelFinanceiro?.uid;
+    const posVendasUid = window.responsavelPosVendas?.uid;
+    if (financeiroUid) destinatarios.add(financeiroUid);
+    if (posVendasUid) destinatarios.add(posVendasUid);
+  }
+
+  destinatarios.delete(uidAtual);
+  if (!destinatarios.size) return;
+
+  const segmentos = ref.path.split('/');
+  const relativo = segmentos.slice(2).join('/');
+
+  for (const responsavelUid of destinatarios) {
     const copiaRef = doc(
       ref.firestore,
       `uid/${responsavelUid}/uid/${uidAtual}/${relativo}`,
