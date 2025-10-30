@@ -1441,17 +1441,54 @@ function sanitizarNomeArquivo(base) {
   return texto || 'relatorio';
 }
 
-function baixarRelatorio(conteudo, nomeBase) {
+function baixarRelatorioPdf(conteudo, nomeBase) {
   if (!conteudo) return false;
-  const blob = new Blob([conteudo], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${nomeBase || 'relatorio'}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+    console.error('Biblioteca jsPDF não encontrada.');
+    return false;
+  }
+
+  const doc = new window.jspdf.jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4',
+  });
+
+  const margemHorizontal = 48;
+  const margemVertical = 56;
+  const larguraUtil = doc.internal.pageSize.getWidth() - margemHorizontal * 2;
+  const alturaPagina = doc.internal.pageSize.getHeight();
+  const alturaLinha = 16;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(12);
+
+  let posicaoY = margemVertical;
+
+  const linhas = conteudo.split('\n');
+  linhas.forEach((linha) => {
+    if (!linha.trim()) {
+      posicaoY += alturaLinha;
+      if (posicaoY > alturaPagina - margemVertical) {
+        doc.addPage();
+        posicaoY = margemVertical;
+      }
+      return;
+    }
+
+    const partes = doc.splitTextToSize(linha, larguraUtil);
+    partes.forEach((parte) => {
+      if (posicaoY > alturaPagina - margemVertical) {
+        doc.addPage();
+        posicaoY = margemVertical;
+      }
+      doc.text(parte, margemHorizontal, posicaoY);
+      posicaoY += alturaLinha;
+    });
+  });
+
+  const nomeArquivo = `${nomeBase || 'relatorio'}.pdf`;
+  doc.save(nomeArquivo);
   return true;
 }
 
@@ -1477,6 +1514,9 @@ function montarCabecalhoRelatorio(tabLabel, tipoRelatorio, periodoDescricao) {
     ? tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)
     : 'Personalizado';
   linhas.push(`Relatório ${tituloRelatorio}`);
+  if (tipoRelatorio === 'semanal' || tipoRelatorio === 'mensal') {
+    linhas.push(`Resumo ${tituloRelatorio}`);
+  }
   if (periodoDescricao) linhas.push(`Período analisado: ${periodoDescricao}`);
   linhas.push(`Gerado em: ${new Date().toLocaleString('pt-BR')}`);
   linhas.push('');
@@ -1832,10 +1872,16 @@ function gerarRelatorioResumo(tab, periodo) {
   const nomeArquivo = sanitizarNomeArquivo(
     `resumo-equipe-${tab}-${tipoRelatorio}-${dataAtual}`,
   );
-  const gerado = baixarRelatorio(conteudo, nomeArquivo);
+  const gerado = baixarRelatorioPdf(conteudo, nomeArquivo);
   if (gerado) {
-    const mensagemSucesso = `Relatório ${tipoRelatorio} gerado com sucesso.`;
+    const mensagemSucesso = `Relatório ${tipoRelatorio} em PDF gerado com sucesso.`;
     exibirFeedbackRelatorio(tab, mensagemSucesso, 'sucesso');
+  } else {
+    exibirFeedbackRelatorio(
+      tab,
+      'Não foi possível gerar o relatório em PDF no momento.',
+      'erro',
+    );
   }
 }
 
