@@ -35,6 +35,33 @@ let carregando = false;
 let authUser = null;
 let isResponsavelFinanceiroAtivo = false;
 
+const relatorioState = {
+  diario: {
+    linhas: [],
+    totais: null,
+    totaisUsuarios: [],
+    periodoLabel: '',
+    intervalo: null,
+    carregado: false,
+  },
+  vendas: {
+    usuarios: [],
+    totais: null,
+    skus: [],
+    periodoLabel: '',
+    intervalo: null,
+    carregado: false,
+  },
+  problemas: {
+    mensagemPadrao: '',
+    timeoutId: null,
+  },
+  cadastro: {
+    membros: [],
+    carregado: false,
+  },
+};
+
 const CARGO_LIMITES = {
   vendedor: 10,
   gestor_expedicao: 2,
@@ -242,6 +269,8 @@ function renderizarTabelaEquipe() {
   const membros = obterIntegrantesEquipe().sort((a, b) =>
     (a.nome || '').localeCompare(b.nome || '', 'pt-BR'),
   );
+  relatorioState.cadastro.membros = membros.map((membro) => ({ ...membro }));
+  relatorioState.cadastro.carregado = true;
   if (!membros.length) {
     if (vazio) vazio.classList.remove('hidden');
     return;
@@ -1095,6 +1124,9 @@ function agruparRegistrosDiariosGestor(registros) {
 function renderDiarioTabela(linhas = []) {
   const tabelaBody = document.getElementById('diarioTabela');
   if (!tabelaBody) return;
+  relatorioState.diario.linhas = Array.isArray(linhas)
+    ? linhas.map((linha) => ({ ...linha }))
+    : [];
   tabelaBody.innerHTML = '';
   if (!linhas.length) {
     const tr = document.createElement('tr');
@@ -1124,6 +1156,11 @@ function renderDiarioTabela(linhas = []) {
 function renderDiarioTotais(totais, totaisUsuarios, label) {
   const container = document.getElementById('diarioTotais');
   if (!container) return;
+  relatorioState.diario.totais = totais ? { ...totais } : null;
+  relatorioState.diario.totaisUsuarios = Array.isArray(totaisUsuarios)
+    ? totaisUsuarios.map((usuario) => ({ ...usuario }))
+    : [];
+  relatorioState.diario.periodoLabel = label || '';
   const periodo = label ? escapeHtml(label) : 'Período selecionado';
   const formatarPercentualDetalhe = (valor) =>
     valor === null || valor === undefined
@@ -1295,30 +1332,38 @@ function renderVendasUsuarios(lista) {
   const tbody = document.getElementById('vendasUsuariosTabela');
   if (!tbody) return;
   tbody.innerHTML = '';
-  if (!lista.length) {
+  const dados = Array.isArray(lista) ? [...lista] : [];
+  dados.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  relatorioState.vendas.usuarios = dados.map((usuario) => ({ ...usuario }));
+  if (!dados.length) {
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td colspan="4" class="px-4 py-3 text-center text-gray-500">Nenhum dado de vendas encontrado para o período selecionado.</td>';
     tbody.appendChild(tr);
     return;
   }
-  lista
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-    .forEach((usuario) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="px-4 py-3">${escapeHtml(usuario.nome)}</td>
-        <td class="px-4 py-3 text-right">${formatCurrency(usuario.bruto)}</td>
-        <td class="px-4 py-3 text-right">${formatCurrency(usuario.liquido)}</td>
-        <td class="px-4 py-3 text-right">${formatarNumeroPadrao(usuario.unidades)}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+  dados.forEach((usuario) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="px-4 py-3">${escapeHtml(usuario.nome)}</td>
+      <td class="px-4 py-3 text-right">${formatCurrency(usuario.bruto)}</td>
+      <td class="px-4 py-3 text-right">${formatCurrency(usuario.liquido)}</td>
+      <td class="px-4 py-3 text-right">${formatarNumeroPadrao(usuario.unidades)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 function renderVendasTotais(bruto, liquido, unidades, usuarios, label) {
   const container = document.getElementById('vendasTotais');
   if (!container) return;
+  relatorioState.vendas.totais = {
+    bruto,
+    liquido,
+    unidades,
+    usuarios,
+  };
+  relatorioState.vendas.periodoLabel = label || '';
   const periodo = label ? escapeHtml(label) : 'Período selecionado';
   container.innerHTML = `
     <div class="card flex flex-col gap-1 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -1362,6 +1407,7 @@ function renderTopSkus(skuMap) {
       return (b.sobraTotal || 0) - (a.sobraTotal || 0);
     })
     .slice(0, 10);
+  relatorioState.vendas.skus = itens.map((item) => ({ ...item }));
 
   if (!itens.length) {
     const tr = document.createElement('tr');
@@ -1383,11 +1429,443 @@ function renderTopSkus(skuMap) {
   });
 }
 
+function sanitizarNomeArquivo(base) {
+  const texto = (base || 'relatorio')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return texto || 'relatorio';
+}
+
+function baixarRelatorio(conteudo, nomeBase) {
+  if (!conteudo) return false;
+  const blob = new Blob([conteudo], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${nomeBase || 'relatorio'}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  return true;
+}
+
+const TAB_LABELS_RELATORIO = {
+  diario: 'Acompanhamento diário',
+  vendas: 'Acompanhamento de vendas',
+  problemas: 'Acompanhamento de problemas',
+  cadastro: 'Cadastro da equipe',
+};
+
+function obterDescricaoPeriodoRelatorio(intervalo, fallback) {
+  if (intervalo?.descricao) return intervalo.descricao;
+  if (intervalo?.start || intervalo?.end) {
+    return formatarRangeDisplay(intervalo.start, intervalo.end);
+  }
+  return fallback || '';
+}
+
+function montarCabecalhoRelatorio(tabLabel, tipoRelatorio, periodoDescricao) {
+  const linhas = [];
+  linhas.push(`Resumo da Equipe - ${tabLabel}`);
+  const tituloRelatorio = tipoRelatorio
+    ? tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)
+    : 'Personalizado';
+  linhas.push(`Relatório ${tituloRelatorio}`);
+  if (periodoDescricao) linhas.push(`Período analisado: ${periodoDescricao}`);
+  linhas.push(`Gerado em: ${new Date().toLocaleString('pt-BR')}`);
+  linhas.push('');
+  return linhas.join('\n');
+}
+
+function montarRelatorioDiario() {
+  const { totais, totaisUsuarios, linhas } = relatorioState.diario;
+  const partes = [];
+  if (!totais && !totaisUsuarios.length && !linhas.length) {
+    partes.push('Nenhum registro foi encontrado para o período selecionado.');
+    return partes.join('\n');
+  }
+  if (totais) {
+    partes.push('Indicadores consolidados:');
+    partes.push(
+      `- Reclamações abertas: ${formatarNumeroPadrao(
+        totais.reclamacoesAbertas,
+      )}`,
+    );
+    partes.push(
+      `- Reclamações respondidas: ${formatarNumeroPadrao(
+        totais.reclamacoesRespondidas,
+      )}`,
+    );
+    partes.push(
+      `- Reclamações encerradas: ${formatarNumeroPadrao(
+        totais.reclamacoesEncerradas,
+      )}`,
+    );
+    partes.push(
+      `- Pedidos não enviados: ${formatarNumeroPadrao(
+        totais.pedidosNaoEnviados,
+      )}`,
+    );
+    partes.push('');
+    partes.push('Médias de reputação:');
+    partes.push(
+      `- Reclamação: ${formatarPercentualPadrao(
+        totais.porcentagemReclamacoes,
+      )} (início: ${formatarPercentualPadrao(
+        totais.porcentagemReclamacoesInicio,
+      )})`,
+    );
+    partes.push(
+      `- Mediação: ${formatarPercentualPadrao(
+        totais.porcentagemMediacao,
+      )} (início: ${formatarPercentualPadrao(
+        totais.porcentagemMediacaoInicio,
+      )})`,
+    );
+    partes.push(
+      `- Atraso: ${formatarPercentualPadrao(
+        totais.porcentagemAtraso,
+      )} (início: ${formatarPercentualPadrao(totais.porcentagemAtrasoInicio)})`,
+    );
+    partes.push(
+      `- Cancelamento: ${formatarPercentualPadrao(
+        totais.porcentagemCancelamento,
+      )} (início: ${formatarPercentualPadrao(
+        totais.porcentagemCancelamentoInicio,
+      )})`,
+    );
+    partes.push('');
+  }
+  if (totaisUsuarios.length) {
+    partes.push('Resumo por usuário:');
+    totaisUsuarios.forEach((usuario) => {
+      partes.push(
+        `- ${usuario.usuarioNome}: ${formatarNumeroPadrao(
+          usuario.reclamacoesAbertas,
+        )} abertas, ${formatarNumeroPadrao(
+          usuario.reclamacoesRespondidas,
+        )} respondidas, ${formatarNumeroPadrao(
+          usuario.reclamacoesEncerradas,
+        )} encerradas. Percentuais — Reclamação: ${formatarPercentualPadrao(
+          usuario.porcentagemReclamacoes,
+        )}, Mediação: ${formatarPercentualPadrao(
+          usuario.porcentagemMediacao,
+        )}, Atraso: ${formatarPercentualPadrao(
+          usuario.porcentagemAtraso,
+        )}, Cancelamento: ${formatarPercentualPadrao(
+          usuario.porcentagemCancelamento,
+        )}.`,
+      );
+    });
+    partes.push('');
+  }
+  if (linhas.length) {
+    const destaques = [...linhas]
+      .sort((a, b) => (b.reclamacoesAbertas || 0) - (a.reclamacoesAbertas || 0))
+      .slice(0, 5);
+    partes.push('Destaques por loja (maiores volumes de reclamações abertas):');
+    destaques.forEach((item) => {
+      partes.push(
+        `- ${item.usuarioNome} • ${item.nomeLoja || item.plataforma}: ${formatarNumeroPadrao(
+          item.reclamacoesAbertas,
+        )} abertas, ${formatarNumeroPadrao(
+          item.reclamacoesRespondidas,
+        )} respondidas, ${formatarPercentualPadrao(
+          item.porcentagemReclamacoes,
+        )} de índice de reclamação.`,
+      );
+    });
+  }
+  return partes.join('\n');
+}
+
+function montarRelatorioVendas() {
+  const { totais, usuarios, skus } = relatorioState.vendas;
+  const partes = [];
+  if (!totais && !usuarios.length && !skus.length) {
+    partes.push(
+      'Nenhum dado de faturamento foi encontrado para o período informado.',
+    );
+    return partes.join('\n');
+  }
+  if (totais) {
+    partes.push('Totais consolidados de vendas:');
+    partes.push(`- Faturamento bruto: ${formatCurrency(totais.bruto)}`);
+    partes.push(`- Faturamento líquido: ${formatCurrency(totais.liquido)}`);
+    partes.push(
+      `- Unidades vendidas: ${formatarNumeroPadrao(totais.unidades)}`,
+    );
+    partes.push(
+      `- Usuários considerados: ${formatarNumeroPadrao(totais.usuarios)}`,
+    );
+    partes.push('');
+  }
+  if (usuarios.length) {
+    const topUsuarios = [...usuarios]
+      .sort((a, b) => (b.liquido || 0) - (a.liquido || 0))
+      .slice(0, 5);
+    partes.push('Destaques por usuário (top 5 por faturamento líquido):');
+    topUsuarios.forEach((usuario) => {
+      partes.push(
+        `- ${usuario.nome}: ${formatCurrency(
+          usuario.liquido,
+        )} líquido, ${formatCurrency(usuario.bruto)} bruto, ${formatarNumeroPadrao(
+          usuario.unidades,
+        )} unidades.`,
+      );
+    });
+    partes.push('');
+  }
+  if (skus.length) {
+    const topSkus = skus.slice(0, 5);
+    partes.push('SKUs com maior volume de vendas:');
+    topSkus.forEach((item) => {
+      partes.push(
+        `- ${item.sku}: ${formatarNumeroPadrao(
+          item.quantidade,
+        )} unidades, sobra total ${formatCurrency(
+          item.sobraTotal,
+        )}, sobra média ${formatCurrency(item.sobraMedia)}.`,
+      );
+    });
+  }
+  return partes.join('\n');
+}
+
+function montarRelatorioCadastro() {
+  const membros = relatorioState.cadastro.membros || [];
+  const partes = [];
+  const contagem = calcularContagemCargos();
+  partes.push('Limites e utilização por cargo:');
+  Object.entries(CARGO_LABELS).forEach(([chave, rotulo]) => {
+    const limite = CARGO_LIMITES[chave];
+    const usado = contagem[chave] || 0;
+    partes.push(`- ${rotulo}: ${usado}/${limite}`);
+  });
+  partes.push('');
+  if (!membros.length) {
+    partes.push(
+      'Não há integrantes cadastrados para este responsável financeiro.',
+    );
+  } else {
+    partes.push('Integrantes cadastrados:');
+    membros.forEach((membro) => {
+      const cargoKey = normalizeCargo(membro.cargo || membro.perfil || '');
+      const cargoLabel =
+        CARGO_LABELS[cargoKey] || membro.cargo || membro.perfil || '—';
+      const responsavelExpedicao = membro.responsavelExpedicaoEmail
+        ? ` • Responsável de expedição: ${membro.responsavelExpedicaoEmail}`
+        : '';
+      partes.push(
+        `- ${membro.nome || membro.email || membro.uid} (${cargoLabel}) – E-mail: ${
+          membro.email || 'não informado'
+        }${responsavelExpedicao}`,
+      );
+    });
+  }
+  return partes.join('\n');
+}
+
+function montarRelatorioProblemas(intervalo, periodoDescricao) {
+  const partes = [];
+  partes.push(
+    'O acompanhamento de problemas é disponibilizado pelo painel dedicado. Utilize o link abaixo para acessar os detalhes e realizar exportações completas.',
+  );
+  const intervaloDescricao = obterDescricaoPeriodoRelatorio(
+    intervalo,
+    periodoDescricao,
+  );
+  if (intervaloDescricao) {
+    partes.push(`Período recomendado: ${intervaloDescricao}`);
+  }
+  try {
+    const url = new URL('acompanhamento-problemas.html', window.location.href);
+    url.searchParams.set('embedded', '0');
+    if (intervalo?.start) url.searchParams.set('inicio', intervalo.start);
+    if (intervalo?.end) url.searchParams.set('fim', intervalo.end);
+    partes.push(`Acesse: ${url.toString()}`);
+  } catch (err) {
+    console.warn('Não foi possível montar URL do relatório de problemas', err);
+  }
+  partes.push(
+    'Observação: aplique os mesmos filtros no painel para visualizar os gráficos consolidados e gerar exportações específicas.',
+  );
+  return partes.join('\n');
+}
+
+function exibirFeedbackRelatorio(tab, mensagem, tipo = 'info') {
+  if (tab === 'cadastro') {
+    const tipoCadastro =
+      tipo === 'erro' ? 'erro' : tipo === 'sucesso' ? 'sucesso' : 'info';
+    setStatusCadastro(mensagem, tipoCadastro);
+    return;
+  }
+  const statusIdMap = {
+    diario: 'diarioStatus',
+    vendas: 'vendasStatus',
+    problemas: 'problemasStatus',
+  };
+  const statusId = statusIdMap[tab];
+  if (!statusId) return;
+  let texto = mensagem;
+  if (tab === 'problemas' && relatorioState.problemas.mensagemPadrao) {
+    texto = `${mensagem} ${relatorioState.problemas.mensagemPadrao}`.trim();
+  }
+  atualizarStatus(statusId, texto, tipo);
+  if (tab === 'problemas') {
+    if (relatorioState.problemas.timeoutId) {
+      clearTimeout(relatorioState.problemas.timeoutId);
+    }
+    if (relatorioState.problemas.mensagemPadrao) {
+      relatorioState.problemas.timeoutId = setTimeout(() => {
+        atualizarStatus(
+          statusId,
+          relatorioState.problemas.mensagemPadrao,
+          'info',
+        );
+      }, 6000);
+    }
+  }
+}
+
+function gerarRelatorioResumo(tab, periodo) {
+  const tabLabel = TAB_LABELS_RELATORIO[tab];
+  if (!tabLabel) return;
+  const periodoSelecionado = obterPeriodoSelecionado();
+  const periodoPadrao =
+    periodoSelecionado?.descricao || periodoSelecionado?.label || '';
+  let periodoDescricao = periodoPadrao;
+  let intervaloReferencia = null;
+
+  if (tab === 'diario') {
+    if (!relatorioState.diario.carregado) {
+      exibirFeedbackRelatorio(
+        tab,
+        'Aplique os filtros para carregar os dados antes de gerar o relatório.',
+        'erro',
+      );
+      return;
+    }
+    intervaloReferencia = relatorioState.diario.intervalo;
+    periodoDescricao = obterDescricaoPeriodoRelatorio(
+      relatorioState.diario.intervalo,
+      relatorioState.diario.periodoLabel || periodoPadrao,
+    );
+  } else if (tab === 'vendas') {
+    if (!relatorioState.vendas.carregado) {
+      exibirFeedbackRelatorio(
+        tab,
+        'Aplique os filtros para carregar os dados antes de gerar o relatório.',
+        'erro',
+      );
+      return;
+    }
+    intervaloReferencia = relatorioState.vendas.intervalo;
+    periodoDescricao = obterDescricaoPeriodoRelatorio(
+      relatorioState.vendas.intervalo,
+      relatorioState.vendas.periodoLabel || periodoPadrao,
+    );
+  } else if (tab === 'cadastro') {
+    if (!relatorioState.cadastro.carregado) {
+      exibirFeedbackRelatorio(
+        tab,
+        'O cadastro da equipe ainda não foi carregado.',
+        'erro',
+      );
+      return;
+    }
+    periodoDescricao = periodoPadrao || 'Última atualização disponível';
+  } else if (tab === 'problemas') {
+    intervaloReferencia =
+      relatorioState.diario.intervalo?.start ||
+      relatorioState.diario.intervalo?.end
+        ? relatorioState.diario.intervalo
+        : relatorioState.vendas.intervalo;
+    if (!intervaloReferencia && periodoSelecionado) {
+      intervaloReferencia = {
+        start: periodoSelecionado.start,
+        end: periodoSelecionado.end,
+      };
+    }
+    periodoDescricao = obterDescricaoPeriodoRelatorio(
+      intervaloReferencia,
+      periodoPadrao,
+    );
+  }
+
+  const tipoRelatorio =
+    periodo === 'semana'
+      ? 'semanal'
+      : periodo === 'mes'
+        ? 'mensal'
+        : 'personalizado';
+  const cabecalho = montarCabecalhoRelatorio(
+    tabLabel,
+    tipoRelatorio,
+    periodoDescricao,
+  );
+
+  let corpo = '';
+  if (tab === 'diario') corpo = montarRelatorioDiario();
+  else if (tab === 'vendas') corpo = montarRelatorioVendas();
+  else if (tab === 'cadastro') corpo = montarRelatorioCadastro();
+  else if (tab === 'problemas')
+    corpo = montarRelatorioProblemas(intervaloReferencia, periodoDescricao);
+
+  if (!corpo) {
+    exibirFeedbackRelatorio(
+      tab,
+      'Nenhum dado disponível para gerar o relatório.',
+      'erro',
+    );
+    return;
+  }
+
+  const conteudo = `${cabecalho}${corpo}`;
+  const dataAtual = new Date().toISOString().slice(0, 10);
+  const nomeArquivo = sanitizarNomeArquivo(
+    `resumo-equipe-${tab}-${tipoRelatorio}-${dataAtual}`,
+  );
+  const gerado = baixarRelatorio(conteudo, nomeArquivo);
+  if (gerado) {
+    const mensagemSucesso = `Relatório ${tipoRelatorio} gerado com sucesso.`;
+    exibirFeedbackRelatorio(tab, mensagemSucesso, 'sucesso');
+  }
+}
+
+function inicializarBotoesRelatorio() {
+  const botoes = document.querySelectorAll(
+    '[data-relatorio-tab][data-relatorio-periodo]',
+  );
+  botoes.forEach((botao) => {
+    if (botao.dataset.relatorioBound) return;
+    botao.addEventListener('click', () => {
+      gerarRelatorioResumo(
+        botao.dataset.relatorioTab,
+        botao.dataset.relatorioPeriodo,
+      );
+    });
+    botao.dataset.relatorioBound = 'true';
+  });
+}
+
 async function carregarResumoDiarioEquipe(periodo, listaUsuarios) {
   atualizarStatus(
     'diarioStatus',
     'Carregando resumo do acompanhamento diário...',
   );
+  relatorioState.diario.intervalo = {
+    start: periodo?.start || '',
+    end: periodo?.end || '',
+    descricao: periodo?.descricao || periodo?.label || '',
+  };
+  relatorioState.diario.carregado = false;
   renderDiarioTabela([]);
   renderDiarioTotais(
     {
@@ -1489,6 +1967,7 @@ async function carregarResumoDiarioEquipe(periodo, listaUsuarios) {
         [],
         periodo.label || periodo.descricao || '',
       );
+      relatorioState.diario.carregado = true;
       return;
     }
 
@@ -1505,6 +1984,7 @@ async function carregarResumoDiarioEquipe(periodo, listaUsuarios) {
       `${linhas.length} registros consolidados${periodo.descricao ? ` • ${periodo.descricao}` : ''}.`,
       'sucesso',
     );
+    relatorioState.diario.carregado = true;
   } catch (err) {
     console.error('Erro ao carregar acompanhamento diário da equipe', err);
     atualizarStatus(
@@ -1512,11 +1992,18 @@ async function carregarResumoDiarioEquipe(periodo, listaUsuarios) {
       'Erro ao carregar os dados do acompanhamento diário.',
       'erro',
     );
+    relatorioState.diario.carregado = false;
   }
 }
 
 async function carregarResumoVendasEquipe(periodo, listaUsuarios) {
   atualizarStatus('vendasStatus', 'Carregando dados de vendas...');
+  relatorioState.vendas.intervalo = {
+    start: periodo?.start || '',
+    end: periodo?.end || '',
+    descricao: periodo?.descricao || periodo?.label || '',
+  };
+  relatorioState.vendas.carregado = false;
   renderVendasUsuarios([]);
   renderVendasTotais(0, 0, 0, listaUsuarios.length, periodo.descricao || '');
   renderTopSkus(new Map());
@@ -1583,6 +2070,7 @@ async function carregarResumoVendasEquipe(periodo, listaUsuarios) {
       `Resumo carregado${periodo.descricao ? ` • ${periodo.descricao}` : ''}.`,
       'sucesso',
     );
+    relatorioState.vendas.carregado = true;
   } catch (err) {
     console.error('Erro ao carregar acompanhamento de vendas', err);
     atualizarStatus(
@@ -1590,6 +2078,7 @@ async function carregarResumoVendasEquipe(periodo, listaUsuarios) {
       'Erro ao carregar dados de vendas.',
       'erro',
     );
+    relatorioState.vendas.carregado = false;
   }
 }
 
@@ -1643,6 +2132,11 @@ document.addEventListener('DOMContentLoaded', () => {
   configurarTabs();
   configurarTipoPeriodo();
   configurarCadastroEquipeForm();
+  inicializarBotoesRelatorio();
+  const problemasStatus = document.getElementById('problemasStatus');
+  if (problemasStatus) {
+    relatorioState.problemas.mensagemPadrao = problemasStatus.textContent || '';
+  }
   document
     .getElementById('resumoFiltroAplicar')
     ?.addEventListener('click', aplicarFiltros);
