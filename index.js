@@ -20,12 +20,204 @@ import {
   onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
-import { checkBackend } from './utils.js';
+import { checkBackend, showToast } from './utils.js';
 import logger from './logger.js';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+
+const FINANCEIRO_ALLOWED_PROFILES = new Set(['financeiro', 'compras']);
+const financeiroPerfilCache = new Map();
+let financeiroCardInitialized = false;
+let financeiroAccessPending = false;
+
+function setFinanceiroStatus(message, tone = 'info') {
+  const statusEl = document.getElementById('financeiroAccessStatus');
+  if (!statusEl) return;
+  if (!message) {
+    statusEl.textContent = '';
+    statusEl.classList.add('hidden');
+    return;
+  }
+  const colorClasses = [
+    'text-green-600',
+    'text-red-500',
+    'text-yellow-600',
+    'text-gray-500',
+  ];
+  statusEl.classList.remove('hidden', ...colorClasses);
+  statusEl.classList.add('text-xs');
+  const toneClass =
+    tone === 'success'
+      ? 'text-green-600'
+      : tone === 'warning'
+        ? 'text-yellow-600'
+        : tone === 'danger'
+          ? 'text-red-500'
+          : 'text-gray-500';
+  statusEl.classList.add(toneClass);
+  statusEl.textContent = message;
+}
+
+function normalizeFinanceiroPerfis(value) {
+  if (value === undefined || value === null) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        String(item ?? '')
+          .toLowerCase()
+          .trim(),
+      )
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[;,]/)
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+  }
+  return [String(value).toLowerCase().trim()].filter(Boolean);
+}
+
+async function fetchFinanceiroPerfil(uid, { force = false } = {}) {
+  if (!uid) return null;
+  if (!force && financeiroPerfilCache.has(uid)) {
+    return financeiroPerfilCache.get(uid);
+  }
+  const ref = doc(db, 'users', uid);
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      const result = { uid, allowed: false, perfis: [], exists: false };
+      financeiroPerfilCache.set(uid, result);
+      return result;
+    }
+    const data = snap.data() || {};
+    const perfis = normalizeFinanceiroPerfis(data.financeiro);
+    const allowed = perfis.some((perfil) =>
+      FINANCEIRO_ALLOWED_PROFILES.has(perfil),
+    );
+    const result = { uid, allowed, perfis, exists: true };
+    financeiroPerfilCache.set(uid, result);
+    return result;
+  } catch (err) {
+    logger.error('Erro ao consultar perfil financeiro', err);
+    throw err;
+  }
+}
+
+async function updateFinanceiroStatus(user) {
+  if (!user) return;
+  setFinanceiroStatus('Verificando acesso ao Financeiro...', 'info');
+  try {
+    const info = await fetchFinanceiroPerfil(user.uid);
+    if (!info) return;
+    if (info.allowed) {
+      setFinanceiroStatus('Acesso liberado para o seu perfil.', 'success');
+    } else if (info.perfis.length > 0) {
+      setFinanceiroStatus(
+        'Seu perfil atual não possui permissão para o Financeiro.',
+        'warning',
+      );
+    } else {
+      setFinanceiroStatus(
+        'Solicite habilitação Financeiro ou Compras ao administrador.',
+        'danger',
+      );
+    }
+  } catch (err) {
+    setFinanceiroStatus(
+      'Não foi possível verificar o status do Financeiro agora.',
+      'danger',
+    );
+  }
+}
+
+async function processFinanceiroAccess(user) {
+  financeiroAccessPending = false;
+  if (!user) {
+    showToast('Realize o login para acessar o Financeiro.', 'warning');
+    return;
+  }
+  const btn = document.getElementById('financeiroAccessBtn');
+  const originalText = btn?.textContent;
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset.loading = 'true';
+    btn.textContent = 'Verificando acesso...';
+  }
+  try {
+    const info = await fetchFinanceiroPerfil(user.uid, { force: true });
+    if (info?.allowed) {
+      setFinanceiroStatus('Acesso liberado para o seu perfil.', 'success');
+      window.location.href = 'financeiro-inicio.html';
+      return;
+    }
+    if (info?.perfis?.length) {
+      showToast(
+        'Acesso restrito ao Financeiro para seu perfil atual.',
+        'warning',
+      );
+      setFinanceiroStatus(
+        'Seu perfil atual não possui permissão para o Financeiro.',
+        'warning',
+      );
+    } else {
+      showToast(
+        'Acesso permitido apenas aos perfis Financeiro ou Compras.',
+        'warning',
+      );
+      setFinanceiroStatus(
+        'Solicite habilitação Financeiro ou Compras ao administrador.',
+        'danger',
+      );
+    }
+  } catch (err) {
+    logger.error('Erro ao processar acesso ao Financeiro', err);
+    showToast('Erro ao verificar acesso ao Financeiro.', 'error');
+    setFinanceiroStatus(
+      'Não foi possível verificar o status do Financeiro agora.',
+      'danger',
+    );
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText ?? 'Entrar no Financeiro';
+      delete btn.dataset.loading;
+    }
+  }
+}
+
+function requestFinanceiroAccess() {
+  if (auth.currentUser) {
+    processFinanceiroAccess(auth.currentUser);
+    return;
+  }
+  financeiroAccessPending = true;
+  if (typeof window.openModal === 'function') {
+    window.openModal('loginModal');
+  } else {
+    showToast('Faça login para acessar o Financeiro.', 'warning');
+  }
+}
+
+function setupFinanceiroEntry(user) {
+  const btn = document.getElementById('financeiroAccessBtn');
+  if (btn && !financeiroCardInitialized) {
+    financeiroCardInitialized = true;
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      requestFinanceiroAccess();
+    });
+  }
+  if (user) {
+    updateFinanceiroStatus(user);
+    if (financeiroAccessPending) {
+      processFinanceiroAccess(user);
+    }
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const lastUpdateEl = document.getElementById('lastUpdate');
@@ -600,6 +792,7 @@ async function iniciarPainel(user) {
 
   applyBlurStates();
   maybeStartTour();
+  setupFinanceiroEntry(user);
 }
 onAuthStateChanged(auth, (user) => {
   if (user) {

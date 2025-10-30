@@ -1,225 +1,329 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <script type="module" src="logger.js"></script>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="manifest" href="manifest.json">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <meta name="theme-color" content="#6366F1">
-  <title>VendedorPro - Sistema Premium</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20240826">
-  <link rel="stylesheet" href="https://unpkg.com/intro.js/minified/introjs.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <head>
+    <script type="module" src="logger.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <meta name="theme-color" content="#6366F1" />
+    <title>VendedorPro - Sistema Premium</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20240826" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/intro.js/minified/introjs.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <script type="module">
-    import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
-    import { firebaseConfig } from './firebase-config.js';
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        window.location.href = 'login.html';
-      }
-    });
-  </script>
+    <script type="module">
+      import {
+        initializeApp,
+        getApps,
+      } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
+      import {
+        getAuth,
+        onAuthStateChanged,
+      } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
+      import { firebaseConfig } from './firebase-config.js';
+      const app = getApps().length
+        ? getApps()[0]
+        : initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      onAuthStateChanged(auth, (user) => {
+        if (!user) {
+          window.location.href = 'login.html';
+        }
+      });
+    </script>
+  </head>
+  <body class="bg-gray-50">
+    <div class="app-container">
+      <!-- Sidebar -->
+      <div id="sidebar-container"></div>
 
-</head>
-<body class="bg-gray-50">
-  <div class="app-container">
-    <!-- Sidebar -->
-  <div id="sidebar-container"></div>
+      <!-- Top Navbar -->
+      <div id="navbar-container"></div>
 
+      <!-- Conteúdo Principal -->
+      <div class="main-content space-y-10">
+        <div id="offlineNotice" class="hidden text-center text-red-600">
+          Sem conexão com o servidor. Verifique sua internet.
+        </div>
+        <!-- Mensagens de status -->
+        <div class="alert-success hidden">
+          <i class="fas fa-check-circle mr-2"></i>Produto salvo com sucesso
+        </div>
 
+        <div class="alert-error hidden">
+          <i class="fas fa-exclamation-circle mr-2"></i>Erro ao importar
+          planilha
+        </div>
 
-<!-- Top Navbar -->
-  <div id="navbar-container"></div>
-
-
-    <!-- Conteúdo Principal -->
-    <div class="main-content space-y-10">
-      <div id="offlineNotice" class="hidden text-center text-red-600">Sem conexão com o servidor. Verifique sua internet.</div>
-      <!-- Mensagens de status -->
-      <div class="alert-success hidden">
-        <i class="fas fa-check-circle mr-2"></i>Produto salvo com sucesso
-      </div>
-      
-      <div class="alert-error hidden">
-        <i class="fas fa-exclamation-circle mr-2"></i>Erro ao importar planilha
-      </div>
-      
         <!-- Hero Section -->
         <div class="max-w-6xl w-full flex flex-col items-center mb-6 relative">
-          <div id="lastUpdate" class="absolute top-0 right-0 text-xs text-gray-500"></div>
+          <div
+            id="lastUpdate"
+            class="absolute top-0 right-0 text-xs text-gray-500"
+          ></div>
           <div class="flex items-center space-x-4 mb-4">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-900">
-              <span class="font-extrabold text-brand">Sistemas de Gestão</span> para sua Loja
+              <span class="font-extrabold text-brand">Sistemas de Gestão</span>
+              para sua Loja
             </h1>
-            <input type="month" id="filtroMes" class="border rounded p-1 text-sm" />
+            <input
+              type="month"
+              id="filtroMes"
+              class="border rounded p-1 text-sm"
+            />
           </div>
           <p class="text-gray-600 max-w-2xl mx-auto mb-8 text-center">
-            Ferramentas poderosas para otimizar seus negócios na Shopee. Controle de estoque, precificação inteligente e análise de desempenho em um só lugar.
+            Ferramentas poderosas para otimizar seus negócios na Shopee.
+            Controle de estoque, precificação inteligente e análise de
+            desempenho em um só lugar.
           </p>
         </div>
-      
-      <!-- Painel Inicial -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Visão Geral -->
-        <section class="section">
-          <h2 class="section-title">Visão Geral</h2>
+
+        <!-- Painel Inicial -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Visão Geral -->
+          <section class="section">
+            <h2 class="section-title">Visão Geral</h2>
             <div id="kpiCards" class="mt-4 cards-grid"></div>
-        </section>
+          </section>
 
-        <!-- Análise de Vendas -->
+          <!-- Análise de Vendas -->
+          <section class="section">
+            <h2 class="section-title">Análise de Vendas</h2>
+            <div class="cards-grid mt-4">
+              <div id="resumoFaturamento"></div>
+
+              <div
+                class="card cursor-pointer h-full"
+                id="faturamentoMetaCard"
+                onclick="location.href='/VendedorPro/CONTROLE%20DE%20SOBRAS%20SHOPEE.html?tab=metas';"
+              >
+                <div class="card-header">
+                  <div class="card-header-icon">
+                    <i class="fas fa-bullseye text-xl"></i>
+                  </div>
+                  <div>
+                    <h2 class="text-xl font-extrabold text-gray-800">
+                      Faturamento x Meta
+                    </h2>
+                  </div>
+                </div>
+                <div class="card-body space-y-4">
+                  <canvas id="chartFaturamentoMeta" height="200"></canvas>
+                  <div class="progress">
+                    <div id="metaProgressBar" class="progress-bar"></div>
+                  </div>
+                  <div
+                    id="metaProgressText"
+                    class="text-sm text-gray-600"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Sistema Financeiro -->
         <section class="section">
-          <h2 class="section-title">Análise de Vendas</h2>
-          <div class="cards-grid mt-4">
-            <div id="resumoFaturamento"></div>
-
-            <div class="card cursor-pointer h-full" id="faturamentoMetaCard" onclick="location.href='/VendedorPro/CONTROLE%20DE%20SOBRAS%20SHOPEE.html?tab=metas';">
+          <h2 class="section-title">Financeiro</h2>
+          <div class="cards-grid">
+            <div class="card" id="financeiroCard">
               <div class="card-header">
                 <div class="card-header-icon">
-                  <i class="fas fa-bullseye text-xl"></i>
+                  <i class="fas fa-file-invoice-dollar text-xl"></i>
                 </div>
                 <div>
-                  <h2 class="text-xl font-extrabold text-gray-800">Faturamento x Meta</h2>
+                  <h2 class="text-xl font-extrabold text-gray-800">
+                    Sistema Financeiro
+                  </h2>
+                  <p class="text-sm text-gray-500">
+                    Consolidação de metas, faturamento e saques.
+                  </p>
                 </div>
               </div>
               <div class="card-body space-y-4">
-                <canvas id="chartFaturamentoMeta" height="200"></canvas>
-                <div class="progress">
-                  <div id="metaProgressBar" class="progress-bar"></div>
+                <p class="text-sm text-gray-600">
+                  Acesso restrito aos perfis Financeiro e Compras.
+                </p>
+                <p
+                  id="financeiroAccessStatus"
+                  class="text-xs text-gray-500 hidden"
+                ></p>
+                <button
+                  type="button"
+                  class="btn btn-primary w-full"
+                  id="financeiroAccessBtn"
+                >
+                  Entrar no Financeiro
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Produtos em Destaque -->
+        <section class="section">
+          <h2 class="section-title">Produtos em Destaque</h2>
+          <div class="cards-grid">
+            <div class="card" id="topSkusCard" data-blur-id="topSkusCard">
+              <div class="card-header">
+                <div class="card-header-icon">
+                  <span class="text-2xl">📦</span>
                 </div>
-                <div id="metaProgressText" class="text-sm text-gray-600"></div>
+                <div>
+                  <h2 class="text-xl font-extrabold text-gray-800">
+                    Top 5 SKUs do Mês
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  class="ml-auto toggle-blur"
+                  data-card="topSkusCard"
+                  onclick="event.stopPropagation();"
+                >
+                  <i class="fas fa-eye-slash"></i>
+                </button>
+              </div>
+              <div class="card-body" id="topSkus"></div>
+              <div class="p-4 pt-0">
+                <a
+                  href="/VendedorPro/CONTROLE%20DE%20SOBRAS%20SHOPEE.html?tab=controleVendas"
+                  class="btn btn-primary w-full"
+                  >Ver lista</a
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Organização -->
+        <section class="section">
+          <h2 class="section-title">Organização</h2>
+          <div class="cards-grid">
+            <div class="card" id="tarefasCard">
+              <div class="card-header">
+                <div class="card-header-icon">
+                  <span class="text-2xl">✅</span>
+                </div>
+                <div>
+                  <h2 class="text-xl font-extrabold">Tarefas do Dia</h2>
+                </div>
+              </div>
+              <div class="card-body space-y-4">
+                <div class="progress">
+                  <div id="tarefasProgressBar" class="progress-bar"></div>
+                </div>
+                <div class="kanban-board grid gap-4 md:grid-cols-3">
+                  <div>
+                    <h3 class="font-semibold mb-2">Pendentes</h3>
+                    <ul id="listaTarefasPendentes" class="space-y-2"></ul>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold mb-2">Em andamento</h3>
+                    <ul id="listaTarefasAndamento" class="space-y-2"></ul>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold mb-2">Concluídas</h3>
+                    <ul
+                      id="listaTarefasFeitas"
+                      class="space-y-2 text-gray-600"
+                    ></ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="card"
+              id="atualizacoesCard"
+              data-blur-id="atualizacoesCard"
+            >
+              <div class="card-header">
+                <div class="card-header-icon">
+                  <i class="fas fa-newspaper text-xl"></i>
+                </div>
+                <div>
+                  <h2 class="text-xl font-extrabold text-gray-800">
+                    Atualizações da Shopee
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  class="ml-auto toggle-blur"
+                  data-card="atualizacoesCard"
+                >
+                  <i class="fas fa-eye-slash"></i>
+                </button>
+              </div>
+              <div class="card-body">
+                <div
+                  id="atualizacoesShopee"
+                  class="space-y-4 max-h-60 overflow-y-auto"
+                >
+                  <div class="border-b pb-2">
+                    <div class="font-semibold">Exemplo de Atualização</div>
+                    <p class="text-sm text-gray-600">
+                      Breve descrição da novidade.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href="https://shopee.com.br"
+                  target="_blank"
+                  class="text-blue-600 underline block mt-2"
+                  >Ver Mais</a
+                >
               </div>
             </div>
           </div>
         </section>
       </div>
-
-      <!-- Produtos em Destaque -->
-      <section class="section">
-        <h2 class="section-title">Produtos em Destaque</h2>
-        <div class="cards-grid">
-          <div class="card" id="topSkusCard" data-blur-id="topSkusCard">
-            <div class="card-header">
-             <div class="card-header-icon">
-                <span class="text-2xl">📦</span>
-              </div>
-              <div>
-                <h2 class="text-xl font-extrabold text-gray-800">Top 5 SKUs do Mês</h2>
-              </div>
-             <button type="button" class="ml-auto toggle-blur" data-card="topSkusCard" onclick="event.stopPropagation();">
-                <i class="fas fa-eye-slash"></i>
-              </button>
-            </div>
-            <div class="card-body" id="topSkus"></div>
-            <div class="p-4 pt-0">
-              <a href="/VendedorPro/CONTROLE%20DE%20SOBRAS%20SHOPEE.html?tab=controleVendas" class="btn btn-primary w-full">Ver lista</a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Organização -->
-      <section class="section">
-        <h2 class="section-title">Organização</h2>
-        <div class="cards-grid">
-          <div class="card" id="tarefasCard">
-            <div class="card-header">
-              <div class="card-header-icon">
-                <span class="text-2xl">✅</span>
-              </div>
-              <div>
-                <h2 class="text-xl font-extrabold">Tarefas do Dia</h2>
-              </div>
-            </div>
-            <div class="card-body space-y-4">
-              <div class="progress">
-                <div id="tarefasProgressBar" class="progress-bar"></div>
-              </div>
-              <div class="kanban-board grid gap-4 md:grid-cols-3">
-                <div>
-                  <h3 class="font-semibold mb-2">Pendentes</h3>
-                  <ul id="listaTarefasPendentes" class="space-y-2"></ul>
-                </div>
-                <div>
-                  <h3 class="font-semibold mb-2">Em andamento</h3>
-                  <ul id="listaTarefasAndamento" class="space-y-2"></ul>
-                </div>
-                <div>
-                  <h3 class="font-semibold mb-2">Concluídas</h3>
-                  <ul id="listaTarefasFeitas" class="space-y-2 text-gray-600"></ul>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card" id="atualizacoesCard" data-blur-id="atualizacoesCard">
-            <div class="card-header">
-              <div class="card-header-icon">
-                <i class="fas fa-newspaper text-xl"></i>
-              </div>
-              <div>
-                <h2 class="text-xl font-extrabold text-gray-800">Atualizações da Shopee</h2>
-              </div>
-              <button type="button" class="ml-auto toggle-blur" data-card="atualizacoesCard">
-                <i class="fas fa-eye-slash"></i>
-              </button>
-            </div>
-            <div class="card-body">
-              <div id="atualizacoesShopee" class="space-y-4 max-h-60 overflow-y-auto">
-                <div class="border-b pb-2">
-                  <div class="font-semibold">Exemplo de Atualização</div>
-                  <p class="text-sm text-gray-600">Breve descrição da novidade.</p>
-                </div>
-              </div>
-              <a href="https://shopee.com.br" target="_blank" class="text-blue-600 underline block mt-2">Ver Mais</a>
-            </div>
-          </div>
-        </div>
-      </section>
-      
     </div>
-  </div>
 
-  <button id="scrollTopBtn" class="floating-btn">
-    <i class="fas fa-plus text-xl"></i>
-  </button>
+    <button id="scrollTopBtn" class="floating-btn">
+      <i class="fas fa-plus text-xl"></i>
+    </button>
 
-  <!-- Modais de Login -->
-   <div id="auth-modals-container"></div>
+    <!-- Modais de Login -->
+    <div id="auth-modals-container"></div>
 
-
-  <script type="module" src="firebase-config.js"></script>
-  <script type="module" src="bling.js"></script>
-  <script src="https://unpkg.com/intro.js/minified/intro.min.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="bling.js"></script>
+    <script src="https://unpkg.com/intro.js/minified/intro.min.js"></script>
     <script type="module" src="index.js"></script>
-  <script type="module">
-  
-    
-    // Tooltips
-    document.querySelectorAll('.tooltip').forEach(el => {
-      const tooltipText = el.getAttribute('data-tooltip');
-      if (tooltipText) {
-        const tooltip = document.createElement('span');
-        tooltip.className = 'tooltip-text';
-        tooltip.textContent = tooltipText;
-        el.appendChild(tooltip);
-      }
-    });
-  </script>
-   <script src="shared.js"></script>
- <script type="module" src="login.js"></script>
+    <script type="module">
+      // Tooltips
+      document.querySelectorAll('.tooltip').forEach((el) => {
+        const tooltipText = el.getAttribute('data-tooltip');
+        if (tooltipText) {
+          const tooltip = document.createElement('span');
+          tooltip.className = 'tooltip-text';
+          tooltip.textContent = tooltipText;
+          el.appendChild(tooltip);
+        }
+      });
+    </script>
+    <script src="shared.js"></script>
+    <script type="module" src="login.js"></script>
 
-<script src="expose-uid.js"></script>
-
-
-</body>
+    <script src="expose-uid.js"></script>
+  </body>
 </html>
