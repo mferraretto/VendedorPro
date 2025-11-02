@@ -198,6 +198,64 @@
               </form>
             </div>
           </div>
+
+          <!-- Cobrança de Comissões -->
+          <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div
+              class="flex items-center justify-between p-4 border-b border-slate-100"
+            >
+              <div class="flex items-center gap-2">
+                <div
+                  class="h-8 w-8 rounded-xl bg-gradient-to-tr from-rose-500 to-orange-500"
+                ></div>
+                <h2 class="text-sm font-semibold text-slate-800">
+                  Cobrança de Comissões Pendentes
+                </h2>
+              </div>
+            </div>
+            <div class="p-4 space-y-3">
+              <p class="text-xs text-slate-500">
+                Gere um PDF com todas as comissões não pagas no período
+                filtrado. Defina a data limite de pagamento e uma multa que será
+                aplicada automaticamente caso a data esteja vencida.
+              </p>
+              <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <input
+                  type="date"
+                  id="dataPagamentoCobranca"
+                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+                <select
+                  id="percentualCobranca"
+                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="auto">Automático (usar padrão)</option>
+                  <option value="0.03">3%</option>
+                  <option value="0.04">4%</option>
+                  <option value="0.05">5%</option>
+                </select>
+                <input
+                  type="number"
+                  id="percentualMultaCobranca"
+                  placeholder="Multa (%)"
+                  step="0.01"
+                  min="0"
+                  value="2"
+                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+                <div class="md:col-span-2 flex items-center">
+                  <button
+                    type="button"
+                    onclick="gerarCobrancaComissoes()"
+                    class="w-full h-11 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600"
+                  >
+                    Gerar PDF de Cobrança
+                  </button>
+                </div>
+              </div>
+              <p id="statusCobranca" class="text-xs text-slate-500"></p>
+            </div>
+          </div>
         </section>
 
         <!-- Resumo do mês -->

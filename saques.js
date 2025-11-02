@@ -49,6 +49,7 @@ let listaSaquesFiltrada = [];
 let percentualPadrao = null;
 let mensagemPercentualPadraoTimeout = null;
 let resumoMesAtual = null;
+let statusCobrancaTimeout = null;
 
 function mensagemPadraoBase() {
   if (percentualPadrao === null) {
@@ -84,6 +85,23 @@ function atualizarSelectPadrao() {
   }
 }
 
+function atualizarSelectCobranca() {
+  const select = document.getElementById('percentualCobranca');
+  if (!select) return;
+  const opcaoAuto = select.querySelector('option[value="auto"]');
+  if (opcaoAuto) {
+    if (percentualPadrao !== null) {
+      opcaoAuto.textContent = `${(percentualPadrao * 100).toFixed(0)}% (usar padrão)`;
+    } else {
+      opcaoAuto.textContent = 'Automático (por faixa de faturamento)';
+    }
+  }
+  const valoresPermitidos = new Set(['auto', '0', '0.03', '0.04', '0.05']);
+  if (!valoresPermitidos.has(select.value)) {
+    select.value = 'auto';
+  }
+}
+
 function aplicarPercentualPadrao() {
   if (editandoId) return;
   const select = document.getElementById('percentualSaque');
@@ -96,6 +114,38 @@ function aplicarPercentualPadrao() {
     select.value = '0';
   } else if (select.options.length > 0) {
     select.selectedIndex = 0;
+  }
+}
+
+function atualizarStatusCobranca(mensagem = '', tipo = 'info') {
+  const statusEl = document.getElementById('statusCobranca');
+  if (!statusEl) return;
+  statusEl.textContent = mensagem;
+  statusEl.classList.remove(
+    'text-emerald-600',
+    'text-rose-600',
+    'text-slate-500',
+  );
+  statusEl.classList.add('text-xs');
+  if (!mensagem) {
+    statusEl.classList.add('text-slate-500');
+  } else if (tipo === 'sucesso') {
+    statusEl.classList.add('text-emerald-600');
+  } else if (tipo === 'erro') {
+    statusEl.classList.add('text-rose-600');
+  } else {
+    statusEl.classList.add('text-slate-500');
+  }
+  if (statusCobrancaTimeout) {
+    clearTimeout(statusCobrancaTimeout);
+    statusCobrancaTimeout = null;
+  }
+  if (mensagem) {
+    statusCobrancaTimeout = window.setTimeout(() => {
+      statusEl.textContent = '';
+      statusEl.classList.remove('text-emerald-600', 'text-rose-600');
+      statusEl.classList.add('text-slate-500');
+    }, 6000);
   }
 }
 
@@ -165,6 +215,7 @@ async function carregarConfiguracaoPercentualPadrao() {
     percentualPadrao = null;
     atualizarSelectPadrao();
     aplicarPercentualPadrao();
+    atualizarSelectCobranca();
     atualizarMensagemPadrao();
     return;
   }
@@ -189,6 +240,7 @@ async function carregarConfiguracaoPercentualPadrao() {
   }
   atualizarSelectPadrao();
   aplicarPercentualPadrao();
+  atualizarSelectCobranca();
   atualizarMensagemPadrao();
   if (resumoMesAtual) {
     renderResumoCards();
@@ -232,6 +284,7 @@ async function salvarPercentualPadraoUsuario() {
     });
     percentualPadrao = novoPadrao;
     aplicarPercentualPadrao();
+    atualizarSelectCobranca();
     atualizarMensagemPadrao('Padrão atualizado com sucesso.');
     if (resumoMesAtual) {
       renderResumoCards();
@@ -853,6 +906,219 @@ function exportarSelecionadosPDF() {
   doc.save(nomeArquivo);
 }
 
+function gerarCobrancaComissoes() {
+  if (!window.jspdf) {
+    atualizarStatusCobranca('Biblioteca de PDF não carregada.', 'erro');
+    return;
+  }
+
+  const dataPagamentoValor = document.getElementById(
+    'dataPagamentoCobranca',
+  )?.value;
+  if (!dataPagamentoValor) {
+    atualizarStatusCobranca('Informe a data limite de pagamento.', 'erro');
+    return;
+  }
+
+  const selectPercentual = document.getElementById('percentualCobranca');
+  const valorPercentual = selectPercentual ? selectPercentual.value : 'auto';
+  const inputMulta = document.getElementById('percentualMultaCobranca');
+  const multaPercentual = parseFloat(inputMulta?.value || '0');
+
+  const pendentes = listaSaquesFiltrada.filter(
+    (s) => (Number(s.percentualPago) || 0) === 0,
+  );
+  if (pendentes.length === 0) {
+    atualizarStatusCobranca(
+      'Não há comissões pendentes no filtro atual.',
+      'erro',
+    );
+    return;
+  }
+
+  let percentualDecimal;
+  if (valorPercentual === 'auto') {
+    if (percentualPadrao !== null) {
+      percentualDecimal = percentualPadrao;
+    } else {
+      const totalPendentes = pendentes.reduce(
+        (soma, saque) => soma + (Number(saque.valor) || 0),
+        0,
+      );
+      percentualDecimal = taxaFinalPorTotal(totalPendentes);
+    }
+  } else {
+    percentualDecimal = parseFloat(valorPercentual);
+  }
+
+  if (
+    !percentualDecimal ||
+    Number.isNaN(percentualDecimal) ||
+    percentualDecimal <= 0
+  ) {
+    atualizarStatusCobranca(
+      'Selecione um percentual de comissão válido para gerar a cobrança.',
+      'erro',
+    );
+    return;
+  }
+
+  const dataLimite = new Date(`${dataPagamentoValor}T00:00:00`);
+  if (Number.isNaN(dataLimite.getTime())) {
+    atualizarStatusCobranca('Data limite inválida.', 'erro');
+    return;
+  }
+
+  const formatCurrency = (valor) =>
+    `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const linhasTabela = [];
+  let totalSaque = 0;
+  let totalComissao = 0;
+
+  pendentes.forEach((saque) => {
+    const valorSaque = Number(saque.valor) || 0;
+    const comissaoDevida = valorSaque * percentualDecimal;
+    totalSaque += valorSaque;
+    totalComissao += comissaoDevida;
+    linhasTabela.push([
+      formatarDataBR(saque.data),
+      saque.origem && saque.origem.trim() ? saque.origem : '-',
+      formatCurrency(valorSaque),
+      formatCurrency(comissaoDevida),
+    ]);
+  });
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const limiteComparacao = new Date(dataLimite);
+  limiteComparacao.setHours(0, 0, 0, 0);
+  const atrasoMs = hoje.getTime() - limiteComparacao.getTime();
+  const estaAtrasado = atrasoMs > 0;
+  const diasAtraso = estaAtrasado
+    ? Math.ceil(atrasoMs / (1000 * 60 * 60 * 24))
+    : 0;
+  const multaDecimal =
+    Number.isNaN(multaPercentual) || multaPercentual <= 0
+      ? 0
+      : multaPercentual / 100;
+  const valorMulta = estaAtrasado ? totalComissao * multaDecimal : 0;
+  const totalComMulta = totalComissao + valorMulta;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text('Cobrança de Comissões', 105, 15, { align: 'center' });
+
+  doc.setFontSize(11);
+  const responsavel = nomeUsuarioAtual || '-';
+  doc.text(`Responsável: ${responsavel}`, 14, 25);
+  doc.text(
+    `Data limite para pagamento: ${formatarDataBR(`${dataPagamentoValor}T00:00:00`)}`,
+    14,
+    32,
+  );
+  const situacao = estaAtrasado
+    ? `Situação: Vencido há ${diasAtraso} dia(s)`
+    : 'Situação: Dentro do prazo';
+  doc.text(situacao, 14, 39);
+  doc.text(
+    `Percentual aplicado: ${(percentualDecimal * 100).toFixed(2)}%`,
+    14,
+    46,
+  );
+  if (!Number.isNaN(multaPercentual) && multaPercentual > 0) {
+    doc.text(`Multa definida: ${multaPercentual.toFixed(2)}%`, 14, 53);
+  }
+
+  doc.autoTable({
+    head: [['Data do Saque', 'Loja', 'Valor do Saque', 'Comissão Devida']],
+    body: linhasTabela,
+    startY: 60,
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [244, 63, 94], textColor: 255 },
+    alternateRowStyles: { fillColor: [252, 231, 233] },
+    columnStyles: {
+      0: { halign: 'left' },
+      1: { halign: 'left' },
+      2: { halign: 'right' },
+      3: { halign: 'right' },
+    },
+    foot: [
+      [
+        {
+          content: 'Totais',
+          colSpan: 2,
+          styles: { halign: 'right', fontStyle: 'bold' },
+        },
+        {
+          content: formatCurrency(totalSaque),
+          styles: { halign: 'right', fontStyle: 'bold' },
+        },
+        {
+          content: formatCurrency(totalComissao),
+          styles: { halign: 'right', fontStyle: 'bold' },
+        },
+      ],
+    ],
+  });
+
+  const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 60;
+  let textoY = finalY + 10;
+  doc.setFontSize(12);
+  doc.text(
+    `Total de comissões devidas: ${formatCurrency(totalComissao)}`,
+    14,
+    textoY,
+  );
+  textoY += 6;
+  if (estaAtrasado && valorMulta > 0) {
+    doc.text(
+      `Multa aplicada (${multaPercentual.toFixed(2)}%): ${formatCurrency(valorMulta)}`,
+      14,
+      textoY,
+    );
+    textoY += 6;
+    doc.text(
+      `Valor total com multa: ${formatCurrency(totalComMulta)}`,
+      14,
+      textoY,
+    );
+    textoY += 6;
+  } else {
+    if (multaDecimal > 0) {
+      doc.text(
+        'Multa será aplicada caso o pagamento ocorra após a data limite informada.',
+        14,
+        textoY,
+      );
+      textoY += 6;
+    }
+    doc.text(
+      `Valor total a pagar: ${formatCurrency(totalComissao)}`,
+      14,
+      textoY,
+    );
+    textoY += 6;
+  }
+
+  doc.setFontSize(10);
+  doc.text(
+    'Documento gerado automaticamente pelo painel de saques.',
+    14,
+    textoY + 4,
+  );
+
+  const nomeResponsavelSlug = slugArquivo(responsavel || 'responsavel');
+  const dataSlug = dataPagamentoValor.replace(/-/g, '');
+  doc.save(`cobranca-comissoes-${nomeResponsavelSlug}-${dataSlug}.pdf`);
+
+  atualizarStatusCobranca('PDF de cobrança gerado com sucesso.', 'sucesso');
+}
+
 function editarSaque(id) {
   const s = saquesCache[id];
   if (!s) return;
@@ -1191,4 +1457,5 @@ if (typeof window !== 'undefined') {
   window.registrarComissaoRecebida = registrarComissaoRecebida;
   window.imprimirFechamento = imprimirFechamento;
   window.salvarPercentualPadrao = salvarPercentualPadraoUsuario;
+  window.gerarCobrancaComissoes = gerarCobrancaComissoes;
 }
