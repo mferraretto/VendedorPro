@@ -925,12 +925,22 @@ function gerarCobrancaComissoes() {
   const inputMulta = document.getElementById('percentualMultaCobranca');
   const multaPercentual = parseFloat(inputMulta?.value || '0');
 
-  const pendentes = listaSaquesFiltrada.filter(
-    (s) => (Number(s.percentualPago) || 0) === 0,
-  );
-  if (pendentes.length === 0) {
+  const saquesPeriodo = listaSaquesFiltrada.filter((s) => Number(s.valor) > 0);
+  if (saquesPeriodo.length === 0) {
     atualizarStatusCobranca(
-      'Não há comissões pendentes no filtro atual.',
+      'Não há saques registrados no período filtrado.',
+      'erro',
+    );
+    return;
+  }
+
+  const totalSacadoPeriodo = saquesPeriodo.reduce(
+    (soma, saque) => soma + (Number(saque.valor) || 0),
+    0,
+  );
+  if (totalSacadoPeriodo <= 0) {
+    atualizarStatusCobranca(
+      'Não há valores de saque válidos no período filtrado.',
       'erro',
     );
     return;
@@ -941,11 +951,7 @@ function gerarCobrancaComissoes() {
     if (percentualPadrao !== null) {
       percentualDecimal = percentualPadrao;
     } else {
-      const totalPendentes = pendentes.reduce(
-        (soma, saque) => soma + (Number(saque.valor) || 0),
-        0,
-      );
-      percentualDecimal = taxaFinalPorTotal(totalPendentes);
+      percentualDecimal = taxaFinalPorTotal(totalSacadoPeriodo);
     }
   } else {
     percentualDecimal = parseFloat(valorPercentual);
@@ -977,20 +983,28 @@ function gerarCobrancaComissoes() {
 
   const linhasTabela = [];
   let totalSaque = 0;
-  let totalComissao = 0;
+  let totalComissaoPrevista = 0;
+  let totalComissaoPaga = 0;
 
-  pendentes.forEach((saque) => {
+  saquesPeriodo.forEach((saque) => {
     const valorSaque = Number(saque.valor) || 0;
-    const comissaoDevida = valorSaque * percentualDecimal;
+    const comissaoPrevista = valorSaque * percentualDecimal;
+    const comissaoPaga = Number(saque.comissaoPaga) || 0;
     totalSaque += valorSaque;
-    totalComissao += comissaoDevida;
+    totalComissaoPrevista += comissaoPrevista;
+    totalComissaoPaga += comissaoPaga;
+    const saldo = Math.max(0, comissaoPrevista - comissaoPaga);
     linhasTabela.push([
       formatarDataBR(saque.data),
       saque.origem && saque.origem.trim() ? saque.origem : '-',
       formatCurrency(valorSaque),
-      formatCurrency(comissaoDevida),
+      formatCurrency(comissaoPrevista),
+      formatCurrency(comissaoPaga),
+      formatCurrency(saldo),
     ]);
   });
+
+  const totalSaldo = Math.max(0, totalComissaoPrevista - totalComissaoPaga);
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -1005,8 +1019,8 @@ function gerarCobrancaComissoes() {
     Number.isNaN(multaPercentual) || multaPercentual <= 0
       ? 0
       : multaPercentual / 100;
-  const valorMulta = estaAtrasado ? totalComissao * multaDecimal : 0;
-  const totalComMulta = totalComissao + valorMulta;
+  const valorMulta = estaAtrasado ? totalSaldo * multaDecimal : 0;
+  const totalComMulta = totalSaldo + valorMulta;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -1035,7 +1049,16 @@ function gerarCobrancaComissoes() {
   }
 
   doc.autoTable({
-    head: [['Data do Saque', 'Loja', 'Valor do Saque', 'Comissão Devida']],
+    head: [
+      [
+        'Data do Saque',
+        'Loja',
+        'Valor do Saque',
+        'Comissão Total',
+        'Comissão Paga',
+        'Saldo',
+      ],
+    ],
     body: linhasTabela,
     startY: 60,
     styles: { fontSize: 10 },
@@ -1046,12 +1069,14 @@ function gerarCobrancaComissoes() {
       1: { halign: 'left' },
       2: { halign: 'right' },
       3: { halign: 'right' },
+      4: { halign: 'right' },
+      5: { halign: 'right' },
     },
     foot: [
       [
         {
           content: 'Totais',
-          colSpan: 2,
+          colSpan: 3,
           styles: { halign: 'right', fontStyle: 'bold' },
         },
         {
@@ -1059,7 +1084,15 @@ function gerarCobrancaComissoes() {
           styles: { halign: 'right', fontStyle: 'bold' },
         },
         {
-          content: formatCurrency(totalComissao),
+          content: formatCurrency(totalComissaoPrevista),
+          styles: { halign: 'right', fontStyle: 'bold' },
+        },
+        {
+          content: formatCurrency(totalComissaoPaga),
+          styles: { halign: 'right', fontStyle: 'bold' },
+        },
+        {
+          content: formatCurrency(totalSaldo),
           styles: { halign: 'right', fontStyle: 'bold' },
         },
       ],
@@ -1070,7 +1103,19 @@ function gerarCobrancaComissoes() {
   let textoY = finalY + 10;
   doc.setFontSize(12);
   doc.text(
-    `Total de comissões devidas: ${formatCurrency(totalComissao)}`,
+    `Total de comissões previstas: ${formatCurrency(totalComissaoPrevista)}`,
+    14,
+    textoY,
+  );
+  textoY += 6;
+  doc.text(
+    `Total de comissões pagas: ${formatCurrency(totalComissaoPaga)}`,
+    14,
+    textoY,
+  );
+  textoY += 6;
+  doc.text(
+    `Saldo em aberto (sem multa): ${formatCurrency(totalSaldo)}`,
     14,
     textoY,
   );
@@ -1089,7 +1134,7 @@ function gerarCobrancaComissoes() {
     );
     textoY += 6;
   } else {
-    if (multaDecimal > 0) {
+    if (multaDecimal > 0 && totalSaldo > 0) {
       doc.text(
         'Multa será aplicada caso o pagamento ocorra após a data limite informada.',
         14,
@@ -1097,11 +1142,7 @@ function gerarCobrancaComissoes() {
       );
       textoY += 6;
     }
-    doc.text(
-      `Valor total a pagar: ${formatCurrency(totalComissao)}`,
-      14,
-      textoY,
-    );
+    doc.text(`Valor total a pagar: ${formatCurrency(totalSaldo)}`, 14, textoY);
     textoY += 6;
   }
 
@@ -1116,7 +1157,10 @@ function gerarCobrancaComissoes() {
   const dataSlug = dataPagamentoValor.replace(/-/g, '');
   doc.save(`cobranca-comissoes-${nomeResponsavelSlug}-${dataSlug}.pdf`);
 
-  atualizarStatusCobranca('PDF de cobrança gerado com sucesso.', 'sucesso');
+  atualizarStatusCobranca(
+    `PDF de cobrança gerado com sucesso. Valor em aberto: ${formatCurrency(totalSaldo)}.`,
+    'sucesso',
+  );
 }
 
 function editarSaque(id) {
