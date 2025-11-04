@@ -8645,10 +8645,14 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           <div class="text-xl font-semibold text-green-600 mb-1">🔻 Líquido: R$ ${liquido.toLocaleString('pt-BR')}</div>
           <div class="text-base text-gray-600 mb-4">🛒 Vendas: ${qtd}</div>
 
-          <div class="flex justify-between items-center mt-4">
+          <div class="flex justify-between items-center mt-4 gap-2">
             <button onclick='mostrarDetalhesFaturamento("${docData.id}")'
               class="btn btn-outline">
               <i class="fas fa-search"></i> Ver Detalhes
+            </button>
+            <button onclick='copiarResumoFaturamento("${docData.id}", ${bruto}, ${liquido}, ${qtd})'
+              class="btn btn-outline">
+              <i class="fas fa-copy"></i> Copiar Resumo
             </button>
             <button onclick='excluirFaturamento("${docData.id}")'
               class="btn btn-outline">
@@ -8660,6 +8664,48 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         `;
 
         container.appendChild(card);
+      }
+    }
+
+    function copiarResumoFaturamento(dataRef, bruto, liquido, qtd) {
+      const formatCurrency = (valor) => Number(valor || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+
+      const texto = `${dataRef}\n Bruto: R$ ${formatCurrency(bruto)}\n Líquido: R$ ${formatCurrency(liquido)}\nVendas: ${qtd}`;
+
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(texto)
+          .then(() => {
+            if (typeof showToast === 'function') {
+              showToast('Resumo de faturamento copiado!', 'success');
+            }
+          })
+          .catch(() => {
+            if (typeof showToast === 'function') {
+              showToast('Não foi possível copiar o resumo.', 'error');
+            }
+          });
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = texto;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          if (typeof showToast === 'function') {
+            showToast('Resumo de faturamento copiado!', 'success');
+          }
+        } catch (err) {
+          if (typeof showToast === 'function') {
+            showToast('Não foi possível copiar o resumo.', 'error');
+          }
+        } finally {
+          document.body.removeChild(textarea);
+        }
       }
     }
 
@@ -15003,6 +15049,7 @@ async function gerarPrevisaoProdutosVendidos() {
 }
 
 window.carregarRegistrosFaturamento = carregarRegistrosFaturamento;
+window.copiarResumoFaturamento = copiarResumoFaturamento;
 window.carregarControleVendas = carregarControleVendas;
 window.carregarProdutosVendidos = carregarProdutosVendidos;
 window.carregarSobras = carregarSobras;
