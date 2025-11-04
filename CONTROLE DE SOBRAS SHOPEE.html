@@ -1165,6 +1165,34 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
   const quantidade = parseNumber(getFieldByKey(row, headerMap, 'quantidade'));
   const valorUnitario = parseNumber(getFieldByKey(row, headerMap, 'valorunitario'));
   const totalCalculado = Number(valorUnitario || 0) * (Number(quantidade || 0) || 0);
+  const buscarCampoFrete = () => {
+    const candidatos = [
+      'frete',
+      'valorfrete',
+      'valordofrete',
+      'valorfretepago',
+      'valorfretepedido',
+      'fretevendedor',
+      'valortotalfrete',
+      'freteporpedido'
+    ];
+    for (const chave of candidatos) {
+      const encontrado = getFieldByKey(row, headerMap, chave);
+      if (encontrado !== undefined && encontrado !== null && String(encontrado).trim() !== '') {
+        return encontrado;
+      }
+    }
+    return undefined;
+  };
+  const valorFreteBruto = buscarCampoFrete();
+  const freteNumero = parseNumber(valorFreteBruto);
+  const freteCalculado = Number.isFinite(freteNumero) ? freteNumero : 0;
+  const freteValor = Number(freteCalculado.toFixed(2));
+  const brutoPedido = Math.max(0, Number(totalCalculado || 0));
+  const brutoPedidoFormatado = Math.max(0, Number(brutoPedido.toFixed(2)));
+  const taxaMarketplaceBruta = brutoPedido * 0.12;
+  const taxaMarketplaceValor = Math.max(0, Number(taxaMarketplaceBruta.toFixed(2)));
+  const liquidoEstimadoValor = Number((brutoPedido - taxaMarketplaceValor - freteValor).toFixed(2));
   const dataPrevistaBruta = getFieldByKey(row, headerMap, 'dataprevista');
   const dataPrevistaNormalizada = normalizeDate(dataPrevistaBruta);
   const extras = {};
@@ -1176,6 +1204,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
   if (Number.isFinite(valorUnitario)) {
     extras.valorUnitario = valorUnitario;
   }
+  extras.taxaMarketplacePercentual = 12;
+  extras.taxaMarketplaceValor = taxaMarketplaceValor;
+  if (freteValor !== 0) {
+    extras.valorFrete = freteValor;
+  }
+  extras.valorBrutoCalculado = brutoPedidoFormatado;
+  extras.valorLiquidoCalculado = liquidoEstimadoValor;
   return {
     numeroVenda,
     estado: String(getFieldByKey(row, headerMap, 'situacao') || '').trim(),
@@ -1185,10 +1220,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     receitaAcrescimo: 0,
     receitaEnvio: 0,
     taxaParcelamento: 0,
-    tarifaVenda: 0,
-    tarifasEnvio: 0,
+    tarifaVenda: taxaMarketplaceValor,
+    tarifasEnvio: freteValor,
     cancelamentos: 0,
-    totalLinha: totalCalculado,
+    totalLinha: liquidoEstimadoValor,
     dataVenda: getFieldByKey(row, headerMap, 'data') || dataReferencia,
     extrasPedido: extras
   };
@@ -7265,6 +7300,7 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
       const file = input?.files?.[0];
       if (!file) return mostrarErro('Selecione um arquivo do Tiny para importar.');
 
+    let diasSelecionadosTiny = [];
     const { value: form, isConfirmed } = await Swal.fire({
       title: 'Pedidos Tiny',
       html: `
@@ -7281,8 +7317,26 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
             </label>
           </div>
         </div>
-        <input type="date" id="swal-data-tiny" class="swal2-input" />
-        <textarea id="swal-dias-tiny" class="swal2-textarea" placeholder="Informe os dias (ex: 2024-05-01, 2024-05-02)" style="display: none"></textarea>
+        <div id="swal-dia-unico-container" style="width: 100%;">
+          <input type="date" id="swal-data-tiny" class="swal2-input" />
+        </div>
+        <div id="swal-multiplos-container" class="swal2-field" style="display: none; text-align: left; gap: 0.75rem; width: 100%;">
+          <label class="swal2-label" style="margin-bottom: 0.5rem; display: block">Selecione os dias da planilha</label>
+          <div class="swal2-field" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+              <input type="date" id="swal-dia-unico-tiny" class="swal2-input" style="width: auto; min-width: 12rem;" />
+              <button type="button" id="swal-add-dia-tiny" class="swal2-styled" style="margin: 0; padding: 0.5rem 1rem;">Adicionar dia</button>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+              <input type="date" id="swal-intervalo-inicio-tiny" class="swal2-input" style="width: auto; min-width: 10rem;" placeholder="Início" />
+              <span style="font-size: 0.85rem; color: #4b5563;">até</span>
+              <input type="date" id="swal-intervalo-fim-tiny" class="swal2-input" style="width: auto; min-width: 10rem;" placeholder="Fim" />
+              <button type="button" id="swal-add-intervalo-tiny" class="swal2-styled" style="margin: 0; padding: 0.5rem 1rem;">Adicionar intervalo</button>
+            </div>
+          </div>
+          <div id="swal-lista-dias-tiny" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;"></div>
+          <div id="swal-dias-erro" class="swal2-validation-message" style="display: none;"></div>
+        </div>
         <input type="text" id="swal-loja-tiny" class="swal2-input" placeholder="Nome da Loja" />
       `,
       focusConfirm: false,
@@ -7291,27 +7345,139 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
       didOpen: () => {
         const popup = Swal.getPopup();
         const dataInput = popup.querySelector('#swal-data-tiny');
-        const diasTextarea = popup.querySelector('#swal-dias-tiny');
+        const containerUnico = popup.querySelector('#swal-dia-unico-container');
+        const containerMultiplos = popup.querySelector('#swal-multiplos-container');
+        const inputDiaUnico = popup.querySelector('#swal-dia-unico-tiny');
+        const inputIntervaloInicio = popup.querySelector('#swal-intervalo-inicio-tiny');
+        const inputIntervaloFim = popup.querySelector('#swal-intervalo-fim-tiny');
+        const botaoAdicionarDia = popup.querySelector('#swal-add-dia-tiny');
+        const botaoAdicionarIntervalo = popup.querySelector('#swal-add-intervalo-tiny');
+        const listaDias = popup.querySelector('#swal-lista-dias-tiny');
+        const erroDias = popup.querySelector('#swal-dias-erro');
+
+        const formatarDataBr = (iso) => {
+          if (!iso || typeof iso !== 'string') return iso || '';
+          const partes = iso.split('-');
+          if (partes.length !== 3) return iso;
+          return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        };
+
+        const exibirErroDias = (mensagem) => {
+          if (!erroDias) return;
+          if (mensagem) {
+            erroDias.style.display = 'block';
+            erroDias.textContent = mensagem;
+          } else {
+            erroDias.style.display = 'none';
+            erroDias.textContent = '';
+          }
+        };
+
+        const atualizarListaDias = () => {
+          if (!listaDias) return;
+          if (!diasSelecionadosTiny.length) {
+            listaDias.innerHTML = '<span style="font-size: 0.85rem; color: #6b7280;">Nenhum dia selecionado ainda.</span>';
+            return;
+          }
+          const itens = diasSelecionadosTiny
+            .slice()
+            .sort()
+            .map(
+              dia => `
+                <span data-dia="${dia}" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.75rem; border-radius: 9999px; background: #e5e7eb; color: #1f2937; font-size: 0.85rem;">
+                  ${formatarDataBr(dia)}
+                  <button type="button" data-remover-dia="${dia}" style="border: none; background: transparent; cursor: pointer; color: #ef4444; font-weight: 700;">&times;</button>
+                </span>
+              `
+            )
+            .join('');
+          listaDias.innerHTML = itens;
+        };
+
+        const adicionarDia = (valor) => {
+          exibirErroDias('');
+          const normalizado = normalizeDate(valor);
+          if (!normalizado) {
+            exibirErroDias('Informe um dia válido.');
+            return;
+          }
+          if (!diasSelecionadosTiny.includes(normalizado)) {
+            diasSelecionadosTiny.push(normalizado);
+            atualizarListaDias();
+          }
+        };
+
+        const adicionarIntervalo = (inicio, fim) => {
+          exibirErroDias('');
+          const inicioNormalizado = normalizeDate(inicio);
+          const fimNormalizado = normalizeDate(fim);
+          if (!inicioNormalizado || !fimNormalizado) {
+            exibirErroDias('Informe datas de início e fim válidas.');
+            return;
+          }
+          if (inicioNormalizado > fimNormalizado) {
+            exibirErroDias('A data inicial não pode ser posterior à final.');
+            return;
+          }
+          const inicioDate = new Date(`${inicioNormalizado}T00:00:00`);
+          const fimDate = new Date(`${fimNormalizado}T00:00:00`);
+          for (let cursor = new Date(inicioDate); cursor <= fimDate; cursor.setDate(cursor.getDate() + 1)) {
+            const iso = cursor.toISOString().split('T')[0];
+            if (!diasSelecionadosTiny.includes(iso)) {
+              diasSelecionadosTiny.push(iso);
+            }
+          }
+          atualizarListaDias();
+        };
+
         const toggleCampos = () => {
           const selecionado = popup.querySelector('input[name="swal-periodo-tiny"]:checked')?.value;
           if (selecionado === 'multiplos') {
-            dataInput.style.display = 'none';
-            diasTextarea.style.display = '';
+            containerUnico.style.display = 'none';
+            containerMultiplos.style.display = 'flex';
+            atualizarListaDias();
           } else {
-            dataInput.style.display = '';
-            diasTextarea.style.display = 'none';
+            containerUnico.style.display = 'block';
+            containerMultiplos.style.display = 'none';
           }
         };
+
         popup
           .querySelectorAll('input[name="swal-periodo-tiny"]')
           .forEach(radio => radio.addEventListener('change', toggleCampos));
+
+        if (botaoAdicionarDia) {
+          botaoAdicionarDia.addEventListener('click', () => {
+            adicionarDia(inputDiaUnico?.value);
+            if (inputDiaUnico) inputDiaUnico.value = '';
+          });
+        }
+
+        if (botaoAdicionarIntervalo) {
+          botaoAdicionarIntervalo.addEventListener('click', () => {
+            adicionarIntervalo(inputIntervaloInicio?.value, inputIntervaloFim?.value);
+            if (inputIntervaloInicio) inputIntervaloInicio.value = '';
+            if (inputIntervaloFim) inputIntervaloFim.value = '';
+          });
+        }
+
+        if (listaDias) {
+          listaDias.addEventListener('click', (event) => {
+            const alvo = event.target;
+            if (!alvo || typeof alvo.getAttribute !== 'function') return;
+            const diaRemover = alvo.getAttribute('data-remover-dia');
+            if (!diaRemover) return;
+            diasSelecionadosTiny = diasSelecionadosTiny.filter(dia => dia !== diaRemover);
+            atualizarListaDias();
+          });
+        }
+
         toggleCampos();
       },
       preConfirm: () => {
         const popup = Swal.getPopup();
         const tipoPeriodo = popup.querySelector('input[name="swal-periodo-tiny"]:checked')?.value || 'unico';
         const dataSelecionada = popup.querySelector('#swal-data-tiny').value;
-        const diasTexto = popup.querySelector('#swal-dias-tiny').value;
         const lojaNome = popup.querySelector('#swal-loja-tiny').value.trim();
         if (lojaNome.length < 2) {
           Swal.showValidationMessage('Informe uma loja válida.');
@@ -7321,12 +7487,13 @@ document.getElementById("dadosSobrasIA").value = sobras.map(s => {
         let datasPlanilha = [];
         let dataReferencia = '';
         if (tipoPeriodo === 'multiplos') {
-          datasPlanilha = parseDiasInformados(diasTexto);
-          if (!datasPlanilha.length) {
-            Swal.showValidationMessage('Informe ao menos um dia válido da planilha.');
+          const diasNormalizados = parseDiasInformados(diasSelecionadosTiny);
+          if (!diasNormalizados.length) {
+            Swal.showValidationMessage('Adicione ao menos um dia válido da planilha.');
             return false;
           }
-          dataReferencia = [...datasPlanilha].sort()[0];
+          datasPlanilha = diasNormalizados.sort();
+          dataReferencia = datasPlanilha[0];
         } else {
           if (!dataSelecionada || !/^\d{4}-\d{2}-\d{2}$/.test(dataSelecionada)) {
             Swal.showValidationMessage('Informe uma data válida.');
