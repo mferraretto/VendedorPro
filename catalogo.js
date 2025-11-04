@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  deleteDoc,
   onSnapshot,
   orderBy,
   query,
@@ -115,6 +116,7 @@ const exportExcelBtn = document.getElementById('catalogExportExcel');
 const kitCalculateBtn = document.getElementById('catalogCalculateKit');
 const kitSelectionInfoEl = document.getElementById('catalogKitSelectionInfo');
 const kitResultEl = document.getElementById('catalogKitResult');
+const deleteSelectedBtn = document.getElementById('catalogDeleteSelected');
 const defaultEmptyStateMessage = emptyStateEl?.innerHTML || '';
 
 let currentUser = null;
@@ -130,7 +132,9 @@ let editingProductData = null;
 const selectedProducts = new Set();
 let currentModalProduct = null;
 let isDownloadingImages = false;
+let isDeletingSelectedProducts = false;
 const downloadImagesBtnDefaultContent = downloadImagesBtn?.innerHTML || '';
+const deleteSelectedBtnDefaultContent = deleteSelectedBtn?.innerHTML || '';
 let allProducts = [];
 let currentViewMode = 'card';
 let currentSearchTerm = '';
@@ -380,6 +384,15 @@ function updateKitControlsState() {
       kitCalculateBtn.classList.remove('opacity-60', 'cursor-not-allowed');
     }
   }
+  if (deleteSelectedBtn) {
+    const shouldDisable = count === 0 || isDeletingSelectedProducts;
+    deleteSelectedBtn.disabled = shouldDisable;
+    if (shouldDisable) {
+      deleteSelectedBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    } else {
+      deleteSelectedBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+  }
   if (kitSelectionInfoEl) {
     kitSelectionInfoEl.textContent =
       count === 0
@@ -392,6 +405,44 @@ function updateKitControlsState() {
     kitResultEl.classList.add('hidden');
     kitResultEl.textContent = '';
   }
+}
+
+function setDeleteSelectedButtonLoading(loading) {
+  if (!deleteSelectedBtn) return;
+  isDeletingSelectedProducts = Boolean(loading);
+  if (loading) {
+    deleteSelectedBtn.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin"></i><span>Excluindo...</span>';
+  } else {
+    deleteSelectedBtn.innerHTML = deleteSelectedBtnDefaultContent;
+  }
+  updateKitControlsState();
+}
+
+function deselectProducts(productIds) {
+  const ids = Array.isArray(productIds)
+    ? productIds.filter((id) => typeof id === 'string' && id)
+    : [];
+  if (!ids.length) return;
+  const idSet = new Set(ids);
+  ids.forEach((id) => selectedProducts.delete(id));
+  const checkboxes = document.querySelectorAll('.catalog-select-checkbox');
+  checkboxes.forEach((element) => {
+    if (!(element instanceof HTMLInputElement)) return;
+    const container = element.closest('[data-product-id]');
+    if (!container || !idSet.has(container.dataset.productId || '')) return;
+    element.checked = false;
+    setCardSelectedState(container, false);
+  });
+  if (
+    !selectedProducts.size &&
+    kitResultEl &&
+    !kitResultEl.classList.contains('hidden')
+  ) {
+    kitResultEl.classList.add('hidden');
+    kitResultEl.textContent = '';
+  }
+  updateKitControlsState();
 }
 
 function handleProductSelection(productId, isSelected) {
@@ -436,6 +487,87 @@ function handleCalculateKit() {
     ];
     kitResultEl.innerHTML = partes.join('');
     kitResultEl.classList.remove('hidden');
+  }
+}
+
+async function handleDeleteSelectedProducts() {
+  if (!canEdit) {
+    showToast(
+      'Você não tem permissão para excluir produtos do catálogo.',
+      'warning',
+    );
+    return;
+  }
+  const count = selectedProducts.size;
+  if (!count) {
+    showToast('Selecione ao menos um produto para excluir.', 'warning');
+    return;
+  }
+  if (!scopeUid) {
+    showToast(
+      'Não foi possível identificar o responsável pelo catálogo.',
+      'error',
+    );
+    return;
+  }
+
+  const confirmationMessage =
+    count === 1
+      ? 'Tem certeza que deseja excluir o produto selecionado do catálogo?'
+      : `Tem certeza que deseja excluir ${count} produtos selecionados do catálogo?`;
+
+  const confirmed =
+    typeof window !== 'undefined' ? window.confirm(confirmationMessage) : true;
+  if (!confirmed) return;
+
+  const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
+  const ids = Array.from(selectedProducts);
+
+  try {
+    setDeleteSelectedButtonLoading(true);
+    const results = await Promise.allSettled(
+      ids.map((id) => deleteDoc(doc(colRef, id))),
+    );
+
+    const failedIds = [];
+    const successfulIds = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        successfulIds.push(ids[index]);
+      } else {
+        console.error('Erro ao excluir produto do catálogo:', result.reason);
+        failedIds.push(ids[index]);
+      }
+    });
+
+    if (successfulIds.length) {
+      deselectProducts(successfulIds);
+    }
+
+    if (failedIds.length === ids.length) {
+      showToast(
+        'Não foi possível excluir os produtos selecionados. Tente novamente.',
+        'error',
+      );
+      return;
+    }
+
+    if (failedIds.length) {
+      showToast(
+        'Alguns produtos não puderam ser excluídos. Verifique o console para mais detalhes.',
+        'warning',
+      );
+    } else {
+      showToast('Produtos excluídos com sucesso!', 'success');
+    }
+  } catch (error) {
+    console.error('Erro inesperado ao excluir produtos do catálogo:', error);
+    showToast(
+      'Não foi possível excluir os produtos selecionados. Tente novamente.',
+      'error',
+    );
+  } finally {
+    setDeleteSelectedButtonLoading(false);
   }
 }
 
@@ -2172,6 +2304,7 @@ function setupEventListeners() {
     toggleForm(false);
   });
   kitCalculateBtn?.addEventListener('click', handleCalculateKit);
+  deleteSelectedBtn?.addEventListener('click', handleDeleteSelectedProducts);
   searchInput?.addEventListener('input', (event) => {
     const target = event.target;
     if (target && typeof target.value === 'string') {
@@ -2226,6 +2359,11 @@ onAuthStateChanged(auth, async (user) => {
     addItemBtn.classList.add('hidden');
   } else if (canEdit && addItemBtn) {
     addItemBtn.classList.remove('hidden');
+  }
+  if (!canEdit && deleteSelectedBtn) {
+    deleteSelectedBtn.classList.add('hidden');
+  } else if (canEdit && deleteSelectedBtn) {
+    deleteSelectedBtn.classList.remove('hidden');
   }
 
   responsavelInfo = await resolveResponsavel(user, currentProfile);

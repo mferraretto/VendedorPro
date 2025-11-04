@@ -495,15 +495,26 @@
                 Selecione os produtos para montar um kit e calcule os valores
                 totais.
               </p>
-              <button
-                id="catalogCalculateKit"
-                type="button"
-                disabled
-                class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <i class="fa-solid fa-calculator"></i>
-                <span>Calcular kit</span>
-              </button>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  id="catalogCalculateKit"
+                  type="button"
+                  disabled
+                  class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <i class="fa-solid fa-calculator"></i>
+                  <span>Calcular kit</span>
+                </button>
+                <button
+                  id="catalogDeleteSelected"
+                  type="button"
+                  disabled
+                  class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <i class="fa-solid fa-trash-can"></i>
+                  <span>Excluir selecionados</span>
+                </button>
+              </div>
             </div>
             <div
               id="catalogKitResult"
