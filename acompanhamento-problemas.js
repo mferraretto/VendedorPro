@@ -23,6 +23,7 @@ const filtroUsuarioEl = document.getElementById('filtroUsuario');
 const infoUsuariosEl = document.getElementById('infoUsuarios');
 const resumoUsuariosEl = document.getElementById('resumoUsuarios');
 const globalStatusEl = document.getElementById('globalStatus');
+const gerarRelatorioBtn = document.getElementById('gerarRelatorioProblemas');
 
 const pecasStatusMsgEl = document.getElementById('pecasStatusMsg');
 const pecasEmptyEl = document.getElementById('pecasEmpty');
@@ -197,6 +198,7 @@ function registrarEventos() {
   pecasExportPdfBtn?.addEventListener('click', exportarPecasPdf);
   reembolsosExportExcelBtn?.addEventListener('click', exportarReembolsosExcel);
   reembolsosExportPdfBtn?.addEventListener('click', exportarReembolsosPdf);
+  gerarRelatorioBtn?.addEventListener('click', gerarRelatorioCompleto);
 }
 
 async function carregarDados() {
@@ -836,6 +838,129 @@ function exportarReembolsosPdf() {
   );
 }
 
+function gerarRelatorioCompleto() {
+  const pecas = Array.isArray(pecasFiltradosAtuais)
+    ? [...pecasFiltradosAtuais]
+    : [];
+  const reembolsos = Array.isArray(reembolsosFiltradosAtuais)
+    ? [...reembolsosFiltradosAtuais]
+    : [];
+
+  if (!pecas.length && !reembolsos.length) {
+    alert(
+      'Nenhum registro foi encontrado com os filtros atuais para gerar o relatório.',
+    );
+    return;
+  }
+
+  const periodo = obterPeriodoSelecionado();
+  const usuarioFiltro = obterDescricaoUsuarioSelecionado();
+
+  const totalGastoPecas = pecas.reduce(
+    (acc, item) => acc + (Number(item.valorGasto) || 0),
+    0,
+  );
+  const totalGastoReembolsos = reembolsos.reduce(
+    (acc, item) => acc + (Number(item.valor) || 0),
+    0,
+  );
+
+  const principaisPecas = agruparMetricas(
+    pecas,
+    (item) => item.peca,
+    (item) => Number(item.valorGasto) || 0,
+  ).slice(0, 5);
+
+  const principaisLojas = agruparMetricas(
+    pecas,
+    (item) => item.loja,
+    (item) => Number(item.valorGasto) || 0,
+  ).slice(0, 5);
+
+  const statusReembolsos = agruparMetricas(
+    reembolsos,
+    (item) => (item.status || '').toString().toUpperCase(),
+    (item) => Number(item.valor) || 0,
+    (chave) => formatarStatusReembolso(chave),
+  ).slice(0, 5);
+
+  const maioresGastos = [
+    ...pecas.map((item) => ({
+      tipo: 'Peça faltante',
+      descricao: item.peca || item.numero || item.nomeCliente || 'Não informado',
+      responsavel: item.usuarioNome || '-',
+      data: item.data || '',
+      loja: item.loja || '-',
+      valor: Number(item.valorGasto) || 0,
+    })),
+    ...reembolsos.map((item) => ({
+      tipo: 'Reembolso',
+      descricao: item.numero || item.apelido || item.loja || 'Não informado',
+      responsavel: item.usuarioNome || '-',
+      data: item.data || '',
+      loja: item.loja || '-',
+      valor: Number(item.valor) || 0,
+    })),
+  ]
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 5);
+
+  const evolucaoPecas = agruparPorData(pecas);
+  const evolucaoReembolsos = agruparPorData(reembolsos);
+  const datasEvolucao = Array.from(
+    new Set([
+      ...Object.keys(evolucaoPecas),
+      ...Object.keys(evolucaoReembolsos),
+    ]),
+  ).sort();
+
+  const dadosGraficos = {
+    evolucao: {
+      labels: datasEvolucao.map((data) => formatarData(data)),
+      pecas: datasEvolucao.map((data) => evolucaoPecas[data] || 0),
+      reembolsos: datasEvolucao.map((data) => evolucaoReembolsos[data] || 0),
+    },
+    topPecas: {
+      labels: principaisPecas.map((item) => item.rotulo),
+      valores: principaisPecas.map((item) => item.quantidade),
+    },
+    topGastos: {
+      labels: maioresGastos.map((item) => limitarTexto(`${item.tipo}: ${item.descricao}`, 40)),
+      valores: maioresGastos.map((item) => Number(item.valor.toFixed(2))),
+    },
+  };
+
+  const dadosRelatorio = {
+    periodo,
+    usuarioFiltro,
+    totais: {
+      pecas: pecas.length,
+      reembolsos: reembolsos.length,
+      geral: pecas.length + reembolsos.length,
+      gastoPecas: totalGastoPecas,
+      gastoReembolsos: totalGastoReembolsos,
+      gastoTotal: totalGastoPecas + totalGastoReembolsos,
+    },
+    principaisPecas,
+    principaisLojas,
+    statusReembolsos,
+    maioresGastos,
+    graficos: dadosGraficos,
+    geradoEm: new Date().toLocaleString('pt-BR'),
+  };
+
+  const janela = window.open('', '_blank');
+  if (!janela) {
+    alert(
+      'Não foi possível abrir a janela do relatório. Verifique o bloqueador de pop-ups.',
+    );
+    return;
+  }
+
+  janela.document.write(gerarHtmlRelatorio(dadosRelatorio));
+  janela.document.close();
+}
+
 function exportarExcel(nomeArquivo, nomeAba, headers, linhas) {
   if (typeof XLSX === 'undefined') {
     alert(
@@ -878,6 +1003,590 @@ function exportarPDF(titulo, headers, linhas, nomeArquivo) {
     headStyles: { fillColor: [79, 70, 229], textColor: 255 },
   });
   doc.save(nomeArquivo);
+}
+
+function obterPeriodoSelecionado() {
+  const pecasInicio = document.getElementById('pecasInicio')?.value || '';
+  const pecasFim = document.getElementById('pecasFim')?.value || '';
+  const reembolsosInicio = document.getElementById('reembolsosInicio')?.value || '';
+  const reembolsosFim = document.getElementById('reembolsosFim')?.value || '';
+
+  const datasInicio = [pecasInicio, reembolsosInicio]
+    .filter(Boolean)
+    .sort();
+  const datasFim = [pecasFim, reembolsosFim]
+    .filter(Boolean)
+    .sort();
+
+  const inicio = datasInicio[0] || '';
+  const fim = datasFim.length ? datasFim[datasFim.length - 1] : '';
+
+  let texto = 'Período completo';
+  if (inicio && fim) texto = `De ${formatarData(inicio)} até ${formatarData(fim)}`;
+  else if (inicio) texto = `A partir de ${formatarData(inicio)}`;
+  else if (fim) texto = `Até ${formatarData(fim)}`;
+
+  return { texto, inicio: inicio || null, fim: fim || null };
+}
+
+function obterDescricaoUsuarioSelecionado() {
+  if (!usuarioSelecionado) return 'Todos os usuários conectados';
+  const usuario = usuarios.find((u) => u.uid === usuarioSelecionado);
+  if (!usuario) return 'Usuário selecionado';
+  const nome = usuario.nome || '';
+  const email = usuario.email || '';
+  if (nome && email) return `${nome} (${email})`;
+  return nome || email || usuario.uid || 'Usuário selecionado';
+}
+
+function agruparMetricas(lista, chaveFn, valorFn, rotuloFn) {
+  if (!Array.isArray(lista) || !lista.length) return [];
+  const mapa = new Map();
+  const valorFnNormalizado = typeof valorFn === 'function' ? valorFn : () => 0;
+
+  lista.forEach((item) => {
+    const chaveOriginal = typeof chaveFn === 'function' ? chaveFn(item) : undefined;
+    const chaveBase = (chaveOriginal ?? 'Não informado').toString().trim();
+    const chaveNormalizada = chaveBase || 'Não informado';
+    const valor = Number(valorFnNormalizado(item)) || 0;
+
+    if (!mapa.has(chaveNormalizada)) {
+      const rotuloCalculado = rotuloFn
+        ? rotuloFn(chaveNormalizada, item)
+        : chaveNormalizada;
+      mapa.set(chaveNormalizada, {
+        chave: chaveNormalizada,
+        rotulo: rotuloCalculado || 'Não informado',
+        quantidade: 0,
+        valor: 0,
+      });
+    }
+
+    const entrada = mapa.get(chaveNormalizada);
+    entrada.quantidade += 1;
+    entrada.valor += valor;
+  });
+
+  return Array.from(mapa.values()).sort((a, b) => {
+    if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;
+    return b.valor - a.valor;
+  });
+}
+
+function agruparPorData(lista) {
+  const resultado = {};
+  if (!Array.isArray(lista)) return resultado;
+  lista.forEach((item) => {
+    const data = (item?.data || '').split('T')[0];
+    if (!data) return;
+    resultado[data] = (resultado[data] || 0) + 1;
+  });
+  return resultado;
+}
+
+function limitarTexto(texto, limite = 50) {
+  const valor = (texto || '').toString();
+  if (valor.length <= limite) return valor;
+  return `${valor.slice(0, Math.max(0, limite - 1))}…`;
+}
+
+function gerarHtmlRelatorio(dados) {
+  const periodoTexto = dados?.periodo?.texto || 'Período completo';
+  const usuarioFiltro = dados?.usuarioFiltro || 'Todos os usuários conectados';
+  const totais = dados?.totais || {};
+  const principaisPecas = dados?.principaisPecas || [];
+  const principaisLojas = dados?.principaisLojas || [];
+  const statusReembolsos = dados?.statusReembolsos || [];
+  const maioresGastos = dados?.maioresGastos || [];
+  const graficos = dados?.graficos || {};
+  const geradoEm = dados?.geradoEm || new Date().toLocaleString('pt-BR');
+
+  const formatarQuantidade = (valor) => Number(valor || 0).toLocaleString('pt-BR');
+  const formatarMoedaBRL = (valor) => formatarMoeda(Number(valor) || 0);
+
+  const criarLinhasTabela = (lista, colunasVazias) => {
+    if (!lista.length) {
+      return `<tr><td colspan="${colunasVazias}" class="tabela-vazia">Nenhum registro disponível para este período.</td></tr>`;
+    }
+    return lista
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapeHtml(item.rotulo || item.descricao || '-')}</td>
+            <td>${formatarQuantidade(item.quantidade ?? 0)}</td>
+            <td>${formatarMoedaBRL(item.valor ?? 0)}</td>
+          </tr>
+        `,
+      )
+      .join('');
+  };
+
+  const linhasPecas = criarLinhasTabela(principaisPecas, 3);
+  const linhasLojas = criarLinhasTabela(principaisLojas, 3);
+  const linhasStatus = criarLinhasTabela(statusReembolsos, 3);
+
+  const linhasGastos = maioresGastos.length
+    ? maioresGastos
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(item.tipo)}</td>
+              <td>${escapeHtml(item.descricao)}</td>
+              <td>${escapeHtml(item.loja || '-')}</td>
+              <td>${escapeHtml(item.responsavel || '-')}</td>
+              <td>${formatarData(item.data)}</td>
+              <td>${formatarMoedaBRL(item.valor)}</td>
+            </tr>
+          `,
+        )
+        .join('')
+    : '<tr><td colspan="6" class="tabela-vazia">Nenhum gasto registrado no período selecionado.</td></tr>';
+
+  const graficosStr = JSON.stringify(graficos).replace(/</g, '\\u003c');
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Relatório completo de problemas</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #f8fafc;
+        color: #1f2937;
+      }
+      .relatorio-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 3rem;
+      }
+      header {
+        margin-bottom: 2rem;
+      }
+      header h1 {
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+      }
+      header p {
+        margin: 0.25rem 0;
+        color: #4b5563;
+        font-size: 0.95rem;
+      }
+      .meta-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 0.75rem;
+      }
+      .meta-pill {
+        background: #eef2ff;
+        color: #312e81;
+        padding: 0.5rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+      }
+      section {
+        margin-bottom: 2.5rem;
+      }
+      section h2 {
+        font-size: 1.35rem;
+        margin-bottom: 1rem;
+      }
+      .resumo-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+      .resumo-card {
+        background: #ffffff;
+        border-radius: 1rem;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+        border: 1px solid #e5e7eb;
+      }
+      .resumo-card span {
+        display: block;
+        font-size: 0.85rem;
+        color: #6b7280;
+        margin-bottom: 0.5rem;
+      }
+      .resumo-card strong {
+        font-size: 1.5rem;
+      }
+      .resumo-card small {
+        display: block;
+        color: #6b7280;
+        margin-top: 0.35rem;
+        font-size: 0.8rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #ffffff;
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        border: 1px solid #e5e7eb;
+      }
+      th, td {
+        padding: 0.85rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 0.9rem;
+      }
+      th {
+        background: #f9fafb;
+        font-weight: 600;
+        color: #374151;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .tabela-vazia {
+        text-align: center;
+        color: #6b7280;
+        font-size: 0.9rem;
+        padding: 1.5rem 1rem;
+      }
+      .grid-duas-colunas {
+        display: grid;
+        gap: 1.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+      .chart-wrapper {
+        background: #ffffff;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        border: 1px solid #e5e7eb;
+      }
+      .chart-wrapper h3 {
+        margin: 0 0 1rem;
+        font-size: 1rem;
+      }
+      .chart-empty {
+        display: none;
+        text-align: center;
+        color: #6b7280;
+        font-size: 0.85rem;
+        margin-top: 1rem;
+      }
+      @media print {
+        body {
+          background: #ffffff;
+        }
+        .relatorio-container {
+          padding: 1.5rem;
+        }
+        .chart-wrapper {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        header, section {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="relatorio-container">
+      <header>
+        <h1>Relatório completo de problemas</h1>
+        <p>Gerado em ${escapeHtml(geradoEm)}.</p>
+        <div class="meta-info">
+          <span class="meta-pill"><strong>Período:</strong> ${escapeHtml(periodoTexto)}</span>
+          <span class="meta-pill"><strong>Filtro de usuários:</strong> ${escapeHtml(usuarioFiltro)}</span>
+          <span class="meta-pill"><strong>Total de problemas:</strong> ${formatarQuantidade(
+            totais.geral || 0,
+          )}</span>
+        </div>
+      </header>
+
+      <section>
+        <h2>Resumo financeiro</h2>
+        <div class="resumo-grid">
+          <div class="resumo-card">
+            <span>Peças faltantes</span>
+            <strong>${formatarQuantidade(totais.pecas || 0)}</strong>
+            <small>Valor gasto: ${formatarMoedaBRL(totais.gastoPecas)}</small>
+          </div>
+          <div class="resumo-card">
+            <span>Reembolsos</span>
+            <strong>${formatarQuantidade(totais.reembolsos || 0)}</strong>
+            <small>Valor gasto: ${formatarMoedaBRL(totais.gastoReembolsos)}</small>
+          </div>
+          <div class="resumo-card">
+            <span>Total consolidado</span>
+            <strong>${formatarQuantidade(totais.geral || 0)}</strong>
+            <small>Valor total: ${formatarMoedaBRL(totais.gastoTotal)}</small>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Principais reclamações</h2>
+        <div class="grid-duas-colunas">
+          <div>
+            <h3>Por peça</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Peça</th>
+                  <th>Ocorrências</th>
+                  <th>Total gasto</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linhasPecas}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>Por loja</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Loja</th>
+                  <th>Ocorrências</th>
+                  <th>Total gasto</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linhasLojas}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Situação dos reembolsos</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Ocorrências</th>
+              <th>Total gasto</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhasStatus}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Maiores gastos do período</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Descrição</th>
+              <th>Loja</th>
+              <th>Responsável</th>
+              <th>Data</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhasGastos}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Visão gráfica</h2>
+        <div class="grid-duas-colunas">
+          <div class="chart-wrapper">
+            <h3>Evolução diária dos problemas</h3>
+            <canvas id="chartEvolucao" height="220"></canvas>
+            <p id="chartEvolucaoEmpty" class="chart-empty">Sem dados suficientes para exibir este gráfico.</p>
+          </div>
+          <div class="chart-wrapper">
+            <h3>Principais reclamações (peças)</h3>
+            <canvas id="chartTopPecas" height="220"></canvas>
+            <p id="chartTopPecasEmpty" class="chart-empty">Sem dados suficientes para exibir este gráfico.</p>
+          </div>
+          <div class="chart-wrapper">
+            <h3>Maiores gastos</h3>
+            <canvas id="chartTopGastos" height="220"></canvas>
+            <p id="chartTopGastosEmpty" class="chart-empty">Sem dados suficientes para exibir este gráfico.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+    <script>
+      const dadosGraficos = ${graficosStr};
+      const corIndigo = '#4f46e5';
+      const corEmerald = '#10b981';
+      const corSlate = '#1e293b';
+
+      function possuiDados(valores) {
+        return Array.isArray(valores) && valores.some((valor) => Number(valor) > 0);
+      }
+
+      window.addEventListener('load', () => {
+        const ctxEvolucao = document.getElementById('chartEvolucao');
+        const ctxTopPecas = document.getElementById('chartTopPecas');
+        const ctxTopGastos = document.getElementById('chartTopGastos');
+
+        if (
+          dadosGraficos?.evolucao?.labels?.length &&
+          (possuiDados(dadosGraficos.evolucao.pecas) ||
+            possuiDados(dadosGraficos.evolucao.reembolsos))
+        ) {
+          new window.Chart(ctxEvolucao, {
+            type: 'line',
+            data: {
+              labels: dadosGraficos.evolucao.labels,
+              datasets: [
+                {
+                  label: 'Peças faltantes',
+                  data: dadosGraficos.evolucao.pecas,
+                  borderColor: corIndigo,
+                  backgroundColor: 'rgba(79, 70, 229, 0.15)',
+                  tension: 0.35,
+                  fill: true,
+                },
+                {
+                  label: 'Reembolsos',
+                  data: dadosGraficos.evolucao.reembolsos,
+                  borderColor: corEmerald,
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  tension: 0.35,
+                  fill: true,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'top',
+                },
+                tooltip: {
+                  callbacks: {
+                    label: (context) =>
+                      context.dataset.label +
+                      ': ' +
+                      context.parsed.y.toLocaleString('pt-BR') +
+                      ' ocorrência(s)',
+                  },
+                },
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    precision: 0,
+                  },
+                },
+              },
+            },
+          });
+        } else {
+          ctxEvolucao.style.display = 'none';
+          document.getElementById('chartEvolucaoEmpty').style.display = 'block';
+        }
+
+        if (
+          dadosGraficos?.topPecas?.labels?.length &&
+          possuiDados(dadosGraficos.topPecas.valores)
+        ) {
+          new window.Chart(ctxTopPecas, {
+            type: 'bar',
+            data: {
+              labels: dadosGraficos.topPecas.labels,
+              datasets: [
+                {
+                  label: 'Ocorrências',
+                  data: dadosGraficos.topPecas.valores,
+                  backgroundColor: 'rgba(79, 70, 229, 0.8)',
+                  borderRadius: 6,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false },
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { precision: 0 },
+                },
+              },
+            },
+          });
+        } else {
+          ctxTopPecas.style.display = 'none';
+          document.getElementById('chartTopPecasEmpty').style.display = 'block';
+        }
+
+        if (
+          dadosGraficos?.topGastos?.labels?.length &&
+          possuiDados(dadosGraficos.topGastos.valores)
+        ) {
+          new window.Chart(ctxTopGastos, {
+            type: 'bar',
+            data: {
+              labels: dadosGraficos.topGastos.labels,
+              datasets: [
+                {
+                  label: 'Valor gasto (R$)',
+                  data: dadosGraficos.topGastos.valores,
+                  backgroundColor: 'rgba(30, 41, 59, 0.85)',
+                  borderRadius: 6,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (context) =>
+                      'Valor gasto: ' +
+                      Number(context.parsed.y || 0).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }),
+                  },
+                },
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    callback: (value) =>
+                      Number(value || 0).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                        maximumFractionDigits: 0,
+                      }),
+                  },
+                },
+              },
+            },
+          });
+        } else {
+          ctxTopGastos.style.display = 'none';
+          document.getElementById('chartTopGastosEmpty').style.display = 'block';
+        }
+      });
+    </script>
+  </body>
+</html>`;
 }
 
 function atualizarResumoPecas(lista) {
