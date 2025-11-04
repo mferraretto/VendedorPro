@@ -57,6 +57,8 @@ const modalCusto = document.getElementById('catalogDetailsCusto');
 const modalPreco = document.getElementById('catalogDetailsPreco');
 const modalDescricao = document.getElementById('catalogDetailsDescricao');
 const modalMedidas = document.getElementById('catalogDetailsMedidas');
+const modalEmbalagem = document.getElementById('catalogDetailsEmbalagem');
+const modalComponentes = document.getElementById('catalogDetailsComponentes');
 const modalFotos = document.getElementById('catalogDetailsFotos');
 const modalVariacoes = document.getElementById('catalogDetailsVariacoes');
 const modalDriveLinkSection = document.getElementById(
@@ -80,6 +82,7 @@ const categoryInput = document.getElementById('catalogProductCategory');
 const descriptionInput = document.getElementById('catalogProductDescription');
 const driveLinkInput = document.getElementById('catalogProductDriveLink');
 const measuresInput = document.getElementById('catalogProductMeasures');
+const packageSizeInput = document.getElementById('catalogProductPackageSize');
 const photosInput = document.getElementById('catalogProductPhotos');
 const photoUrlsInput = document.getElementById('catalogProductPhotoUrls');
 const colorVariationsContainer = document.getElementById(
@@ -88,6 +91,18 @@ const colorVariationsContainer = document.getElementById(
 const addColorVariationBtn = document.getElementById(
   'catalogAddColorVariation',
 );
+const hasComponentsInput = document.getElementById(
+  'catalogProductHasComponents',
+);
+const componentsFieldsContainer = document.getElementById(
+  'catalogComponentsFields',
+);
+const componentParafusosInput = document.getElementById(
+  'catalogComponentParafusos',
+);
+const componentFiacaoInput = document.getElementById('catalogComponentFiacao');
+const componentBocalInput = document.getElementById('catalogComponentBocal');
+const componentOutrosInput = document.getElementById('catalogComponentOutros');
 const editingNotice = document.getElementById('catalogEditingNotice');
 const editingNameEl = document.getElementById('catalogEditingName');
 const editingCancelBtn = document.getElementById('catalogEditingCancel');
@@ -168,6 +183,63 @@ function filterProductsBySearch(produtos, termo) {
     const sku = normalizeSearchValue(produto?.sku || '');
     return nome.includes(normalizedTerm) || sku.includes(normalizedTerm);
   });
+}
+
+function parseComponentCount(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    if (Number.isNaN(value) || value < 0) return null;
+    return Math.trunc(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const normalized = Number.parseInt(trimmed, 10);
+    if (Number.isNaN(normalized) || normalized < 0) return null;
+    return normalized;
+  }
+  return null;
+}
+
+function normalizeComponentes(componentes) {
+  if (!componentes || typeof componentes !== 'object') {
+    return null;
+  }
+  const possui = Boolean(componentes.possui);
+  return {
+    possui,
+    parafusos: parseComponentCount(componentes.parafusos),
+    fiacao: parseComponentCount(componentes.fiacao),
+    bocal: parseComponentCount(componentes.bocal),
+    outros: parseComponentCount(componentes.outros),
+  };
+}
+
+function getComponentesSummary(componentes) {
+  const dados = normalizeComponentes(componentes);
+  if (!dados) {
+    return 'Não informado.';
+  }
+  if (!dados.possui) {
+    return 'Não acompanha componentes.';
+  }
+  const partes = [];
+  const mapa = [
+    ['parafusos', 'Parafusos'],
+    ['fiacao', 'Fiação'],
+    ['bocal', 'Bocal'],
+    ['outros', 'Outros'],
+  ];
+  mapa.forEach(([chave, rotulo]) => {
+    const valor = dados[chave];
+    if (typeof valor === 'number' && !Number.isNaN(valor)) {
+      partes.push(`${rotulo}: ${valor}`);
+    }
+  });
+  if (!partes.length) {
+    return 'Acompanha componentes.';
+  }
+  return partes.join(' | ');
 }
 
 function refreshCatalogView() {
@@ -417,6 +489,80 @@ function createColorVariationRow(variacao = {}) {
   return wrapper;
 }
 
+function clearComponentInputs() {
+  [
+    componentParafusosInput,
+    componentFiacaoInput,
+    componentBocalInput,
+    componentOutrosInput,
+  ].forEach((input) => {
+    if (input) {
+      input.value = '';
+    }
+  });
+  if (hasComponentsInput) {
+    hasComponentsInput.checked = false;
+  }
+}
+
+function toggleComponentsFields(forceState) {
+  const shouldShow =
+    typeof forceState === 'boolean'
+      ? forceState
+      : Boolean(hasComponentsInput?.checked);
+  if (componentsFieldsContainer) {
+    componentsFieldsContainer.classList.toggle('hidden', !shouldShow);
+  }
+}
+
+function setComponentInputs(componentes) {
+  const dados = normalizeComponentes(componentes) || { possui: false };
+  if (hasComponentsInput) {
+    hasComponentsInput.checked = Boolean(dados.possui);
+  }
+  if (componentParafusosInput) {
+    componentParafusosInput.value =
+      typeof dados.parafusos === 'number' && !Number.isNaN(dados.parafusos)
+        ? dados.parafusos
+        : '';
+  }
+  if (componentFiacaoInput) {
+    componentFiacaoInput.value =
+      typeof dados.fiacao === 'number' && !Number.isNaN(dados.fiacao)
+        ? dados.fiacao
+        : '';
+  }
+  if (componentBocalInput) {
+    componentBocalInput.value =
+      typeof dados.bocal === 'number' && !Number.isNaN(dados.bocal)
+        ? dados.bocal
+        : '';
+  }
+  if (componentOutrosInput) {
+    componentOutrosInput.value =
+      typeof dados.outros === 'number' && !Number.isNaN(dados.outros)
+        ? dados.outros
+        : '';
+  }
+  toggleComponentsFields(Boolean(dados.possui));
+}
+
+function getComponentesFromForm() {
+  if (!hasComponentsInput) return null;
+  const possui = Boolean(hasComponentsInput.checked);
+  const payload = {
+    possui,
+    parafusos: parseComponentCount(componentParafusosInput?.value),
+    fiacao: parseComponentCount(componentFiacaoInput?.value),
+    bocal: parseComponentCount(componentBocalInput?.value),
+    outros: parseComponentCount(componentOutrosInput?.value),
+  };
+  if (!possui) {
+    return { possui: false };
+  }
+  return payload;
+}
+
 function setColorVariations(variacoes = []) {
   if (!colorVariationsContainer) return;
   colorVariationsContainer.innerHTML = '';
@@ -450,6 +596,9 @@ function clearForm() {
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
   if (driveLinkInput) driveLinkInput.value = '';
+  if (packageSizeInput) packageSizeInput.value = '';
+  clearComponentInputs();
+  toggleComponentsFields(false);
   setColorVariations([]);
   editingProductId = null;
   editingProductData = null;
@@ -624,6 +773,15 @@ function openModal(produto) {
   modalPreco.textContent = formatCurrency(produto.precoSugerido);
   modalDescricao.textContent = produto.descricao || 'Sem descrição cadastrada.';
   modalMedidas.textContent = produto.medidas || 'Sem medidas cadastradas.';
+  if (modalEmbalagem) {
+    modalEmbalagem.textContent =
+      produto.tamanhoEmbalagem ||
+      produto.embalagem ||
+      'Sem informação de embalagem.';
+  }
+  if (modalComponentes) {
+    modalComponentes.textContent = getComponentesSummary(produto.componentes);
+  }
 
   const driveLink =
     produto.driveFolderLink || produto.driveLink || produto.linkDrive || '';
@@ -773,6 +931,8 @@ function getCatalogExportData() {
     'Preço sugerido',
     'Descrição',
     'Medidas',
+    'Tamanho da embalagem',
+    'Componentes',
     'Variações de cor',
     'Fotos (URLs)',
   ];
@@ -802,6 +962,8 @@ function getCatalogExportData() {
       formatCurrencyForExport(produto.precoSugerido),
       produto.descricao || '',
       produto.medidas || '',
+      produto.tamanhoEmbalagem || produto.embalagem || '',
+      getComponentesSummary(produto.componentes),
       variacoes,
       fotos,
     ];
@@ -933,7 +1095,7 @@ async function generateCardPdf(doc, grupos) {
   const larguraCartao =
     (larguraPagina - margem * 2 - espacamentoEntreCartoes * (colunas - 1)) /
     colunas;
-  const alturaCartao = 70;
+  const alturaCartao = 90;
   const paddingCartao = 5;
   const alturaImagem = 32;
   const larguraImagem = larguraCartao - paddingCartao * 2;
@@ -1050,6 +1212,31 @@ async function generateCardPdf(doc, grupos) {
         textoX,
         textoY,
       );
+      textoY += 5;
+
+      const larguraTexto = larguraCartao - paddingCartao * 2;
+      const embalagemTexto =
+        produto.tamanhoEmbalagem || produto.embalagem || '';
+      if (embalagemTexto) {
+        const linhasEmbalagem = doc.splitTextToSize(
+          `Embalagem: ${embalagemTexto}`,
+          larguraTexto,
+        );
+        linhasEmbalagem.forEach((linha) => {
+          doc.text(linha, textoX, textoY);
+          textoY += 4;
+        });
+      }
+
+      const componentesTexto = `Componentes: ${getComponentesSummary(produto.componentes)}`;
+      const linhasComponentes = doc.splitTextToSize(
+        componentesTexto,
+        larguraTexto,
+      );
+      linhasComponentes.forEach((linha) => {
+        doc.text(linha, textoX, textoY);
+        textoY += 4;
+      });
 
       colunaAtual += 1;
       if (colunaAtual >= colunas) {
@@ -1277,10 +1464,27 @@ function renderCardView(displayItems) {
     categoryEl.className = 'mt-1 text-sm text-gray-500';
     categoryEl.textContent = produto.categoria || 'Sem categoria';
 
+    const packageInfo = produto.tamanhoEmbalagem || produto.embalagem || '';
+    let packageEl = null;
+    if (packageInfo) {
+      packageEl = document.createElement('p');
+      packageEl.className = 'mt-2 text-xs text-gray-500';
+      packageEl.textContent = `Embalagem: ${packageInfo}`;
+    }
+
+    const componentesTexto = getComponentesSummary(produto.componentes);
+    const componentesEl = document.createElement('p');
+    componentesEl.className = 'mt-1 text-xs text-gray-500';
+    componentesEl.textContent = `Componentes: ${componentesTexto}`;
+
     body.appendChild(skuLabel);
     body.appendChild(skuValue);
     body.appendChild(nameEl);
     body.appendChild(categoryEl);
+    if (packageEl) {
+      body.appendChild(packageEl);
+    }
+    body.appendChild(componentesEl);
 
     const variacoes = Array.isArray(produto.variacoesCor)
       ? produto.variacoesCor.filter((item) => item && item.cor)
@@ -1388,6 +1592,18 @@ function renderListView(displayItems) {
         .join(', ')}`;
       nameWrapper.appendChild(variacoesInfo);
     }
+    const packageInfoLista =
+      produto.tamanhoEmbalagem || produto.embalagem || '';
+    if (packageInfoLista) {
+      const packageInfoEl = document.createElement('span');
+      packageInfoEl.className = 'text-xs text-gray-500';
+      packageInfoEl.textContent = `Embalagem: ${packageInfoLista}`;
+      nameWrapper.appendChild(packageInfoEl);
+    }
+    const componentesInfoEl = document.createElement('span');
+    componentesInfoEl.className = 'text-xs text-gray-500';
+    componentesInfoEl.textContent = `Componentes: ${getComponentesSummary(produto.componentes)}`;
+    nameWrapper.appendChild(componentesInfoEl);
     nameCell.appendChild(nameWrapper);
     row.appendChild(nameCell);
 
@@ -1683,6 +1899,8 @@ async function handleSubmit(event) {
   const descricao = descriptionInput?.value.trim();
   const driveFolderLink = driveLinkInput?.value.trim();
   const medidas = measuresInput?.value.trim();
+  const tamanhoEmbalagem = packageSizeInput?.value.trim();
+  const componentesForm = getComponentesFromForm();
   const arquivos = photosInput?.files ? Array.from(photosInput.files) : [];
   const fotosUrlsBruto = photoUrlsInput?.value.trim();
   const fotosUrls = fotosUrlsBruto
@@ -1728,6 +1946,8 @@ async function handleSubmit(event) {
     descricao: descricao || null,
     driveFolderLink: driveFolderLink || null,
     medidas: medidas || null,
+    tamanhoEmbalagem: tamanhoEmbalagem || null,
+    componentes: componentesForm ?? null,
     variacoesCor,
     updatedAt: serverTimestamp(),
   };
@@ -1832,8 +2052,12 @@ function startEditingProduct(produto) {
     driveLinkInput.value =
       produto.driveFolderLink || produto.driveLink || produto.linkDrive || '';
   if (measuresInput) measuresInput.value = produto.medidas || '';
+  if (packageSizeInput)
+    packageSizeInput.value =
+      produto.tamanhoEmbalagem || produto.embalagem || '';
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
+  setComponentInputs(produto.componentes);
   setColorVariations(
     Array.isArray(produto.variacoesCor) ? produto.variacoesCor : [],
   );
@@ -1846,6 +2070,7 @@ function startEditingProduct(produto) {
 }
 
 function setupEventListeners() {
+  toggleComponentsFields(Boolean(hasComponentsInput?.checked));
   addItemBtn?.addEventListener('click', () => toggleForm(true));
   cancelFormBtn?.addEventListener('click', () => {
     clearForm();
@@ -1861,6 +2086,18 @@ function setupEventListeners() {
   });
   exportExcelBtn?.addEventListener('click', exportCatalogToExcel);
   exportPdfBtn?.addEventListener('click', exportCatalogToPdf);
+  hasComponentsInput?.addEventListener('change', (event) => {
+    const checked =
+      typeof event?.target?.checked === 'boolean'
+        ? event.target.checked
+        : Boolean(hasComponentsInput?.checked);
+    if (checked) {
+      toggleComponentsFields(true);
+    } else {
+      clearComponentInputs();
+      toggleComponentsFields(false);
+    }
+  });
   addColorVariationBtn?.addEventListener('click', () => {
     colorVariationsContainer?.appendChild(createColorVariationRow());
   });
