@@ -246,6 +246,19 @@
                 </div>
                 <div class="flex flex-col">
                   <label
+                    for="catalogProductPackageSize"
+                    class="text-sm font-medium text-gray-700"
+                    >Tamanho da embalagem</label
+                  >
+                  <input
+                    id="catalogProductPackageSize"
+                    type="text"
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Ex.: 30 x 20 x 15 cm"
+                  />
+                </div>
+                <div class="flex flex-col">
+                  <label
                     for="catalogProductPhotos"
                     class="text-sm font-medium text-gray-700"
                     >Fotos</label
@@ -299,6 +312,89 @@
                     variação.
                   </p>
                   <div id="catalogColorVariations" class="space-y-3"></div>
+                </div>
+                <div class="space-y-3">
+                  <div class="flex flex-col gap-2">
+                    <span class="text-sm font-medium text-gray-700"
+                      >Componentes</span
+                    >
+                    <label
+                      for="catalogProductHasComponents"
+                      class="inline-flex items-center gap-2 text-sm text-gray-700"
+                    >
+                      <input
+                        id="catalogProductHasComponents"
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Produto acompanha componentes</span>
+                    </label>
+                    <p class="text-xs text-gray-500">
+                      Informe os componentes enviados junto com o produto e a
+                      quantidade de cada item.
+                    </p>
+                  </div>
+                  <div
+                    id="catalogComponentsFields"
+                    class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 hidden"
+                  >
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogComponentParafusos"
+                        class="text-xs font-medium uppercase text-gray-500"
+                        >Parafusos</label
+                      >
+                      <input
+                        id="catalogComponentParafusos"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogComponentFiacao"
+                        class="text-xs font-medium uppercase text-gray-500"
+                        >Fiação</label
+                      >
+                      <input
+                        id="catalogComponentFiacao"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogComponentBocal"
+                        class="text-xs font-medium uppercase text-gray-500"
+                        >Bocal</label
+                      >
+                      <input
+                        id="catalogComponentBocal"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogComponentOutros"
+                        class="text-xs font-medium uppercase text-gray-500"
+                        >Outros</label
+                      >
+                      <input
+                        id="catalogComponentOutros"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="flex items-center justify-end gap-3">
@@ -425,7 +521,9 @@
               class="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white"
             >
               <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <thead
+                  class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600"
+                >
                   <tr>
                     <th scope="col" class="px-3 py-3 text-left">Selecionar</th>
                     <th scope="col" class="px-3 py-3 text-left">SKU</th>
@@ -557,6 +655,24 @@
                 <p
                   class="mt-1 whitespace-pre-line text-sm text-gray-700"
                   id="catalogDetailsMedidas"
+                ></p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Tamanho da embalagem
+                </p>
+                <p
+                  class="mt-1 whitespace-pre-line text-sm text-gray-700"
+                  id="catalogDetailsEmbalagem"
+                ></p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Componentes
+                </p>
+                <p
+                  class="mt-1 whitespace-pre-line text-sm text-gray-700"
+                  id="catalogDetailsComponentes"
                 ></p>
               </div>
               <div>
