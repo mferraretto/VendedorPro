@@ -246,6 +246,99 @@
                 </div>
                 <div class="flex flex-col">
                   <label
+                    for="catalogProductPackageSize"
+                    class="text-sm font-medium text-gray-700"
+                    >Tamanho da embalagem</label
+                  >
+                  <input
+                    id="catalogProductPackageSize"
+                    type="text"
+                    class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Ex.: 30 x 20 x 15 cm"
+                  />
+                </div>
+                <div class="space-y-3">
+                  <p class="text-sm font-medium text-gray-700">
+                    Componentes inclusos
+                  </p>
+                  <p class="text-xs text-gray-500">
+                    Informe a quantidade de componentes que acompanha o produto.
+                    Deixe em branco se não houver.
+                  </p>
+                  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogProductComponentsScrews"
+                        class="text-xs font-medium uppercase tracking-wide text-gray-600"
+                        >Parafusos</label
+                      >
+                      <input
+                        id="catalogProductComponentsScrews"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Quantidade"
+                      />
+                    </div>
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogProductComponentsWiring"
+                        class="text-xs font-medium uppercase tracking-wide text-gray-600"
+                        >Fiação</label
+                      >
+                      <input
+                        id="catalogProductComponentsWiring"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Quantidade"
+                      />
+                    </div>
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogProductComponentsSocket"
+                        class="text-xs font-medium uppercase tracking-wide text-gray-600"
+                        >Bocal</label
+                      >
+                      <input
+                        id="catalogProductComponentsSocket"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Quantidade"
+                      />
+                    </div>
+                    <div class="flex flex-col">
+                      <label
+                        for="catalogProductComponentsOthersQuantity"
+                        class="text-xs font-medium uppercase tracking-wide text-gray-600"
+                        >Outros</label
+                      >
+                      <input
+                        id="catalogProductComponentsOthersQuantity"
+                        type="number"
+                        min="0"
+                        class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Quantidade"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex flex-col">
+                    <label
+                      for="catalogProductComponentsOthersDescription"
+                      class="text-xs font-medium uppercase tracking-wide text-gray-600"
+                      >Descrição dos outros componentes</label
+                    >
+                    <input
+                      id="catalogProductComponentsOthersDescription"
+                      type="text"
+                      class="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Ex.: Conectores, fitas, manuais, etc."
+                    />
+                  </div>
+                </div>
+                <div class="flex flex-col">
+                  <label
                     for="catalogProductPhotos"
                     class="text-sm font-medium text-gray-700"
                     >Fotos</label
@@ -425,7 +518,9 @@
               class="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white"
             >
               <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <thead
+                  class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600"
+                >
                   <tr>
                     <th scope="col" class="px-3 py-3 text-left">Selecionar</th>
                     <th scope="col" class="px-3 py-3 text-left">SKU</th>
@@ -558,6 +653,24 @@
                   class="mt-1 whitespace-pre-line text-sm text-gray-700"
                   id="catalogDetailsMedidas"
                 ></p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Tamanho da embalagem
+                </p>
+                <p
+                  class="mt-1 whitespace-pre-line text-sm text-gray-700"
+                  id="catalogDetailsPackageSize"
+                ></p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-500">
+                  Componentes inclusos
+                </p>
+                <div
+                  id="catalogDetailsComponents"
+                  class="mt-1 text-sm text-gray-700"
+                ></div>
               </div>
               <div>
                 <p class="text-xs font-semibold uppercase text-gray-500">

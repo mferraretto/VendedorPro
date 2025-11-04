@@ -57,6 +57,8 @@ const modalCusto = document.getElementById('catalogDetailsCusto');
 const modalPreco = document.getElementById('catalogDetailsPreco');
 const modalDescricao = document.getElementById('catalogDetailsDescricao');
 const modalMedidas = document.getElementById('catalogDetailsMedidas');
+const modalPackageSize = document.getElementById('catalogDetailsPackageSize');
+const modalComponents = document.getElementById('catalogDetailsComponents');
 const modalFotos = document.getElementById('catalogDetailsFotos');
 const modalVariacoes = document.getElementById('catalogDetailsVariacoes');
 const modalDriveLinkSection = document.getElementById(
@@ -80,6 +82,22 @@ const categoryInput = document.getElementById('catalogProductCategory');
 const descriptionInput = document.getElementById('catalogProductDescription');
 const driveLinkInput = document.getElementById('catalogProductDriveLink');
 const measuresInput = document.getElementById('catalogProductMeasures');
+const packageSizeInput = document.getElementById('catalogProductPackageSize');
+const componentsScrewsInput = document.getElementById(
+  'catalogProductComponentsScrews',
+);
+const componentsWiringInput = document.getElementById(
+  'catalogProductComponentsWiring',
+);
+const componentsSocketInput = document.getElementById(
+  'catalogProductComponentsSocket',
+);
+const componentsOthersQuantityInput = document.getElementById(
+  'catalogProductComponentsOthersQuantity',
+);
+const componentsOthersDescriptionInput = document.getElementById(
+  'catalogProductComponentsOthersDescription',
+);
 const photosInput = document.getElementById('catalogProductPhotos');
 const photoUrlsInput = document.getElementById('catalogProductPhotoUrls');
 const colorVariationsContainer = document.getElementById(
@@ -206,6 +224,103 @@ function parseNumericValue(value) {
     if (!Number.isNaN(normalized)) return normalized;
   }
   return null;
+}
+
+function normalizeComponentQuantity(value) {
+  if (value === null || value === undefined) return null;
+  const parsed = parseNumericValue(value);
+  if (parsed === null) return null;
+  if (Number.isNaN(parsed)) return null;
+  const rounded = Math.round(parsed);
+  if (!Number.isFinite(rounded)) return null;
+  return rounded < 0 ? 0 : rounded;
+}
+
+function getFirstAvailableValue(obj, keys) {
+  if (!obj || typeof obj !== 'object') return null;
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      return obj[key];
+    }
+  }
+  return null;
+}
+
+function getComponentEntries(produto) {
+  if (!produto) return [];
+  const componentes = produto.componentes;
+  if (!componentes || typeof componentes !== 'object') return [];
+
+  const entries = [];
+
+  const parafusos = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, ['parafusos', 'qtdParafusos']),
+  );
+  if (parafusos !== null && parafusos > 0) {
+    entries.push({ label: 'Parafusos', quantity: parafusos });
+  }
+
+  const fiacao = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, ['fiacao', 'fios']),
+  );
+  if (fiacao !== null && fiacao > 0) {
+    entries.push({ label: 'Fiação', quantity: fiacao });
+  }
+
+  const bocal = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, ['bocal', 'bocais']),
+  );
+  if (bocal !== null && bocal > 0) {
+    entries.push({ label: 'Bocal', quantity: bocal });
+  }
+
+  const outrosQuantidadeValor = getFirstAvailableValue(componentes, [
+    'outrosQuantidade',
+    'outrosQtd',
+    'outrosQtde',
+    'outros',
+  ]);
+  const outrosQuantidade = normalizeComponentQuantity(outrosQuantidadeValor);
+  let outrosDescricaoRaw = getFirstAvailableValue(componentes, [
+    'outrosDescricao',
+    'descricaoOutros',
+    'outrosDescricaoTexto',
+    'outrosDetalhes',
+    'outrosNome',
+  ]);
+  if (
+    !outrosDescricaoRaw &&
+    typeof outrosQuantidadeValor === 'string' &&
+    outrosQuantidade === null
+  ) {
+    outrosDescricaoRaw = outrosQuantidadeValor;
+  }
+  const outrosDescricao =
+    typeof outrosDescricaoRaw === 'string' ? outrosDescricaoRaw.trim() : '';
+  if ((outrosQuantidade !== null && outrosQuantidade > 0) || outrosDescricao) {
+    entries.push({
+      label: outrosDescricao ? `Outros (${outrosDescricao})` : 'Outros',
+      quantity:
+        outrosQuantidade !== null && outrosQuantidade > 0
+          ? outrosQuantidade
+          : null,
+    });
+  }
+
+  return entries;
+}
+
+function getComponentSummaryText(produto) {
+  const entries = getComponentEntries(produto);
+  if (!entries.length) return '';
+  return entries
+    .map((entry) => {
+      if (typeof entry.quantity === 'number') {
+        return `${entry.label} (${entry.quantity})`;
+      }
+      return entry.label;
+    })
+    .join(', ');
 }
 
 function getProductCost(produto) {
@@ -445,11 +560,132 @@ function getColorVariations() {
     .filter(Boolean);
 }
 
+function resetComponentInputs() {
+  if (componentsScrewsInput) componentsScrewsInput.value = '';
+  if (componentsWiringInput) componentsWiringInput.value = '';
+  if (componentsSocketInput) componentsSocketInput.value = '';
+  if (componentsOthersQuantityInput) componentsOthersQuantityInput.value = '';
+  if (componentsOthersDescriptionInput)
+    componentsOthersDescriptionInput.value = '';
+}
+
+function fillComponentInputsFromProduct(produto) {
+  const componentes =
+    produto && typeof produto.componentes === 'object'
+      ? produto.componentes
+      : null;
+
+  const assignValue = (input, valor) => {
+    if (!input) return;
+    if (valor === null || valor === undefined || Number.isNaN(valor)) {
+      input.value = '';
+    } else {
+      input.value = valor;
+    }
+  };
+
+  const parafusos = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, ['parafusos', 'qtdParafusos']),
+  );
+  assignValue(componentsScrewsInput, parafusos);
+
+  const fiacao = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, ['fiacao', 'fios']),
+  );
+  assignValue(componentsWiringInput, fiacao);
+
+  const bocal = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, ['bocal', 'bocais']),
+  );
+  assignValue(componentsSocketInput, bocal);
+
+  const outrosQuantidade = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, [
+      'outrosQuantidade',
+      'outrosQtd',
+      'outrosQtde',
+      'outros',
+    ]),
+  );
+  assignValue(componentsOthersQuantityInput, outrosQuantidade);
+
+  const outrosDescricaoRaw = getFirstAvailableValue(componentes, [
+    'outrosDescricao',
+    'descricaoOutros',
+    'outrosDescricaoTexto',
+    'outrosDetalhes',
+    'outrosNome',
+  ]);
+  if (componentsOthersDescriptionInput) {
+    componentsOthersDescriptionInput.value =
+      typeof outrosDescricaoRaw === 'string' ? outrosDescricaoRaw.trim() : '';
+  }
+}
+
+function getComponentDataFromInputs() {
+  const parafusos = normalizeComponentQuantity(componentsScrewsInput?.value);
+  const fiacao = normalizeComponentQuantity(componentsWiringInput?.value);
+  const bocal = normalizeComponentQuantity(componentsSocketInput?.value);
+  const outrosQuantidade = normalizeComponentQuantity(
+    componentsOthersQuantityInput?.value,
+  );
+  const outrosDescricao = componentsOthersDescriptionInput?.value
+    ? componentsOthersDescriptionInput.value.trim()
+    : '';
+
+  const possuiInformacoes =
+    [parafusos, fiacao, bocal, outrosQuantidade].some(
+      (valor) => typeof valor === 'number' && valor > 0,
+    ) || Boolean(outrosDescricao);
+
+  if (!possuiInformacoes) {
+    return { possuiComponentes: null, componentes: null };
+  }
+
+  const componentes = {};
+  if (parafusos !== null) componentes.parafusos = parafusos;
+  if (fiacao !== null) componentes.fiacao = fiacao;
+  if (bocal !== null) componentes.bocal = bocal;
+  if (outrosQuantidade !== null)
+    componentes.outrosQuantidade = outrosQuantidade;
+  if (outrosDescricao) componentes.outrosDescricao = outrosDescricao;
+
+  return { possuiComponentes: true, componentes };
+}
+
+function renderComponentsDetails(container, produto) {
+  if (!container) return;
+  container.innerHTML = '';
+  const entries = getComponentEntries(produto);
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'text-sm text-gray-500';
+    empty.textContent = 'Nenhum componente cadastrado.';
+    container.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement('ul');
+  list.className = 'list-disc space-y-1 pl-5';
+  entries.forEach((entry) => {
+    const item = document.createElement('li');
+    if (typeof entry.quantity === 'number') {
+      item.textContent = `${entry.label} (${entry.quantity})`;
+    } else {
+      item.textContent = entry.label;
+    }
+    list.appendChild(item);
+  });
+  container.appendChild(list);
+}
+
 function clearForm() {
   form?.reset();
+  if (packageSizeInput) packageSizeInput.value = '';
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
   if (driveLinkInput) driveLinkInput.value = '';
+  resetComponentInputs();
   setColorVariations([]);
   editingProductId = null;
   editingProductData = null;
@@ -624,6 +860,11 @@ function openModal(produto) {
   modalPreco.textContent = formatCurrency(produto.precoSugerido);
   modalDescricao.textContent = produto.descricao || 'Sem descrição cadastrada.';
   modalMedidas.textContent = produto.medidas || 'Sem medidas cadastradas.';
+  if (modalPackageSize) {
+    modalPackageSize.textContent =
+      produto.tamanhoEmbalagem || 'Sem tamanho de embalagem cadastrado.';
+  }
+  renderComponentsDetails(modalComponents, produto);
 
   const driveLink =
     produto.driveFolderLink || produto.driveLink || produto.linkDrive || '';
@@ -773,6 +1014,8 @@ function getCatalogExportData() {
     'Preço sugerido',
     'Descrição',
     'Medidas',
+    'Tamanho da embalagem',
+    'Componentes',
     'Variações de cor',
     'Fotos (URLs)',
   ];
@@ -794,6 +1037,14 @@ function getCatalogExportData() {
           .filter(Boolean)
           .join('\n')
       : '';
+    const componentesResumo = getComponentEntries(produto)
+      .map((entry) => {
+        if (typeof entry.quantity === 'number') {
+          return `${entry.label}: ${entry.quantity}`;
+        }
+        return entry.label;
+      })
+      .join('\n');
     return [
       produto.sku || '',
       produto.nome || '',
@@ -802,6 +1053,8 @@ function getCatalogExportData() {
       formatCurrencyForExport(produto.precoSugerido),
       produto.descricao || '',
       produto.medidas || '',
+      produto.tamanhoEmbalagem || '',
+      componentesResumo,
       variacoes,
       fotos,
     ];
@@ -933,7 +1186,7 @@ async function generateCardPdf(doc, grupos) {
   const larguraCartao =
     (larguraPagina - margem * 2 - espacamentoEntreCartoes * (colunas - 1)) /
     colunas;
-  const alturaCartao = 70;
+  const alturaCartao = 85;
   const paddingCartao = 5;
   const alturaImagem = 32;
   const larguraImagem = larguraCartao - paddingCartao * 2;
@@ -1050,6 +1303,34 @@ async function generateCardPdf(doc, grupos) {
         textoX,
         textoY,
       );
+      textoY += 5;
+
+      const packageText = produto.tamanhoEmbalagem
+        ? `Embalagem: ${produto.tamanhoEmbalagem}`
+        : '';
+      if (packageText) {
+        const packageLines = doc.splitTextToSize(
+          packageText,
+          larguraCartao - paddingCartao * 2,
+        );
+        packageLines.forEach((line) => {
+          doc.text(line, textoX, textoY);
+          textoY += 4;
+        });
+        textoY += 1;
+      }
+
+      const componentsSummary = getComponentSummaryText(produto);
+      if (componentsSummary) {
+        const componentsLines = doc.splitTextToSize(
+          `Componentes: ${componentsSummary}`,
+          larguraCartao - paddingCartao * 2,
+        );
+        componentsLines.forEach((line) => {
+          doc.text(line, textoX, textoY);
+          textoY += 4;
+        });
+      }
 
       colunaAtual += 1;
       if (colunaAtual >= colunas) {
@@ -1281,6 +1562,21 @@ function renderCardView(displayItems) {
     body.appendChild(skuValue);
     body.appendChild(nameEl);
     body.appendChild(categoryEl);
+
+    if (produto.tamanhoEmbalagem) {
+      const packageEl = document.createElement('p');
+      packageEl.className = 'mt-2 text-xs text-gray-500';
+      packageEl.textContent = `Embalagem: ${produto.tamanhoEmbalagem}`;
+      body.appendChild(packageEl);
+    }
+
+    const componentSummary = getComponentSummaryText(produto);
+    if (componentSummary) {
+      const componentsEl = document.createElement('p');
+      componentsEl.className = 'mt-1 text-xs text-gray-500';
+      componentsEl.textContent = `Componentes: ${componentSummary}`;
+      body.appendChild(componentsEl);
+    }
 
     const variacoes = Array.isArray(produto.variacoesCor)
       ? produto.variacoesCor.filter((item) => item && item.cor)
@@ -1683,6 +1979,8 @@ async function handleSubmit(event) {
   const descricao = descriptionInput?.value.trim();
   const driveFolderLink = driveLinkInput?.value.trim();
   const medidas = measuresInput?.value.trim();
+  const tamanhoEmbalagem = packageSizeInput?.value.trim();
+  const componentesInfo = getComponentDataFromInputs();
   const arquivos = photosInput?.files ? Array.from(photosInput.files) : [];
   const fotosUrlsBruto = photoUrlsInput?.value.trim();
   const fotosUrls = fotosUrlsBruto
@@ -1728,6 +2026,9 @@ async function handleSubmit(event) {
     descricao: descricao || null,
     driveFolderLink: driveFolderLink || null,
     medidas: medidas || null,
+    tamanhoEmbalagem: tamanhoEmbalagem || null,
+    componentes: componentesInfo.componentes ?? null,
+    possuiComponentes: componentesInfo.possuiComponentes ?? null,
     variacoesCor,
     updatedAt: serverTimestamp(),
   };
@@ -1832,6 +2133,8 @@ function startEditingProduct(produto) {
     driveLinkInput.value =
       produto.driveFolderLink || produto.driveLink || produto.linkDrive || '';
   if (measuresInput) measuresInput.value = produto.medidas || '';
+  if (packageSizeInput) packageSizeInput.value = produto.tamanhoEmbalagem || '';
+  fillComponentInputsFromProduct(produto);
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
   setColorVariations(
