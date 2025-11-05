@@ -301,21 +301,55 @@ function normalizarComponentesLista(componentes) {
 
 function obterComponentesDoFormulario() {
   const container = document.getElementById('componentesContainer');
-  if (!container) return [];
-  const linhas = Array.from(container.querySelectorAll('.component-row'));
-  const componentes = linhas.map((linha) => ({
-    nome: linha.querySelector('.component-nome')?.value,
-    quantidade: linha.querySelector('.component-quantidade')?.value,
-  }));
-  return normalizarComponentesLista(componentes);
+  if (container) {
+    const linhas = Array.from(container.querySelectorAll('.component-row'));
+    const componentes = linhas.map((linha) => ({
+      nome: linha.querySelector('.component-nome')?.value,
+      quantidade: linha.querySelector('.component-quantidade')?.value,
+    }));
+    return normalizarComponentesLista(componentes);
+  }
+  // Fallback para formulário simplificado: campos dedicados
+  const fiacaoEl = document.getElementById('quantidadeFiacao');
+  const bocalEl = document.getElementById('quantidadeBocal');
+  const resultado = [];
+  if (fiacaoEl) {
+    resultado.push({ nome: 'Fiação', quantidade: fiacaoEl.value });
+  }
+  if (bocalEl) {
+    resultado.push({ nome: 'Bocal', quantidade: bocalEl.value });
+  }
+  return normalizarComponentesLista(resultado);
 }
 
 function preencherComponentesNoFormulario(componentes = []) {
+  const container = document.getElementById('componentesContainer');
   const listaNormalizada = normalizarComponentesLista(componentes);
-  if (listaNormalizada.length) {
-    resetarComponentesFormulario(listaNormalizada);
-  } else {
-    resetarComponentesFormulario();
+  if (container) {
+    if (listaNormalizada.length) {
+      resetarComponentesFormulario(listaNormalizada);
+    } else {
+      resetarComponentesFormulario();
+    }
+    return;
+  }
+  // Fallback preencher campos simplificados
+  const fiacaoEl = document.getElementById('quantidadeFiacao');
+  const bocalEl = document.getElementById('quantidadeBocal');
+  const encontrarQuantidade = (nomeAlvo) => {
+    const alvo = normalizarTexto(nomeAlvo);
+    const comp = listaNormalizada.find(
+      (c) => normalizarTexto(c.nome) === alvo,
+    );
+    return comp?.quantidade ?? null;
+  };
+  if (fiacaoEl) {
+    const q = encontrarQuantidade('Fiação');
+    fiacaoEl.value = q === null ? '' : q;
+  }
+  if (bocalEl) {
+    const q = encontrarQuantidade('Bocal');
+    bocalEl.value = q === null ? '' : q;
   }
 }
 
