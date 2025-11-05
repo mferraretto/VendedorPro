@@ -11512,7 +11512,6 @@ function exportarProdutosVendidosPDFSimplificado() {
   }
 }
 
-
     async function carregarControleVendas() {
       const container = document.getElementById("listaControleVendas");
       const resumoContainer = document.getElementById("resumoMensalVendas");
@@ -15591,7 +15590,8 @@ async function gerarPrevisaoProdutosVendidos() {
   container.classList.remove('hidden');
   mostrarSucesso('Previsão gerada com sucesso!');
 }
-
+</script>
+     <script>
 window.carregarRegistrosFaturamento = carregarRegistrosFaturamento;
 window.copiarResumoFaturamento = copiarResumoFaturamento;
 window.carregarControleVendas = carregarControleVendas;
