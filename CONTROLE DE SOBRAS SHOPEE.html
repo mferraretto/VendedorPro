@@ -9604,6 +9604,58 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           const totalParafusosHtml = totalParafusosFormatado
             ? `<div class="flex items-center justify-center gap-1 text-xs font-medium text-indigo-600"><span>🔩</span><span>${totalParafusosFormatado}</span><span>parafusos</span></div>`
             : '';
+
+          // Agregar componentes (Fiação, Bocal, etc.) multiplicando pelas vendas
+          const somarNoMapa = (mapa, nome, valor) => {
+            const chave = String(nome || '').trim();
+            const qtd = Number(valor || 0);
+            if (!chave || !Number.isFinite(qtd) || qtd <= 0) return;
+            mapa.set(chave, (mapa.get(chave) || 0) + qtd);
+          };
+          const obterQuantidadeValida = (valor) => {
+            const n = Number(valor);
+            return Number.isFinite(n) && n > 0 ? n : null;
+          };
+          const totaisComponentesMapa = new Map();
+          item.vendidosPorSku.forEach(([sku, qtd]) => {
+            const quantidade = Number(qtd || 0);
+            if (!Number.isFinite(quantidade) || quantidade <= 0) return;
+            const comps = obterComponentesSku(sku);
+            comps.forEach((c) => {
+              const porUnidade = obterQuantidadeValida(c?.quantidade);
+              if (porUnidade === null) return;
+              somarNoMapa(totaisComponentesMapa, c.nome, porUnidade * quantidade);
+            });
+          });
+          // Fallback caso não haja componentes por SKU: usar os do principal
+          if (totaisComponentesMapa.size === 0) {
+            const quantidadeTotal = Number(item.total || 0);
+            const compsPrincipal = obterComponentesSku(item.sku);
+            if (Number.isFinite(quantidadeTotal) && quantidadeTotal > 0) {
+              compsPrincipal.forEach((c) => {
+                const porUnidade = obterQuantidadeValida(c?.quantidade);
+                if (porUnidade === null) return;
+                somarNoMapa(
+                  totaisComponentesMapa,
+                  c.nome,
+                  porUnidade * quantidadeTotal,
+                );
+              });
+            }
+          }
+          const totalComponentesHtml =
+            totaisComponentesMapa.size > 0
+              ? `<div class="flex flex-wrap justify-center gap-1 text-xs font-medium text-indigo-600">${Array.from(
+                  totaisComponentesMapa.entries(),
+                )
+                  .map(
+                    ([nome, qtd]) =>
+                      `<span class=\"inline-flex items-center gap-1 rounded-full bg-indigo-50 px-1.5 py-0.5\"><span>${escapeHtml(
+                        nome,
+                      )}</span><span>${Number(qtd).toLocaleString('pt-BR')}</span></span>`,
+                  )
+                  .join('')}</div>`
+              : '';
           const possuiPrincipais = principaisDetalhes.length > 0;
           let vendidosHtml = '';
           let extrasHtml = '';
@@ -9728,6 +9780,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 <div class="flex flex-col items-center gap-1">
                   <span>${totalFormatado}</span>
                   ${totalParafusosHtml}
+                  ${totalComponentesHtml}
                 </div>
               </td>
               <td class="py-3 px-4 text-right font-medium text-gray-800">${valorLiquidoFormatado}</td>
