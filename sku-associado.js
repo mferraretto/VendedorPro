@@ -407,6 +407,7 @@ function renderTabela() {
     const quantidadeParafusos = formatarQuantidadeParafusos(
       data.quantidadeParafusos,
     );
+    const quantidadePecas = formatarQuantidadeNumerica(data.quantidadePecas);
     const componentesDescricao = formatarComponentesParaTabela(
       data.componentes,
     );
@@ -414,6 +415,7 @@ function renderTabela() {
       <td class="px-2 py-1">${data.skuPrincipal}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
       <td class="px-2 py-1">${quantidadeParafusos}</td>
+      <td class="px-2 py-1">${quantidadePecas}</td>
       <td class="px-2 py-1">${componentesDescricao}</td>
       <td class="px-2 py-1">${(data.principaisVinculados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
@@ -451,6 +453,9 @@ async function carregarSkus() {
     const quantidadeParafusos = sanitizarQuantidadeParafusos(
       data.quantidadeParafusos,
     );
+    const quantidadePecas = sanitizarQuantidadeNumerica(
+      data.quantidadePecas,
+    );
     skuCache.set(docId, {
       ...data,
       id: docId,
@@ -458,6 +463,7 @@ async function carregarSkus() {
       associados: data.associados || [],
       principaisVinculados: data.principaisVinculados || [],
       quantidadeParafusos,
+      quantidadePecas,
       componentes: normalizarComponentesLista(data.componentes),
     });
   });
@@ -489,6 +495,8 @@ function limparFormulario() {
   document.getElementById('skuPrincipal').value = '';
   document.getElementById('skuAssociados').value = '';
   document.getElementById('quantidadeParafusos').value = '';
+  const pecasEl = document.getElementById('quantidadePecas');
+  if (pecasEl) pecasEl.value = '';
   resetarComponentesFormulario();
   editDocId = null;
   editSkuAnterior = null;
@@ -499,6 +507,7 @@ async function salvarSku() {
   const principalEl = document.getElementById('skuPrincipal');
   const associadosEl = document.getElementById('skuAssociados');
   const quantidadeParafusosEl = document.getElementById('quantidadeParafusos');
+  const quantidadePecasEl = document.getElementById('quantidadePecas');
   const principaisSelecionados = obterPrincipaisSelecionados();
   const componentes = obterComponentesDoFormulario();
   const skuPrincipal = principalEl.value.trim();
@@ -509,6 +518,9 @@ async function salvarSku() {
   const associados = parseAssociados(associadosEl.value);
   const quantidadeParafusos = sanitizarQuantidadeParafusos(
     quantidadeParafusosEl.value,
+  );
+  const quantidadePecas = sanitizarQuantidadeNumerica(
+    quantidadePecasEl ? quantidadePecasEl.value : null,
   );
   const docId = gerarIdDocumentoSku(skuPrincipal);
   if (editDocId && editDocId !== docId) {
@@ -521,6 +533,7 @@ async function salvarSku() {
       (sku) => normalizarTexto(sku) !== normalizarTexto(skuPrincipal),
     ),
     quantidadeParafusos,
+    quantidadePecas,
     componentes,
   });
   await carregarSkus();
@@ -536,6 +549,9 @@ function preencherFormulario(id, data) {
   const quantidade = sanitizarQuantidadeParafusos(data.quantidadeParafusos);
   document.getElementById('quantidadeParafusos').value =
     quantidade === null ? '' : quantidade;
+  const qPecas = sanitizarQuantidadeNumerica(data.quantidadePecas);
+  const pecasEl2 = document.getElementById('quantidadePecas');
+  if (pecasEl2) pecasEl2.value = qPecas === null ? '' : qPecas;
   preencherComponentesNoFormulario(data.componentes);
   popularSelectOptions(
     data.skuPrincipal || recuperarSkuDoIdDocumento(id),
