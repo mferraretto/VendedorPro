@@ -204,6 +204,19 @@
                 <span id="pecasStatusMsg" class="text-sm text-gray-500"></span>
                 <div class="flex items-center gap-2">
                   <button
+                    id="pecasModeloExcel"
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    <i class="fa-solid fa-download"></i>
+                    Modelo Excel
+                  </button>
+                  <label class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer">
+                    <i class="fa-solid fa-file-import"></i>
+                    Importar planilha
+                    <input id="pecasImportarXlsx" type="file" accept=".xlsx,.xls" class="hidden" />
+                  </label>
+                  <button
                     id="pecasExportExcel"
                     type="button"
                     class="inline-flex items-center gap-2 rounded-md border border-indigo-500 px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -371,6 +384,19 @@
                   class="text-sm text-gray-500"
                 ></span>
                 <div class="flex items-center gap-2">
+                  <button
+                    id="reembolsosModeloExcel"
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    <i class="fa-solid fa-download"></i>
+                    Modelo Excel
+                  </button>
+                  <label class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer">
+                    <i class="fa-solid fa-file-import"></i>
+                    Importar planilha
+                    <input id="reembolsosImportarXlsx" type="file" accept=".xlsx,.xls" class="hidden" />
+                  </label>
                   <button
                     id="reembolsosExportExcel"
                     type="button"
