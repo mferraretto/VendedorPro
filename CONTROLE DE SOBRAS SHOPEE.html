@@ -9605,6 +9605,41 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             ? `<div class="flex items-center justify-center gap-1 text-xs font-medium text-indigo-600"><span>🔩</span><span>${totalParafusosFormatado}</span><span>parafusos</span></div>`
             : '';
 
+          // Total de peças agregadas (peças/un. * vendas)
+          let totalPecasItem = item.vendidosPorSku.reduce((acc, [sku, qtd]) => {
+            const quantidade = Number(qtd || 0);
+            if (!Number.isFinite(quantidade) || quantidade <= 0) return acc;
+            const pecasPorUnidade = (function () {
+              const mapaP = new Map(
+                Array.isArray(item.pecasPorSku) ? item.pecasPorSku : [],
+              );
+              const n = String(sku || '').toLowerCase();
+              return mapaP.has(n) ? Number(mapaP.get(n)) : obterQuantidadePecasDoSku(sku);
+            })();
+            const pecasNormalizadas = Number.isFinite(Number(pecasPorUnidade))
+              ? Number(pecasPorUnidade)
+              : null;
+            if (pecasNormalizadas === null) return acc;
+            return acc + pecasNormalizadas * quantidade;
+          }, 0);
+          if (!totalPecasItem || totalPecasItem <= 0) {
+            const quantidadeTotal = Number(item.total || 0);
+            const pecasPrincipal = obterQuantidadePecasDoSku(item.sku);
+            if (
+              Number.isFinite(quantidadeTotal) &&
+              quantidadeTotal > 0 &&
+              Number.isFinite(Number(pecasPrincipal))
+            ) {
+              totalPecasItem = Number(pecasPrincipal) * quantidadeTotal;
+            }
+          }
+          const totalPecasHtml =
+            totalPecasItem > 0
+              ? `<div class=\"flex items-center justify-center gap-1 text-xs font-medium text-indigo-600\"><span>🧩</span><span>${totalPecasItem.toLocaleString(
+                  'pt-BR',
+                )}</span><span>peças</span></div>`
+              : '';
+
           // Agregar componentes (Fiação, Bocal, etc.) multiplicando pelas vendas
           const somarNoMapa = (mapa, nome, valor) => {
             const chave = String(nome || '').trim();
@@ -9780,6 +9815,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 <div class="flex flex-col items-center gap-1">
                   <span>${totalFormatado}</span>
                   ${totalParafusosHtml}
+                  ${totalPecasHtml}
                   ${totalComponentesHtml}
                 </div>
               </td>
@@ -9943,6 +9979,8 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         const parafusosPorSkuNormalizado = new Map();
         const componentesPorPrincipal = new Map();
         const componentesPorSkuNormalizado = new Map();
+        const pecasPorPrincipal = new Map();
+        const pecasPorSkuNormalizado = new Map();
         const normalizarComponentesListaLocal = (componentes) => {
           if (!Array.isArray(componentes)) return [];
           return componentes
@@ -9975,6 +10013,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             const componentesLista = normalizarComponentesListaLocal(
               dados.componentes,
             );
+            const quantidadePecas = Number(dados.quantidadePecas);
             principalPorSku.set(principalNormalizado, skuPrincipal);
             const grupoAtual = grupoPorPrincipal.get(skuPrincipal) || new Set();
             const vinculadosAtuais =
@@ -9986,6 +10025,13 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               parafusosPorSkuNormalizado.set(
                 principalNormalizado,
                 quantidadeParafusos,
+              );
+            }
+            if (Number.isFinite(quantidadePecas)) {
+              pecasPorPrincipal.set(skuPrincipal, quantidadePecas);
+              pecasPorSkuNormalizado.set(
+                principalNormalizado,
+                quantidadePecas,
               );
             }
             if (componentesLista.length) {
@@ -10008,6 +10054,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 parafusosPorSkuNormalizado.set(
                   normalizarSku(associado),
                   quantidadeParafusos,
+                );
+              }
+              if (Number.isFinite(quantidadePecas)) {
+                pecasPorSkuNormalizado.set(
+                  normalizarSku(associado),
+                  quantidadePecas,
                 );
               }
               if (componentesLista.length) {
@@ -10144,6 +10196,28 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             parafusosPorPrincipal.has(principalRelacionado)
           ) {
             const valor = parafusosPorPrincipal.get(principalRelacionado);
+            return Number.isFinite(valor) ? valor : null;
+          }
+          return null;
+        };
+
+        const obterQuantidadePecasDoSku = (sku) => {
+          if (!sku) return null;
+          const normalizado = normalizarSku(sku);
+          if (pecasPorSkuNormalizado.has(normalizado)) {
+            const valor = pecasPorSkuNormalizado.get(normalizado);
+            return Number.isFinite(valor) ? valor : null;
+          }
+          if (pecasPorPrincipal.has(sku)) {
+            const valor = pecasPorPrincipal.get(sku);
+            return Number.isFinite(valor) ? valor : null;
+          }
+          const principalRelacionado = principalPorSku.get(normalizado);
+          if (
+            principalRelacionado &&
+            pecasPorPrincipal.has(principalRelacionado)
+          ) {
+            const valor = pecasPorPrincipal.get(principalRelacionado);
             return Number.isFinite(valor) ? valor : null;
           }
           return null;
@@ -10409,6 +10483,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             registro.componentesPorSku instanceof Map
               ? registro.componentesPorSku
               : new Map(registro.componentesPorSku || []);
+          const mapaPecas =
+            registro.pecasPorSku instanceof Map
+              ? registro.pecasPorSku
+              : new Map(registro.pecasPorSku || []);
           const grupoOficial =
             registro.grupoOficial instanceof Set
               ? registro.grupoOficial
@@ -10420,6 +10498,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             if (!mapaComponentes.has(sku)) {
               mapaComponentes.set(sku, obterComponentesDoSku(sku));
             }
+            if (!mapaPecas.has(sku)) {
+              mapaPecas.set(sku, obterQuantidadePecasDoSku(sku));
+            }
           });
           if (!mapaParafusos.has(registro.sku)) {
             mapaParafusos.set(
@@ -10430,8 +10511,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           if (!mapaComponentes.has(registro.sku)) {
             mapaComponentes.set(registro.sku, obterComponentesDoSku(registro.sku));
           }
+          if (!mapaPecas.has(registro.sku)) {
+            mapaPecas.set(registro.sku, obterQuantidadePecasDoSku(registro.sku));
+          }
           registro.parafusosPorSku = mapaParafusos;
           registro.componentesPorSku = mapaComponentes;
+          registro.pecasPorSku = mapaPecas;
         });
 
         produtosVendidosResumo = Array.from(agregados.values()).map((item) => {
@@ -10466,6 +10551,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               ? item.componentesPorSku
               : new Map(item.componentesPorSku || []);
           const componentesPorSkuEntries = Array.from(mapaComponentes.entries());
+          const mapaPecas =
+            item.pecasPorSku instanceof Map
+              ? item.pecasPorSku
+              : new Map(item.pecasPorSku || []);
+          const pecasPorSkuEntries = Array.from(mapaPecas.entries());
           const principaisVinculadosDetalhes = principaisVinculados.map((sku) => {
             const quantidade = mapaQuantidadesPrincipais.get(sku) || 0;
             const parafusos = mapaParafusos.has(sku)
@@ -10474,11 +10564,15 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             const componentes = mapaComponentes.has(sku)
               ? mapaComponentes.get(sku)
               : obterComponentesDoSku(sku);
+            const pecas = mapaPecas.has(sku)
+              ? mapaPecas.get(sku)
+              : obterQuantidadePecasDoSku(sku);
             return {
               sku,
               quantidade,
               parafusos,
               componentes,
+              pecas,
             };
           });
           const todosSkus = Array.from(
@@ -10572,6 +10666,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             quantidadeParafusosPrincipal,
             parafusosPorSku: parafusosPorSkuEntries,
             componentesPorSku: componentesPorSkuEntries,
+            pecasPorSku: pecasPorSkuEntries,
             detalhesPorUsuario: converterDetalhesPorUsuario(
               item.detalhesPorUsuario,
             ),
