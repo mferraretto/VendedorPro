@@ -66,6 +66,23 @@
                   placeholder="Informe a quantidade por SKU"
                 />
               </div>
+              <div class="md:col-span-2 space-y-2">
+                <div>
+                  <h4 class="text-sm font-medium">Componentes</h4>
+                  <p class="text-xs text-gray-500">
+                    Informe os componentes necessários para o kit, por exemplo
+                    fiação, bocais e outros itens, e a quantidade de cada um.
+                  </p>
+                </div>
+                <div id="componentesContainer" class="space-y-2"></div>
+                <button
+                  id="adicionarComponente"
+                  type="button"
+                  class="px-3 py-1 text-sm font-medium text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+                >
+                  Adicionar componente
+                </button>
+              </div>
               <div class="md:col-span-2">
                 <label
                   for="skusPrincipaisVinculados"
@@ -98,6 +115,7 @@
                   <th class="px-2 py-1">SKU Principal</th>
                   <th class="px-2 py-1">Associados</th>
                   <th class="px-2 py-1">Parafusos por SKU</th>
+                  <th class="px-2 py-1">Componentes</th>
                   <th class="px-2 py-1">Principais Vinculados</th>
                   <th class="px-2 py-1">Ações</th>
                 </tr>
