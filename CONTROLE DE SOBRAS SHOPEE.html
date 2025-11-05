@@ -9519,6 +9519,25 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             }
             return null;
           };
+          const mapaPecas = new Map(
+            Array.isArray(item.pecasPorSku) ? item.pecasPorSku : [],
+          );
+          const mapaPecasNormalizado = new Map();
+          mapaPecas.forEach((valor, chave) => {
+            mapaPecasNormalizado.set(
+              String(chave || '').toLowerCase(),
+              Number(valor),
+            );
+          });
+          const obterPecasSku = (sku) => {
+            if (!sku) return 1;
+            const normalizado = String(sku || '').toLowerCase();
+            if (mapaPecasNormalizado.has(normalizado)) {
+              const v = mapaPecasNormalizado.get(normalizado);
+              return Number.isFinite(v) && v > 0 ? v : 1;
+            }
+            return 1;
+          };
           const mapaComponentes = new Map(
             Array.isArray(item.componentesPorSku) ? item.componentesPorSku : [],
           );
@@ -9606,25 +9625,21 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             : '';
 
           // Total de peças agregadas (peças/un. * vendas)
+          const principalPecasNumero = (() => {
+            const v = obterPecasSku(item.sku);
+            return Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : 1;
+          })();
           let totalPecasItem = item.vendidosPorSku.reduce((acc, [sku, qtd]) => {
             const quantidade = Number(qtd || 0);
             if (!Number.isFinite(quantidade) || quantidade <= 0) return acc;
-            const pecasPorUnidade = (function () {
-              const mapaP = new Map(
-                Array.isArray(item.pecasPorSku) ? item.pecasPorSku : [],
-              );
-              const n = String(sku || '').toLowerCase();
-              return mapaP.has(n) ? Number(mapaP.get(n)) : obterQuantidadePecasDoSku(sku);
-            })();
-            const pecasNormalizadas = Number.isFinite(Number(pecasPorUnidade))
-              ? Number(pecasPorUnidade)
-              : null;
-            if (pecasNormalizadas === null) return acc;
-            return acc + pecasNormalizadas * quantidade;
+            const pecasPorUnidade = obterPecasSku(sku) || principalPecasNumero;
+            const porUn = Number(pecasPorUnidade);
+            const pecasValidas = Number.isFinite(porUn) && porUn > 0 ? porUn : 1;
+            return acc + pecasValidas * quantidade;
           }, 0);
           if (!totalPecasItem || totalPecasItem <= 0) {
             const quantidadeTotal = Number(item.total || 0);
-            const pecasPrincipal = obterQuantidadePecasDoSku(item.sku);
+            const pecasPrincipal = principalPecasNumero;
             if (
               Number.isFinite(quantidadeTotal) &&
               quantidadeTotal > 0 &&
@@ -10202,15 +10217,15 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         };
 
         const obterQuantidadePecasDoSku = (sku) => {
-          if (!sku) return null;
+          if (!sku) return 1;
           const normalizado = normalizarSku(sku);
           if (pecasPorSkuNormalizado.has(normalizado)) {
             const valor = pecasPorSkuNormalizado.get(normalizado);
-            return Number.isFinite(valor) ? valor : null;
+            return Number.isFinite(valor) && valor > 0 ? valor : 1;
           }
           if (pecasPorPrincipal.has(sku)) {
             const valor = pecasPorPrincipal.get(sku);
-            return Number.isFinite(valor) ? valor : null;
+            return Number.isFinite(valor) && valor > 0 ? valor : 1;
           }
           const principalRelacionado = principalPorSku.get(normalizado);
           if (
@@ -10218,9 +10233,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             pecasPorPrincipal.has(principalRelacionado)
           ) {
             const valor = pecasPorPrincipal.get(principalRelacionado);
-            return Number.isFinite(valor) ? valor : null;
+            return Number.isFinite(valor) && valor > 0 ? valor : 1;
           }
-          return null;
+          return 1;
         };
 
         const obterComponentesDoSku = (sku) => {
