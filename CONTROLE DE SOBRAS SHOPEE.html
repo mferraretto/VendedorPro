@@ -11015,6 +11015,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       };
 
       const filtrosAtivos = [];
+      const filtroSkuValor = obterFiltroSkuProdutosVendidosValor();
       const filtroInicio = document.getElementById('filtroProdutosVendidosInicio')?.value;
       const filtroFim = document.getElementById('filtroProdutosVendidosFim')?.value;
 
