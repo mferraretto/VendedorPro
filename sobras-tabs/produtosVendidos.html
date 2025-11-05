@@ -9,86 +9,40 @@
       <div>Total vendido: <span id="produtosVendidosTotalUnidades" class="font-semibold text-gray-700">0</span> unidades</div>
       <div>Valor líquido: <span id="produtosVendidosTotalLiquido" class="font-semibold text-gray-700">R$ 0,00</span></div>
       <div>
-        Parafusos usados: <span id="produtosVendidosTotalParafusos" class="font-semibold text-gray-700">0</span>
-      </div>
-      <div>
-        Fiação usada: <span id="produtosVendidosTotalFiacao" class="font-semibold text-gray-700">0</span>
-      </div>
-      <div>
-        Bocais usados: <span id="produtosVendidosTotalBocais" class="font-semibold text-gray-700">0</span>
+        Parafusos usados:
+        <span id="produtosVendidosTotalParafusos" class="font-semibold text-gray-700">0</span>
+
+
+
+
+
       </div>
     </div>
   </div>
-  <div class="card-body space-y-6 p-6">
-    <div class="grid gap-4 md:grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
-      <label class="block">
-        <span class="text-sm font-medium text-gray-700">Data inicial</span>
-        <input type="date" id="filtroProdutosVendidosInicio" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-      </label>
-      <label class="block">
-        <span class="text-sm font-medium text-gray-700">Data final</span>
-        <input type="date" id="filtroProdutosVendidosFim" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-      </label>
-      <label class="block md:col-span-2">
-        <span class="text-sm font-medium text-gray-700">SKU</span>
-        <input type="text" id="filtroSkuProdutosVendidos" placeholder="Buscar SKU" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-      </label>
-      <label class="block">
-        <span class="text-sm font-medium text-gray-700">Usuário responsável</span>
-        <select id="filtroResponsavelProdutosVendidos" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
-          <option value="">Todos os responsáveis</option>
+@@ -35,22 +40,22 @@ <h3 class="text-2xl font-bold text-gray-800 tracking-tight">Produtos Vendidos</h
         </select>
       </label>
       <div class="flex items-end">
-        <button id="btnProdutosVendidosFiltrar" onclick="carregarProdutosVendidos()" class="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow transition duration-200 hover:bg-indigo-700 focus:outline-none">
+        <button id="btnProdutosVendidosFiltrar" onclick="carregarProdutosVendidos()" class="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400">
           <i class="fas fa-filter mr-2"></i>
           Filtrar
         </button>
       </div>
     </div>
     <div class="flex flex-wrap items-center justify-end gap-2">
-      <button onclick="gerarPrevisaoProdutosVendidos()" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-blue-700 focus:outline-none">
+      <button onclick="gerarPrevisaoProdutosVendidos()" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
         <i class="fas fa-chart-line"></i>
         Gerar previsão
       </button>
-      <button onclick="exportarProdutosVendidosExcel()" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-green-700 focus:outline-none">
+      <button onclick="exportarProdutosVendidosExcel()" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400">
         <i class="fas fa-file-excel"></i>
         Exportar Excel
       </button>
-      <button onclick="exportarProdutosVendidosPDF()" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-red-700 focus:outline-none">
+      <button onclick="exportarProdutosVendidosPDF()" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400">
         <i class="fas fa-file-pdf"></i>
         Exportar PDF
       </button>
-    </div>
-    <p id="produtosVendidosStatus" class="text-sm text-gray-500"></p>
-    <div id="produtosVendidosPrevisaoWrapper" class="hidden space-y-3 rounded-xl border border-blue-100 bg-blue-50 p-4">
-      <div class="flex flex-col gap-1 text-sm text-blue-900" id="produtosVendidosPrevisaoResumo"></div>
-      <div class="overflow-x-auto rounded-lg border border-blue-100 bg-white shadow-sm">
-        <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
-          <thead class="bg-blue-50 text-xs uppercase tracking-wide text-blue-900">
-            <tr>
-              <th class="px-4 py-3">SKU</th>
-              <th class="px-4 py-3 text-right">Moderada (un.)</th>
-              <th class="px-4 py-3 text-right">Otimista (un.)</th>
-              <th class="px-4 py-3 text-right">Moderada (R$)</th>
-              <th class="px-4 py-3 text-right">Otimista (R$)</th>
-            </tr>
-          </thead>
-          <tbody id="produtosVendidosPrevisaoTabela" class="divide-y divide-gray-100"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="overflow-x-auto rounded-xl border border-gray-200 shadow">
-      <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
-        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-          <tr>
-            <th class="px-4 py-3">SKU</th>
-            <th class="px-4 py-3 text-center">Quantidade vendida</th>
-            <th class="px-4 py-3 text-right">Valor líquido</th>
-            <th class="px-4 py-3">Usuários responsáveis</th>
-          </tr>
-        </thead>
-        <tbody id="produtosVendidosTabela" class="divide-y divide-gray-100 bg-white"></tbody>
+@@ -87,4 +92,4 @@ <h3 class="text-2xl font-bold text-gray-800 tracking-tight">Produtos Vendidos</h
       </table>
     </div>
   </div>
