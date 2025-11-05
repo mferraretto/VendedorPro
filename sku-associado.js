@@ -28,6 +28,12 @@ let editSkuAnterior = null;
 let skuCache = new Map();
 let eventosRegistrados = false;
 
+const COMPONENTES_PADRAO = [
+  { nome: 'Fiação', quantidade: null },
+  { nome: 'Bocal', quantidade: null },
+  { nome: 'Parafusos', quantidade: null },
+];
+
 const CONTEXT_ESCOPOS_PADRAO = [
   'publico',
   'geral',
@@ -195,6 +201,7 @@ function parseAssociados(value) {
 }
 
 function sanitizarQuantidade(valor) {
+
   if (valor === undefined || valor === null) return null;
   if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
   const texto = String(valor).replace(',', '.').trim();
@@ -205,30 +212,82 @@ function sanitizarQuantidade(valor) {
 
 function formatarQuantidade(valor) {
   const numero = sanitizarQuantidade(valor);
+
   return numero === null ? '—' : numero.toLocaleString('pt-BR');
 }
 
-function popularSelectOptions(excluirSku = null, selecionados = []) {
-  const select = document.getElementById('skusPrincipaisVinculados');
-  select.innerHTML = '';
-  const selecionadosSet = new Set(
-    selecionados.map((valor) => normalizarTexto(valor)),
+function criarLinhaComponente(componente = {}) {
+  const linha = document.createElement('div');
+  linha.className =
+    'component-row flex flex-col gap-2 md:flex-row md:items-center';
+
+  const inputNome = document.createElement('input');
+  inputNome.type = 'text';
+  inputNome.className = 'component-nome flex-1 p-2 border rounded';
+  inputNome.placeholder = 'Nome do componente';
+  inputNome.value = componente?.nome ? String(componente.nome).trim() : '';
+
+  const inputQuantidade = document.createElement('input');
+  inputQuantidade.type = 'number';
+  inputQuantidade.min = '0';
+  inputQuantidade.step = '1';
+  inputQuantidade.className =
+    'component-quantidade w-full md:w-32 p-2 border rounded';
+  inputQuantidade.placeholder = 'Quantidade';
+  const quantidadeSanitizada = sanitizarQuantidadeNumerica(
+    componente?.quantidade,
   );
-  const excluirNormalizado = normalizarTexto(excluirSku);
-  const opcoes = Array.from(skuCache.values()).sort((a, b) =>
-    a.skuPrincipal.localeCompare(b.skuPrincipal),
-  );
-  opcoes.forEach((item) => {
-    const sku = item.skuPrincipal;
-    if (!sku) return;
-    if (excluirNormalizado && normalizarTexto(sku) === excluirNormalizado)
-      return;
-    const option = document.createElement('option');
-    option.value = sku;
-    option.textContent = sku;
-    if (selecionadosSet.has(normalizarTexto(sku))) option.selected = true;
-    select.appendChild(option);
+  inputQuantidade.value =
+    quantidadeSanitizada === null ? '' : quantidadeSanitizada;
+
+  const botaoRemover = document.createElement('button');
+  botaoRemover.type = 'button';
+  botaoRemover.className = 'text-sm font-medium text-red-600';
+  botaoRemover.textContent = 'Remover';
+  botaoRemover.addEventListener('click', () => {
+    linha.remove();
   });
+
+  linha.appendChild(inputNome);
+  linha.appendChild(inputQuantidade);
+  linha.appendChild(botaoRemover);
+
+  return linha;
+}
+
+function adicionarLinhaComponente(componente = {}) {
+  const container = document.getElementById('componentesContainer');
+  if (!container) return;
+  container.appendChild(criarLinhaComponente(componente));
+}
+
+function resetarComponentesFormulario(componentes = null) {
+  const container = document.getElementById('componentesContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  const listaBase =
+    Array.isArray(componentes) && componentes.length
+      ? componentes
+      : COMPONENTES_PADRAO;
+  listaBase.forEach((item) =>
+    adicionarLinhaComponente({
+      nome: item?.nome || '',
+      quantidade: item?.quantidade === undefined ? null : item.quantidade,
+    }),
+  );
+}
+
+function formatarComponentesParaTabela(componentes = []) {
+  const listaNormalizada = normalizarComponentesLista(componentes);
+  if (!listaNormalizada.length) return '—';
+  return listaNormalizada
+    .map((item) => {
+      const quantidadeFormatada = formatarQuantidadeNumerica(item.quantidade);
+      return quantidadeFormatada === '—'
+        ? item.nome
+        : `${item.nome} (${quantidadeFormatada})`;
+    })
+    .join(', ');
 }
 
 function renderTabela() {
@@ -241,6 +300,7 @@ function renderTabela() {
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td colspan="8" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
+
     tbody.appendChild(tr);
     return;
   }
@@ -250,6 +310,7 @@ function renderTabela() {
     const quantidadeFiacao = formatarQuantidade(data.quantidadeFiacao);
     const quantidadeBocal = formatarQuantidade(data.quantidadeBocal);
     const outrosComponentes = data.outrosComponentes || '—';
+
     tr.innerHTML = `
       <td class="px-2 py-1">${data.skuPrincipal}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
@@ -257,6 +318,7 @@ function renderTabela() {
       <td class="px-2 py-1">${quantidadeFiacao}</td>
       <td class="px-2 py-1">${quantidadeBocal}</td>
       <td class="px-2 py-1">${outrosComponentes}</td>
+
       <td class="px-2 py-1">${(data.principaisVinculados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
         <button class="text-blue-600" data-edit="${data.id}">Editar</button>
@@ -314,12 +376,10 @@ async function carregarSkus() {
     if (dadosEdicao) {
       selecionados = dadosEdicao.principaisVinculados || [];
     }
+
   } else {
-    const select = document.getElementById('skusPrincipaisVinculados');
-    selecionados = Array.from(select.selectedOptions).map((opt) => opt.value);
+    resetarComponentesFormulario();
   }
-  const excluirSku = principalAtual || editSkuAnterior || null;
-  popularSelectOptions(excluirSku, selecionados);
 }
 
 function obterPrincipaisSelecionados() {
@@ -435,10 +495,8 @@ function registrarEventos() {
 onAuthStateChanged(auth, async (user) => {
   if (!user) return;
   try {
+
     await prepararContextoUsuario(user);
-    await carregarSkus();
-  } catch (error) {
-    console.error('Erro ao iniciar a página de SKU associado:', error);
-  }
-  registrarEventos();
-});
+    // Load and initialize components and products after user authentication
+  });
+}
