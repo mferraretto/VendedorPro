@@ -409,6 +409,7 @@ function renderPecas() {
         <td class="px-4 py-3">${escapeHtml(item.numero || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.peca || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.problema || '-')}</td>
         <td class="px-4 py-3">
           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClasses}">
             ${statusTexto}
@@ -515,6 +516,7 @@ function renderReembolsos() {
         <td class="px-4 py-3">${escapeHtml(item.apelido || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.nf || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.problema || item.motivo || '-')}</td>
         <td class="px-4 py-3 text-right font-medium text-gray-700">${valorFormatado}</td>
         <td class="px-4 py-3">${escapeHtml(item.pix || '-')}</td>
         <td class="px-4 py-3">
@@ -684,6 +686,7 @@ function exportarPecasExcel() {
     'Número',
     'Loja',
     'Peça',
+    'Problema',
     'Status',
     'Valor gasto (R$)',
   ];
@@ -696,6 +699,7 @@ function exportarPecasExcel() {
     item.numero || '',
     item.loja || '',
     item.peca || '',
+    item.problema || '',
     formatarStatus(normalizarStatus(item.status)),
     Number(item.valorGasto) || 0,
   ]);
@@ -727,6 +731,7 @@ function exportarPecasPdf() {
     'Número',
     'Loja',
     'Peça',
+    'Problema',
     'Status',
     'Valor gasto',
   ];
@@ -738,6 +743,7 @@ function exportarPecasPdf() {
     item.numero || '',
     item.loja || '',
     item.peca || '',
+    item.problema || '',
     formatarStatus(normalizarStatus(item.status)),
     formatarMoeda(Number(item.valorGasto) || 0),
   ]);
@@ -769,6 +775,7 @@ function exportarReembolsosExcel() {
     'Apelido',
     'NF',
     'Loja',
+    'Problema',
     'Valor (R$)',
     'PIX',
     'Status',
@@ -781,6 +788,7 @@ function exportarReembolsosExcel() {
     item.apelido || '',
     item.nf || '',
     item.loja || '',
+    item.problema || item.motivo || '',
     Number(item.valor) || 0,
     item.pix || '',
     formatarStatusReembolso((item.status || '').toString().toUpperCase()),
@@ -813,6 +821,7 @@ function exportarReembolsosPdf() {
     'Apelido',
     'NF',
     'Loja',
+    'Problema',
     'Valor',
     'PIX',
     'Status',
@@ -825,6 +834,7 @@ function exportarReembolsosPdf() {
     item.apelido || '',
     item.nf || '',
     item.loja || '',
+    item.problema || item.motivo || '',
     formatarMoeda(Number(item.valor) || 0),
     item.pix || '',
     formatarStatusReembolso((item.status || '').toString().toUpperCase()),
@@ -870,6 +880,20 @@ function gerarRelatorioCompleto() {
     (item) => item.peca,
     (item) => Number(item.valorGasto) || 0,
   ).slice(0, 5);
+
+  // Principais problemas (por valor) e problemas mais recorrentes (por quantidade)
+  const todosProblemas = [
+    ...pecas.map((p) => ({ problema: p.problema || 'Não informado', valor: Number(p.valorGasto) || 0 })),
+    ...reembolsos.map((r) => ({ problema: r.problema || r.motivo || 'Não informado', valor: Number(r.valor) || 0 })),
+  ];
+  const agrupadosProblemas = agruparMetricas(
+    todosProblemas,
+    (i) => i.problema,
+    (i) => i.valor,
+  );
+  const principaisProblemas = agrupadosProblemas.slice(0, 5);
+  const problemasRecorrentes = [...agrupadosProblemas].sort((a, b) => b.quantidade - a.quantidade).slice(0, 5);
+  const problemasMaiorGasto = [...agrupadosProblemas].sort((a, b) => b.valor - a.valor).slice(0, 5);
 
   const principaisLojas = agruparMetricas(
     pecas,
@@ -942,6 +966,9 @@ function gerarRelatorioCompleto() {
       gastoTotal: totalGastoPecas + totalGastoReembolsos,
     },
     principaisPecas,
+    principaisProblemas,
+    problemasRecorrentes,
+    problemasMaiorGasto,
     principaisLojas,
     statusReembolsos,
     maioresGastos,
@@ -1095,6 +1122,9 @@ function gerarHtmlRelatorio(dados) {
   const usuarioFiltro = dados?.usuarioFiltro || 'Todos os usuários conectados';
   const totais = dados?.totais || {};
   const principaisPecas = dados?.principaisPecas || [];
+  const principaisProblemas = dados?.principaisProblemas || [];
+  const problemasRecorrentes = dados?.problemasRecorrentes || [];
+  const problemasMaiorGasto = dados?.problemasMaiorGasto || [];
   const principaisLojas = dados?.principaisLojas || [];
   const statusReembolsos = dados?.statusReembolsos || [];
   const maioresGastos = dados?.maioresGastos || [];
@@ -1122,6 +1152,9 @@ function gerarHtmlRelatorio(dados) {
   };
 
   const linhasPecas = criarLinhasTabela(principaisPecas, 3);
+  const linhasProblemasValor = criarLinhasTabela(principaisProblemas, 3);
+  const linhasProblemasRecorrentes = criarLinhasTabela(problemasRecorrentes, 3);
+  const linhasProblemasGasto = criarLinhasTabela(problemasMaiorGasto, 3);
   const linhasLojas = criarLinhasTabela(principaisLojas, 3);
   const linhasStatus = criarLinhasTabela(statusReembolsos, 3);
 
@@ -1359,6 +1392,57 @@ function gerarHtmlRelatorio(dados) {
               </thead>
               <tbody>
                 ${linhasLojas}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>Por problema (maior gasto)</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Problema</th>
+                  <th>Ocorrências</th>
+                  <th>Total gasto</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linhasProblemasValor}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Problemas mais recorrentes e de maior gasto</h2>
+        <div class="grid-duas-colunas">
+          <div>
+            <h3>Mais recorrentes</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Problema</th>
+                  <th>Ocorrências</th>
+                  <th>Total gasto</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linhasProblemasRecorrentes}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>Maior gasto</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Problema</th>
+                  <th>Ocorrências</th>
+                  <th>Total gasto</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linhasProblemasGasto}
               </tbody>
             </table>
           </div>
