@@ -66,6 +66,49 @@
                   placeholder="Informe a quantidade por SKU"
                 />
               </div>
+              <div>
+                <label
+                  for="quantidadeFiacao"
+                  class="block text-sm font-medium mb-1"
+                  >Quantidade de Fiações</label
+                >
+                <input
+                  id="quantidadeFiacao"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="w-full p-2 border rounded"
+                  placeholder="Informe a quantidade por SKU"
+                />
+              </div>
+              <div>
+                <label
+                  for="quantidadeBocal"
+                  class="block text-sm font-medium mb-1"
+                  >Quantidade de Bocais</label
+                >
+                <input
+                  id="quantidadeBocal"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="w-full p-2 border rounded"
+                  placeholder="Informe a quantidade por SKU"
+                />
+              </div>
+              <div class="md:col-span-2">
+                <label
+                  for="outrosComponentes"
+                  class="block text-sm font-medium mb-1"
+                  >Outros Componentes</label
+                >
+                <textarea
+                  id="outrosComponentes"
+                  class="w-full p-2 border rounded"
+                  rows="3"
+                  placeholder="Descreva outros componentes relevantes"
+                ></textarea>
+              </div>
               <div class="md:col-span-2">
                 <label
                   for="skusPrincipaisVinculados"
@@ -98,6 +141,9 @@
                   <th class="px-2 py-1">SKU Principal</th>
                   <th class="px-2 py-1">Associados</th>
                   <th class="px-2 py-1">Parafusos por SKU</th>
+                  <th class="px-2 py-1">Fiações por SKU</th>
+                  <th class="px-2 py-1">Bocais por SKU</th>
+                  <th class="px-2 py-1">Outros Componentes</th>
                   <th class="px-2 py-1">Principais Vinculados</th>
                   <th class="px-2 py-1">Ações</th>
                 </tr>

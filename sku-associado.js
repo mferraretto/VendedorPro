@@ -194,7 +194,7 @@ function parseAssociados(value) {
     .filter(Boolean);
 }
 
-function sanitizarQuantidadeParafusos(valor) {
+function sanitizarQuantidade(valor) {
   if (valor === undefined || valor === null) return null;
   if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
   const texto = String(valor).replace(',', '.').trim();
@@ -203,8 +203,8 @@ function sanitizarQuantidadeParafusos(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
-function formatarQuantidadeParafusos(valor) {
-  const numero = sanitizarQuantidadeParafusos(valor);
+function formatarQuantidade(valor) {
+  const numero = sanitizarQuantidade(valor);
   return numero === null ? '—' : numero.toLocaleString('pt-BR');
 }
 
@@ -240,19 +240,23 @@ function renderTabela() {
   if (!linhas.length) {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td colspan="5" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
+      '<td colspan="8" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
     tbody.appendChild(tr);
     return;
   }
   linhas.forEach((data) => {
     const tr = document.createElement('tr');
-    const quantidadeParafusos = formatarQuantidadeParafusos(
-      data.quantidadeParafusos,
-    );
+    const quantidadeParafusos = formatarQuantidade(data.quantidadeParafusos);
+    const quantidadeFiacao = formatarQuantidade(data.quantidadeFiacao);
+    const quantidadeBocal = formatarQuantidade(data.quantidadeBocal);
+    const outrosComponentes = data.outrosComponentes || '—';
     tr.innerHTML = `
       <td class="px-2 py-1">${data.skuPrincipal}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
       <td class="px-2 py-1">${quantidadeParafusos}</td>
+      <td class="px-2 py-1">${quantidadeFiacao}</td>
+      <td class="px-2 py-1">${quantidadeBocal}</td>
+      <td class="px-2 py-1">${outrosComponentes}</td>
       <td class="px-2 py-1">${(data.principaisVinculados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
         <button class="text-blue-600" data-edit="${data.id}">Editar</button>
@@ -286,9 +290,9 @@ async function carregarSkus() {
     const skuPrincipal = (
       data.skuPrincipal || recuperarSkuDoIdDocumento(docId)
     ).trim();
-    const quantidadeParafusos = sanitizarQuantidadeParafusos(
-      data.quantidadeParafusos,
-    );
+    const quantidadeParafusos = sanitizarQuantidade(data.quantidadeParafusos);
+    const quantidadeFiacao = sanitizarQuantidade(data.quantidadeFiacao);
+    const quantidadeBocal = sanitizarQuantidade(data.quantidadeBocal);
     skuCache.set(docId, {
       ...data,
       id: docId,
@@ -296,6 +300,9 @@ async function carregarSkus() {
       associados: data.associados || [],
       principaisVinculados: data.principaisVinculados || [],
       quantidadeParafusos,
+      quantidadeFiacao,
+      quantidadeBocal,
+      outrosComponentes: data.outrosComponentes || '',
     });
   });
   renderTabela();
@@ -326,6 +333,9 @@ function limparFormulario() {
   document.getElementById('skuPrincipal').value = '';
   document.getElementById('skuAssociados').value = '';
   document.getElementById('quantidadeParafusos').value = '';
+  document.getElementById('quantidadeFiacao').value = '';
+  document.getElementById('quantidadeBocal').value = '';
+  document.getElementById('outrosComponentes').value = '';
   editDocId = null;
   editSkuAnterior = null;
   popularSelectOptions(null, []);
@@ -335,6 +345,9 @@ async function salvarSku() {
   const principalEl = document.getElementById('skuPrincipal');
   const associadosEl = document.getElementById('skuAssociados');
   const quantidadeParafusosEl = document.getElementById('quantidadeParafusos');
+  const quantidadeFiacaoEl = document.getElementById('quantidadeFiacao');
+  const quantidadeBocalEl = document.getElementById('quantidadeBocal');
+  const outrosComponentesEl = document.getElementById('outrosComponentes');
   const principaisSelecionados = obterPrincipaisSelecionados();
   const skuPrincipal = principalEl.value.trim();
   if (!skuPrincipal) {
@@ -342,9 +355,10 @@ async function salvarSku() {
     return;
   }
   const associados = parseAssociados(associadosEl.value);
-  const quantidadeParafusos = sanitizarQuantidadeParafusos(
-    quantidadeParafusosEl.value,
-  );
+  const quantidadeParafusos = sanitizarQuantidade(quantidadeParafusosEl.value);
+  const quantidadeFiacao = sanitizarQuantidade(quantidadeFiacaoEl.value);
+  const quantidadeBocal = sanitizarQuantidade(quantidadeBocalEl.value);
+  const outrosComponentes = outrosComponentesEl.value.trim();
   const docId = gerarIdDocumentoSku(skuPrincipal);
   if (editDocId && editDocId !== docId) {
     await deleteDoc(doc(db, 'skuAssociado', editDocId));
@@ -356,6 +370,9 @@ async function salvarSku() {
       (sku) => normalizarTexto(sku) !== normalizarTexto(skuPrincipal),
     ),
     quantidadeParafusos,
+    quantidadeFiacao,
+    quantidadeBocal,
+    outrosComponentes,
   });
   await carregarSkus();
   limparFormulario();
@@ -367,9 +384,17 @@ function preencherFormulario(id, data) {
   document.getElementById('skuAssociados').value = (data.associados || []).join(
     ', ',
   );
-  const quantidade = sanitizarQuantidadeParafusos(data.quantidadeParafusos);
+  const quantidadeParafusos = sanitizarQuantidade(data.quantidadeParafusos);
+  const quantidadeFiacao = sanitizarQuantidade(data.quantidadeFiacao);
+  const quantidadeBocal = sanitizarQuantidade(data.quantidadeBocal);
   document.getElementById('quantidadeParafusos').value =
-    quantidade === null ? '' : quantidade;
+    quantidadeParafusos === null ? '' : quantidadeParafusos;
+  document.getElementById('quantidadeFiacao').value =
+    quantidadeFiacao === null ? '' : quantidadeFiacao;
+  document.getElementById('quantidadeBocal').value =
+    quantidadeBocal === null ? '' : quantidadeBocal;
+  document.getElementById('outrosComponentes').value =
+    data.outrosComponentes || '';
   popularSelectOptions(
     data.skuPrincipal || recuperarSkuDoIdDocumento(id),
     data.principaisVinculados || [],
