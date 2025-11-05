@@ -12250,7 +12250,7 @@ function exportarProdutosVendidosPDFSimplificado() {
 
     // jsPDF (UMD)
     const { jsPDF } = (window.jspdf || {});
-    if (!jsPDF) throw new Error('jsPDF não carregado (verifique o <script>).');
+    if (!jsPDF) throw new Error('jsPDF não carregado.');
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     const margem = 12;
@@ -12350,7 +12350,7 @@ function exportarProdutosVendidosPDFSimplificado() {
     }));
 
     if (typeof doc.autoTable !== 'function') {
-      throw new Error('jsPDF-AutoTable não carregado (verifique o <script>).');
+      throw new Error('jsPDF-AutoTable não carregado.');
     }
 
     doc.autoTable({
