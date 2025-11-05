@@ -7,6 +7,7 @@ import {
   collection,
   doc,
   getDocs,
+  addDoc,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getAuth,
@@ -32,6 +33,8 @@ const pecasSelecionarTodosEl = document.getElementById('pecasSelecionarTodos');
 const pecasSelecaoResumoEl = document.getElementById('pecasSelecaoResumo');
 const pecasExportExcelBtn = document.getElementById('pecasExportExcel');
 const pecasExportPdfBtn = document.getElementById('pecasExportPdf');
+const pecasModeloExcelBtn = document.getElementById('pecasModeloExcel');
+const pecasImportInput = document.getElementById('pecasImportarXlsx');
 
 const reembolsosStatusMsgEl = document.getElementById('reembolsosStatusMsg');
 const reembolsosEmptyEl = document.getElementById('reembolsosEmpty');
@@ -47,6 +50,8 @@ const reembolsosExportExcelBtn = document.getElementById(
 );
 const reembolsosExportPdfBtn = document.getElementById('reembolsosExportPdf');
 const reembolsosStatusFiltroEl = document.getElementById('reembolsosStatus');
+const reembolsosModeloExcelBtn = document.getElementById('reembolsosModeloExcel');
+const reembolsosImportInput = document.getElementById('reembolsosImportarXlsx');
 
 const REEMBOLSO_STATUS_MAPA = {
   'AGUARDANDO PIX': {
@@ -196,8 +201,12 @@ function registrarEventos() {
 
   pecasExportExcelBtn?.addEventListener('click', exportarPecasExcel);
   pecasExportPdfBtn?.addEventListener('click', exportarPecasPdf);
+  pecasModeloExcelBtn?.addEventListener('click', baixarModeloPecasExcel);
+  pecasImportInput?.addEventListener('change', importarPecasMassa);
   reembolsosExportExcelBtn?.addEventListener('click', exportarReembolsosExcel);
   reembolsosExportPdfBtn?.addEventListener('click', exportarReembolsosPdf);
+  reembolsosModeloExcelBtn?.addEventListener('click', baixarModeloReembolsosExcel);
+  reembolsosImportInput?.addEventListener('change', importarReembolsosMassa);
   gerarRelatorioBtn?.addEventListener('click', gerarRelatorioCompleto);
 }
 
@@ -999,6 +1008,178 @@ function exportarExcel(nomeArquivo, nomeAba, headers, linhas) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, nomeAba);
   XLSX.writeFile(wb, nomeArquivo);
+}
+
+function baixarModeloPecasExcel() {
+  const headers = [
+    'data (AAAA-MM-DD)',
+    'responsavel_nome',
+    'responsavel_email',
+    'cliente',
+    'apelido',
+    'numero',
+    'loja',
+    'peca',
+    'problema',
+    'status (NÃO FEITO|EM ANDAMENTO|RESOLVIDO)',
+    'valor_gasto (R$)',
+  ];
+  const exemplo = [
+    '2025-01-15',
+    'João Silva',
+    'joao@exemplo.com',
+    'Cliente Exemplo',
+    'MK01',
+    '123456',
+    'Loja X',
+    'Fiação',
+    'Fiação com defeito',
+    'NÃO FEITO',
+    25.5,
+  ];
+  exportarExcel(gerarNomeArquivo('modelo_pecas_faltantes', 'xlsx'), 'Modelo', headers, [exemplo]);
+}
+
+function baixarModeloReembolsosExcel() {
+  const headers = [
+    'data (AAAA-MM-DD)',
+    'responsavel_nome',
+    'responsavel_email',
+    'numero',
+    'apelido',
+    'nf',
+    'loja',
+    'problema',
+    'valor (R$)',
+    'pix',
+    'status (AGUARDANDO|AGUARDANDO PIX|AGUARDANDO MERCADO|FEITO|FEITO PIX|FEITO MERCADO|CANCELADO)',
+  ];
+  const exemplo = [
+    '2025-01-15',
+    'João Silva',
+    'joao@exemplo.com',
+    '987654',
+    'MK01',
+    '12345',
+    'Loja X',
+    'Reembolso por defeito',
+    50.0,
+    'chave-pix-aqui',
+    'AGUARDANDO',
+  ];
+  exportarExcel(gerarNomeArquivo('modelo_reembolsos', 'xlsx'), 'Modelo', headers, [exemplo]);
+}
+
+async function importarPecasMassa(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    const rows = await lerPlanilha(file);
+    if (!rows.length) {
+      alert('Nenhuma linha encontrada na planilha.');
+      return;
+    }
+    const itensRef = collection(doc(db, 'uid', currentUser.uid, 'problemas', 'pecasfaltando'), 'itens');
+    let inseridos = 0;
+    for (const r of rows) {
+      const registro = normalizarLinhaPeca(r);
+      await addDoc(itensRef, registro);
+      inseridos += 1;
+    }
+    alert(`${inseridos} registro(s) importado(s) com sucesso.`);
+    await carregarPecas();
+  } catch (err) {
+    console.error('Erro ao importar peças:', err);
+    alert('Erro ao importar a planilha de peças. Verifique o arquivo.');
+  }
+}
+
+async function importarReembolsosMassa(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    const rows = await lerPlanilha(file);
+    if (!rows.length) {
+      alert('Nenhuma linha encontrada na planilha.');
+      return;
+    }
+    const itensRef = collection(doc(db, 'uid', currentUser.uid, 'problemas', 'reembolsos'), 'itens');
+    let inseridos = 0;
+    for (const r of rows) {
+      const registro = normalizarLinhaReembolso(r);
+      await addDoc(itensRef, registro);
+      inseridos += 1;
+    }
+    alert(`${inseridos} reembolso(s) importado(s) com sucesso.`);
+    await carregarReembolsos();
+  } catch (err) {
+    console.error('Erro ao importar reembolsos:', err);
+    alert('Erro ao importar a planilha de reembolsos. Verifique o arquivo.');
+  }
+}
+
+function lerPlanilha(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha na leitura do arquivo'));
+    reader.onload = () => {
+      try {
+        const data = new Uint8Array(reader.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        resolve(json);
+      } catch (e) {
+        reject(e);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function normalizarDataISO(valor) {
+  const v = String(valor || '').trim();
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
+    const [d, m, a] = v.split('/');
+    return `${a}-${m}-${d}`;
+  }
+  return v;
+}
+
+function normalizarLinhaPeca(r) {
+  return {
+    data: normalizarDataISO(r['data (AAAA-MM-DD)'] || r.data || r['Data']),
+    usuarioNome: r.responsavel_nome || r['responsavel_nome'] || '',
+    usuarioEmail: r.responsavel_email || r['responsavel_email'] || '',
+    nomeCliente: r.cliente || r['cliente'] || '',
+    apelido: r.apelido || r['apelido'] || '',
+    numero: r.numero || r['numero'] || '',
+    loja: r.loja || r['loja'] || '',
+    peca: r.peca || r['peca'] || '',
+    problema: r.problema || r['problema'] || '',
+    status: (r.status || r['status'] || '').toString().toUpperCase(),
+    valorGasto: Number(r['valor_gasto (R$)'] || r.valor_gasto || r['valor']) || 0,
+  };
+}
+
+function normalizarLinhaReembolso(r) {
+  return {
+    data: normalizarDataISO(r['data (AAAA-MM-DD)'] || r.data || r['Data']),
+    usuarioNome: r.responsavel_nome || r['responsavel_nome'] || '',
+    usuarioEmail: r.responsavel_email || r['responsavel_email'] || '',
+    numero: r.numero || r['numero'] || '',
+    apelido: r.apelido || r['apelido'] || '',
+    nf: r.nf || r['nf'] || '',
+    loja: r.loja || r['loja'] || '',
+    problema: r.problema || r['problema'] || r.motivo || '',
+    valor: Number(r['valor (R$)'] || r.valor || 0) || 0,
+    pix: r.pix || r['pix'] || '',
+    status: (r.status || r['status'] || '').toString().toUpperCase(),
+  };
 }
 
 function exportarPDF(titulo, headers, linhas, nomeArquivo) {
