@@ -31,6 +31,7 @@ let eventosRegistrados = false;
 const COMPONENTES_PADRAO = [
   { nome: 'Fiação', quantidade: null },
   { nome: 'Bocal', quantidade: null },
+  { nome: 'Parafusos', quantidade: null },
 ];
 
 const CONTEXT_ESCOPOS_PADRAO = [
@@ -213,14 +214,6 @@ function formatarQuantidadeNumerica(valor) {
   return numero === null ? '—' : numero.toLocaleString('pt-BR');
 }
 
-function sanitizarQuantidadeParafusos(valor) {
-  return sanitizarQuantidadeNumerica(valor);
-}
-
-function formatarQuantidadeParafusos(valor) {
-  return formatarQuantidadeNumerica(valor);
-}
-
 function criarLinhaComponente(componente = {}) {
   const linha = document.createElement('div');
   linha.className =
@@ -282,42 +275,6 @@ function resetarComponentesFormulario(componentes = null) {
   );
 }
 
-function normalizarComponentesLista(componentes) {
-  if (!Array.isArray(componentes)) return [];
-  return componentes
-    .map((comp) => {
-      if (!comp || typeof comp !== 'object') return null;
-      const nome = String(comp.nome || comp.descricao || '').trim();
-      if (!nome) return null;
-      const quantidade = sanitizarQuantidadeNumerica(comp.quantidade);
-      return {
-        nome,
-        quantidade,
-      };
-    })
-    .filter(Boolean);
-}
-
-function obterComponentesDoFormulario() {
-  const container = document.getElementById('componentesContainer');
-  if (!container) return [];
-  const linhas = Array.from(container.querySelectorAll('.component-row'));
-  const componentes = linhas.map((linha) => ({
-    nome: linha.querySelector('.component-nome')?.value,
-    quantidade: linha.querySelector('.component-quantidade')?.value,
-  }));
-  return normalizarComponentesLista(componentes);
-}
-
-function preencherComponentesNoFormulario(componentes = []) {
-  const listaNormalizada = normalizarComponentesLista(componentes);
-  if (listaNormalizada.length) {
-    resetarComponentesFormulario(listaNormalizada);
-  } else {
-    resetarComponentesFormulario();
-  }
-}
-
 function formatarComponentesParaTabela(componentes = []) {
   const listaNormalizada = normalizarComponentesLista(componentes);
   if (!listaNormalizada.length) return '—';
@@ -329,29 +286,6 @@ function formatarComponentesParaTabela(componentes = []) {
         : `${item.nome} (${quantidadeFormatada})`;
     })
     .join(', ');
-}
-
-function popularSelectOptions(excluirSku = null, selecionados = []) {
-  const select = document.getElementById('skusPrincipaisVinculados');
-  select.innerHTML = '';
-  const selecionadosSet = new Set(
-    selecionados.map((valor) => normalizarTexto(valor)),
-  );
-  const excluirNormalizado = normalizarTexto(excluirSku);
-  const opcoes = Array.from(skuCache.values()).sort((a, b) =>
-    a.skuPrincipal.localeCompare(b.skuPrincipal),
-  );
-  opcoes.forEach((item) => {
-    const sku = item.skuPrincipal;
-    if (!sku) return;
-    if (excluirNormalizado && normalizarTexto(sku) === excluirNormalizado)
-      return;
-    const option = document.createElement('option');
-    option.value = sku;
-    option.textContent = sku;
-    if (selecionadosSet.has(normalizarTexto(sku))) option.selected = true;
-    select.appendChild(option);
-  });
 }
 
 function renderTabela() {
@@ -390,172 +324,19 @@ function renderTabela() {
   });
 }
 
-async function carregarSkus() {
-  let documentos;
-  try {
-    documentos = await obterDocumentosSku();
-  } catch (error) {
-    console.error('Erro ao carregar SKUs associados:', error);
-    alert(
-      'Não foi possível carregar os SKUs associados. Verifique suas permissões ou tente novamente mais tarde.',
-    );
-    return;
-  }
-
-  skuCache = new Map();
-  documentos.forEach((docSnap) => {
-    const data = docSnap.data();
-    const escopo = String(data?.escopo || '').toLowerCase();
-    if (data?.apenasVts === true || escopo === 'vts') {
-      return;
-    }
-    const docId = docSnap.id;
-    const skuPrincipal = (
-      data.skuPrincipal || recuperarSkuDoIdDocumento(docId)
-    ).trim();
-    const quantidadeParafusos = sanitizarQuantidadeParafusos(
-      data.quantidadeParafusos,
-    );
-    skuCache.set(docId, {
-      ...data,
-      id: docId,
-      skuPrincipal,
-      associados: data.associados || [],
-      principaisVinculados: data.principaisVinculados || [],
-      quantidadeParafusos,
-      componentes: normalizarComponentesLista(data.componentes),
-    });
-  });
-  renderTabela();
-
-  const principalAtual = document.getElementById('skuPrincipal').value.trim();
-  let selecionados = [];
-  if (editDocId) {
-    const dadosEdicao = skuCache.get(editDocId);
-    if (dadosEdicao) {
-      selecionados = dadosEdicao.principaisVinculados || [];
-    }
+function preencherComponentesNoFormulario(componentes = []) {
+  const listaNormalizada = normalizarComponentesLista(componentes);
+  if (listaNormalizada.length) {
+    resetarComponentesFormulario(listaNormalizada);
   } else {
-    const select = document.getElementById('skusPrincipaisVinculados');
-    selecionados = Array.from(select.selectedOptions).map((opt) => opt.value);
+    resetarComponentesFormulario();
   }
-  const excluirSku = principalAtual || editSkuAnterior || null;
-  popularSelectOptions(excluirSku, selecionados);
 }
 
-function obterPrincipaisSelecionados() {
-  const select = document.getElementById('skusPrincipaisVinculados');
-  return Array.from(select.selectedOptions)
-    .map((opt) => opt.value)
-    .filter(Boolean);
-}
-
-function limparFormulario() {
-  document.getElementById('skuPrincipal').value = '';
-  document.getElementById('skuAssociados').value = '';
-  document.getElementById('quantidadeParafusos').value = '';
-  resetarComponentesFormulario();
-  editDocId = null;
-  editSkuAnterior = null;
-  popularSelectOptions(null, []);
-}
-
-async function salvarSku() {
-  const principalEl = document.getElementById('skuPrincipal');
-  const associadosEl = document.getElementById('skuAssociados');
-  const quantidadeParafusosEl = document.getElementById('quantidadeParafusos');
-  const principaisSelecionados = obterPrincipaisSelecionados();
-  const componentes = obterComponentesDoFormulario();
-  const skuPrincipal = principalEl.value.trim();
-  if (!skuPrincipal) {
-    alert('Informe o SKU principal');
-    return;
-  }
-  const associados = parseAssociados(associadosEl.value);
-  const quantidadeParafusos = sanitizarQuantidadeParafusos(
-    quantidadeParafusosEl.value,
-  );
-  const docId = gerarIdDocumentoSku(skuPrincipal);
-  if (editDocId && editDocId !== docId) {
-    await deleteDoc(doc(db, 'skuAssociado', editDocId));
-  }
-  await setDoc(doc(db, 'skuAssociado', docId), {
-    skuPrincipal,
-    associados,
-    principaisVinculados: principaisSelecionados.filter(
-      (sku) => normalizarTexto(sku) !== normalizarTexto(skuPrincipal),
-    ),
-    quantidadeParafusos,
-    componentes,
-  });
-  await carregarSkus();
-  limparFormulario();
-}
-
-function preencherFormulario(id, data) {
-  document.getElementById('skuPrincipal').value =
-    data.skuPrincipal || recuperarSkuDoIdDocumento(id);
-  document.getElementById('skuAssociados').value = (data.associados || []).join(
-    ', ',
-  );
-  const quantidade = sanitizarQuantidadeParafusos(data.quantidadeParafusos);
-  document.getElementById('quantidadeParafusos').value =
-    quantidade === null ? '' : quantidade;
-  preencherComponentesNoFormulario(data.componentes);
-  popularSelectOptions(
-    data.skuPrincipal || recuperarSkuDoIdDocumento(id),
-    data.principaisVinculados || [],
-  );
-  editDocId = id;
-  editSkuAnterior = data.skuPrincipal || recuperarSkuDoIdDocumento(id);
-}
-
-function registrarEventos() {
-  if (eventosRegistrados) return;
-  document.getElementById('skuPrincipal').addEventListener('input', (e) => {
-    const selecionados = obterPrincipaisSelecionados();
-    const excluirSku = e.target.value.trim() || editSkuAnterior || null;
-    popularSelectOptions(excluirSku, selecionados);
-  });
-  document.getElementById('salvarSku').addEventListener('click', salvarSku);
-  const botaoAdicionarComponente = document.getElementById(
-    'adicionarComponente',
-  );
-  if (botaoAdicionarComponente) {
-    botaoAdicionarComponente.addEventListener('click', () =>
-      adicionarLinhaComponente(),
-    );
-  }
-  document
-    .querySelector('#skuTable tbody')
-    .addEventListener('click', async (e) => {
-      const idEdit = e.target.getAttribute('data-edit');
-      const idDel = e.target.getAttribute('data-del');
-      if (idEdit) {
-        const dados = skuCache.get(idEdit);
-        if (dados) preencherFormulario(idEdit, dados);
-      } else if (idDel) {
-        if (confirm('Excluir este registro?')) {
-          await deleteDoc(doc(db, 'skuAssociado', idDel));
-          await carregarSkus();
-          if (editDocId === idDel) {
-            limparFormulario();
-          }
-        }
-      }
-    });
-  eventosRegistrados = true;
-}
-
-resetarComponentesFormulario();
-
-onAuthStateChanged(auth, async (user) => {
-  if (!user) return;
-  try {
+document.addEventListener('DOMContentLoaded', async () => {
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) return;
     await prepararContextoUsuario(user);
-    await carregarSkus();
-  } catch (error) {
-    console.error('Erro ao iniciar a página de SKU associado:', error);
-  }
-  registrarEventos();
-});
+    // Load and initialize components and products after user authentication
+  });
+}
