@@ -28,6 +28,11 @@ let editSkuAnterior = null;
 let skuCache = new Map();
 let eventosRegistrados = false;
 
+const COMPONENTES_PADRAO = [
+  { nome: 'Fiação', quantidade: null },
+  { nome: 'Bocal', quantidade: null },
+];
+
 const CONTEXT_ESCOPOS_PADRAO = [
   'publico',
   'geral',
@@ -194,7 +199,7 @@ function parseAssociados(value) {
     .filter(Boolean);
 }
 
-function sanitizarQuantidadeParafusos(valor) {
+function sanitizarQuantidadeNumerica(valor) {
   if (valor === undefined || valor === null) return null;
   if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
   const texto = String(valor).replace(',', '.').trim();
@@ -203,9 +208,127 @@ function sanitizarQuantidadeParafusos(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
-function formatarQuantidadeParafusos(valor) {
-  const numero = sanitizarQuantidadeParafusos(valor);
+function formatarQuantidadeNumerica(valor) {
+  const numero = sanitizarQuantidadeNumerica(valor);
   return numero === null ? '—' : numero.toLocaleString('pt-BR');
+}
+
+function sanitizarQuantidadeParafusos(valor) {
+  return sanitizarQuantidadeNumerica(valor);
+}
+
+function formatarQuantidadeParafusos(valor) {
+  return formatarQuantidadeNumerica(valor);
+}
+
+function criarLinhaComponente(componente = {}) {
+  const linha = document.createElement('div');
+  linha.className =
+    'component-row flex flex-col gap-2 md:flex-row md:items-center';
+
+  const inputNome = document.createElement('input');
+  inputNome.type = 'text';
+  inputNome.className = 'component-nome flex-1 p-2 border rounded';
+  inputNome.placeholder = 'Nome do componente';
+  inputNome.value = componente?.nome ? String(componente.nome).trim() : '';
+
+  const inputQuantidade = document.createElement('input');
+  inputQuantidade.type = 'number';
+  inputQuantidade.min = '0';
+  inputQuantidade.step = '1';
+  inputQuantidade.className =
+    'component-quantidade w-full md:w-32 p-2 border rounded';
+  inputQuantidade.placeholder = 'Quantidade';
+  const quantidadeSanitizada = sanitizarQuantidadeNumerica(
+    componente?.quantidade,
+  );
+  inputQuantidade.value =
+    quantidadeSanitizada === null ? '' : quantidadeSanitizada;
+
+  const botaoRemover = document.createElement('button');
+  botaoRemover.type = 'button';
+  botaoRemover.className = 'text-sm font-medium text-red-600';
+  botaoRemover.textContent = 'Remover';
+  botaoRemover.addEventListener('click', () => {
+    linha.remove();
+  });
+
+  linha.appendChild(inputNome);
+  linha.appendChild(inputQuantidade);
+  linha.appendChild(botaoRemover);
+
+  return linha;
+}
+
+function adicionarLinhaComponente(componente = {}) {
+  const container = document.getElementById('componentesContainer');
+  if (!container) return;
+  container.appendChild(criarLinhaComponente(componente));
+}
+
+function resetarComponentesFormulario(componentes = null) {
+  const container = document.getElementById('componentesContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  const listaBase =
+    Array.isArray(componentes) && componentes.length
+      ? componentes
+      : COMPONENTES_PADRAO;
+  listaBase.forEach((item) =>
+    adicionarLinhaComponente({
+      nome: item?.nome || '',
+      quantidade: item?.quantidade === undefined ? null : item.quantidade,
+    }),
+  );
+}
+
+function normalizarComponentesLista(componentes) {
+  if (!Array.isArray(componentes)) return [];
+  return componentes
+    .map((comp) => {
+      if (!comp || typeof comp !== 'object') return null;
+      const nome = String(comp.nome || comp.descricao || '').trim();
+      if (!nome) return null;
+      const quantidade = sanitizarQuantidadeNumerica(comp.quantidade);
+      return {
+        nome,
+        quantidade,
+      };
+    })
+    .filter(Boolean);
+}
+
+function obterComponentesDoFormulario() {
+  const container = document.getElementById('componentesContainer');
+  if (!container) return [];
+  const linhas = Array.from(container.querySelectorAll('.component-row'));
+  const componentes = linhas.map((linha) => ({
+    nome: linha.querySelector('.component-nome')?.value,
+    quantidade: linha.querySelector('.component-quantidade')?.value,
+  }));
+  return normalizarComponentesLista(componentes);
+}
+
+function preencherComponentesNoFormulario(componentes = []) {
+  const listaNormalizada = normalizarComponentesLista(componentes);
+  if (listaNormalizada.length) {
+    resetarComponentesFormulario(listaNormalizada);
+  } else {
+    resetarComponentesFormulario();
+  }
+}
+
+function formatarComponentesParaTabela(componentes = []) {
+  const listaNormalizada = normalizarComponentesLista(componentes);
+  if (!listaNormalizada.length) return '—';
+  return listaNormalizada
+    .map((item) => {
+      const quantidadeFormatada = formatarQuantidadeNumerica(item.quantidade);
+      return quantidadeFormatada === '—'
+        ? item.nome
+        : `${item.nome} (${quantidadeFormatada})`;
+    })
+    .join(', ');
 }
 
 function popularSelectOptions(excluirSku = null, selecionados = []) {
@@ -240,7 +363,7 @@ function renderTabela() {
   if (!linhas.length) {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td colspan="5" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
+      '<td colspan="6" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -249,10 +372,14 @@ function renderTabela() {
     const quantidadeParafusos = formatarQuantidadeParafusos(
       data.quantidadeParafusos,
     );
+    const componentesDescricao = formatarComponentesParaTabela(
+      data.componentes,
+    );
     tr.innerHTML = `
       <td class="px-2 py-1">${data.skuPrincipal}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
       <td class="px-2 py-1">${quantidadeParafusos}</td>
+      <td class="px-2 py-1">${componentesDescricao}</td>
       <td class="px-2 py-1">${(data.principaisVinculados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
         <button class="text-blue-600" data-edit="${data.id}">Editar</button>
@@ -296,6 +423,7 @@ async function carregarSkus() {
       associados: data.associados || [],
       principaisVinculados: data.principaisVinculados || [],
       quantidadeParafusos,
+      componentes: normalizarComponentesLista(data.componentes),
     });
   });
   renderTabela();
@@ -326,6 +454,7 @@ function limparFormulario() {
   document.getElementById('skuPrincipal').value = '';
   document.getElementById('skuAssociados').value = '';
   document.getElementById('quantidadeParafusos').value = '';
+  resetarComponentesFormulario();
   editDocId = null;
   editSkuAnterior = null;
   popularSelectOptions(null, []);
@@ -336,6 +465,7 @@ async function salvarSku() {
   const associadosEl = document.getElementById('skuAssociados');
   const quantidadeParafusosEl = document.getElementById('quantidadeParafusos');
   const principaisSelecionados = obterPrincipaisSelecionados();
+  const componentes = obterComponentesDoFormulario();
   const skuPrincipal = principalEl.value.trim();
   if (!skuPrincipal) {
     alert('Informe o SKU principal');
@@ -356,6 +486,7 @@ async function salvarSku() {
       (sku) => normalizarTexto(sku) !== normalizarTexto(skuPrincipal),
     ),
     quantidadeParafusos,
+    componentes,
   });
   await carregarSkus();
   limparFormulario();
@@ -370,6 +501,7 @@ function preencherFormulario(id, data) {
   const quantidade = sanitizarQuantidadeParafusos(data.quantidadeParafusos);
   document.getElementById('quantidadeParafusos').value =
     quantidade === null ? '' : quantidade;
+  preencherComponentesNoFormulario(data.componentes);
   popularSelectOptions(
     data.skuPrincipal || recuperarSkuDoIdDocumento(id),
     data.principaisVinculados || [],
@@ -386,6 +518,14 @@ function registrarEventos() {
     popularSelectOptions(excluirSku, selecionados);
   });
   document.getElementById('salvarSku').addEventListener('click', salvarSku);
+  const botaoAdicionarComponente = document.getElementById(
+    'adicionarComponente',
+  );
+  if (botaoAdicionarComponente) {
+    botaoAdicionarComponente.addEventListener('click', () =>
+      adicionarLinhaComponente(),
+    );
+  }
   document
     .querySelector('#skuTable tbody')
     .addEventListener('click', async (e) => {
@@ -406,6 +546,8 @@ function registrarEventos() {
     });
   eventosRegistrados = true;
 }
+
+resetarComponentesFormulario();
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) return;
