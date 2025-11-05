@@ -194,7 +194,7 @@ function parseAssociados(value) {
     .filter(Boolean);
 }
 
-function sanitizarQuantidadeParafusos(valor) {
+function sanitizarNumero(valor) {
   if (valor === undefined || valor === null) return null;
   if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
   const texto = String(valor).replace(',', '.').trim();
@@ -203,9 +203,17 @@ function sanitizarQuantidadeParafusos(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
-function formatarQuantidadeParafusos(valor) {
-  const numero = sanitizarQuantidadeParafusos(valor);
+function formatarNumero(valor) {
+  const numero = sanitizarNumero(valor);
   return numero === null ? '—' : numero.toLocaleString('pt-BR');
+}
+
+function sanitizarQuantidadeParafusos(valor) {
+  return sanitizarNumero(valor);
+}
+
+function formatarQuantidadeParafusos(valor) {
+  return formatarNumero(valor);
 }
 
 function popularSelectOptions(excluirSku = null, selecionados = []) {
@@ -240,7 +248,7 @@ function renderTabela() {
   if (!linhas.length) {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td colspan="5" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
+      '<td colspan="9" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -249,10 +257,16 @@ function renderTabela() {
     const quantidadeParafusos = formatarQuantidadeParafusos(
       data.quantidadeParafusos,
     );
+    const quantidadeFiacao = formatarNumero(data.quantidadeFiacao);
+    const quantidadeBocais = formatarNumero(data.quantidadeBocais);
     tr.innerHTML = `
       <td class="px-2 py-1">${data.skuPrincipal}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
       <td class="px-2 py-1">${quantidadeParafusos}</td>
+      <td class="px-2 py-1">${data.fiacao || '—'}</td>
+      <td class="px-2 py-1">${quantidadeFiacao}</td>
+      <td class="px-2 py-1">${quantidadeBocais}</td>
+      <td class="px-2 py-1">${data.outrosComponentes || '—'}</td>
       <td class="px-2 py-1">${(data.principaisVinculados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
         <button class="text-blue-600" data-edit="${data.id}">Editar</button>
@@ -289,6 +303,14 @@ async function carregarSkus() {
     const quantidadeParafusos = sanitizarQuantidadeParafusos(
       data.quantidadeParafusos,
     );
+    const quantidadeFiacao = sanitizarNumero(data.quantidadeFiacao);
+    const quantidadeBocais = sanitizarNumero(data.quantidadeBocais);
+    const fiacao =
+      typeof data.fiacao === 'string' ? data.fiacao.trim() : data.fiacao || '';
+    const outrosComponentes =
+      typeof data.outrosComponentes === 'string'
+        ? data.outrosComponentes.trim()
+        : data.outrosComponentes || '';
     skuCache.set(docId, {
       ...data,
       id: docId,
@@ -296,6 +318,10 @@ async function carregarSkus() {
       associados: data.associados || [],
       principaisVinculados: data.principaisVinculados || [],
       quantidadeParafusos,
+      quantidadeFiacao,
+      quantidadeBocais,
+      fiacao,
+      outrosComponentes,
     });
   });
   renderTabela();
@@ -326,6 +352,10 @@ function limparFormulario() {
   document.getElementById('skuPrincipal').value = '';
   document.getElementById('skuAssociados').value = '';
   document.getElementById('quantidadeParafusos').value = '';
+  document.getElementById('fiacao').value = '';
+  document.getElementById('quantidadeFiacao').value = '';
+  document.getElementById('quantidadeBocais').value = '';
+  document.getElementById('outrosComponentes').value = '';
   editDocId = null;
   editSkuAnterior = null;
   popularSelectOptions(null, []);
@@ -335,6 +365,10 @@ async function salvarSku() {
   const principalEl = document.getElementById('skuPrincipal');
   const associadosEl = document.getElementById('skuAssociados');
   const quantidadeParafusosEl = document.getElementById('quantidadeParafusos');
+  const fiacaoEl = document.getElementById('fiacao');
+  const quantidadeFiacaoEl = document.getElementById('quantidadeFiacao');
+  const quantidadeBocaisEl = document.getElementById('quantidadeBocais');
+  const outrosComponentesEl = document.getElementById('outrosComponentes');
   const principaisSelecionados = obterPrincipaisSelecionados();
   const skuPrincipal = principalEl.value.trim();
   if (!skuPrincipal) {
@@ -345,6 +379,8 @@ async function salvarSku() {
   const quantidadeParafusos = sanitizarQuantidadeParafusos(
     quantidadeParafusosEl.value,
   );
+  const quantidadeFiacao = sanitizarNumero(quantidadeFiacaoEl.value);
+  const quantidadeBocais = sanitizarNumero(quantidadeBocaisEl.value);
   const docId = gerarIdDocumentoSku(skuPrincipal);
   if (editDocId && editDocId !== docId) {
     await deleteDoc(doc(db, 'skuAssociado', editDocId));
@@ -356,6 +392,10 @@ async function salvarSku() {
       (sku) => normalizarTexto(sku) !== normalizarTexto(skuPrincipal),
     ),
     quantidadeParafusos,
+    fiacao: fiacaoEl.value.trim() || null,
+    quantidadeFiacao,
+    quantidadeBocais,
+    outrosComponentes: outrosComponentesEl.value.trim() || null,
   });
   await carregarSkus();
   limparFormulario();
@@ -370,6 +410,15 @@ function preencherFormulario(id, data) {
   const quantidade = sanitizarQuantidadeParafusos(data.quantidadeParafusos);
   document.getElementById('quantidadeParafusos').value =
     quantidade === null ? '' : quantidade;
+  document.getElementById('fiacao').value = data.fiacao || '';
+  const qtdFiacao = sanitizarNumero(data.quantidadeFiacao);
+  document.getElementById('quantidadeFiacao').value =
+    qtdFiacao === null ? '' : qtdFiacao;
+  const qtdBocais = sanitizarNumero(data.quantidadeBocais);
+  document.getElementById('quantidadeBocais').value =
+    qtdBocais === null ? '' : qtdBocais;
+  document.getElementById('outrosComponentes').value =
+    data.outrosComponentes || '';
   popularSelectOptions(
     data.skuPrincipal || recuperarSkuDoIdDocumento(id),
     data.principaisVinculados || [],
