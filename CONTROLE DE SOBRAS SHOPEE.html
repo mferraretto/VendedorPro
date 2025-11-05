@@ -10767,6 +10767,8 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       mostrarSucesso('Arquivo Excel gerado com sucesso.');
     }
 
+    window.exportarProdutosVendidosPDF = exportarProdutosVendidosPDF;
+
     function exportarProdutosVendidosPDF() {
       if (!produtosVendidosResumo?.length) {
         mostrarErro('Nenhum dado disponível para exportar.');
@@ -12056,6 +12058,115 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
     mostrarErro('Conteúdo de previsão indisponível para exportação.');
     return;
   }
+
+    function exportarProdutosVendidosPDF() {
+      try {
+        const linhas = obterProdutosVendidosFiltrados().sort((a, b) => b.total - a.total);
+        if (!linhas.length) {
+          mostrarErro('Nenhum dado disponível para exportar.');
+          return;
+        }
+
+        const doc = new jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const margem = 12;
+        const titulo = 'Produtos Vendidos (período filtrado)';
+        doc.setFontSize(14);
+        doc.text(titulo, margem, 14);
+
+        const cabecalho = [
+          { header: 'SKU', dataKey: 'sku' },
+          { header: 'Peças', dataKey: 'pecas' },
+          { header: 'Fiação/Bocal/Outros', dataKey: 'componentes' },
+          { header: 'Valor líquido', dataKey: 'valor' },
+          { header: 'Usuários responsáveis', dataKey: 'usuarios' },
+        ];
+
+        const normalizarNumero = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+        const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        const calcularTotalPecas = (item) => {
+          const mapaPecas = new Map(Array.isArray(item.pecasPorSku) ? item.pecasPorSku : []);
+          const obterPecasSkuLocal = (sku) => {
+            const n = String(sku || '').toLowerCase();
+            if (mapaPecas.has(n)) {
+              const v = Number(mapaPecas.get(n));
+              return Number.isFinite(v) && v > 0 ? v : 1;
+            }
+            // fallback 1 por SKU
+            return 1;
+          };
+          const principalPecas = obterPecasSkuLocal(item.sku);
+          let total = item.vendidosPorSku.reduce((acc, [sku, qtd]) => {
+            const quantidade = normalizarNumero(qtd);
+            if (!quantidade) return acc;
+            const porUn = obterPecasSkuLocal(sku) || principalPecas || 1;
+            return acc + porUn * quantidade;
+          }, 0);
+          if (!total) {
+            const quantidadeTotal = normalizarNumero(item.total);
+            total = (principalPecas || 1) * quantidadeTotal;
+          }
+          return total;
+        };
+
+        const calcularTotaisComponentes = (item) => {
+          const mapaComponentes = new Map(Array.isArray(item.componentesPorSku) ? item.componentesPorSku : []);
+          const obterComponentesSkuLocal = (sku) => {
+            const n = String(sku || '').toLowerCase();
+            return mapaComponentes.has(n) ? mapaComponentes.get(n) || [] : [];
+          };
+          const somas = new Map();
+          const somar = (nome, qtd) => {
+            const q = normalizarNumero(qtd);
+            if (!nome || !q) return;
+            somas.set(nome, (somas.get(nome) || 0) + q);
+          };
+          item.vendidosPorSku.forEach(([sku, qtd]) => {
+            const quantidade = normalizarNumero(qtd);
+            if (!quantidade) return;
+            (obterComponentesSku(sku) || obterComponentesSku(item.sku) || []).forEach((c) => {
+              const porUn = normalizarNumero(c?.quantidade) || 0;
+              if (porUn > 0) somar(c.nome, porUn * quantidade);
+            });
+          });
+          if (!somas.size) {
+            const quantidadeTotal = normalizarNumero(item.total);
+            (obterComponentesSku(item.sku) || []).forEach((c) => {
+              const porUn = normalizarNumero(c?.quantidade) || 0;
+              if (porUn > 0) somar(c.nome, porUn * quantidadeTotal);
+            });
+          }
+          return Array.from(somas.entries())
+            .map(([nome, qtd]) => `${nome} ${qtd.toLocaleString('pt-BR')}`)
+            .join('; ');
+        };
+
+        const linhasTabela = linhas.map((item) => ({
+          sku: item.sku,
+          pecas: calcularTotalPecas(item).toLocaleString('pt-BR'),
+          componentes: calcularTotaisComponentes(item) || '—',
+          valor: formatarMoeda(item.valorLiquido),
+          usuarios: (Array.isArray(item.usuarios) ? item.usuarios : [])
+            .map(([nome, qtd]) => `${nome} (${Number(qtd || 0).toLocaleString('pt-BR')})`)
+            .join('; '),
+        }));
+
+        // autoTable
+        doc.autoTable({
+          head: [cabecalho.map((c) => c.header)],
+          body: linhasTabela.map((l) => [l.sku, l.pecas, l.componentes, l.valor, l.usuarios]),
+          startY: 18,
+          styles: { fontSize: 9, cellPadding: 2 },
+          headStyles: { fillColor: [79, 70, 229] },
+          margin: { left: margem, right: margem },
+        });
+
+        doc.save('produtos_vendidos.pdf');
+      } catch (err) {
+        console.error('Erro ao exportar PDF de produtos vendidos:', err);
+        mostrarErro('Erro ao exportar PDF.');
+      }
+    }
   if (typeof html2pdf === 'undefined') {
     mostrarErro('Biblioteca de exportação para PDF indisponível.');
     return;
