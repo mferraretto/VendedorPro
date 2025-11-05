@@ -31,7 +31,7 @@ let eventosRegistrados = false;
 const COMPONENTES_PADRAO = [
   { nome: 'Fiação', quantidade: null },
   { nome: 'Bocal', quantidade: null },
-  { nome: 'Parafusos', quantidade: null },
+
 ];
 
 const CONTEXT_ESCOPOS_PADRAO = [
@@ -200,8 +200,7 @@ function parseAssociados(value) {
     .filter(Boolean);
 }
 
-function sanitizarQuantidade(valor) {
-
+function sanitizarQuantidadeNumerica(valor) {
   if (valor === undefined || valor === null) return null;
   if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
   const texto = String(valor).replace(',', '.').trim();
@@ -210,10 +209,17 @@ function sanitizarQuantidade(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
-function formatarQuantidade(valor) {
-  const numero = sanitizarQuantidade(valor);
-
+function formatarQuantidadeNumerica(valor) {
+  const numero = sanitizarQuantidadeNumerica(valor);
   return numero === null ? '—' : numero.toLocaleString('pt-BR');
+}
+
+function sanitizarQuantidadeParafusos(valor) {
+  return sanitizarQuantidadeNumerica(valor);
+}
+
+function formatarQuantidadeParafusos(valor) {
+  return formatarQuantidadeNumerica(valor);
 }
 
 function criarLinhaComponente(componente = {}) {
@@ -277,6 +283,42 @@ function resetarComponentesFormulario(componentes = null) {
   );
 }
 
+function normalizarComponentesLista(componentes) {
+  if (!Array.isArray(componentes)) return [];
+  return componentes
+    .map((comp) => {
+      if (!comp || typeof comp !== 'object') return null;
+      const nome = String(comp.nome || comp.descricao || '').trim();
+      if (!nome) return null;
+      const quantidade = sanitizarQuantidadeNumerica(comp.quantidade);
+      return {
+        nome,
+        quantidade,
+      };
+    })
+    .filter(Boolean);
+}
+
+function obterComponentesDoFormulario() {
+  const container = document.getElementById('componentesContainer');
+  if (!container) return [];
+  const linhas = Array.from(container.querySelectorAll('.component-row'));
+  const componentes = linhas.map((linha) => ({
+    nome: linha.querySelector('.component-nome')?.value,
+    quantidade: linha.querySelector('.component-quantidade')?.value,
+  }));
+  return normalizarComponentesLista(componentes);
+}
+
+function preencherComponentesNoFormulario(componentes = []) {
+  const listaNormalizada = normalizarComponentesLista(componentes);
+  if (listaNormalizada.length) {
+    resetarComponentesFormulario(listaNormalizada);
+  } else {
+    resetarComponentesFormulario();
+  }
+}
+
 function formatarComponentesParaTabela(componentes = []) {
   const listaNormalizada = normalizarComponentesLista(componentes);
   if (!listaNormalizada.length) return '—';
@@ -290,6 +332,29 @@ function formatarComponentesParaTabela(componentes = []) {
     .join(', ');
 }
 
+function popularSelectOptions(excluirSku = null, selecionados = []) {
+  const select = document.getElementById('skusPrincipaisVinculados');
+  select.innerHTML = '';
+  const selecionadosSet = new Set(
+    selecionados.map((valor) => normalizarTexto(valor)),
+  );
+  const excluirNormalizado = normalizarTexto(excluirSku);
+  const opcoes = Array.from(skuCache.values()).sort((a, b) =>
+    a.skuPrincipal.localeCompare(b.skuPrincipal),
+  );
+  opcoes.forEach((item) => {
+    const sku = item.skuPrincipal;
+    if (!sku) return;
+    if (excluirNormalizado && normalizarTexto(sku) === excluirNormalizado)
+      return;
+    const option = document.createElement('option');
+    option.value = sku;
+    option.textContent = sku;
+    if (selecionadosSet.has(normalizarTexto(sku))) option.selected = true;
+    select.appendChild(option);
+  });
+}
+
 function renderTabela() {
   const tbody = document.querySelector('#skuTable tbody');
   tbody.innerHTML = '';
@@ -299,26 +364,23 @@ function renderTabela() {
   if (!linhas.length) {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td colspan="8" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
-
+      '<td colspan="6" class="px-2 py-4 text-center text-gray-500">Nenhum SKU associado encontrado para o seu perfil.</td>';
     tbody.appendChild(tr);
     return;
   }
   linhas.forEach((data) => {
     const tr = document.createElement('tr');
-    const quantidadeParafusos = formatarQuantidade(data.quantidadeParafusos);
-    const quantidadeFiacao = formatarQuantidade(data.quantidadeFiacao);
-    const quantidadeBocal = formatarQuantidade(data.quantidadeBocal);
-    const outrosComponentes = data.outrosComponentes || '—';
-
+    const quantidadeParafusos = formatarQuantidadeParafusos(
+      data.quantidadeParafusos,
+    );
+    const componentesDescricao = formatarComponentesParaTabela(
+      data.componentes,
+    );
     tr.innerHTML = `
       <td class="px-2 py-1">${data.skuPrincipal}</td>
       <td class="px-2 py-1">${(data.associados || []).join(', ')}</td>
       <td class="px-2 py-1">${quantidadeParafusos}</td>
-      <td class="px-2 py-1">${quantidadeFiacao}</td>
-      <td class="px-2 py-1">${quantidadeBocal}</td>
-      <td class="px-2 py-1">${outrosComponentes}</td>
-
+      <td class="px-2 py-1">${componentesDescricao}</td>
       <td class="px-2 py-1">${(data.principaisVinculados || []).join(', ')}</td>
       <td class="px-2 py-1 space-x-2">
         <button class="text-blue-600" data-edit="${data.id}">Editar</button>
@@ -352,9 +414,9 @@ async function carregarSkus() {
     const skuPrincipal = (
       data.skuPrincipal || recuperarSkuDoIdDocumento(docId)
     ).trim();
-    const quantidadeParafusos = sanitizarQuantidade(data.quantidadeParafusos);
-    const quantidadeFiacao = sanitizarQuantidade(data.quantidadeFiacao);
-    const quantidadeBocal = sanitizarQuantidade(data.quantidadeBocal);
+    const quantidadeParafusos = sanitizarQuantidadeParafusos(
+      data.quantidadeParafusos,
+    );
     skuCache.set(docId, {
       ...data,
       id: docId,
@@ -362,9 +424,7 @@ async function carregarSkus() {
       associados: data.associados || [],
       principaisVinculados: data.principaisVinculados || [],
       quantidadeParafusos,
-      quantidadeFiacao,
-      quantidadeBocal,
-      outrosComponentes: data.outrosComponentes || '',
+      componentes: normalizarComponentesLista(data.componentes),
     });
   });
   renderTabela();
@@ -376,10 +436,12 @@ async function carregarSkus() {
     if (dadosEdicao) {
       selecionados = dadosEdicao.principaisVinculados || [];
     }
-
   } else {
-    resetarComponentesFormulario();
+    const select = document.getElementById('skusPrincipaisVinculados');
+    selecionados = Array.from(select.selectedOptions).map((opt) => opt.value);
   }
+  const excluirSku = principalAtual || editSkuAnterior || null;
+  popularSelectOptions(excluirSku, selecionados);
 }
 
 function obterPrincipaisSelecionados() {
@@ -393,9 +455,7 @@ function limparFormulario() {
   document.getElementById('skuPrincipal').value = '';
   document.getElementById('skuAssociados').value = '';
   document.getElementById('quantidadeParafusos').value = '';
-  document.getElementById('quantidadeFiacao').value = '';
-  document.getElementById('quantidadeBocal').value = '';
-  document.getElementById('outrosComponentes').value = '';
+  resetarComponentesFormulario();
   editDocId = null;
   editSkuAnterior = null;
   popularSelectOptions(null, []);
@@ -405,20 +465,17 @@ async function salvarSku() {
   const principalEl = document.getElementById('skuPrincipal');
   const associadosEl = document.getElementById('skuAssociados');
   const quantidadeParafusosEl = document.getElementById('quantidadeParafusos');
-  const quantidadeFiacaoEl = document.getElementById('quantidadeFiacao');
-  const quantidadeBocalEl = document.getElementById('quantidadeBocal');
-  const outrosComponentesEl = document.getElementById('outrosComponentes');
   const principaisSelecionados = obterPrincipaisSelecionados();
+  const componentes = obterComponentesDoFormulario();
   const skuPrincipal = principalEl.value.trim();
   if (!skuPrincipal) {
     alert('Informe o SKU principal');
     return;
   }
   const associados = parseAssociados(associadosEl.value);
-  const quantidadeParafusos = sanitizarQuantidade(quantidadeParafusosEl.value);
-  const quantidadeFiacao = sanitizarQuantidade(quantidadeFiacaoEl.value);
-  const quantidadeBocal = sanitizarQuantidade(quantidadeBocalEl.value);
-  const outrosComponentes = outrosComponentesEl.value.trim();
+  const quantidadeParafusos = sanitizarQuantidadeParafusos(
+    quantidadeParafusosEl.value,
+  );
   const docId = gerarIdDocumentoSku(skuPrincipal);
   if (editDocId && editDocId !== docId) {
     await deleteDoc(doc(db, 'skuAssociado', editDocId));
@@ -430,9 +487,7 @@ async function salvarSku() {
       (sku) => normalizarTexto(sku) !== normalizarTexto(skuPrincipal),
     ),
     quantidadeParafusos,
-    quantidadeFiacao,
-    quantidadeBocal,
-    outrosComponentes,
+    componentes,
   });
   await carregarSkus();
   limparFormulario();
@@ -444,17 +499,10 @@ function preencherFormulario(id, data) {
   document.getElementById('skuAssociados').value = (data.associados || []).join(
     ', ',
   );
-  const quantidadeParafusos = sanitizarQuantidade(data.quantidadeParafusos);
-  const quantidadeFiacao = sanitizarQuantidade(data.quantidadeFiacao);
-  const quantidadeBocal = sanitizarQuantidade(data.quantidadeBocal);
+  const quantidade = sanitizarQuantidadeParafusos(data.quantidadeParafusos);
   document.getElementById('quantidadeParafusos').value =
-    quantidadeParafusos === null ? '' : quantidadeParafusos;
-  document.getElementById('quantidadeFiacao').value =
-    quantidadeFiacao === null ? '' : quantidadeFiacao;
-  document.getElementById('quantidadeBocal').value =
-    quantidadeBocal === null ? '' : quantidadeBocal;
-  document.getElementById('outrosComponentes').value =
-    data.outrosComponentes || '';
+    quantidade === null ? '' : quantidade;
+  preencherComponentesNoFormulario(data.componentes);
   popularSelectOptions(
     data.skuPrincipal || recuperarSkuDoIdDocumento(id),
     data.principaisVinculados || [],
@@ -471,6 +519,14 @@ function registrarEventos() {
     popularSelectOptions(excluirSku, selecionados);
   });
   document.getElementById('salvarSku').addEventListener('click', salvarSku);
+  const botaoAdicionarComponente = document.getElementById(
+    'adicionarComponente',
+  );
+  if (botaoAdicionarComponente) {
+    botaoAdicionarComponente.addEventListener('click', () =>
+      adicionarLinhaComponente(),
+    );
+  }
   document
     .querySelector('#skuTable tbody')
     .addEventListener('click', async (e) => {
@@ -492,11 +548,15 @@ function registrarEventos() {
   eventosRegistrados = true;
 }
 
+resetarComponentesFormulario();
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) return;
   try {
-
     await prepararContextoUsuario(user);
-    // Load and initialize components and products after user authentication
-  });
-}
+    await carregarSkus();
+  } catch (error) {
+    console.error('Erro ao iniciar a página de SKU associado:', error);
+  }
+  registrarEventos();
+});
