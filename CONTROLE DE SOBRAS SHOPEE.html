@@ -10848,38 +10848,109 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           return;
         }
         const agregador = new Map(); // produtoSku -> quantidade total
+        
         dados.forEach((item) => {
-          const mapaCompostos = new Map(Array.isArray(item.compostosPorSku) ? item.compostosPorSku : []);
-          const obterLista = (sku) => {
-            const k = String(sku || '').toLowerCase();
-            return mapaCompostos.get(k) || [];
+          // Construir mapa de compostos: sku (normalizado) -> lista de compostos
+          const mapaCompostos = new Map();
+          if (Array.isArray(item.compostosPorSku)) {
+            item.compostosPorSku.forEach(([skuChave, listaCompostos]) => {
+              if (!skuChave || !Array.isArray(listaCompostos)) return;
+              const chaveNormalizada = String(skuChave || '').toLowerCase().trim();
+              if (chaveNormalizada) {
+                mapaCompostos.set(chaveNormalizada, listaCompostos);
+              }
+            });
+          }
+          
+          // Função para obter compostos de um SKU (com fallback para o SKU principal)
+          const obterCompostos = (sku) => {
+            if (!sku) return [];
+            const chaveNormalizada = String(sku).toLowerCase().trim();
+            // Tenta pelo SKU vendido
+            if (mapaCompostos.has(chaveNormalizada)) {
+              return mapaCompostos.get(chaveNormalizada) || [];
+            }
+            // Fallback: tenta pelo SKU principal
+            const chavePrincipal = String(item.sku || '').toLowerCase().trim();
+            if (chavePrincipal && mapaCompostos.has(chavePrincipal)) {
+              return mapaCompostos.get(chavePrincipal) || [];
+            }
+            return [];
           };
+          
+          // Função para acumular quantidade por produto
           const acumular = (skuProduto, qtd) => {
             if (!skuProduto) return;
+            const skuNorm = String(skuProduto).trim();
+            if (!skuNorm) return;
             const q = Number(qtd || 0);
             if (!Number.isFinite(q) || q <= 0) return;
-            agregador.set(skuProduto, (agregador.get(skuProduto) || 0) + q);
+            agregador.set(skuNorm, (agregador.get(skuNorm) || 0) + q);
           };
-          item.vendidosPorSku.forEach(([sku, qtd]) => {
-            const quantidade = Number(qtd || 0);
-            if (!Number.isFinite(quantidade) || quantidade <= 0) return;
-            const lista = obterLista(sku);
-            if (Array.isArray(lista) && lista.length) {
-              lista.forEach((c) => acumular(c.sku, Number(c.quantidade || 1) * quantidade));
-            } else {
-              // sem composição: considera o próprio SKU
-              acumular(sku, quantidade);
+          
+          // Processar cada SKU vendido
+          if (Array.isArray(item.vendidosPorSku)) {
+            item.vendidosPorSku.forEach(([skuVendido, qtdVendida]) => {
+              const quantidadeVendida = Number(qtdVendida || 0);
+              if (!Number.isFinite(quantidadeVendida) || quantidadeVendida <= 0) return;
+              
+              const compostos = obterCompostos(skuVendido);
+              
+              if (Array.isArray(compostos) && compostos.length > 0) {
+                // SKU é composto: separar em peças individuais
+                compostos.forEach((comp) => {
+                  const skuProduto = String(comp?.sku || '').trim();
+                  const qtdPorUnidade = Number(comp?.quantidade || 1);
+                  if (skuProduto && Number.isFinite(qtdPorUnidade) && qtdPorUnidade > 0) {
+                    const totalPeca = quantidadeVendida * qtdPorUnidade;
+                    acumular(skuProduto, totalPeca);
+                  }
+                });
+              } else {
+                // SKU não é composto: conta como peça única
+                acumular(skuVendido, quantidadeVendida);
+              }
+            });
+          }
+          
+          // Fallback: se não houver vendidosPorSku, usar o total do item principal
+          if (!item.vendidosPorSku || item.vendidosPorSku.length === 0) {
+            const quantidadeTotal = Number(item.total || 0);
+            if (Number.isFinite(quantidadeTotal) && quantidadeTotal > 0) {
+              const compostosPrincipal = obterCompostos(item.sku);
+              if (Array.isArray(compostosPrincipal) && compostosPrincipal.length > 0) {
+                compostosPrincipal.forEach((comp) => {
+                  const skuProduto = String(comp?.sku || '').trim();
+                  const qtdPorUnidade = Number(comp?.quantidade || 1);
+                  if (skuProduto && Number.isFinite(qtdPorUnidade) && qtdPorUnidade > 0) {
+                    const totalPeca = quantidadeTotal * qtdPorUnidade;
+                    acumular(skuProduto, totalPeca);
+                  }
+                });
+              } else {
+                acumular(item.sku, quantidadeTotal);
+              }
             }
-          });
+          }
         });
 
         if (typeof XLSX === 'undefined') {
           mostrarErro('Biblioteca de exportação para Excel indisponível.');
           return;
         }
+        
         const linhas = Array.from(agregador.entries())
           .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
-          .map(([sku, qtd]) => ({ Produto: sku, Quantidade: qtd }));
+          .map(([sku, qtd]) => ({ 
+            'Produto (SKU)': sku, 
+            'Quantidade Total': qtd 
+          }));
+        
+        if (!linhas.length) {
+          mostrarErro('Nenhuma peça encontrada para exportar.');
+          return;
+        }
+        
         const ws = XLSX.utils.json_to_sheet(linhas);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'PorPeca');
