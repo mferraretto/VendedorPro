@@ -10024,6 +10024,8 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         const componentesPorSkuNormalizado = new Map();
         const pecasPorPrincipal = new Map();
         const pecasPorSkuNormalizado = new Map();
+        const compostosPorPrincipal = new Map();
+        const compostosPorSkuNormalizado = new Map();
         const normalizarComponentesListaLocal = (componentes) => {
           if (!Array.isArray(componentes)) return [];
           return componentes
@@ -10057,6 +10059,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               dados.componentes,
             );
             const quantidadePecas = Number(dados.quantidadePecas);
+            const compostosLista = Array.isArray(dados.compostos)
+              ? dados.compostos
+                  .map((c) => ({ sku: String(c?.sku || '').trim(), quantidade: Number(c?.quantidade) }))
+                  .filter((c) => c.sku)
+              : [];
             principalPorSku.set(principalNormalizado, skuPrincipal);
             const grupoAtual = grupoPorPrincipal.get(skuPrincipal) || new Set();
             const vinculadosAtuais =
@@ -10084,6 +10091,10 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 componentesLista,
               );
             }
+            if (compostosLista.length) {
+              compostosPorPrincipal.set(skuPrincipal, compostosLista);
+              compostosPorSkuNormalizado.set(principalNormalizado, compostosLista);
+            }
             (dados.associados || []).forEach((skuAssoc) => {
               const associado = String(skuAssoc || '').trim();
               if (!associado) return;
@@ -10109,6 +10120,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                 componentesPorSkuNormalizado.set(
                   normalizarSku(associado),
                   componentesLista,
+                );
+              }
+              if (compostosLista.length) {
+                compostosPorSkuNormalizado.set(
+                  normalizarSku(associado),
+                  compostosLista,
                 );
               }
             });
@@ -10281,6 +10298,22 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             componentesPorPrincipal.has(principalRelacionado)
           ) {
             return componentesPorPrincipal.get(principalRelacionado) || [];
+          }
+          return [];
+        };
+
+        const obterCompostosDoSku = (sku) => {
+          if (!sku) return [];
+          const normalizado = normalizarSku(sku);
+          if (compostosPorSkuNormalizado.has(normalizado)) {
+            return compostosPorSkuNormalizado.get(normalizado) || [];
+          }
+          if (compostosPorPrincipal.has(sku)) {
+            return compostosPorPrincipal.get(sku) || [];
+          }
+          const principalRelacionado = principalPorSku.get(normalizado);
+          if (principalRelacionado && compostosPorPrincipal.has(principalRelacionado)) {
+            return compostosPorPrincipal.get(principalRelacionado) || [];
           }
           return [];
         };
@@ -10544,6 +10577,12 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             if (!mapaPecas.has(sku)) {
               mapaPecas.set(sku, obterQuantidadePecasDoSku(sku));
             }
+            if (!(registro.compostosPorSku instanceof Map)) {
+              registro.compostosPorSku = new Map(registro.compostosPorSku || []);
+            }
+            if (!registro.compostosPorSku.has(sku)) {
+              registro.compostosPorSku.set(sku, obterCompostosDoSku(sku));
+            }
           });
           if (!mapaParafusos.has(registro.sku)) {
             mapaParafusos.set(
@@ -10594,6 +10633,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               ? item.componentesPorSku
               : new Map(item.componentesPorSku || []);
           const componentesPorSkuEntries = Array.from(mapaComponentes.entries());
+          const mapaCompostos =
+            item.compostosPorSku instanceof Map
+              ? item.compostosPorSku
+              : new Map(item.compostosPorSku || []);
+          const compostosPorSkuEntries = Array.from(mapaCompostos.entries());
           const mapaPecas =
             item.pecasPorSku instanceof Map
               ? item.pecasPorSku
@@ -10709,6 +10753,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             quantidadeParafusosPrincipal,
             parafusosPorSku: parafusosPorSkuEntries,
             componentesPorSku: componentesPorSkuEntries,
+            compostosPorSku: compostosPorSkuEntries,
             pecasPorSku: pecasPorSkuEntries,
             detalhesPorUsuario: converterDetalhesPorUsuario(
               item.detalhesPorUsuario,
@@ -10793,6 +10838,58 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const hoje = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `produtos_vendidos_${hoje}.xlsx`);
       mostrarSucesso('Arquivo Excel gerado com sucesso.');
+    }
+
+    function exportarRelatorioPorPecaExcel() {
+      try {
+        const dados = obterProdutosVendidosFiltrados();
+        if (!dados.length) {
+          mostrarErro('Nenhum dado disponível para exportar.');
+          return;
+        }
+        const agregador = new Map(); // produtoSku -> quantidade total
+        dados.forEach((item) => {
+          const mapaCompostos = new Map(Array.isArray(item.compostosPorSku) ? item.compostosPorSku : []);
+          const obterLista = (sku) => {
+            const k = String(sku || '').toLowerCase();
+            return mapaCompostos.get(k) || [];
+          };
+          const acumular = (skuProduto, qtd) => {
+            if (!skuProduto) return;
+            const q = Number(qtd || 0);
+            if (!Number.isFinite(q) || q <= 0) return;
+            agregador.set(skuProduto, (agregador.get(skuProduto) || 0) + q);
+          };
+          item.vendidosPorSku.forEach(([sku, qtd]) => {
+            const quantidade = Number(qtd || 0);
+            if (!Number.isFinite(quantidade) || quantidade <= 0) return;
+            const lista = obterLista(sku);
+            if (Array.isArray(lista) && lista.length) {
+              lista.forEach((c) => acumular(c.sku, Number(c.quantidade || 1) * quantidade));
+            } else {
+              // sem composição: considera o próprio SKU
+              acumular(sku, quantidade);
+            }
+          });
+        });
+
+        if (typeof XLSX === 'undefined') {
+          mostrarErro('Biblioteca de exportação para Excel indisponível.');
+          return;
+        }
+        const linhas = Array.from(agregador.entries())
+          .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
+          .map(([sku, qtd]) => ({ Produto: sku, Quantidade: qtd }));
+        const ws = XLSX.utils.json_to_sheet(linhas);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'PorPeca');
+        const hoje = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `produtos_vendidos_por_peca_${hoje}.xlsx`);
+        mostrarSucesso('Relatório por peça gerado com sucesso.');
+      } catch (err) {
+        console.error('Erro ao exportar relatório por peça:', err);
+        mostrarErro('Erro ao exportar relatório por peça.');
+      }
     }
 
     function exportarProdutosVendidosPDFDetalhado() {
@@ -15775,6 +15872,7 @@ window.verificarGestorFinanceiro = verificarGestorFinanceiro;
 window.exportarProdutosVendidosExcel = exportarProdutosVendidosExcel;
 window.exportarProdutosVendidosPDFDetalhado = exportarProdutosVendidosPDFDetalhado;
 window.exportarProdutosVendidosPDFSimplificado = exportarProdutosVendidosPDFSimplificado;
+window.exportarRelatorioPorPecaExcel = exportarRelatorioPorPecaExcel;
 window.gerarPrevisaoProdutosVendidos = gerarPrevisaoProdutosVendidos;
 window.exportarAcompanhamentoExcel = exportarAcompanhamentoExcel;
 window.exportarResumoTopSkus = exportarResumoTopSkus;
