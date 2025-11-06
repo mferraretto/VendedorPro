@@ -283,6 +283,71 @@ function resetarComponentesFormulario(componentes = null) {
   );
 }
 
+// --------- PRODUTOS COMPOSTOS ---------
+function criarLinhaComposto(item = {}) {
+  const linha = document.createElement('div');
+  linha.className = 'composto-row flex flex-col gap-2 md:flex-row md:items-center';
+  const inputSku = document.createElement('input');
+  inputSku.type = 'text';
+  inputSku.className = 'composto-sku flex-1 p-2 border rounded';
+  inputSku.placeholder = 'SKU do produto';
+  inputSku.value = item?.sku ? String(item.sku).trim() : '';
+  const inputQuantidade = document.createElement('input');
+  inputQuantidade.type = 'number';
+  inputQuantidade.min = '0';
+  inputQuantidade.step = '1';
+  inputQuantidade.className = 'composto-quantidade w-full md:w-32 p-2 border rounded';
+  inputQuantidade.placeholder = 'Quantidade';
+  const quantidadeSanitizada = sanitizarQuantidadeNumerica(item?.quantidade);
+  inputQuantidade.value = quantidadeSanitizada === null ? '' : quantidadeSanitizada;
+  const botaoRemover = document.createElement('button');
+  botaoRemover.type = 'button';
+  botaoRemover.className = 'text-sm font-medium text-red-600';
+  botaoRemover.textContent = 'Remover';
+  botaoRemover.addEventListener('click', () => linha.remove());
+  linha.appendChild(inputSku);
+  linha.appendChild(inputQuantidade);
+  linha.appendChild(botaoRemover);
+  return linha;
+}
+
+function adicionarLinhaComposto(item = {}) {
+  const container = document.getElementById('compostosContainer');
+  if (!container) return;
+  container.appendChild(criarLinhaComposto(item));
+}
+
+function resetarCompostosFormulario(lista = []) {
+  const container = document.getElementById('compostosContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  (Array.isArray(lista) ? lista : []).forEach((it) => adicionarLinhaComposto(it));
+}
+
+function normalizarCompostosLista(compostos) {
+  if (!Array.isArray(compostos)) return [];
+  return compostos
+    .map((c) => {
+      if (!c || typeof c !== 'object') return null;
+      const sku = String(c.sku || '').trim();
+      if (!sku) return null;
+      const quantidade = sanitizarQuantidadeNumerica(c.quantidade);
+      return { sku, quantidade };
+    })
+    .filter(Boolean);
+}
+
+function obterCompostosDoFormulario() {
+  const container = document.getElementById('compostosContainer');
+  if (!container) return [];
+  const linhas = Array.from(container.querySelectorAll('.composto-row'));
+  const lista = linhas.map((linha) => ({
+    sku: linha.querySelector('.composto-sku')?.value,
+    quantidade: linha.querySelector('.composto-quantidade')?.value,
+  }));
+  return normalizarCompostosLista(lista);
+}
+
 function normalizarComponentesLista(componentes) {
   if (!Array.isArray(componentes)) return [];
   return componentes
@@ -465,6 +530,7 @@ async function carregarSkus() {
       quantidadeParafusos,
       quantidadePecas,
       componentes: normalizarComponentesLista(data.componentes),
+      compostos: normalizarCompostosLista(data.compostos),
     });
   });
   renderTabela();
@@ -498,6 +564,7 @@ function limparFormulario() {
   const pecasEl = document.getElementById('quantidadePecas');
   if (pecasEl) pecasEl.value = '';
   resetarComponentesFormulario();
+  resetarCompostosFormulario([]);
   editDocId = null;
   editSkuAnterior = null;
   popularSelectOptions(null, []);
@@ -510,6 +577,7 @@ async function salvarSku() {
   const quantidadePecasEl = document.getElementById('quantidadePecas');
   const principaisSelecionados = obterPrincipaisSelecionados();
   const componentes = obterComponentesDoFormulario();
+  const compostos = obterCompostosDoFormulario();
   const skuPrincipal = principalEl.value.trim();
   if (!skuPrincipal) {
     alert('Informe o SKU principal');
@@ -535,6 +603,7 @@ async function salvarSku() {
     quantidadeParafusos,
     quantidadePecas,
     componentes,
+    compostos,
   });
   await carregarSkus();
   limparFormulario();
@@ -553,6 +622,7 @@ function preencherFormulario(id, data) {
   const pecasEl2 = document.getElementById('quantidadePecas');
   if (pecasEl2) pecasEl2.value = qPecas === null ? '' : qPecas;
   preencherComponentesNoFormulario(data.componentes);
+  preencherCompostosNoFormulario(data.compostos);
   popularSelectOptions(
     data.skuPrincipal || recuperarSkuDoIdDocumento(id),
     data.principaisVinculados || [],
@@ -575,6 +645,12 @@ function registrarEventos() {
   if (botaoAdicionarComponente) {
     botaoAdicionarComponente.addEventListener('click', () =>
       adicionarLinhaComponente(),
+    );
+  }
+  const botaoAdicionarComposto = document.getElementById('adicionarComposto');
+  if (botaoAdicionarComposto) {
+    botaoAdicionarComposto.addEventListener('click', () =>
+      adicionarLinhaComposto(),
     );
   }
   document
