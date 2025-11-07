@@ -601,6 +601,31 @@ document.addEventListener('navbarLoaded', () => {
   }
 });
 
+let scheduleAlertsModulePromise = null;
+document.addEventListener('navbarLoaded', () => {
+  if (!scheduleAlertsModulePromise) {
+    scheduleAlertsModulePromise = import('./schedule-alerts.js')
+      .then(async (module) => {
+        if (module?.initializeScheduleAlertService) {
+          await module.initializeScheduleAlertService();
+          module.refreshScheduleAlertBanner?.();
+        }
+        return module;
+      })
+      .catch((error) => {
+        console.error(
+          'Erro ao carregar alertas do cronograma no navbar:',
+          error,
+        );
+        scheduleAlertsModulePromise = null;
+      });
+  } else {
+    scheduleAlertsModulePromise.then((module) => {
+      module?.refreshScheduleAlertBanner?.();
+    });
+  }
+});
+
 // Controle de visibilidade do sidebar baseado no perfil do usuário
 document.addEventListener('sidebarLoaded', async () => {
   const sidebar = document.getElementById('sidebar');
