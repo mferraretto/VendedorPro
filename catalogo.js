@@ -1331,28 +1331,6 @@ function getProductsGroupedByCategory() {
     .sort((a, b) => collator.compare(a.categoria, b.categoria));
 }
 
-async function carregarImagemComoDataUrl(url) {
-  if (!url) return null;
-  try {
-    const resposta = await fetch(url, { mode: 'cors' });
-    if (!resposta.ok) {
-      throw new Error(
-        `Resposta inesperada ao carregar imagem: ${resposta.status}`,
-      );
-    }
-    const blob = await resposta.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error('Falha ao ler a imagem.'));
-      reader.readAsDataURL(blob);
-    });
-  } catch (erro) {
-    console.warn('Não foi possível carregar imagem para o PDF:', url, erro);
-    return null;
-  }
-}
-
 function updateExportButtons(hasProducts) {
   const disabled = !hasProducts;
   [exportPdfBtn, exportExcelBtn].forEach((btn) => {
@@ -1386,13 +1364,12 @@ function exportCatalogToExcel() {
 }
 
 async function exportCatalogToPdf() {
-  const grupos = getProductsGroupedByCategory();
-  if (!grupos.length) {
-    showToast('Não há produtos para exportar.', 'warning');
-    return;
-  }
   if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
     showToast('Biblioteca de PDF não foi carregada.', 'error');
+    return;
+  }
+  if (!productCache.size) {
+    showToast('Não há produtos para exportar.', 'warning');
     return;
   }
   if (exportPdfBtn) {
@@ -1407,9 +1384,10 @@ async function exportCatalogToPdf() {
 
   try {
     if (currentViewMode === 'list') {
+      const grupos = getProductsGroupedByCategory();
       await generateListPdf(doc, grupos);
     } else {
-      await generateCardPdf(doc, grupos);
+      await generateCardPdf(doc);
     }
     const nomeArquivo = `catalogo_produtos_${new Date()
       .toISOString()
@@ -1423,312 +1401,123 @@ async function exportCatalogToPdf() {
   }
 }
 
-async function generateCardPdf(doc, grupos) {
-  const margem = 15;
-  const espacamentoEntreCartoes = 8;
-  const colunas = 2;
-  const larguraPagina = doc.internal.pageSize.getWidth();
-  const alturaPagina = doc.internal.pageSize.getHeight();
-  const larguraCartao =
-    (larguraPagina - margem * 2 - espacamentoEntreCartoes * (colunas - 1)) /
-    colunas;
-  const paddingCartao = 6;
-  const alturaImagem = 30;
-  const larguraImagem = 30;
-  const larguraTextoDisponivel =
-    larguraCartao - paddingCartao * 2 - larguraImagem - 4;
+async function generateCardPdf(doc) {
+  if (typeof window.html2canvas !== 'function') {
+    throw new Error('Biblioteca de captura não foi carregada.');
+  }
+  if (!cardsContainer) {
+    throw new Error('Layout do catálogo não está disponível.');
+  }
 
-  let posicaoYAtual = margem;
+  const grupos = getProductsGroupedByCategory();
+  if (!grupos.length) {
+    showToast('Não há produtos para exportar.', 'warning');
+    return;
+  }
 
-  const adicionarCabecalhoCategoria = (categoria) => {
-    const alturaCabecalho = 8;
-    if (posicaoYAtual + alturaCabecalho > alturaPagina - margem) {
-      doc.addPage();
-      posicaoYAtual = margem;
-    }
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(categoria, margem, posicaoYAtual);
-    posicaoYAtual += alturaCabecalho + 2;
-    doc.setFont('helvetica', 'normal');
-  };
+  const tempWrapper = document.createElement('div');
+  const containerClasses = (cardsContainer.className || '')
+    .split(/\s+/)
+    .filter((classe) => classe && classe !== 'hidden')
+    .join(' ');
+  tempWrapper.className = containerClasses;
+  tempWrapper.style.position = 'fixed';
+  tempWrapper.style.left = '-99999px';
+  tempWrapper.style.top = '0';
+  tempWrapper.style.pointerEvents = 'none';
+  tempWrapper.style.opacity = '0';
+  const cardsStyles = window.getComputedStyle(cardsContainer);
+  if (cardsStyles) {
+    tempWrapper.style.padding = cardsStyles.padding;
+    tempWrapper.style.gap = cardsStyles.gap;
+  }
+  const measuredWidth =
+    cardsContainer.offsetWidth ||
+    cardsContainer.scrollWidth ||
+    document.body.clientWidth ||
+    window.innerWidth ||
+    1024;
+  tempWrapper.style.width = `${Math.max(measuredWidth, 320)}px`;
+  tempWrapper.style.backgroundColor = cardsStyles?.backgroundColor || '#ffffff';
+  document.body.appendChild(tempWrapper);
 
-  const prepararLayoutCartao = (produto) => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    const nomeLinhas = doc.splitTextToSize(
-      produto.nome || 'Produto sem nome',
-      larguraTextoDisponivel,
-    );
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    const skuLinha = `SKU: ${produto.sku || '--'}`;
-    const categoriaLinhas = doc.splitTextToSize(
-      `Categoria: ${produto.categoria || 'Sem categoria'}`,
-      larguraTextoDisponivel,
-    );
-
-    const variacoes = Array.isArray(produto.variacoesCor)
-      ? produto.variacoesCor.filter((item) => item && item.cor)
-      : [];
-    const variacoesLinhas = variacoes.length
-      ? doc.splitTextToSize(
-          `Cores: ${variacoes.map((item) => item.cor).join(', ')}`,
-          larguraTextoDisponivel,
-        )
-      : [];
-
-    const descricao = (
-      produto.descricao ||
-      produto.descricaoCurta ||
-      ''
-    ).trim();
-    const descricaoLinhas = descricao
-      ? doc.splitTextToSize(descricao, larguraTextoDisponivel).slice(0, 3)
-      : [];
-
-    const componentesDados =
-      produto && typeof produto.componentes === 'object'
-        ? produto.componentes
-        : {};
-    const parafusosQuantidade = normalizeComponentQuantity(
-      getFirstAvailableValue(componentesDados, ['parafusos', 'qtdParafusos']),
-    );
-    const puxadorDisplay = getPuxadorDisplay(produto) || '--';
-    const outrosDisplays = getAdditionalComponentDisplays(produto).filter(
-      (valor) => valor && valor.trim(),
-    );
-    const componentesTexto = [
-      `Parafusos: ${formatComponentQuantityForDisplay(parafusosQuantidade)}`,
-      `Puxador: ${puxadorDisplay}`,
-    ];
-    if (outrosDisplays.length) {
-      outrosDisplays.slice(0, 2).forEach((item, index) => {
-        componentesTexto.push(`Outros ${index + 1}: ${item}`);
+  const cardElements = [];
+  try {
+    grupos.forEach((grupo) => {
+      grupo.produtos.forEach((produto) => {
+        const card = buildCatalogCardElement(produto, { interactive: false });
+        if (!card) return;
+        setCardSelectedState(card, false);
+        tempWrapper.appendChild(card);
+        cardElements.push(card);
       });
-    } else {
-      componentesTexto.push('Outros: --');
-    }
+    });
 
-    const larguraSecao = larguraCartao - paddingCartao * 2;
-    const medidasLinhas = doc.splitTextToSize(
-      `Produto: ${produto.medidas || '--'}`,
-      larguraSecao,
-    );
-    const embalagemLinhas = doc.splitTextToSize(
-      `Embalagem: ${produto.tamanhoEmbalagem || '--'}`,
-      larguraSecao,
-    );
-    const componentesLinhas = componentesTexto.flatMap((texto) =>
-      doc.splitTextToSize(texto, larguraSecao),
-    );
-    const valoresLinhas = [
-      `Custo: ${formatCurrencyForExport(getProductCost(produto))}`,
-      `Preço sugerido: ${formatCurrencyForExport(getProductPrice(produto))}`,
-    ];
+    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-    const lineHeightTitulo = 3.6;
-    const lineHeightCorpo = 3.2;
-    const gapEntreSecoes = 1.6;
+    const margin = 10;
+    const columnCount = 2;
+    const columnSpacing = 6;
+    const rowSpacing = 8;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const usableWidth = pageWidth - margin * 2;
+    const defaultCardWidth =
+      (usableWidth - columnSpacing * (columnCount - 1)) / columnCount;
 
-    const textoSuperiorAltura =
-      nomeLinhas.length * lineHeightTitulo +
-      lineHeightCorpo +
-      categoriaLinhas.length * lineHeightCorpo +
-      variacoesLinhas.length * lineHeightCorpo +
-      descricaoLinhas.length * lineHeightCorpo;
-    const topBlockHeight = Math.max(alturaImagem, textoSuperiorAltura) + 4;
+    let columnIndex = 0;
+    let currentY = margin;
+    let currentRowHeight = 0;
 
-    const secoesAltura =
-      lineHeightCorpo +
-      medidasLinhas.length * lineHeightCorpo +
-      embalagemLinhas.length * lineHeightCorpo +
-      gapEntreSecoes +
-      lineHeightCorpo +
-      componentesLinhas.length * lineHeightCorpo +
-      gapEntreSecoes +
-      lineHeightCorpo +
-      valoresLinhas.length * lineHeightCorpo;
+    for (const cardEl of cardElements) {
+      const canvas = await window.html2canvas(cardEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+      const imageData = canvas.toDataURL('image/png');
+      const aspectRatio = canvas.height / canvas.width || 1;
+      let renderWidth = defaultCardWidth;
+      let renderHeight = renderWidth * aspectRatio;
 
-    const alturaTotal = paddingCartao * 2 + topBlockHeight + secoesAltura + 2;
+      const maxHeight = pageHeight - margin * 2;
+      if (renderHeight > maxHeight) {
+        renderHeight = maxHeight;
+        renderWidth = renderHeight / aspectRatio;
+      }
 
-    return {
-      nomeLinhas,
-      skuLinha,
-      categoriaLinhas,
-      variacoesLinhas,
-      descricaoLinhas,
-      medidasLinhas,
-      embalagemLinhas,
-      componentesLinhas,
-      valoresLinhas,
-      topBlockHeight,
-      alturaTotal: Math.ceil(alturaTotal),
-    };
-  };
-
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Catálogo de Produtos', margem, posicaoYAtual);
-  posicaoYAtual += 10;
-  doc.setFont('helvetica', 'normal');
-
-  for (const grupo of grupos) {
-    const categoriaTitulo = grupo.categoria || 'Sem categoria';
-    adicionarCabecalhoCategoria(categoriaTitulo);
-
-    const produtosPreparados = await Promise.all(
-      grupo.produtos.map(async (produto) => {
-        const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
-        const primeiraFoto = fotos.find((foto) => foto?.url)?.url;
-        const imagemDataUrl = await carregarImagemComoDataUrl(primeiraFoto);
-        return { produto, imagemDataUrl };
-      }),
-    );
-
-    let colunaAtual = 0;
-    let yLinhaAtual = posicaoYAtual;
-    let alturaLinhaAtual = 0;
-
-    for (const { produto, imagemDataUrl } of produtosPreparados) {
-      const layout = prepararLayoutCartao(produto);
-      const alturaCartao = Math.max(74, layout.alturaTotal);
-
-      if (colunaAtual === 0) {
-        yLinhaAtual = posicaoYAtual;
-        alturaLinhaAtual = 0;
-        if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
-          doc.addPage();
-          posicaoYAtual = margem;
-          adicionarCabecalhoCategoria(categoriaTitulo);
-          yLinhaAtual = posicaoYAtual;
-        }
-      } else if (yLinhaAtual + alturaCartao > alturaPagina - margem) {
+      if (currentY + renderHeight > pageHeight - margin) {
         doc.addPage();
-        posicaoYAtual = margem;
-        adicionarCabecalhoCategoria(categoriaTitulo);
-        colunaAtual = 0;
-        yLinhaAtual = posicaoYAtual;
-        alturaLinhaAtual = 0;
+        currentY = margin;
+        columnIndex = 0;
+        currentRowHeight = 0;
       }
 
-      const posicaoX =
-        margem + colunaAtual * (larguraCartao + espacamentoEntreCartoes);
+      const positionX =
+        margin + columnIndex * (defaultCardWidth + columnSpacing);
+      doc.addImage(
+        imageData,
+        'PNG',
+        positionX,
+        currentY,
+        renderWidth,
+        renderHeight,
+        undefined,
+        'FAST',
+      );
 
-      doc.setDrawColor(210);
-      doc.setLineWidth(0.2);
-      doc.roundedRect(posicaoX, yLinhaAtual, larguraCartao, alturaCartao, 3, 3);
+      currentRowHeight = Math.max(currentRowHeight, renderHeight);
+      columnIndex += 1;
 
-      if (imagemDataUrl) {
-        try {
-          doc.addImage(
-            imagemDataUrl,
-            undefined,
-            posicaoX + paddingCartao,
-            yLinhaAtual + paddingCartao,
-            larguraImagem,
-            alturaImagem,
-          );
-        } catch (erro) {
-          console.warn('Não foi possível adicionar imagem ao PDF:', erro);
-        }
-      } else {
-        doc.setDrawColor(225);
-        doc.rect(
-          posicaoX + paddingCartao,
-          yLinhaAtual + paddingCartao,
-          larguraImagem,
-          alturaImagem,
-        );
-        doc.setDrawColor(210);
-      }
-
-      let textoX = posicaoX + paddingCartao + larguraImagem + 4;
-      let textoY = yLinhaAtual + paddingCartao + 4;
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      layout.nomeLinhas.forEach((linha) => {
-        doc.text(linha, textoX, textoY, { maxWidth: larguraTextoDisponivel });
-        textoY += 3.6;
-      });
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text(layout.skuLinha, textoX, textoY);
-      textoY += 3.2;
-
-      layout.categoriaLinhas.forEach((linha) => {
-        doc.text(linha, textoX, textoY, { maxWidth: larguraTextoDisponivel });
-        textoY += 3.2;
-      });
-
-      layout.variacoesLinhas.forEach((linha) => {
-        doc.text(linha, textoX, textoY, { maxWidth: larguraTextoDisponivel });
-        textoY += 3.2;
-      });
-
-      layout.descricaoLinhas.forEach((linha) => {
-        doc.text(linha, textoX, textoY, { maxWidth: larguraTextoDisponivel });
-        textoY += 3.2;
-      });
-
-      let sectionY = yLinhaAtual + paddingCartao + layout.topBlockHeight + 2;
-      const sectionX = posicaoX + paddingCartao;
-      const sectionWidth = larguraCartao - paddingCartao * 2;
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('Medidas', sectionX, sectionY);
-      sectionY += 3.2;
-
-      doc.setFont('helvetica', 'normal');
-      layout.medidasLinhas.forEach((linha) => {
-        doc.text(linha, sectionX, sectionY, { maxWidth: sectionWidth });
-        sectionY += 3.2;
-      });
-      layout.embalagemLinhas.forEach((linha) => {
-        doc.text(linha, sectionX, sectionY, { maxWidth: sectionWidth });
-        sectionY += 3.2;
-      });
-
-      sectionY += 1.6;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Componentes', sectionX, sectionY);
-      sectionY += 3.2;
-
-      doc.setFont('helvetica', 'normal');
-      layout.componentesLinhas.forEach((linha) => {
-        doc.text(linha, sectionX, sectionY, { maxWidth: sectionWidth });
-        sectionY += 3.2;
-      });
-
-      sectionY += 1.6;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Valores', sectionX, sectionY);
-      sectionY += 3.2;
-
-      doc.setFont('helvetica', 'normal');
-      layout.valoresLinhas.forEach((linha) => {
-        doc.text(linha, sectionX, sectionY, { maxWidth: sectionWidth });
-        sectionY += 3.2;
-      });
-
-      alturaLinhaAtual = Math.max(alturaLinhaAtual, alturaCartao);
-      colunaAtual += 1;
-
-      if (colunaAtual >= colunas) {
-        colunaAtual = 0;
-        posicaoYAtual =
-          yLinhaAtual + alturaLinhaAtual + espacamentoEntreCartoes;
+      if (columnIndex >= columnCount) {
+        columnIndex = 0;
+        currentY += currentRowHeight + rowSpacing;
+        currentRowHeight = 0;
       }
     }
-
-    if (colunaAtual > 0) {
-      posicaoYAtual = yLinhaAtual + alturaLinhaAtual + espacamentoEntreCartoes;
-    }
-
-    posicaoYAtual += 4;
+  } finally {
+    tempWrapper.remove();
   }
 }
 
@@ -1876,303 +1665,325 @@ function generateListPdf(doc, grupos) {
   }
 }
 
-function renderCardView(displayItems) {
-  if (!cardsContainer) return;
+function createCatalogInfoItem(
+  label,
+  value,
+  { labelClass = '', valueClass = '' } = {},
+) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'flex flex-col gap-1';
+  const labelEl = document.createElement('span');
+  labelEl.className =
+    'text-[0.65rem] font-semibold uppercase tracking-wide text-gray-500 ' +
+    labelClass;
+  labelEl.textContent = label;
+  const valueEl = document.createElement('span');
+  valueEl.className =
+    'text-sm font-semibold leading-snug text-gray-900 whitespace-pre-wrap break-words ' +
+    valueClass;
+  const resolvedValue =
+    typeof value === 'string'
+      ? value.trim() || '--'
+      : value === null || value === undefined
+        ? '--'
+        : `${value}`;
+  valueEl.textContent = resolvedValue;
+  wrapper.append(labelEl, valueEl);
+  return wrapper;
+}
 
-  const createInfoItem = (
-    label,
-    value,
-    { labelClass = '', valueClass = '' } = {},
-  ) => {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'flex flex-col gap-1';
-    const labelEl = document.createElement('span');
-    labelEl.className =
-      'text-[0.65rem] font-semibold uppercase tracking-wide text-gray-500 ' +
-      labelClass;
-    labelEl.textContent = label;
-    const valueEl = document.createElement('span');
-    valueEl.className =
-      'text-sm font-semibold leading-snug text-gray-900 whitespace-pre-wrap break-words ' +
-      valueClass;
-    const resolvedValue =
-      typeof value === 'string'
-        ? value.trim() || '--'
-        : value === null || value === undefined
-          ? '--'
-          : `${value}`;
-    valueEl.textContent = resolvedValue;
-    wrapper.append(labelEl, valueEl);
-    return wrapper;
-  };
+function buildCatalogCardElement(produto, { interactive = true } = {}) {
+  if (!produto) return null;
 
-  displayItems.forEach((produto) => {
-    if (!produto) return;
-    const card = document.createElement('article');
-    card.className =
-      'relative flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg';
-    card.dataset.productId = produto.id || '';
-    card.dataset.viewType = 'card';
+  const card = document.createElement('article');
+  card.className =
+    'relative flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg';
+  card.dataset.productId = produto.id || '';
+  card.dataset.viewType = 'card';
 
-    const selectionWrapper = document.createElement('label');
-    selectionWrapper.className =
-      'catalog-select-toggle absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-gray-600 shadow-sm';
-    selectionWrapper.title = 'Selecionar produto';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className =
-      'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+  const selectionWrapper = document.createElement('label');
+  selectionWrapper.className =
+    'catalog-select-toggle absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-gray-600 shadow-sm';
+  selectionWrapper.title = 'Selecionar produto';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className =
+    'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
+  if (interactive) {
     checkbox.checked = selectedProducts.has(produto.id);
     checkbox.addEventListener('change', (event) => {
       handleProductSelection(produto.id, event.target.checked);
       setCardSelectedState(card, selectedProducts.has(produto.id));
     });
-    const checkboxLabel = document.createElement('span');
-    checkboxLabel.textContent = 'Selecionar';
-    selectionWrapper.append(checkbox, checkboxLabel);
-    card.appendChild(selectionWrapper);
+  } else {
+    checkbox.checked = false;
+  }
+  const checkboxLabel = document.createElement('span');
+  checkboxLabel.textContent = 'Selecionar';
+  selectionWrapper.append(checkbox, checkboxLabel);
+  card.appendChild(selectionWrapper);
 
-    const body = document.createElement('div');
-    body.className = 'flex flex-1 flex-col gap-4 p-4';
+  const body = document.createElement('div');
+  body.className = 'flex flex-1 flex-col gap-4 p-4';
 
-    const topSection = document.createElement('div');
-    topSection.className = 'flex flex-col gap-3 sm:flex-row sm:items-start';
+  const topSection = document.createElement('div');
+  topSection.className = 'flex flex-col gap-3 sm:flex-row sm:items-start';
 
-    const imageWrapper = document.createElement('div');
-    imageWrapper.className =
-      'relative flex h-28 w-full flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 sm:h-28 sm:w-28';
-    const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
-    const primeiraFoto = fotos.find((foto) => foto?.url);
-    if (primeiraFoto) {
-      const img = document.createElement('img');
-      img.src = primeiraFoto.url;
-      img.alt = produto.nome || primeiraFoto.nome || 'Produto';
-      img.className = 'h-full w-full object-cover';
-      imageWrapper.appendChild(img);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.className =
-        'flex h-full w-full items-center justify-center text-gray-400';
-      placeholder.innerHTML = '<i class="fa-solid fa-image text-3xl"></i>';
-      imageWrapper.appendChild(placeholder);
-    }
-    topSection.appendChild(imageWrapper);
+  const imageWrapper = document.createElement('div');
+  imageWrapper.className =
+    'relative flex h-28 w-full flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 sm:h-28 sm:w-28';
+  const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
+  const primeiraFoto = fotos.find((foto) => foto?.url);
+  if (primeiraFoto) {
+    const img = document.createElement('img');
+    img.src = primeiraFoto.url;
+    img.alt = produto.nome || primeiraFoto.nome || 'Produto';
+    img.className = 'h-full w-full object-cover';
+    img.crossOrigin = 'anonymous';
+    imageWrapper.appendChild(img);
+  } else {
+    const placeholder = document.createElement('div');
+    placeholder.className =
+      'flex h-full w-full items-center justify-center text-gray-400';
+    placeholder.innerHTML = '<i class="fa-solid fa-image text-3xl"></i>';
+    imageWrapper.appendChild(placeholder);
+  }
+  topSection.appendChild(imageWrapper);
 
-    const details = document.createElement('div');
-    details.className = 'flex-1 min-w-0 space-y-2';
+  const details = document.createElement('div');
+  details.className = 'flex-1 min-w-0 space-y-2';
 
-    const title = document.createElement('h3');
-    title.className =
-      'text-base font-semibold leading-snug text-gray-900 break-words';
-    title.textContent = produto.nome || 'Produto sem nome';
-    details.appendChild(title);
+  const title = document.createElement('h3');
+  title.className =
+    'text-base font-semibold leading-snug text-gray-900 break-words';
+  title.textContent = produto.nome || 'Produto sem nome';
+  details.appendChild(title);
 
-    const badges = document.createElement('div');
-    badges.className =
-      'flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide';
-    const skuBadge = document.createElement('span');
-    skuBadge.className =
-      'inline-flex max-w-full items-center rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700 whitespace-normal break-words';
-    skuBadge.textContent = `SKU ${produto.sku || '--'}`;
-    badges.appendChild(skuBadge);
+  const badges = document.createElement('div');
+  badges.className =
+    'flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide';
+  const skuBadge = document.createElement('span');
+  skuBadge.className =
+    'inline-flex max-w-full items-center rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700 whitespace-normal break-words';
+  skuBadge.textContent = `SKU ${produto.sku || '--'}`;
+  badges.appendChild(skuBadge);
 
-    const categoriaBadge = document.createElement('span');
-    categoriaBadge.className =
-      'inline-flex max-w-full items-center rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 whitespace-normal break-words';
-    const categoriaTexto = produto.categoria
-      ? produto.categoria.toString().trim() || 'Sem categoria'
-      : 'Sem categoria';
-    categoriaBadge.textContent = categoriaTexto;
-    badges.appendChild(categoriaBadge);
-    details.appendChild(badges);
+  const categoriaBadge = document.createElement('span');
+  categoriaBadge.className =
+    'inline-flex max-w-full items-center rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 whitespace-normal break-words';
+  const categoriaTexto = produto.categoria
+    ? produto.categoria.toString().trim() || 'Sem categoria'
+    : 'Sem categoria';
+  categoriaBadge.textContent = categoriaTexto;
+  badges.appendChild(categoriaBadge);
+  details.appendChild(badges);
 
-    const variacoes = Array.isArray(produto.variacoesCor)
-      ? produto.variacoesCor.filter((item) => item && item.cor)
-      : [];
-    if (variacoes.length) {
-      const variacoesInfo = document.createElement('p');
-      variacoesInfo.className = 'text-xs text-gray-500 break-words';
-      variacoesInfo.textContent = `Cores: ${variacoes
-        .map((item) => item.cor)
-        .join(', ')}`;
-      details.appendChild(variacoesInfo);
-    }
+  const variacoes = Array.isArray(produto.variacoesCor)
+    ? produto.variacoesCor.filter((item) => item && item.cor)
+    : [];
+  if (variacoes.length) {
+    const variacoesInfo = document.createElement('p');
+    variacoesInfo.className = 'text-xs text-gray-500 break-words';
+    variacoesInfo.textContent = `Cores: ${variacoes
+      .map((item) => item.cor)
+      .join(', ')}`;
+    details.appendChild(variacoesInfo);
+  }
 
-    topSection.appendChild(details);
-    body.appendChild(topSection);
+  topSection.appendChild(details);
+  body.appendChild(topSection);
 
-    const infoGrid = document.createElement('div');
-    infoGrid.className = 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3';
+  const infoGrid = document.createElement('div');
+  infoGrid.className = 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3';
 
-    const medidasBox = document.createElement('div');
-    medidasBox.className =
-      'rounded-lg border border-gray-200 bg-gray-50 p-3 shadow-sm';
-    const medidasTitulo = document.createElement('p');
-    medidasTitulo.className =
-      'text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500';
-    medidasTitulo.textContent = 'Medidas';
-    medidasBox.appendChild(medidasTitulo);
-    const medidasLista = document.createElement('div');
-    medidasLista.className = 'mt-2 grid gap-2';
-    medidasLista.appendChild(
-      createInfoItem('Produto', produto.medidas || '--', {
-        valueClass: 'text-gray-700',
-      }),
-    );
-    medidasLista.appendChild(
-      createInfoItem('Embalagem', produto.tamanhoEmbalagem || '--', {
-        valueClass: 'text-gray-700',
-      }),
-    );
-    medidasBox.appendChild(medidasLista);
-    infoGrid.appendChild(medidasBox);
+  const medidasBox = document.createElement('div');
+  medidasBox.className =
+    'rounded-lg border border-gray-200 bg-gray-50 p-3 shadow-sm';
+  const medidasTitulo = document.createElement('p');
+  medidasTitulo.className =
+    'text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500';
+  medidasTitulo.textContent = 'Medidas';
+  medidasBox.appendChild(medidasTitulo);
+  const medidasLista = document.createElement('div');
+  medidasLista.className = 'mt-2 grid gap-2';
+  medidasLista.appendChild(
+    createCatalogInfoItem('Produto', produto.medidas || '--', {
+      valueClass: 'text-gray-700',
+    }),
+  );
+  medidasLista.appendChild(
+    createCatalogInfoItem('Embalagem', produto.tamanhoEmbalagem || '--', {
+      valueClass: 'text-gray-700',
+    }),
+  );
+  medidasBox.appendChild(medidasLista);
+  infoGrid.appendChild(medidasBox);
 
-    const componentesBox = document.createElement('div');
-    componentesBox.className =
-      'rounded-lg border border-yellow-200 bg-yellow-50 p-3 shadow-sm';
-    const componentesTitulo = document.createElement('p');
-    componentesTitulo.className =
-      'text-[0.7rem] font-semibold uppercase tracking-wide text-yellow-700';
-    componentesTitulo.textContent = 'Componentes';
-    componentesBox.appendChild(componentesTitulo);
-    const componentesLista = document.createElement('div');
-    componentesLista.className = 'mt-2 grid gap-2';
-    const componentesDados =
-      produto && typeof produto.componentes === 'object'
-        ? produto.componentes
-        : {};
-    const parafusosQuantidade = normalizeComponentQuantity(
-      getFirstAvailableValue(componentesDados, ['parafusos', 'qtdParafusos']),
-    );
-    const puxadorDisplay = getPuxadorDisplay(produto);
-    const outrosDisplays = getAdditionalComponentDisplays(produto).filter(
-      (valor) => valor && valor.trim(),
-    );
+  const componentesBox = document.createElement('div');
+  componentesBox.className =
+    'rounded-lg border border-yellow-200 bg-yellow-50 p-3 shadow-sm';
+  const componentesTitulo = document.createElement('p');
+  componentesTitulo.className =
+    'text-[0.7rem] font-semibold uppercase tracking-wide text-yellow-700';
+  componentesTitulo.textContent = 'Componentes';
+  componentesBox.appendChild(componentesTitulo);
+  const componentesLista = document.createElement('div');
+  componentesLista.className = 'mt-2 grid gap-2';
+  const componentesDados =
+    produto && typeof produto.componentes === 'object'
+      ? produto.componentes
+      : {};
+  const parafusosQuantidade = normalizeComponentQuantity(
+    getFirstAvailableValue(componentesDados, ['parafusos', 'qtdParafusos']),
+  );
+  const puxadorDisplay = getPuxadorDisplay(produto);
+  const outrosDisplays = getAdditionalComponentDisplays(produto).filter(
+    (valor) => valor && valor.trim(),
+  );
+  componentesLista.appendChild(
+    createCatalogInfoItem(
+      'Parafusos',
+      formatComponentQuantityForDisplay(parafusosQuantidade),
+      {
+        valueClass: 'text-gray-800',
+      },
+    ),
+  );
+  componentesLista.appendChild(
+    createCatalogInfoItem('Puxador', puxadorDisplay, {
+      valueClass: 'text-gray-800',
+    }),
+  );
+  if (!outrosDisplays.length) {
     componentesLista.appendChild(
-      createInfoItem(
-        'Parafusos',
-        formatComponentQuantityForDisplay(parafusosQuantidade),
-        {
-          valueClass: 'text-gray-800',
-        },
-      ),
-    );
-    componentesLista.appendChild(
-      createInfoItem('Puxador', puxadorDisplay, {
+      createCatalogInfoItem('Outros', '--', {
         valueClass: 'text-gray-800',
       }),
     );
-    if (!outrosDisplays.length) {
+  } else {
+    outrosDisplays.slice(0, 2).forEach((display, index) => {
       componentesLista.appendChild(
-        createInfoItem('Outros', '--', {
+        createCatalogInfoItem(`Outros ${index + 1}`, display, {
           valueClass: 'text-gray-800',
         }),
       );
-    } else {
-      outrosDisplays.slice(0, 2).forEach((display, index) => {
-        componentesLista.appendChild(
-          createInfoItem(`Outros ${index + 1}`, display, {
-            valueClass: 'text-gray-800',
-          }),
-        );
-      });
-    }
-    componentesBox.appendChild(componentesLista);
-    infoGrid.appendChild(componentesBox);
+    });
+  }
+  componentesBox.appendChild(componentesLista);
+  infoGrid.appendChild(componentesBox);
 
-    const valoresBox = document.createElement('div');
-    valoresBox.className =
-      'rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-sm';
-    const valoresTitulo = document.createElement('p');
-    valoresTitulo.className =
-      'text-[0.7rem] font-semibold uppercase tracking-wide text-emerald-700';
-    valoresTitulo.textContent = 'Valores sugeridos';
-    valoresBox.appendChild(valoresTitulo);
-    const valoresLista = document.createElement('div');
-    valoresLista.className = 'mt-2 grid gap-2';
-    valoresLista.appendChild(
-      createInfoItem('Custo', formatCurrency(getProductCost(produto)), {
+  const valoresBox = document.createElement('div');
+  valoresBox.className =
+    'rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-sm';
+  const valoresTitulo = document.createElement('p');
+  valoresTitulo.className =
+    'text-[0.7rem] font-semibold uppercase tracking-wide text-emerald-700';
+  valoresTitulo.textContent = 'Valores sugeridos';
+  valoresBox.appendChild(valoresTitulo);
+  const valoresLista = document.createElement('div');
+  valoresLista.className = 'mt-2 grid gap-2';
+  valoresLista.appendChild(
+    createCatalogInfoItem('Custo', formatCurrency(getProductCost(produto)), {
+      valueClass: 'text-base font-bold text-emerald-800',
+    }),
+  );
+  valoresLista.appendChild(
+    createCatalogInfoItem(
+      'Preço sugerido',
+      formatCurrency(getProductPrice(produto)),
+      {
         valueClass: 'text-base font-bold text-emerald-800',
-      }),
-    );
-    valoresLista.appendChild(
-      createInfoItem(
-        'Preço sugerido',
-        formatCurrency(getProductPrice(produto)),
-        {
-          valueClass: 'text-base font-bold text-emerald-800',
-        },
-      ),
-    );
-    valoresBox.appendChild(valoresLista);
-    infoGrid.appendChild(valoresBox);
+      },
+    ),
+  );
+  valoresBox.appendChild(valoresLista);
+  infoGrid.appendChild(valoresBox);
 
-    body.appendChild(infoGrid);
+  body.appendChild(infoGrid);
 
-    const actions = document.createElement('div');
-    actions.className =
-      'mt-auto flex flex-wrap items-center justify-end gap-2 pt-1 text-xs';
+  const actions = document.createElement('div');
+  actions.className =
+    'mt-auto flex flex-wrap items-center justify-end gap-2 pt-1 text-xs';
 
-    const detailsBtn = document.createElement('button');
-    detailsBtn.type = 'button';
-    detailsBtn.className =
-      'inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400';
-    detailsBtn.innerHTML =
-      '<i class="fa-solid fa-circle-info"></i><span>Detalhes</span>';
+  const detailsBtn = document.createElement('button');
+  detailsBtn.type = 'button';
+  detailsBtn.className =
+    'inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400';
+  detailsBtn.innerHTML =
+    '<i class="fa-solid fa-circle-info"></i><span>Detalhes</span>';
+  if (interactive) {
     detailsBtn.addEventListener('click', () => openModal(produto));
-    actions.appendChild(detailsBtn);
+  }
+  actions.appendChild(detailsBtn);
 
-    if (canEdit) {
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className =
-        'inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400';
-      editBtn.innerHTML =
-        '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
+  if (canEdit) {
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className =
+      'inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400';
+    editBtn.innerHTML =
+      '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
+    if (interactive) {
       editBtn.addEventListener('click', () => startEditingProduct(produto));
-      actions.appendChild(editBtn);
+    }
+    actions.appendChild(editBtn);
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className =
-        'inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400';
-      deleteBtn.innerHTML =
-        '<i class="fa-solid fa-trash-can"></i><span>Excluir</span>';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className =
+      'inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400';
+    deleteBtn.innerHTML =
+      '<i class="fa-solid fa-trash-can"></i><span>Excluir</span>';
+    if (interactive) {
       deleteBtn.addEventListener('click', () =>
         handleDeleteProduct(produto, deleteBtn),
       );
-      actions.appendChild(deleteBtn);
     }
+    actions.appendChild(deleteBtn);
+  }
 
-    body.appendChild(actions);
-    card.appendChild(body);
+  body.appendChild(actions);
+  card.appendChild(body);
 
-    const cardDriveLink =
-      produto.driveFolderLink || produto.driveLink || produto.linkDrive;
-    const footer = document.createElement('div');
-    footer.className = 'border-t border-gray-200 bg-gray-50 px-4 py-3';
-    if (cardDriveLink) {
-      const driveBtn = document.createElement('a');
-      driveBtn.href = cardDriveLink;
-      driveBtn.target = '_blank';
-      driveBtn.rel = 'noopener noreferrer';
-      driveBtn.className =
-        'inline-flex w-full items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:text-indigo-500';
-      driveBtn.innerHTML =
-        '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta de fotos</span>';
-      footer.appendChild(driveBtn);
-    } else {
-      const drivePlaceholder = document.createElement('div');
-      drivePlaceholder.className =
-        'inline-flex w-full items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500';
-      drivePlaceholder.innerHTML =
-        '<i class="fa-solid fa-folder-open"></i><span>Pasta de fotos não cadastrada</span>';
-      footer.appendChild(drivePlaceholder);
+  const cardDriveLink =
+    produto.driveFolderLink || produto.driveLink || produto.linkDrive;
+  const footer = document.createElement('div');
+  footer.className = 'border-t border-gray-200 bg-gray-50 px-4 py-3';
+  if (cardDriveLink) {
+    const driveBtn = document.createElement('a');
+    driveBtn.href = cardDriveLink;
+    driveBtn.target = '_blank';
+    driveBtn.rel = 'noopener noreferrer';
+    driveBtn.className =
+      'inline-flex w-full items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:text-indigo-500';
+    driveBtn.innerHTML =
+      '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta de fotos</span>';
+    if (!interactive) {
+      driveBtn.setAttribute('tabindex', '-1');
     }
-    card.appendChild(footer);
+    footer.appendChild(driveBtn);
+  } else {
+    const drivePlaceholder = document.createElement('div');
+    drivePlaceholder.className =
+      'inline-flex w-full items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500';
+    drivePlaceholder.innerHTML =
+      '<i class="fa-solid fa-folder-open"></i><span>Pasta de fotos não cadastrada</span>';
+    footer.appendChild(drivePlaceholder);
+  }
+  card.appendChild(footer);
 
+  return card;
+}
+
+function renderCardView(displayItems) {
+  if (!cardsContainer) return;
+
+  displayItems.forEach((produto) => {
+    if (!produto) return;
+    const card = buildCatalogCardElement(produto, { interactive: true });
+    if (!card) return;
     setCardSelectedState(card, selectedProducts.has(produto.id));
-    cardsContainer?.appendChild(card);
+    cardsContainer.appendChild(card);
   });
 }
 
