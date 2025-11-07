@@ -198,6 +198,161 @@ h4 {
   font-size: 1.1rem;
 }
 
+/* === Catálogo de produtos === */
+.catalog-card {
+  border-radius: 0.85rem;
+  border-color: #e5e7eb;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+  background-color: #ffffff;
+}
+
+.catalog-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+}
+
+.catalog-card__header {
+  background: #fef3c7;
+  border-bottom: 1px solid #fcd34d;
+  padding: 0.9rem 1.1rem;
+}
+
+.catalog-card__title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.catalog-card__media {
+  padding: 1rem 1.1rem 1.25rem;
+}
+
+.catalog-card__media-frame {
+  height: 11rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+}
+
+.catalog-card__media-frame img {
+  object-fit: cover;
+}
+
+.catalog-card__badges {
+  gap: 0.5rem;
+}
+
+.catalog-card__badge {
+  background-color: #f3f4f6;
+  color: #374151;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.catalog-card__block {
+  border-color: #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.catalog-card__block-title {
+  color: #4b5563;
+  letter-spacing: 0.08em;
+}
+
+.catalog-card__info-grid {
+  gap: 0.75rem;
+}
+
+.catalog-card__info-cell {
+  border-color: #e5e7eb;
+  background-color: #ffffff;
+  gap: 0.35rem;
+}
+
+.catalog-card__info-label {
+  font-size: 0.68rem;
+  color: #6b7280;
+  letter-spacing: 0.1em;
+}
+
+.catalog-card__info-value {
+  font-size: 0.875rem;
+  color: #1f2937;
+}
+
+.catalog-card__block--finance {
+  border-color: rgba(16, 185, 129, 0.35);
+  background-color: #ecfdf5;
+}
+
+.catalog-card__block--finance .catalog-card__info-cell {
+  background-color: #d1fae5;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.catalog-card__actions {
+  padding-top: 0.5rem;
+}
+
+.catalog-card__action-btn {
+  font-size: 0.7rem;
+  text-transform: none;
+  border-radius: 0.55rem;
+}
+
+.catalog-card__footer {
+  background: #fef3c7;
+  border-top: 1px solid #fcd34d;
+}
+
+.catalog-card__footer a,
+.catalog-card__footer div {
+  font-weight: 600;
+}
+
+.catalog-card__selection {
+  background-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+}
+
+.catalog-card__selection input {
+  margin-top: 1px;
+}
+
+/* Print adjustments to keep the same layout when exporting */
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  #catalogCards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+
+  .catalog-card {
+    break-inside: avoid;
+    box-shadow: none;
+    border-color: #d1d5db;
+    transform: none !important;
+  }
+
+  .catalog-card,
+  .catalog-card__header,
+  .catalog-card__footer,
+  .catalog-card__badge,
+  .catalog-card__info-cell,
+  .catalog-card__block--finance {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 .result {
   background: #f8f9fa;
   padding: 20px;
