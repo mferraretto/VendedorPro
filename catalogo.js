@@ -1747,17 +1747,16 @@ function renderCardView(displayItems) {
   ) => {
     const wrapper = document.createElement('div');
     wrapper.className =
-      'catalog-card__info-cell flex flex-col gap-1 rounded-md border border-gray-200 bg-white px-3 py-2 ' +
+      'flex flex-col gap-1 rounded-lg bg-white px-3 py-2 shadow-inner ' +
       containerClass;
     const labelEl = document.createElement('span');
     labelEl.className =
-      'catalog-card__info-label text-[11px] font-medium uppercase tracking-wide text-gray-500 ' +
+      'text-xs font-semibold uppercase tracking-wide text-gray-600 ' +
       labelClass;
     labelEl.textContent = label;
     const valueEl = document.createElement('span');
     valueEl.className =
-      'catalog-card__info-value text-sm font-semibold text-gray-900 whitespace-pre-wrap ' +
-      valueClass;
+      'text-sm font-semibold text-gray-900 whitespace-pre-wrap ' + valueClass;
     const resolvedValue =
       typeof value === 'string'
         ? value.trim() || '--'
@@ -1773,13 +1772,13 @@ function renderCardView(displayItems) {
     if (!produto) return;
     const card = document.createElement('article');
     card.className =
-      'catalog-card relative flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md';
+      'relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-md transition hover:shadow-lg';
     card.dataset.productId = produto.id || '';
     card.dataset.viewType = 'card';
 
     const selectionWrapper = document.createElement('label');
     selectionWrapper.className =
-      'catalog-card__selection catalog-select-toggle absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-gray-700 shadow';
+      'catalog-select-toggle absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-gray-700 shadow';
     selectionWrapper.title = 'Selecionar produto';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -1796,21 +1795,20 @@ function renderCardView(displayItems) {
     card.appendChild(selectionWrapper);
 
     const header = document.createElement('div');
-    header.className =
-      'catalog-card__header flex flex-col gap-1 border-b border-yellow-200 bg-yellow-50 px-4 py-3 text-left';
+    header.className = 'bg-yellow-300 px-4 py-3 text-center';
     const headerTitle = document.createElement('h3');
     headerTitle.className =
-      'catalog-card__title text-lg font-semibold leading-snug text-gray-900';
+      'text-base font-bold uppercase tracking-wide text-gray-900';
     headerTitle.textContent = produto.nome || 'Produto sem nome';
     header.appendChild(headerTitle);
     card.appendChild(header);
 
     const imageSection = document.createElement('div');
     imageSection.className =
-      'catalog-card__media relative flex flex-col items-center border-b border-gray-200 bg-white px-4 pt-4 pb-6';
+      'relative flex flex-col items-center border-b border-gray-200 bg-white px-6 pt-5 pb-10';
     const imageFrame = document.createElement('div');
     imageFrame.className =
-      'catalog-card__media-frame relative flex h-44 w-full max-w-sm items-center justify-center overflow-hidden rounded-lg border border-yellow-200 bg-gray-100';
+      'relative flex h-48 w-full max-w-sm items-center justify-center overflow-hidden rounded-xl border-4 border-yellow-200 bg-gray-100 shadow-inner';
     const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
     const primeiraFoto = fotos.find((foto) => foto?.url);
     if (primeiraFoto) {
@@ -1827,70 +1825,65 @@ function renderCardView(displayItems) {
       imageFrame.appendChild(placeholder);
     }
 
+    const imageOverlay = document.createElement('div');
+    imageOverlay.className =
+      'pointer-events-none absolute inset-x-0 bottom-0 flex justify-between px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-900';
+    const skuBadge = document.createElement('span');
+    skuBadge.className = 'rounded-md bg-white/90 px-3 py-1 shadow-md';
+    skuBadge.textContent = `SKU = ${produto.sku || '--'}`;
+    const categoriaBadge = document.createElement('span');
+    categoriaBadge.className = 'rounded-md bg-white/90 px-3 py-1 shadow-md';
+    const categoriaTexto = produto.categoria
+      ? produto.categoria.toString().trim().toUpperCase()
+      : 'SEM CATEGORIA';
+    categoriaBadge.textContent = categoriaTexto || 'SEM CATEGORIA';
+    imageOverlay.append(skuBadge, categoriaBadge);
+    imageFrame.appendChild(imageOverlay);
+
     imageSection.appendChild(imageFrame);
     card.appendChild(imageSection);
 
     const content = document.createElement('div');
-    content.className =
-      'catalog-card__content flex flex-1 flex-col gap-4 px-4 py-4';
-
-    const badgesRow = document.createElement('div');
-    badgesRow.className =
-      'catalog-card__badges flex flex-wrap items-center gap-2 text-xs font-medium text-gray-700';
-    const skuBadge = document.createElement('span');
-    skuBadge.className =
-      'catalog-card__badge rounded-full bg-gray-100 px-3 py-1 text-gray-700';
-    skuBadge.textContent = `SKU: ${produto.sku || '--'}`;
-    const categoriaBadge = document.createElement('span');
-    categoriaBadge.className =
-      'catalog-card__badge rounded-full bg-gray-100 px-3 py-1 text-gray-700';
-    const categoriaTexto = produto.categoria
-      ? produto.categoria.toString().trim()
-      : 'Sem categoria';
-    categoriaBadge.textContent = categoriaTexto || 'Sem categoria';
-    badgesRow.append(skuBadge, categoriaBadge);
-    content.appendChild(badgesRow);
+    content.className = 'flex flex-1 flex-col gap-4 px-5 py-4';
 
     const measuresSection = document.createElement('div');
     measuresSection.className =
-      'catalog-card__block rounded-lg border border-gray-200 bg-gray-50 px-3 py-3';
+      'rounded-2xl border-2 border-gray-200 bg-gray-100 px-4 py-4';
     const measuresHeading = document.createElement('p');
     measuresHeading.className =
-      'catalog-card__block-title text-center text-xs font-semibold uppercase tracking-wide text-gray-600';
+      'text-center text-xs font-semibold uppercase tracking-wide text-gray-700';
     measuresHeading.textContent = 'Medidas do produto / Medidas da embalagem';
     measuresSection.appendChild(measuresHeading);
 
     const measuresGrid = document.createElement('div');
-    measuresGrid.className =
-      'catalog-card__info-grid mt-3 grid gap-3 sm:grid-cols-2';
+    measuresGrid.className = 'mt-3 grid gap-3 sm:grid-cols-2';
     measuresGrid.appendChild(
       createInfoCell('Produto', produto.medidas || '--', {
-        containerClass: 'border-gray-200',
+        containerClass: 'border border-gray-300',
       }),
     );
     measuresGrid.appendChild(
       createInfoCell('Embalagem', produto.tamanhoEmbalagem || '--', {
-        containerClass: 'border-gray-200',
+        containerClass: 'border border-gray-300',
       }),
     );
     measuresSection.appendChild(measuresGrid);
     content.appendChild(measuresSection);
 
     const infoRow = document.createElement('div');
-    infoRow.className = 'catalog-card__info-row grid gap-4 md:grid-cols-2';
+    infoRow.className = 'flex flex-col gap-4 lg:flex-row';
 
     const componentsSection = document.createElement('div');
     componentsSection.className =
-      'catalog-card__block flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3';
+      'flex-1 rounded-2xl border-2 border-gray-200 bg-gray-100 px-4 py-4';
     const componentsTitle = document.createElement('p');
     componentsTitle.className =
-      'catalog-card__block-title text-xs font-semibold uppercase tracking-wide text-gray-600';
+      'text-sm font-semibold uppercase tracking-wide text-gray-700';
     componentsTitle.textContent = 'Componentes';
     componentsSection.appendChild(componentsTitle);
 
     const componentsGrid = document.createElement('div');
-    componentsGrid.className =
-      'catalog-card__info-grid mt-3 grid grid-cols-2 gap-3';
+    componentsGrid.className = 'mt-3 grid grid-cols-2 gap-3';
     const componentes =
       produto && typeof produto.componentes === 'object'
         ? produto.componentes
@@ -1906,26 +1899,26 @@ function renderCardView(displayItems) {
         'Parafusos',
         formatComponentQuantityForDisplay(parafusosQuantidade),
         {
-          containerClass: 'border-yellow-200 bg-white',
+          containerClass: 'border border-yellow-300 bg-yellow-50',
           valueClass: 'text-sm font-semibold text-gray-800',
         },
       ),
     );
     componentsGrid.appendChild(
       createInfoCell('Puxador', puxadorDisplay, {
-        containerClass: 'border-yellow-200 bg-white',
+        containerClass: 'border border-yellow-300 bg-yellow-50',
         valueClass: 'text-sm font-semibold text-gray-800',
       }),
     );
     componentsGrid.appendChild(
       createInfoCell('Outros', outrosDisplays[0] || '--', {
-        containerClass: 'border-yellow-200 bg-white',
+        containerClass: 'border border-yellow-300 bg-yellow-50',
         valueClass: 'text-sm font-semibold text-gray-800',
       }),
     );
     componentsGrid.appendChild(
       createInfoCell('Outros', outrosDisplays[1] || '--', {
-        containerClass: 'border-yellow-200 bg-white',
+        containerClass: 'border border-yellow-300 bg-yellow-50',
         valueClass: 'text-sm font-semibold text-gray-800',
       }),
     );
@@ -1934,20 +1927,20 @@ function renderCardView(displayItems) {
 
     const financeSection = document.createElement('div');
     financeSection.className =
-      'catalog-card__block catalog-card__block--finance flex w-full flex-col gap-3 rounded-lg border border-green-200 bg-white px-3 py-3 text-gray-900';
+      'flex w-full flex-col rounded-2xl border-2 border-green-300 bg-green-100 px-4 py-4 text-gray-900 lg:w-64';
     const financeTitle = document.createElement('p');
     financeTitle.className =
-      'catalog-card__block-title text-xs font-semibold uppercase tracking-wide text-green-700';
+      'text-sm font-semibold uppercase tracking-wide text-green-900';
     financeTitle.textContent = 'Custo / Preço sugerido';
     financeSection.appendChild(financeTitle);
 
     const financeValues = document.createElement('div');
-    financeValues.className = 'mt-1 flex flex-col gap-2';
+    financeValues.className = 'mt-3 flex flex-col gap-3';
     financeValues.appendChild(
       createInfoCell('Custo', formatCurrency(getProductCost(produto)), {
-        containerClass: 'border-green-200 bg-green-50',
+        containerClass: 'border border-green-300 bg-white',
         labelClass: 'text-green-700',
-        valueClass: 'text-base font-semibold text-green-900',
+        valueClass: 'text-base font-bold text-green-900',
       }),
     );
     financeValues.appendChild(
@@ -1955,9 +1948,9 @@ function renderCardView(displayItems) {
         'Preço sugerido',
         formatCurrency(getProductPrice(produto)),
         {
-          containerClass: 'border-green-200 bg-green-50',
+          containerClass: 'border border-green-300 bg-white',
           labelClass: 'text-green-700',
-          valueClass: 'text-base font-semibold text-green-900',
+          valueClass: 'text-base font-bold text-green-900',
         },
       ),
     );
@@ -1968,12 +1961,12 @@ function renderCardView(displayItems) {
 
     const actions = document.createElement('div');
     actions.className =
-      'catalog-card__actions mt-auto flex flex-wrap items-center justify-end gap-2 pt-2';
+      'mt-auto flex flex-wrap items-center justify-end gap-2 pt-2';
 
     const detailsBtn = document.createElement('button');
     detailsBtn.type = 'button';
     detailsBtn.className =
-      'catalog-card__action-btn inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400';
+      'inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400';
     detailsBtn.innerHTML =
       '<i class="fa-solid fa-circle-info"></i><span>Detalhes</span>';
     detailsBtn.addEventListener('click', () => openModal(produto));
@@ -1983,7 +1976,7 @@ function renderCardView(displayItems) {
       const editBtn = document.createElement('button');
       editBtn.type = 'button';
       editBtn.className =
-        'catalog-card__action-btn inline-flex items-center gap-2 rounded-md bg-purple-600 px-3 py-2 text-xs font-semibold text-white shadow transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400';
+        'inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400';
       editBtn.innerHTML =
         '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
       editBtn.addEventListener('click', () => startEditingProduct(produto));
@@ -1992,7 +1985,7 @@ function renderCardView(displayItems) {
       const deleteBtn = document.createElement('button');
       deleteBtn.type = 'button';
       deleteBtn.className =
-        'catalog-card__action-btn inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white shadow transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400';
+        'inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400';
       deleteBtn.innerHTML =
         '<i class="fa-solid fa-trash-can"></i><span>Excluir</span>';
       deleteBtn.addEventListener('click', () =>
@@ -2007,22 +2000,21 @@ function renderCardView(displayItems) {
     const cardDriveLink =
       produto.driveFolderLink || produto.driveLink || produto.linkDrive;
     const footer = document.createElement('div');
-    footer.className =
-      'catalog-card__footer border-t border-yellow-100 bg-yellow-50 px-4 py-3';
+    footer.className = 'bg-yellow-300 px-4 py-3';
     if (cardDriveLink) {
       const driveBtn = document.createElement('a');
       driveBtn.href = cardDriveLink;
       driveBtn.target = '_blank';
       driveBtn.rel = 'noopener noreferrer';
       driveBtn.className =
-        'inline-flex w-full items-center justify-center gap-2 text-sm font-semibold text-gray-800 transition hover:text-gray-900';
+        'inline-flex w-full items-center justify-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-900 transition hover:text-gray-800';
       driveBtn.innerHTML =
         '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta de fotos (Abrir pasta Driver)</span>';
       footer.appendChild(driveBtn);
     } else {
       const drivePlaceholder = document.createElement('div');
       drivePlaceholder.className =
-        'inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-gray-600';
+        'inline-flex w-full items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-600';
       drivePlaceholder.innerHTML =
         '<i class="fa-solid fa-folder-open"></i><span>Pasta de fotos não cadastrada</span>';
       footer.appendChild(drivePlaceholder);
