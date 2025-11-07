@@ -50,7 +50,9 @@ const reembolsosExportExcelBtn = document.getElementById(
 );
 const reembolsosExportPdfBtn = document.getElementById('reembolsosExportPdf');
 const reembolsosStatusFiltroEl = document.getElementById('reembolsosStatus');
-const reembolsosModeloExcelBtn = document.getElementById('reembolsosModeloExcel');
+const reembolsosModeloExcelBtn = document.getElementById(
+  'reembolsosModeloExcel',
+);
 const reembolsosImportInput = document.getElementById('reembolsosImportarXlsx');
 
 const REEMBOLSO_STATUS_MAPA = {
@@ -205,7 +207,10 @@ function registrarEventos() {
   pecasImportInput?.addEventListener('change', importarPecasMassa);
   reembolsosExportExcelBtn?.addEventListener('click', exportarReembolsosExcel);
   reembolsosExportPdfBtn?.addEventListener('click', exportarReembolsosPdf);
-  reembolsosModeloExcelBtn?.addEventListener('click', baixarModeloReembolsosExcel);
+  reembolsosModeloExcelBtn?.addEventListener(
+    'click',
+    baixarModeloReembolsosExcel,
+  );
   reembolsosImportInput?.addEventListener('change', importarReembolsosMassa);
   gerarRelatorioBtn?.addEventListener('click', gerarRelatorioCompleto);
 }
@@ -892,8 +897,14 @@ function gerarRelatorioCompleto() {
 
   // Principais problemas (por valor) e problemas mais recorrentes (por quantidade)
   const todosProblemas = [
-    ...pecas.map((p) => ({ problema: p.problema || 'Não informado', valor: Number(p.valorGasto) || 0 })),
-    ...reembolsos.map((r) => ({ problema: r.problema || r.motivo || 'Não informado', valor: Number(r.valor) || 0 })),
+    ...pecas.map((p) => ({
+      problema: p.problema || 'Não informado',
+      valor: Number(p.valorGasto) || 0,
+    })),
+    ...reembolsos.map((r) => ({
+      problema: r.problema || r.motivo || 'Não informado',
+      valor: Number(r.valor) || 0,
+    })),
   ];
   const agrupadosProblemas = agruparMetricas(
     todosProblemas,
@@ -901,8 +912,12 @@ function gerarRelatorioCompleto() {
     (i) => i.valor,
   );
   const principaisProblemas = agrupadosProblemas.slice(0, 5);
-  const problemasRecorrentes = [...agrupadosProblemas].sort((a, b) => b.quantidade - a.quantidade).slice(0, 5);
-  const problemasMaiorGasto = [...agrupadosProblemas].sort((a, b) => b.valor - a.valor).slice(0, 5);
+  const problemasRecorrentes = [...agrupadosProblemas]
+    .sort((a, b) => b.quantidade - a.quantidade)
+    .slice(0, 5);
+  const problemasMaiorGasto = [...agrupadosProblemas]
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 5);
 
   const principaisLojas = agruparMetricas(
     pecas,
@@ -920,7 +935,8 @@ function gerarRelatorioCompleto() {
   const maioresGastos = [
     ...pecas.map((item) => ({
       tipo: 'Peça faltante',
-      descricao: item.peca || item.numero || item.nomeCliente || 'Não informado',
+      descricao:
+        item.peca || item.numero || item.nomeCliente || 'Não informado',
       responsavel: item.usuarioNome || '-',
       data: item.data || '',
       loja: item.loja || '-',
@@ -958,7 +974,9 @@ function gerarRelatorioCompleto() {
       valores: principaisPecas.map((item) => item.quantidade),
     },
     topGastos: {
-      labels: maioresGastos.map((item) => limitarTexto(`${item.tipo}: ${item.descricao}`, 40)),
+      labels: maioresGastos.map((item) =>
+        limitarTexto(`${item.tipo}: ${item.descricao}`, 40),
+      ),
       valores: maioresGastos.map((item) => Number(item.valor.toFixed(2))),
     },
   };
@@ -1037,7 +1055,12 @@ function baixarModeloPecasExcel() {
     'NÃO FEITO',
     25.5,
   ];
-  exportarExcel(gerarNomeArquivo('modelo_pecas_faltantes', 'xlsx'), 'Modelo', headers, [exemplo]);
+  exportarExcel(
+    gerarNomeArquivo('modelo_pecas_faltantes', 'xlsx'),
+    'Modelo',
+    headers,
+    [exemplo],
+  );
 }
 
 function baixarModeloReembolsosExcel() {
@@ -1067,7 +1090,12 @@ function baixarModeloReembolsosExcel() {
     'chave-pix-aqui',
     'AGUARDANDO',
   ];
-  exportarExcel(gerarNomeArquivo('modelo_reembolsos', 'xlsx'), 'Modelo', headers, [exemplo]);
+  exportarExcel(
+    gerarNomeArquivo('modelo_reembolsos', 'xlsx'),
+    'Modelo',
+    headers,
+    [exemplo],
+  );
 }
 
 async function importarPecasMassa(event) {
@@ -1080,7 +1108,10 @@ async function importarPecasMassa(event) {
       alert('Nenhuma linha encontrada na planilha.');
       return;
     }
-    const itensRef = collection(doc(db, 'uid', currentUser.uid, 'problemas', 'pecasfaltando'), 'itens');
+    const itensRef = collection(
+      doc(db, 'uid', currentUser.uid, 'problemas', 'pecasfaltando'),
+      'itens',
+    );
     let inseridos = 0;
     for (const r of rows) {
       const registro = normalizarLinhaPeca(r);
@@ -1105,7 +1136,10 @@ async function importarReembolsosMassa(event) {
       alert('Nenhuma linha encontrada na planilha.');
       return;
     }
-    const itensRef = collection(doc(db, 'uid', currentUser.uid, 'problemas', 'reembolsos'), 'itens');
+    const itensRef = collection(
+      doc(db, 'uid', currentUser.uid, 'problemas', 'reembolsos'),
+      'itens',
+    );
     let inseridos = 0;
     for (const r of rows) {
       const registro = normalizarLinhaReembolso(r);
@@ -1162,7 +1196,8 @@ function normalizarLinhaPeca(r) {
     peca: r.peca || r['peca'] || '',
     problema: r.problema || r['problema'] || '',
     status: (r.status || r['status'] || '').toString().toUpperCase(),
-    valorGasto: Number(r['valor_gasto (R$)'] || r.valor_gasto || r['valor']) || 0,
+    valorGasto:
+      Number(r['valor_gasto (R$)'] || r.valor_gasto || r['valor']) || 0,
   };
 }
 
@@ -1216,21 +1251,19 @@ function exportarPDF(titulo, headers, linhas, nomeArquivo) {
 function obterPeriodoSelecionado() {
   const pecasInicio = document.getElementById('pecasInicio')?.value || '';
   const pecasFim = document.getElementById('pecasFim')?.value || '';
-  const reembolsosInicio = document.getElementById('reembolsosInicio')?.value || '';
+  const reembolsosInicio =
+    document.getElementById('reembolsosInicio')?.value || '';
   const reembolsosFim = document.getElementById('reembolsosFim')?.value || '';
 
-  const datasInicio = [pecasInicio, reembolsosInicio]
-    .filter(Boolean)
-    .sort();
-  const datasFim = [pecasFim, reembolsosFim]
-    .filter(Boolean)
-    .sort();
+  const datasInicio = [pecasInicio, reembolsosInicio].filter(Boolean).sort();
+  const datasFim = [pecasFim, reembolsosFim].filter(Boolean).sort();
 
   const inicio = datasInicio[0] || '';
   const fim = datasFim.length ? datasFim[datasFim.length - 1] : '';
 
   let texto = 'Período completo';
-  if (inicio && fim) texto = `De ${formatarData(inicio)} até ${formatarData(fim)}`;
+  if (inicio && fim)
+    texto = `De ${formatarData(inicio)} até ${formatarData(fim)}`;
   else if (inicio) texto = `A partir de ${formatarData(inicio)}`;
   else if (fim) texto = `Até ${formatarData(fim)}`;
 
@@ -1253,7 +1286,8 @@ function agruparMetricas(lista, chaveFn, valorFn, rotuloFn) {
   const valorFnNormalizado = typeof valorFn === 'function' ? valorFn : () => 0;
 
   lista.forEach((item) => {
-    const chaveOriginal = typeof chaveFn === 'function' ? chaveFn(item) : undefined;
+    const chaveOriginal =
+      typeof chaveFn === 'function' ? chaveFn(item) : undefined;
     const chaveBase = (chaveOriginal ?? 'Não informado').toString().trim();
     const chaveNormalizada = chaveBase || 'Não informado';
     const valor = Number(valorFnNormalizado(item)) || 0;
@@ -1312,7 +1346,8 @@ function gerarHtmlRelatorio(dados) {
   const graficos = dados?.graficos || {};
   const geradoEm = dados?.geradoEm || new Date().toLocaleString('pt-BR');
 
-  const formatarQuantidade = (valor) => Number(valor || 0).toLocaleString('pt-BR');
+  const formatarQuantidade = (valor) =>
+    Number(valor || 0).toLocaleString('pt-BR');
   const formatarMoedaBRL = (valor) => formatarMoeda(Number(valor) || 0);
 
   const criarLinhasTabela = (lista, colunasVazias) => {

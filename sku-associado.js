@@ -31,7 +31,6 @@ let eventosRegistrados = false;
 const COMPONENTES_PADRAO = [
   { nome: 'Fiação', quantidade: null },
   { nome: 'Bocal', quantidade: null },
-
 ];
 
 const CONTEXT_ESCOPOS_PADRAO = [
@@ -286,7 +285,8 @@ function resetarComponentesFormulario(componentes = null) {
 // --------- PRODUTOS COMPOSTOS ---------
 function criarLinhaComposto(item = {}) {
   const linha = document.createElement('div');
-  linha.className = 'composto-row flex flex-col gap-2 md:flex-row md:items-center';
+  linha.className =
+    'composto-row flex flex-col gap-2 md:flex-row md:items-center';
   const inputSku = document.createElement('input');
   inputSku.type = 'text';
   inputSku.className = 'composto-sku flex-1 p-2 border rounded';
@@ -296,10 +296,12 @@ function criarLinhaComposto(item = {}) {
   inputQuantidade.type = 'number';
   inputQuantidade.min = '0';
   inputQuantidade.step = '1';
-  inputQuantidade.className = 'composto-quantidade w-full md:w-32 p-2 border rounded';
+  inputQuantidade.className =
+    'composto-quantidade w-full md:w-32 p-2 border rounded';
   inputQuantidade.placeholder = 'Quantidade';
   const quantidadeSanitizada = sanitizarQuantidadeNumerica(item?.quantidade);
-  inputQuantidade.value = quantidadeSanitizada === null ? '' : quantidadeSanitizada;
+  inputQuantidade.value =
+    quantidadeSanitizada === null ? '' : quantidadeSanitizada;
   const botaoRemover = document.createElement('button');
   botaoRemover.type = 'button';
   botaoRemover.className = 'text-sm font-medium text-red-600';
@@ -321,7 +323,9 @@ function resetarCompostosFormulario(lista = []) {
   const container = document.getElementById('compostosContainer');
   if (!container) return;
   container.innerHTML = '';
-  (Array.isArray(lista) ? lista : []).forEach((it) => adicionarLinhaComposto(it));
+  (Array.isArray(lista) ? lista : []).forEach((it) =>
+    adicionarLinhaComposto(it),
+  );
 }
 
 function normalizarCompostosLista(compostos) {
@@ -403,9 +407,7 @@ function preencherComponentesNoFormulario(componentes = []) {
   const bocalEl = document.getElementById('quantidadeBocal');
   const encontrarQuantidade = (nomeAlvo) => {
     const alvo = normalizarTexto(nomeAlvo);
-    const comp = listaNormalizada.find(
-      (c) => normalizarTexto(c.nome) === alvo,
-    );
+    const comp = listaNormalizada.find((c) => normalizarTexto(c.nome) === alvo);
     return comp?.quantidade ?? null;
   };
   if (fiacaoEl) {
@@ -518,9 +520,7 @@ async function carregarSkus() {
     const quantidadeParafusos = sanitizarQuantidadeParafusos(
       data.quantidadeParafusos,
     );
-    const quantidadePecas = sanitizarQuantidadeNumerica(
-      data.quantidadePecas,
-    );
+    const quantidadePecas = sanitizarQuantidadeNumerica(data.quantidadePecas);
     skuCache.set(docId, {
       ...data,
       id: docId,
