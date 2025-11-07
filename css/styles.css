@@ -1070,12 +1070,63 @@ body.dark-mode .data-table th {
   display: flex;
   align-items: center;
   gap: 20px;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .navbar-left {
   display: flex;
   align-items: center;
   gap: 1rem;
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.navbar-center {
+  display: flex;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 1rem;
+}
+.navbar-center.hidden {
+  display: none;
+}
+.schedule-alert-banner {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.5rem;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 2px solid #f87171;
+  font-weight: 800;
+  font-size: clamp(1rem, 0.9rem + 0.6vw, 1.4rem);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  box-shadow: 0 12px 24px -18px rgba(185, 28, 28, 0.6);
+  text-align: center;
+  line-height: 1.2;
+}
+.schedule-alert-banner:not(.hidden) {
+  display: inline-flex;
+}
+.schedule-alert-banner .alert-title {
+  font-size: inherit;
+}
+.schedule-alert-banner .alert-details {
+  font-weight: 700;
+  font-size: clamp(0.95rem, 0.9rem + 0.4vw, 1.2rem);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+.schedule-alert-banner .alert-extra {
+  font-weight: 600;
+  font-size: clamp(0.85rem, 0.8rem + 0.35vw, 1.05rem);
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
 .navbar-search {
   height: 2.5rem;
@@ -1135,6 +1186,21 @@ body.dark-mode .data-table th {
 .navbar .menu-item.active {
   background-color: var(--nav-hover);
   color: var(--nav-text);
+}
+
+@media (max-width: 768px) {
+  .navbar-center {
+    padding: 0 0.5rem;
+  }
+  .schedule-alert-banner {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .schedule-alert-banner .alert-details,
+  .schedule-alert-banner .alert-extra {
+    font-size: 0.95rem;
+  }
 }
 .user-dropdown {
   display: flex;
