@@ -327,6 +327,67 @@ function getComponentSummaryText(produto) {
     .join(', ');
 }
 
+function formatComponentQuantityForDisplay(quantity) {
+  if (typeof quantity === 'number' && Number.isFinite(quantity)) {
+    return `${quantity}`;
+  }
+  return '--';
+}
+
+function getPuxadorDisplay(produto) {
+  if (!produto || typeof produto !== 'object') return '--';
+  const componentes = produto.componentes;
+  if (!componentes || typeof componentes !== 'object') return '--';
+
+  const descricaoBruta = getFirstAvailableValue(componentes, [
+    'puxadorDescricao',
+    'descricaoPuxador',
+    'puxador',
+    'puxadores',
+    'tipoPuxador',
+    'modeloPuxador',
+    'puxadorTipo',
+  ]);
+  const quantidade = normalizeComponentQuantity(
+    getFirstAvailableValue(componentes, [
+      'puxadorQuantidade',
+      'puxadoresQuantidade',
+    ]),
+  );
+
+  const descricao =
+    typeof descricaoBruta === 'string'
+      ? descricaoBruta.trim()
+      : descricaoBruta && typeof descricaoBruta.toString === 'function'
+        ? descricaoBruta.toString().trim()
+        : '';
+
+  if (quantidade !== null && descricao) {
+    return `${descricao} (${quantidade})`;
+  }
+  if (quantidade !== null) {
+    return `${quantidade}`;
+  }
+  if (descricao) {
+    return descricao;
+  }
+  return '--';
+}
+
+function getAdditionalComponentDisplays(produto) {
+  const entries = getComponentEntries(produto).filter(
+    (entry) => entry && entry.label !== 'Parafusos',
+  );
+  return entries.map((entry) => {
+    if (!entry) return '--';
+    const { label, quantity } = entry;
+    if (typeof quantity === 'number' && Number.isFinite(quantity)) {
+      return `${label} (${quantity})`;
+    }
+    return label;
+  });
+}
+
 function getProductCost(produto) {
   const valores = [
     produto?.custo,
@@ -568,6 +629,59 @@ async function handleDeleteSelectedProducts() {
     );
   } finally {
     setDeleteSelectedButtonLoading(false);
+  }
+}
+
+async function handleDeleteProduct(produto, triggerButton) {
+  if (!canEdit) {
+    showToast(
+      'Você não tem permissão para excluir produtos do catálogo.',
+      'warning',
+    );
+    return;
+  }
+  if (!produto || !produto.id) {
+    showToast('Não foi possível identificar o produto selecionado.', 'error');
+    return;
+  }
+  if (!scopeUid) {
+    showToast(
+      'Não foi possível identificar o responsável pelo catálogo.',
+      'error',
+    );
+    return;
+  }
+
+  const descricao = produto.nome || produto.sku || 'este produto';
+  const confirmationMessage = `Tem certeza que deseja excluir "${descricao}" do catálogo? Esta ação não pode ser desfeita.`;
+  const confirmed =
+    typeof window !== 'undefined' ? window.confirm(confirmationMessage) : true;
+  if (!confirmed) return;
+
+  const button =
+    triggerButton instanceof HTMLButtonElement ? triggerButton : null;
+  const originalContent = button ? button.innerHTML : null;
+  if (button) {
+    button.disabled = true;
+    button.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin"></i><span>Excluindo...</span>';
+  }
+
+  try {
+    const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
+    await deleteDoc(doc(colRef, produto.id));
+    deselectProducts([produto.id]);
+    showToast('Produto excluído com sucesso!', 'success');
+  } catch (error) {
+    console.error('Erro ao excluir produto do catálogo:', error);
+    showToast('Não foi possível excluir o produto. Tente novamente.', 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      if (originalContent !== null) {
+        button.innerHTML = originalContent;
+      }
+    }
   }
 }
 
@@ -1625,35 +1739,46 @@ function generateListPdf(doc, grupos) {
 
 function renderCardView(displayItems) {
   if (!cardsContainer) return;
+
+  const createInfoCell = (
+    label,
+    value,
+    { containerClass = '', labelClass = '', valueClass = '' } = {},
+  ) => {
+    const wrapper = document.createElement('div');
+    wrapper.className =
+      'flex flex-col gap-1 rounded-lg bg-white px-3 py-2 shadow-inner ' +
+      containerClass;
+    const labelEl = document.createElement('span');
+    labelEl.className =
+      'text-xs font-semibold uppercase tracking-wide text-gray-600 ' +
+      labelClass;
+    labelEl.textContent = label;
+    const valueEl = document.createElement('span');
+    valueEl.className =
+      'text-sm font-semibold text-gray-900 whitespace-pre-wrap ' + valueClass;
+    const resolvedValue =
+      typeof value === 'string'
+        ? value.trim() || '--'
+        : value === null || value === undefined
+          ? '--'
+          : `${value}`;
+    valueEl.textContent = resolvedValue;
+    wrapper.append(labelEl, valueEl);
+    return wrapper;
+  };
+
   displayItems.forEach((produto) => {
     if (!produto) return;
-    const card = document.createElement('div');
+    const card = document.createElement('article');
     card.className =
-      'flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md';
+      'relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-md transition hover:shadow-lg';
     card.dataset.productId = produto.id || '';
     card.dataset.viewType = 'card';
 
-    const media = document.createElement('div');
-    media.className = 'relative h-40 w-full bg-gray-100';
-    const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
-    const primeiraFoto = fotos.find((foto) => foto?.url);
-    if (primeiraFoto) {
-      const img = document.createElement('img');
-      img.src = primeiraFoto.url;
-      img.alt = produto.nome || primeiraFoto.nome || 'Produto';
-      img.className = 'h-full w-full object-cover';
-      media.appendChild(img);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.className =
-        'flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-100 text-gray-400';
-      placeholder.innerHTML = '<i class="fa-solid fa-image text-4xl"></i>';
-      media.appendChild(placeholder);
-    }
-
     const selectionWrapper = document.createElement('label');
     selectionWrapper.className =
-      'catalog-select-toggle absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-gray-700 shadow-sm';
+      'catalog-select-toggle absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-gray-700 shadow';
     selectionWrapper.title = 'Selecionar produto';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -1667,101 +1792,234 @@ function renderCardView(displayItems) {
     const checkboxLabel = document.createElement('span');
     checkboxLabel.textContent = 'Selecionar';
     selectionWrapper.append(checkbox, checkboxLabel);
-    media.appendChild(selectionWrapper);
-    card.appendChild(media);
+    card.appendChild(selectionWrapper);
 
-    const body = document.createElement('div');
-    body.className = 'flex flex-1 flex-col px-4 py-4';
+    const header = document.createElement('div');
+    header.className = 'bg-yellow-300 px-4 py-3 text-center';
+    const headerTitle = document.createElement('h3');
+    headerTitle.className =
+      'text-base font-bold uppercase tracking-wide text-gray-900';
+    headerTitle.textContent = produto.nome || 'Produto sem nome';
+    header.appendChild(headerTitle);
+    card.appendChild(header);
 
-    const skuLabel = document.createElement('p');
-    skuLabel.className =
-      'text-xs font-semibold uppercase tracking-wide text-gray-500';
-    skuLabel.textContent = 'SKU';
-
-    const skuValue = document.createElement('p');
-    skuValue.className = 'text-sm font-semibold text-gray-900';
-    skuValue.textContent = produto.sku || '--';
-
-    const nameEl = document.createElement('h3');
-    nameEl.className = 'mt-2 text-lg font-semibold text-gray-900';
-    nameEl.textContent = produto.nome || 'Produto sem nome';
-
-    const categoryEl = document.createElement('p');
-    categoryEl.className = 'mt-1 text-sm text-gray-500';
-    categoryEl.textContent = produto.categoria || 'Sem categoria';
-
-    body.appendChild(skuLabel);
-    body.appendChild(skuValue);
-    body.appendChild(nameEl);
-    body.appendChild(categoryEl);
-
-    if (produto.tamanhoEmbalagem) {
-      const packageEl = document.createElement('p');
-      packageEl.className = 'mt-2 text-xs text-gray-500';
-      packageEl.textContent = `Embalagem: ${produto.tamanhoEmbalagem}`;
-      body.appendChild(packageEl);
+    const imageSection = document.createElement('div');
+    imageSection.className =
+      'relative flex flex-col items-center border-b border-gray-200 bg-white px-6 pt-5 pb-10';
+    const imageFrame = document.createElement('div');
+    imageFrame.className =
+      'relative flex h-48 w-full max-w-sm items-center justify-center overflow-hidden rounded-xl border-4 border-yellow-200 bg-gray-100 shadow-inner';
+    const fotos = Array.isArray(produto.fotos) ? produto.fotos : [];
+    const primeiraFoto = fotos.find((foto) => foto?.url);
+    if (primeiraFoto) {
+      const img = document.createElement('img');
+      img.src = primeiraFoto.url;
+      img.alt = produto.nome || primeiraFoto.nome || 'Produto';
+      img.className = 'h-full w-full object-cover';
+      imageFrame.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className =
+        'flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-100 text-gray-400';
+      placeholder.innerHTML = '<i class="fa-solid fa-image text-4xl"></i>';
+      imageFrame.appendChild(placeholder);
     }
 
-    const componentSummary = getComponentSummaryText(produto);
-    if (componentSummary) {
-      const componentsEl = document.createElement('p');
-      componentsEl.className = 'mt-1 text-xs text-gray-500';
-      componentsEl.textContent = `Componentes: ${componentSummary}`;
-      body.appendChild(componentsEl);
-    }
+    const imageOverlay = document.createElement('div');
+    imageOverlay.className =
+      'pointer-events-none absolute inset-x-0 bottom-0 flex justify-between px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-900';
+    const skuBadge = document.createElement('span');
+    skuBadge.className = 'rounded-md bg-white/90 px-3 py-1 shadow-md';
+    skuBadge.textContent = `SKU = ${produto.sku || '--'}`;
+    const categoriaBadge = document.createElement('span');
+    categoriaBadge.className = 'rounded-md bg-white/90 px-3 py-1 shadow-md';
+    const categoriaTexto = produto.categoria
+      ? produto.categoria.toString().trim().toUpperCase()
+      : 'SEM CATEGORIA';
+    categoriaBadge.textContent = categoriaTexto || 'SEM CATEGORIA';
+    imageOverlay.append(skuBadge, categoriaBadge);
+    imageFrame.appendChild(imageOverlay);
 
-    const variacoes = Array.isArray(produto.variacoesCor)
-      ? produto.variacoesCor.filter((item) => item && item.cor)
-      : [];
-    if (variacoes.length) {
-      const variacoesEl = document.createElement('p');
-      variacoesEl.className = 'mt-2 text-xs text-gray-500';
-      variacoesEl.textContent = `Cores: ${variacoes
-        .map((item) => item.cor)
-        .join(', ')}`;
-      body.appendChild(variacoesEl);
-    }
+    imageSection.appendChild(imageFrame);
+    card.appendChild(imageSection);
+
+    const content = document.createElement('div');
+    content.className = 'flex flex-1 flex-col gap-4 px-5 py-4';
+
+    const measuresSection = document.createElement('div');
+    measuresSection.className =
+      'rounded-2xl border-2 border-gray-200 bg-gray-100 px-4 py-4';
+    const measuresHeading = document.createElement('p');
+    measuresHeading.className =
+      'text-center text-xs font-semibold uppercase tracking-wide text-gray-700';
+    measuresHeading.textContent = 'Medidas do produto / Medidas da embalagem';
+    measuresSection.appendChild(measuresHeading);
+
+    const measuresGrid = document.createElement('div');
+    measuresGrid.className = 'mt-3 grid gap-3 sm:grid-cols-2';
+    measuresGrid.appendChild(
+      createInfoCell('Produto', produto.medidas || '--', {
+        containerClass: 'border border-gray-300',
+      }),
+    );
+    measuresGrid.appendChild(
+      createInfoCell('Embalagem', produto.tamanhoEmbalagem || '--', {
+        containerClass: 'border border-gray-300',
+      }),
+    );
+    measuresSection.appendChild(measuresGrid);
+    content.appendChild(measuresSection);
+
+    const infoRow = document.createElement('div');
+    infoRow.className = 'flex flex-col gap-4 lg:flex-row';
+
+    const componentsSection = document.createElement('div');
+    componentsSection.className =
+      'flex-1 rounded-2xl border-2 border-gray-200 bg-gray-100 px-4 py-4';
+    const componentsTitle = document.createElement('p');
+    componentsTitle.className =
+      'text-sm font-semibold uppercase tracking-wide text-gray-700';
+    componentsTitle.textContent = 'Componentes';
+    componentsSection.appendChild(componentsTitle);
+
+    const componentsGrid = document.createElement('div');
+    componentsGrid.className = 'mt-3 grid grid-cols-2 gap-3';
+    const componentes =
+      produto && typeof produto.componentes === 'object'
+        ? produto.componentes
+        : {};
+    const parafusosQuantidade = normalizeComponentQuantity(
+      getFirstAvailableValue(componentes, ['parafusos', 'qtdParafusos']),
+    );
+    const puxadorDisplay = getPuxadorDisplay(produto);
+    const outrosDisplays = getAdditionalComponentDisplays(produto);
+
+    componentsGrid.appendChild(
+      createInfoCell(
+        'Parafusos',
+        formatComponentQuantityForDisplay(parafusosQuantidade),
+        {
+          containerClass: 'border border-yellow-300 bg-yellow-50',
+          valueClass: 'text-sm font-semibold text-gray-800',
+        },
+      ),
+    );
+    componentsGrid.appendChild(
+      createInfoCell('Puxador', puxadorDisplay, {
+        containerClass: 'border border-yellow-300 bg-yellow-50',
+        valueClass: 'text-sm font-semibold text-gray-800',
+      }),
+    );
+    componentsGrid.appendChild(
+      createInfoCell('Outros', outrosDisplays[0] || '--', {
+        containerClass: 'border border-yellow-300 bg-yellow-50',
+        valueClass: 'text-sm font-semibold text-gray-800',
+      }),
+    );
+    componentsGrid.appendChild(
+      createInfoCell('Outros', outrosDisplays[1] || '--', {
+        containerClass: 'border border-yellow-300 bg-yellow-50',
+        valueClass: 'text-sm font-semibold text-gray-800',
+      }),
+    );
+    componentsSection.appendChild(componentsGrid);
+    infoRow.appendChild(componentsSection);
+
+    const financeSection = document.createElement('div');
+    financeSection.className =
+      'flex w-full flex-col rounded-2xl border-2 border-green-300 bg-green-100 px-4 py-4 text-gray-900 lg:w-64';
+    const financeTitle = document.createElement('p');
+    financeTitle.className =
+      'text-sm font-semibold uppercase tracking-wide text-green-900';
+    financeTitle.textContent = 'Custo / Preço sugerido';
+    financeSection.appendChild(financeTitle);
+
+    const financeValues = document.createElement('div');
+    financeValues.className = 'mt-3 flex flex-col gap-3';
+    financeValues.appendChild(
+      createInfoCell('Custo', formatCurrency(getProductCost(produto)), {
+        containerClass: 'border border-green-300 bg-white',
+        labelClass: 'text-green-700',
+        valueClass: 'text-base font-bold text-green-900',
+      }),
+    );
+    financeValues.appendChild(
+      createInfoCell(
+        'Preço sugerido',
+        formatCurrency(getProductPrice(produto)),
+        {
+          containerClass: 'border border-green-300 bg-white',
+          labelClass: 'text-green-700',
+          valueClass: 'text-base font-bold text-green-900',
+        },
+      ),
+    );
+    financeSection.appendChild(financeValues);
+    infoRow.appendChild(financeSection);
+
+    content.appendChild(infoRow);
 
     const actions = document.createElement('div');
     actions.className =
-      'mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2';
+      'mt-auto flex flex-wrap items-center justify-end gap-2 pt-2';
 
     const detailsBtn = document.createElement('button');
     detailsBtn.type = 'button';
     detailsBtn.className =
-      'inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700';
+      'inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400';
     detailsBtn.innerHTML =
-      '<span>Ver mais</span><i class="fa-solid fa-arrow-right"></i>';
+      '<i class="fa-solid fa-circle-info"></i><span>Detalhes</span>';
     detailsBtn.addEventListener('click', () => openModal(produto));
     actions.appendChild(detailsBtn);
 
+    if (canEdit) {
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className =
+        'inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400';
+      editBtn.innerHTML =
+        '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
+      editBtn.addEventListener('click', () => startEditingProduct(produto));
+      actions.appendChild(editBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className =
+        'inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400';
+      deleteBtn.innerHTML =
+        '<i class="fa-solid fa-trash-can"></i><span>Excluir</span>';
+      deleteBtn.addEventListener('click', () =>
+        handleDeleteProduct(produto, deleteBtn),
+      );
+      actions.appendChild(deleteBtn);
+    }
+
+    content.appendChild(actions);
+    card.appendChild(content);
+
     const cardDriveLink =
       produto.driveFolderLink || produto.driveLink || produto.linkDrive;
+    const footer = document.createElement('div');
+    footer.className = 'bg-yellow-300 px-4 py-3';
     if (cardDriveLink) {
       const driveBtn = document.createElement('a');
       driveBtn.href = cardDriveLink;
       driveBtn.target = '_blank';
       driveBtn.rel = 'noopener noreferrer';
       driveBtn.className =
-        'inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100';
+        'inline-flex w-full items-center justify-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-900 transition hover:text-gray-800';
       driveBtn.innerHTML =
-        '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta no Drive</span>';
-      actions.appendChild(driveBtn);
+        '<i class="fa-solid fa-folder-open"></i><span>Abrir pasta de fotos (Abrir pasta Driver)</span>';
+      footer.appendChild(driveBtn);
+    } else {
+      const drivePlaceholder = document.createElement('div');
+      drivePlaceholder.className =
+        'inline-flex w-full items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-600';
+      drivePlaceholder.innerHTML =
+        '<i class="fa-solid fa-folder-open"></i><span>Pasta de fotos não cadastrada</span>';
+      footer.appendChild(drivePlaceholder);
     }
-
-    if (canEdit) {
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className =
-        'inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700';
-      editBtn.innerHTML =
-        '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
-      editBtn.addEventListener('click', () => startEditingProduct(produto));
-      actions.appendChild(editBtn);
-    }
-
-    body.appendChild(actions);
-    card.appendChild(body);
+    card.appendChild(footer);
 
     setCardSelectedState(card, selectedProducts.has(produto.id));
     cardsContainer?.appendChild(card);
