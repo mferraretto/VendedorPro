@@ -1094,21 +1094,36 @@ body.dark-mode .data-table th {
 }
 .schedule-alert-banner {
   display: none;
+  position: relative;
+  isolation: isolate;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: 0.6rem 1.5rem;
-  border-radius: 999px;
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 2px solid #f87171;
+  padding: 0.75rem 1.75rem;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(
+    180deg,
+    rgba(220, 38, 38, 0.15) 0%,
+    rgba(220, 38, 38, 0.6) 45%,
+    rgba(185, 28, 28, 0.95) 100%
+  );
+  box-shadow: 0 18px 36px -18px rgba(185, 28, 28, 0.8);
   font-weight: 800;
   font-size: clamp(1rem, 0.9rem + 0.6vw, 1.4rem);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  box-shadow: 0 12px 24px -18px rgba(185, 28, 28, 0.6);
   text-align: center;
   line-height: 1.2;
+}
+.schedule-alert-banner::before {
+  content: '';
+  position: absolute;
+  inset: 58% -1.5rem -0.9rem -1.5rem;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+  box-shadow: 0 18px 32px -18px rgba(185, 28, 28, 0.65);
+  z-index: -1;
 }
 .schedule-alert-banner:not(.hidden) {
   display: inline-flex;

@@ -1355,8 +1355,6 @@
         return acc;
       }, {});
       const weekdayIndexToValue = WEEKDAY_OPTIONS.map((option) => option.value);
-      const SCHEDULE_ALERT_WINDOW_MINUTES = 10;
-      const SCHEDULE_ALERT_INTERVAL_MS = 30000;
 
       const updateForm = document.getElementById('updateForm');
       const updateStatus = document.getElementById('updateStatus');
@@ -1365,10 +1363,6 @@
 
       let app;
       let db;
-      let scheduleAlertBannerEl;
-      let scheduleAlertWrapperEl;
-      let scheduleAlertIntervalId = null;
-      let lastRenderedAlertSignature = '';
       let auth;
       let currentUser = null;
       let currentEmail = '';
@@ -1512,14 +1506,12 @@
         }
       }
 
-      function getScheduleAlertElements() {
-        if (!scheduleAlertBannerEl || !document.body.contains(scheduleAlertBannerEl)) {
-          scheduleAlertBannerEl = document.getElementById('scheduleAlertBanner');
+      function refreshNavbarScheduleAlerts() {
+        try {
+          window.scheduleAlertService?.refreshScheduleAlertBanner?.();
+        } catch (error) {
+          console.error('Erro ao atualizar alertas do cronograma no navbar:', error);
         }
-        if (!scheduleAlertWrapperEl || !document.body.contains(scheduleAlertWrapperEl)) {
-          scheduleAlertWrapperEl = document.getElementById('navbarAlertWrapper');
-        }
-        return { banner: scheduleAlertBannerEl, wrapper: scheduleAlertWrapperEl };
       }
 
       function isScheduleEntryActiveOnDate(entry, targetDateIso, targetDateObj) {
@@ -1541,143 +1533,6 @@
           return false;
         }
         return entry.repeatDays.includes(weekdayKey);
-      }
-
-      function computeAlertTiming(entry, now) {
-        if (!entry.startTime) return null;
-        const [hour, minute] = entry.startTime.split(':').map((value) => parseInt(value, 10));
-        if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-          return null;
-        }
-        const alertStart = new Date(now);
-        alertStart.setHours(hour, minute, 0, 0);
-        const diffMinutes = (now.getTime() - alertStart.getTime()) / 60000;
-        if (diffMinutes < 0 || diffMinutes > SCHEDULE_ALERT_WINDOW_MINUTES) {
-          return null;
-        }
-        return { alertStart, diffMinutes };
-      }
-
-      function collectActiveScheduleAlerts(now, normalizedEmail, currentDateIso, currentDateObj) {
-        const alerts = [];
-        if (!normalizedEmail) return alerts;
-        trackedOwners.forEach((ownerUid) => {
-          const entries = schedulesByOwner.get(ownerUid) || [];
-          entries.forEach((entry) => {
-            if (!entry.alertEnabled) return;
-            if ((entry.status || 'nao_feito') === 'feito') return;
-            const responsible = (entry.responsibleEmail || '').toLowerCase();
-            if (!responsible || responsible !== normalizedEmail) return;
-            if (!isScheduleEntryActiveOnDate(entry, currentDateIso, currentDateObj)) return;
-            const timing = computeAlertTiming(entry, now);
-            if (!timing) return;
-            alerts.push({ ownerUid, entry, ...timing });
-          });
-        });
-        alerts.sort((a, b) => a.alertStart.getTime() - b.alertStart.getTime());
-        return alerts;
-      }
-
-      function hideScheduleAlertBanner() {
-        const { banner, wrapper } = getScheduleAlertElements();
-        if (wrapper) {
-          wrapper.classList.add('hidden');
-        }
-        if (banner) {
-          banner.classList.add('hidden');
-          banner.innerHTML = '';
-          banner.removeAttribute('data-alert-id');
-        }
-        lastRenderedAlertSignature = '';
-      }
-
-      function updateScheduleAlertBanner() {
-        const { banner, wrapper } = getScheduleAlertElements();
-        if (!banner || !wrapper) {
-          return;
-        }
-        const normalizedEmail = (currentEmail || currentUser?.email || '').toLowerCase();
-        if (!normalizedEmail) {
-          hideScheduleAlertBanner();
-          return;
-        }
-        const now = new Date();
-        const currentDateIso = formatDateISO(now);
-        const currentDateObj = parseISODateString(currentDateIso) || new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const alerts = collectActiveScheduleAlerts(now, normalizedEmail, currentDateIso, currentDateObj);
-        if (!alerts.length) {
-          hideScheduleAlertBanner();
-          return;
-        }
-        const { ownerUid, entry, alertStart } = alerts[0];
-        const signature = [
-          ownerUid,
-          entry.id,
-          alertStart.getTime(),
-          entry.alertMessage || '',
-          entry.title || '',
-          alerts.length
-        ].join('||');
-        if (signature !== lastRenderedAlertSignature) {
-          const timeLabel = formatTime(entry.startTime);
-          const titleLabel = entry.title || 'Etapa do cronograma';
-          const ownerLabel = resolveOwnerLabel(ownerUid);
-          const message = (entry.alertMessage || '').toString().trim();
-
-          banner.innerHTML = '';
-
-          const titleEl = document.createElement('span');
-          titleEl.className = 'alert-title';
-          titleEl.textContent = 'ALERTA DE CRONOGRAMA';
-          banner.appendChild(titleEl);
-
-          const detailsEl = document.createElement('span');
-          detailsEl.className = 'alert-details';
-          const detailsParts = [];
-          if (timeLabel) detailsParts.push(timeLabel);
-          detailsParts.push(titleLabel);
-          detailsEl.textContent = detailsParts.join(' • ');
-          banner.appendChild(detailsEl);
-
-          const extraParts = [ownerLabel];
-          if (message) {
-            extraParts.push(message);
-          }
-          if (extraParts.length) {
-            const extraEl = document.createElement('span');
-            extraEl.className = 'alert-extra';
-            extraEl.textContent = extraParts.join(' — ');
-            banner.appendChild(extraEl);
-          }
-
-          const additionalAlerts = alerts.length - 1;
-          if (additionalAlerts > 0) {
-            const queueEl = document.createElement('span');
-            queueEl.className = 'alert-extra';
-            queueEl.textContent =
-              additionalAlerts === 1
-                ? 'Mais 1 alerta ativo'
-                : `Mais ${additionalAlerts} alertas ativos`;
-            banner.appendChild(queueEl);
-          }
-
-          lastRenderedAlertSignature = signature;
-        }
-
-        wrapper.classList.remove('hidden');
-        banner.classList.remove('hidden');
-        banner.setAttribute('data-alert-id', signature);
-      }
-
-      function ensureScheduleAlertInterval() {
-        if (scheduleAlertIntervalId !== null) {
-          return;
-        }
-        const { banner } = getScheduleAlertElements();
-        if (!banner) {
-          return;
-        }
-        scheduleAlertIntervalId = window.setInterval(updateScheduleAlertBanner, SCHEDULE_ALERT_INTERVAL_MS);
       }
 
       function parseISODateString(value) {
@@ -2025,7 +1880,7 @@
         const targetDateObj = parseISODateString(targetDate);
         if (!owners.length || !targetDate || !targetDateObj) {
           scheduleFlowContainer.innerHTML = '<div class="empty-state">Cadastre etapas para ver o fluxo diário da equipe.</div>';
-          updateScheduleAlertBanner();
+          refreshNavbarScheduleAlerts();
           return;
         }
 
@@ -2122,7 +1977,7 @@
           .join('');
 
         scheduleFlowContainer.innerHTML = sections || '<div class="empty-state">Nenhum fluxo registrado para esta data.</div>';
-        updateScheduleAlertBanner();
+        refreshNavbarScheduleAlerts();
       }
 
       function buildResponsibleOptions(emptyLabel = 'Selecione um responsável', { multiple = false } = {}) {
@@ -2419,8 +2274,7 @@
               email: user.email || undefined,
               label: 'Minha equipe'
             });
-            updateScheduleAlertBanner();
-            ensureScheduleAlertInterval();
+            refreshNavbarScheduleAlerts();
             applyOwnerSet(new Set([user.uid]));
             refreshSharedMemberships();
           });
@@ -2819,14 +2673,12 @@
       });
 
       document.addEventListener('navbarLoaded', () => {
-        getScheduleAlertElements();
-        updateScheduleAlertBanner();
-        ensureScheduleAlertInterval();
+        refreshNavbarScheduleAlerts();
       });
 
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
-          updateScheduleAlertBanner();
+          refreshNavbarScheduleAlerts();
         }
       });
 
@@ -2834,14 +2686,13 @@
         if (currentUser) {
           refreshSharedMemberships();
         }
-        updateScheduleAlertBanner();
+        refreshNavbarScheduleAlerts();
       });
 
       initializeAuth();
       updateRepeatDaysVisibility();
       updateScheduleAlertVisibility({ reset: true });
-      updateScheduleAlertBanner();
-      ensureScheduleAlertInterval();
+      refreshNavbarScheduleAlerts();
       renderSchedule();
     </script>
   </body>
