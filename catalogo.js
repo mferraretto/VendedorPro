@@ -1479,7 +1479,11 @@ async function generateCardPdf(doc, grupos) {
         )
       : [];
 
-    const descricao = (produto.descricao || produto.descricaoCurta || '').trim();
+    const descricao = (
+      produto.descricao ||
+      produto.descricaoCurta ||
+      ''
+    ).trim();
     const descricaoLinhas = descricao
       ? doc.splitTextToSize(descricao, larguraTextoDisponivel).slice(0, 3)
       : [];
@@ -1670,8 +1674,7 @@ async function generateCardPdf(doc, grupos) {
         textoY += 3.2;
       });
 
-      let sectionY =
-        yLinhaAtual + paddingCartao + layout.topBlockHeight + 2;
+      let sectionY = yLinhaAtual + paddingCartao + layout.topBlockHeight + 2;
       const sectionX = posicaoX + paddingCartao;
       const sectionWidth = larguraCartao - paddingCartao * 2;
 
@@ -1716,7 +1719,8 @@ async function generateCardPdf(doc, grupos) {
 
       if (colunaAtual >= colunas) {
         colunaAtual = 0;
-        posicaoYAtual = yLinhaAtual + alturaLinhaAtual + espacamentoEntreCartoes;
+        posicaoYAtual =
+          yLinhaAtual + alturaLinhaAtual + espacamentoEntreCartoes;
       }
     }
 
@@ -1889,7 +1893,7 @@ function renderCardView(displayItems) {
     labelEl.textContent = label;
     const valueEl = document.createElement('span');
     valueEl.className =
-      'text-sm font-semibold leading-snug text-gray-900 whitespace-pre-wrap ' +
+      'text-sm font-semibold leading-snug text-gray-900 whitespace-pre-wrap break-words ' +
       valueClass;
     const resolvedValue =
       typeof value === 'string'
@@ -1955,10 +1959,11 @@ function renderCardView(displayItems) {
     topSection.appendChild(imageWrapper);
 
     const details = document.createElement('div');
-    details.className = 'flex-1 space-y-2';
+    details.className = 'flex-1 min-w-0 space-y-2';
 
     const title = document.createElement('h3');
-    title.className = 'text-base font-semibold leading-snug text-gray-900';
+    title.className =
+      'text-base font-semibold leading-snug text-gray-900 break-words';
     title.textContent = produto.nome || 'Produto sem nome';
     details.appendChild(title);
 
@@ -1967,13 +1972,13 @@ function renderCardView(displayItems) {
       'flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-wide';
     const skuBadge = document.createElement('span');
     skuBadge.className =
-      'inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700';
+      'inline-flex max-w-full items-center rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700 whitespace-normal break-words';
     skuBadge.textContent = `SKU ${produto.sku || '--'}`;
     badges.appendChild(skuBadge);
 
     const categoriaBadge = document.createElement('span');
     categoriaBadge.className =
-      'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-amber-700';
+      'inline-flex max-w-full items-center rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 whitespace-normal break-words';
     const categoriaTexto = produto.categoria
       ? produto.categoria.toString().trim() || 'Sem categoria'
       : 'Sem categoria';
@@ -1986,20 +1991,11 @@ function renderCardView(displayItems) {
       : [];
     if (variacoes.length) {
       const variacoesInfo = document.createElement('p');
-      variacoesInfo.className = 'text-xs text-gray-500';
+      variacoesInfo.className = 'text-xs text-gray-500 break-words';
       variacoesInfo.textContent = `Cores: ${variacoes
         .map((item) => item.cor)
         .join(', ')}`;
       details.appendChild(variacoesInfo);
-    }
-
-    const descricao = (produto.descricao || produto.descricaoCurta || '').trim();
-    if (descricao) {
-      const descricaoEl = document.createElement('p');
-      descricaoEl.className =
-        'text-xs leading-relaxed text-gray-600 max-h-16 overflow-hidden';
-      descricaoEl.textContent = descricao;
-      details.appendChild(descricaoEl);
     }
 
     topSection.appendChild(details);
@@ -2100,9 +2096,13 @@ function renderCardView(displayItems) {
       }),
     );
     valoresLista.appendChild(
-      createInfoItem('Preço sugerido', formatCurrency(getProductPrice(produto)), {
-        valueClass: 'text-base font-bold text-emerald-800',
-      }),
+      createInfoItem(
+        'Preço sugerido',
+        formatCurrency(getProductPrice(produto)),
+        {
+          valueClass: 'text-base font-bold text-emerald-800',
+        },
+      ),
     );
     valoresBox.appendChild(valoresLista);
     infoGrid.appendChild(valoresBox);
