@@ -915,58 +915,178 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
     }
 
     // Funções de precificação
-    function calcular(plataforma) {
-      const custo = parseFloat(document.getElementById("custo").value) || 0;
-      const produto = document.getElementById("produto").value.trim();
-      const sku = document.getElementById("sku").value.trim();
+    const NIVEIS_CUSTO = ['minimo', 'medio', 'maximo'];
 
-      if (!produto || custo <= 0) {
-        showToast("Preencha o nome do produto e um custo válido!", "warning");
-        return;
-      }
-
-      if (plataforma === 'shopee' && document.getElementById('shopee_duas_taxas')?.checked) {
-        sistema.produtoEditando = null;
-        const calc20 = calcularComTaxa(plataforma, custo, produto, sku, 20, false, true);
-        const calc14 = calcularComTaxa(plataforma, custo, produto, sku, 14, false, true);
-        document.getElementById(`preco_${plataforma}`).value = calc20.precoMinimo;
-        document.getElementById(`preco_${plataforma}_ideal`).textContent = `R$ ${calc20.precoIdeal}`;
-        document.getElementById(`preco_${plataforma}_medio`).textContent = `R$ ${calc20.precoMedio}`;
-        document.getElementById(`preco_${plataforma}_promo`).textContent = `R$ ${calc20.precoPromo}`;
-        salvarProdutoMultiplasTaxas(produto, sku, plataforma.toUpperCase(), custo, [calc20, calc14]);
-        return;
-      }
-
-      calcularComTaxa(plataforma, custo, produto, sku);
+    function obterCustosInformados() {
+      const ler = (idValor, idComissao) => ({
+        valor: parseFloat(document.getElementById(idValor)?.value || '0') || 0,
+        comissao: parseFloat(document.getElementById(idComissao)?.value || '0') || 0,
+      });
+      return {
+        minimo: ler('custoMinimo', 'comissaoMinimo'),
+        medio: ler('custoMedio', 'comissaoMedio'),
+        maximo: ler('custoMaximo', 'comissaoMaximo'),
+      };
     }
 
-    function calcularComTaxa(plataforma, custo, produto, sku, taxaOverride, forceNew = false, returnOnly = false) {
+    function formatarMoeda(valor) {
+      return `R$ ${Number(valor || 0).toFixed(2)}`;
+    }
+
+    function atualizarCenariosUI(plataforma, calculos) {
+      const camposPorCenario = {
+        promo: 'precoPromo',
+        medio: 'precoMedio',
+        ideal: 'precoIdeal',
+      };
+      Object.entries(camposPorCenario).forEach(([cenario, campo]) => {
+        NIVEIS_CUSTO.forEach((nivel) => {
+          const span = document.getElementById(`preco_${plataforma}_${cenario}_${nivel}`);
+          if (!span) return;
+          const dados = calculos?.[nivel];
+          span.textContent = dados ? formatarMoeda(dados[campo]) : '—';
+        });
+      });
+    }
+
+    function normalizarCustos(custos) {
+      const normalizado = {};
+      NIVEIS_CUSTO.forEach((nivel) => {
+        const info = custos?.[nivel] || {};
+        const valor = parseFloat(info.valor) || 0;
+        const comissao = parseFloat(info.comissao) || 0;
+        normalizado[nivel] = { valor, comissao };
+      });
+      return normalizado;
+    }
+
+    function calcularPrecosPorCusto(custos, totalPercentual, totalFixo) {
+      const calculos = {};
+      let referencia = null;
+
+      NIVEIS_CUSTO.forEach((nivel) => {
+        const { valor, comissao } = custos[nivel] || {};
+        if (!(valor > 0)) return;
+        const percentualTotal = totalPercentual + comissao;
+        if (percentualTotal >= 100) {
+          calculos[nivel] = null;
+          return;
+        }
+        const precoBase = (valor + totalFixo) / (1 - percentualTotal / 100);
+        const precoPromo = precoBase;
+        const precoMedio = precoBase * 1.05;
+        const precoIdeal = precoBase * 1.1;
+        calculos[nivel] = {
+          custo: valor,
+          comissao,
+          precoMinimo: parseFloat(precoBase.toFixed(2)),
+          precoPromo: parseFloat(precoPromo.toFixed(2)),
+          precoMedio: parseFloat(precoMedio.toFixed(2)),
+          precoIdeal: parseFloat(precoIdeal.toFixed(2)),
+        };
+        if (!referencia || (referencia !== 'medio' && nivel === 'medio')) {
+          referencia = nivel;
+        }
+      });
+
+      if (!referencia) {
+        referencia = NIVEIS_CUSTO.find((nivel) => calculos[nivel]);
+      }
+
+      return { calculos, referencia };
+    }
+
+    function calcular(plataforma) {
+      const custosInformados = obterCustosInformados();
+      const produto = document.getElementById("produto").value.trim();
+      const sku = document.getElementById("sku").value.trim();
+      const algumCustoValido = NIVEIS_CUSTO.some(
+        (nivel) => custosInformados[nivel]?.valor > 0,
+      );
+
+      if (!produto || !algumCustoValido) {
+        showToast(
+          "Preencha o nome do produto e informe ao menos um custo válido!",
+          "warning",
+        );
+        return;
+      }
+
+      if (
+        plataforma === 'shopee' &&
+        document.getElementById('shopee_duas_taxas')?.checked
+      ) {
+        sistema.produtoEditando = null;
+        const calc20 = calcularComTaxa(
+          plataforma,
+          custosInformados,
+          produto,
+          sku,
+          20,
+          false,
+          true,
+        );
+        const calc14 = calcularComTaxa(
+          plataforma,
+          custosInformados,
+          produto,
+          sku,
+          14,
+          false,
+          true,
+        );
+        if (!calc20) return;
+        document.getElementById(`preco_${plataforma}`).value = calc20.precoMinimo.toFixed(2);
+        atualizarCenariosUI(plataforma, calc20.custosCalculados);
+        salvarProdutoMultiplasTaxas(
+          produto,
+          sku,
+          plataforma.toUpperCase(),
+          [calc20, calc14].filter(Boolean),
+        );
+        return;
+      }
+
+      calcularComTaxa(plataforma, custosInformados, produto, sku);
+    }
+
+    function calcularComTaxa(
+      plataforma,
+      custosEntrada,
+      produto,
+      sku,
+      taxaOverride,
+      forceNew = false,
+      returnOnly = false,
+    ) {
+      const custosNormalizados = normalizarCustos(custosEntrada);
       let totalPercentual = 0;
       let totalFixo = 0;
       const taxasDetalhadas = {};
 
-      // Taxa da Plataforma
       const taxaSelect = document.getElementById(`${plataforma}_taxa_select`);
       const taxaInput = document.getElementById(`${plataforma}_taxa_custom`);
-      const taxa = typeof taxaOverride === 'number'
-        ? taxaOverride
-        : (taxaInput.value.trim() !== '' ? parseFloat(taxaInput.value) : parseFloat(taxaSelect.value) || 0);
+      const taxa =
+        typeof taxaOverride === 'number'
+          ? taxaOverride
+          : taxaInput.value.trim() !== ''
+            ? parseFloat(taxaInput.value)
+            : parseFloat(taxaSelect.value) || 0;
       totalPercentual += taxa;
       taxasDetalhadas['Taxas da Plataforma (%)'] = taxa;
 
-      // Custo Fixo
       const fixoSelect = document.getElementById(`${plataforma}_fixo_select`);
       const fixoInput = document.getElementById(`${plataforma}_fixo_custom`);
-      const fixo = fixoInput.value.trim() !== '' ?
-                   parseFloat(fixoInput.value) :
-                   parseFloat(fixoSelect.value) || 0;
+      const fixo =
+        fixoInput.value.trim() !== ''
+          ? parseFloat(fixoInput.value)
+          : parseFloat(fixoSelect.value) || 0;
       totalFixo += fixo;
       taxasDetalhadas['Custo Fixo Plataforma (R$)'] = fixo;
 
-      // Demais campos
       const container = document.getElementById(`${plataforma}Campos`);
       const inputs = container.querySelectorAll('input[data-campo]');
-      inputs.forEach(input => {
+      inputs.forEach((input) => {
         const valor = parseFloat(input.value) || 0;
         const campo = input.getAttribute('data-campo');
         const isPercentual = input.placeholder.includes('%');
@@ -978,49 +1098,125 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         taxasDetalhadas[campo] = valor;
       });
 
-      // Verificação de valores
       if (totalPercentual >= 100) {
-        showToast("As taxas percentuais não podem somar 100% ou mais!", "warning");
+        showToast(
+          "As taxas percentuais não podem somar 100% ou mais!",
+          "warning",
+        );
         return;
       }
 
-      // Calcular preço mínimo (sem lucro)
-      const precoMinimo = ((custo + totalFixo) / (1 - totalPercentual / 100)).toFixed(2);
-      const precoPromo = precoMinimo; // 0% de lucro
-      const precoMedio = (precoMinimo * 1.05).toFixed(2); // 5% de lucro
-      const precoIdeal = (precoMinimo * 1.10).toFixed(2); // 10% de lucro
+      const { calculos, referencia } = calcularPrecosPorCusto(
+        custosNormalizados,
+        totalPercentual,
+        totalFixo,
+      );
 
+      if (!referencia || !calculos[referencia]) {
+        showToast(
+          "Informe ao menos um custo válido e garanta que as taxas não ultrapassem 100%.",
+          "warning",
+        );
+        return;
+      }
+
+      const base = calculos[referencia];
       const resultado = {
         taxaPercentual: taxa,
-        precoMinimo: parseFloat(precoMinimo),
-        precoIdeal: parseFloat(precoIdeal),
-        precoMedio: parseFloat(precoMedio),
-        precoPromo: parseFloat(precoPromo),
-        taxas: taxasDetalhadas
+        custosInformados: custosNormalizados,
+        custosCalculados: calculos,
+        referencia,
+        custoBase: custosNormalizados[referencia]?.valor || 0,
+        precoMinimo: base.precoMinimo,
+        precoIdeal: base.precoIdeal,
+        precoMedio: base.precoMedio,
+        precoPromo: base.precoPromo,
+        taxas: taxasDetalhadas,
       };
 
       if (returnOnly) {
         return resultado;
       }
 
-      document.getElementById(`preco_${plataforma}`).value = precoMinimo;
-      document.getElementById(`preco_${plataforma}_ideal`).textContent = `R$ ${precoIdeal}`;
-      document.getElementById(`preco_${plataforma}_medio`).textContent = `R$ ${precoMedio}`;
-      document.getElementById(`preco_${plataforma}_promo`).textContent = `R$ ${precoPromo}`;
+      document.getElementById(`preco_${plataforma}`).value = base.precoMinimo.toFixed(2);
+      atualizarCenariosUI(plataforma, calculos);
 
       const plataformaNome = plataforma.toUpperCase();
 
       if (!forceNew && sistema.produtoEditando) {
-        atualizarProduto(produto, sku, plataformaNome, precoMinimo, precoIdeal, precoMedio, precoPromo, custo, taxasDetalhadas);
+        atualizarProduto(produto, sku, plataformaNome, resultado);
         sistema.produtoEditando = null;
       } else {
-        salvarProduto(produto, sku, plataformaNome, precoMinimo, precoIdeal, precoMedio, precoPromo, custo, taxasDetalhadas, forceNew);
+        salvarProduto(produto, sku, plataformaNome, resultado, forceNew);
       }
 
       return resultado;
     }
 
-    async function salvarProdutoMultiplasTaxas(produto, sku, plataforma, custo, resultados) {
+    function criarResultadoBasico(
+      custosInformados,
+      taxasDetalhadas,
+      taxaPercentual,
+      precosPorNivel,
+    ) {
+      const custosNormalizados = normalizarCustos(custosInformados);
+      const calculos = {};
+      NIVEIS_CUSTO.forEach((nivel) => {
+        const precos = precosPorNivel?.[nivel];
+        const info = custosNormalizados[nivel];
+        if (!precos || !(info.valor > 0)) return;
+        calculos[nivel] = {
+          custo: info.valor,
+          comissao: info.comissao || 0,
+          precoMinimo: parseFloat(precos.precoMinimo) || 0,
+          precoPromo: parseFloat(precos.precoPromo ?? precos.precoMinimo) || 0,
+          precoMedio: parseFloat(precos.precoMedio) || 0,
+          precoIdeal: parseFloat(precos.precoIdeal) || 0,
+        };
+      });
+      const referencia =
+        precosPorNivel?.medio && calculos.medio
+          ? 'medio'
+          : NIVEIS_CUSTO.find((nivel) => calculos[nivel]) || 'medio';
+      const base = calculos[referencia] || {
+        precoMinimo: 0,
+        precoPromo: 0,
+        precoMedio: 0,
+        precoIdeal: 0,
+      };
+      return {
+        taxaPercentual,
+        custosInformados: custosNormalizados,
+        custosCalculados: calculos,
+        referencia,
+        custoBase: custosNormalizados[referencia]?.valor || 0,
+        precoMinimo: base.precoMinimo,
+        precoIdeal: base.precoIdeal,
+        precoMedio: base.precoMedio,
+        precoPromo: base.precoPromo,
+        taxas: taxasDetalhadas,
+      };
+    }
+
+    function montarPayloadProduto(produto, sku, plataforma, baseResultado, calculosTaxas = {}) {
+      return {
+        produto,
+        sku,
+        plataforma,
+        custo: parseFloat((baseResultado.custoBase || 0).toFixed(2)),
+        custos: baseResultado.custosInformados,
+        referenciaCusto: baseResultado.referencia,
+        precosPorCusto: baseResultado.custosCalculados,
+        precoMinimo: baseResultado.precoMinimo,
+        precoIdeal: baseResultado.precoIdeal,
+        precoMedio: baseResultado.precoMedio,
+        precoPromo: baseResultado.precoPromo,
+        taxas: baseResultado.taxas,
+        calculosTaxas,
+      };
+    }
+
+    async function salvarProdutoMultiplasTaxas(produto, sku, plataforma, resultados) {
       const user = auth.currentUser;
       if (!user) {
         showToast("Usuário não autenticado!", "error");
@@ -1028,29 +1224,44 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
       }
 
       const calculos = {};
-      resultados.forEach(r => {
-        calculos[`${r.taxaPercentual}%`] = {
-          precoMinimo: r.precoMinimo,
-          precoIdeal: r.precoIdeal,
-          precoMedio: r.precoMedio,
-          precoPromo: r.precoPromo
-        };
-      });
+      resultados
+        .filter(Boolean)
+        .forEach((r) => {
+          calculos[`${r.taxaPercentual}%`] = {
+            referencia: r.referencia,
+            precosPorCusto: r.custosCalculados,
+            precoMinimo: r.precoMinimo,
+            precoIdeal: r.precoIdeal,
+            precoMedio: r.precoMedio,
+            precoPromo: r.precoPromo,
+            taxas: r.taxas,
+          };
+        });
 
-      const base = resultados[0];
-      const novoProduto = {
+      const base =
+        resultados.find((r) => r?.referencia === 'medio') ||
+        resultados.find((r) => r) ||
+        null;
+
+      if (!base) {
+        showToast(
+          'Não foi possível calcular os preços para salvar o produto.',
+          'error',
+        );
+        return false;
+      }
+
+      const payloadBase = montarPayloadProduto(
         produto,
         sku,
         plataforma,
-        custo,
-        precoMinimo: base.precoMinimo,
-        precoIdeal: base.precoIdeal,
-        precoMedio: base.precoMedio,
-        precoPromo: base.precoPromo,
-        taxas: base.taxas,
-        calculosTaxas: calculos,
+        base,
+        calculos,
+      );
+      const novoProduto = {
+        ...payloadBase,
         userId: user.uid,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       try {
@@ -1064,14 +1275,14 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         if (!querySnapshot.empty) {
           const doc = querySnapshot.docs[0];
           const existente = doc.data();
-          const hasDifferences = Object.keys(novoProduto).some(key => {
+          const hasDifferences = Object.keys(novoProduto).some((key) => {
             if (key === 'createdAt') return false;
             return JSON.stringify(existente[key]) !== JSON.stringify(novoProduto[key]);
           });
           if (hasDifferences) {
             novoProduto.createdAt = existente.createdAt || novoProduto.createdAt;
             await doc.ref.update(novoProduto);
-            const index = sistema.produtos.findIndex(item => item.id === doc.id);
+            const index = sistema.produtos.findIndex((item) => item.id === doc.id);
             if (index !== -1) {
               sistema.produtos[index] = { ...sistema.produtos[index], ...novoProduto };
             } else {
@@ -1083,19 +1294,19 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
             return true;
           }
           return false;
-        } else {
-          const docRef = await db
-            .collection('uid')
-            .doc(user.uid)
-            .collection('produtos')
-            .add(novoProduto);
-          sistema.produtos.unshift({ ...novoProduto, id: docRef.id });
-          atualizarLista();
-
-          showToast("Produto criado com sucesso!", "success");
-          addHistoryEntry('product_add', `Produto \"${produto}\" cadastrado para ${plataforma}`);
-          return true;
         }
+
+        const docRef = await db
+          .collection('uid')
+          .doc(user.uid)
+          .collection('produtos')
+          .add(novoProduto);
+        sistema.produtos.unshift({ ...novoProduto, id: docRef.id });
+        atualizarLista();
+
+        showToast("Produto criado com sucesso!", "success");
+        addHistoryEntry('product_add', `Produto \"${produto}\" cadastrado para ${plataforma}`);
+        return true;
       } catch (error) {
         console.error("Erro ao salvar produto:", error);
         showToast("Erro ao salvar produto!", "error");
@@ -1103,25 +1314,18 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
       }
     }
 
-    async function salvarProduto(produto, sku, plataforma, precoMinimo, precoIdeal, precoMedio, precoPromo, custo, taxas, forceNew = false) {
+    async function salvarProduto(produto, sku, plataforma, resultado, forceNew = false) {
       const user = auth.currentUser;
       if (!user) {
         showToast("Usuário não autenticado!", "error");
         return false;
       }
 
+      const payloadBase = montarPayloadProduto(produto, sku, plataforma, resultado);
       const novoProduto = {
-        produto,
-        sku,
-        plataforma,
-        precoMinimo,
-        precoIdeal,
-        precoMedio,
-        precoPromo,
-        custo,
-        taxas,
+        ...payloadBase,
         userId: user.uid,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       try {
@@ -1136,14 +1340,14 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
           if (!querySnapshot.empty) {
             const doc = querySnapshot.docs[0];
             const existente = doc.data();
-            const hasDifferences = Object.keys(novoProduto).some(key => {
+            const hasDifferences = Object.keys(novoProduto).some((key) => {
               if (key === 'createdAt') return false;
               return JSON.stringify(existente[key]) !== JSON.stringify(novoProduto[key]);
             });
             if (hasDifferences) {
               novoProduto.createdAt = existente.createdAt || novoProduto.createdAt;
               await doc.ref.update(novoProduto);
-              const index = sistema.produtos.findIndex(item => item.id === doc.id);
+              const index = sistema.produtos.findIndex((item) => item.id === doc.id);
               if (index !== -1) {
                 sistema.produtos[index] = { ...sistema.produtos[index], ...novoProduto };
               } else {
@@ -1156,32 +1360,20 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
               return true;
             }
             return false;
-          } else {
-            const docRef = await db
-              .collection('uid')
-              .doc(user.uid)
-              .collection('produtos')
-              .add(novoProduto);
-            sistema.produtos.unshift({ ...novoProduto, id: docRef.id });
-            atualizarLista();
-
-            showToast("Produto criado com sucesso!", "success");
-            addHistoryEntry('product_add', `Produto \"${produto}\" cadastrado para ${plataforma}`);
-            return true;
           }
-        } else {
-          const docRef = await db
-            .collection('uid')
-            .doc(user.uid)
-            .collection('produtos')
-            .add(novoProduto);
-          sistema.produtos.unshift({ ...novoProduto, id: docRef.id });
-          atualizarLista();
-
-          showToast("Produto criado com sucesso!", "success");
-          addHistoryEntry('product_add', `Produto \"${produto}\" cadastrado para ${plataforma}`);
-          return true;
         }
+
+        const docRef = await db
+          .collection('uid')
+          .doc(user.uid)
+          .collection('produtos')
+          .add(novoProduto);
+        sistema.produtos.unshift({ ...novoProduto, id: docRef.id });
+        atualizarLista();
+
+        showToast("Produto criado com sucesso!", "success");
+        addHistoryEntry('product_add', `Produto \"${produto}\" cadastrado para ${plataforma}`);
+        return true;
       } catch (error) {
         console.error("Erro ao salvar produto:", error);
         showToast("Erro ao salvar produto!", "error");
@@ -1189,53 +1381,43 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
       return false;
     }
 
-    async function atualizarProduto(produto, sku, plataforma, precoMinimo, precoIdeal, precoMedio, precoPromo, custo, taxas) {
+    async function atualizarProduto(produto, sku, plataforma, resultado) {
       const user = auth.currentUser;
       if (!user) {
         showToast("Usuário não autenticado!", "error");
         return;
       }
 
+      const calculosExistentes =
+        resultado.calculosTaxas || sistema.produtoEditando?.calculosTaxas || {};
+      const payloadBase = montarPayloadProduto(
+        produto,
+        sku,
+        plataforma,
+        resultado,
+        calculosExistentes,
+      );
+
       try {
- await db
+        await db
           .collection('uid')
           .doc(user.uid)
           .collection('produtos')
           .doc(sistema.produtoEditando.id)
-          .update({
-            produto,
-          sku,
-          plataforma,
-          precoMinimo,
-          precoIdeal,
-          precoMedio,
-          precoPromo,
-          custo,
-          taxas
-        });
-        
-        // Atualizar lista local
-        const index = sistema.produtos.findIndex(item => item.id === sistema.produtoEditando.id);
+          .update(payloadBase);
+
+        const index = sistema.produtos.findIndex(
+          (item) => item.id === sistema.produtoEditando.id,
+        );
         if (index !== -1) {
           sistema.produtos[index] = {
             ...sistema.produtos[index],
-            produto,
-            sku,
-            plataforma,
-            precoMinimo,
-            precoIdeal,
-            precoMedio,
-            precoPromo,
-            custo,
-            taxas
+            ...payloadBase,
           };
           atualizarLista();
-                  mostrarDuplicados();
+          mostrarDuplicados();
 
-          // Mostrar feedback visual
           showToast("Produto atualizado com sucesso!", "success");
-          
-          // Registrar no histórico
           addHistoryEntry('product_edit', `Produto "${produto}" atualizado`);
         }
       } catch (error) {
@@ -1796,25 +1978,35 @@ function downloadPricingTemplate() {
 
           if (usarDuas) {
             const basePercent = totals.percent - taxaPlataforma;
-            const resultados = [20, 14].map(taxa => {
-              const totalPercent = basePercent + taxa;
-              if (totalPercent >= 100) return null;
-              const precoMinimo = ((custo + totals.fix) / (1 - totalPercent / 100)).toFixed(2);
-              const precoPromo = precoMinimo;
-              const precoMedio = (precoMinimo * 1.05).toFixed(2);
-              const precoIdeal = (precoMinimo * 1.10).toFixed(2);
-              const taxasDetalhadas = { ...taxas, 'Taxas da Plataforma (%)': taxa };
-              return {
-                taxaPercentual: taxa,
-                precoMinimo: parseFloat(precoMinimo),
-                precoIdeal: parseFloat(precoIdeal),
-                precoMedio: parseFloat(precoMedio),
-                precoPromo: parseFloat(precoPromo),
-                taxas: taxasDetalhadas
-              };
-            }).filter(Boolean);
+            const resultados = [20, 14]
+              .map((taxa) => {
+                const totalPercent = basePercent + taxa;
+                if (totalPercent >= 100) return null;
+                const precoMinimo = ((custo + totals.fix) / (1 - totalPercent / 100)).toFixed(2);
+                const precoPromo = precoMinimo;
+                const precoMedio = (precoMinimo * 1.05).toFixed(2);
+                const precoIdeal = (precoMinimo * 1.10).toFixed(2);
+                const taxasDetalhadas = {
+                  ...taxas,
+                  'Taxas da Plataforma (%)': taxa,
+                };
+                return criarResultadoBasico(
+                  { medio: { valor: custo, comissao: 0 } },
+                  taxasDetalhadas,
+                  taxa,
+                  {
+                    medio: {
+                      precoMinimo,
+                      precoPromo,
+                      precoMedio,
+                      precoIdeal,
+                    },
+                  },
+                );
+              })
+              .filter(Boolean);
             if (!resultados.length) continue;
-            await salvarProdutoMultiplasTaxas(nome, sku, plataforma, custo, resultados);
+            await salvarProdutoMultiplasTaxas(nome, sku, plataforma, resultados);
             imported++;
             continue;
           }
@@ -1826,28 +2018,21 @@ function downloadPricingTemplate() {
           const precoMedio = (precoMinimo * 1.05).toFixed(2);
           const precoIdeal = (precoMinimo * 1.10).toFixed(2);
 
-  // Verifica se já existe produto com o mesmo SKU e plataforma
-  const existing = await db
-            .collection('uid')
-            .doc(auth.currentUser.uid)
-            .collection('produtos')
-            .where('sku', '==', sku)
-            .where('plataforma', '==', plataforma)
-            .limit(1)
-            .get();
+          const resultadoBasico = criarResultadoBasico(
+            { medio: { valor: custo, comissao: 0 } },
+            taxas,
+            totals.percent,
+            {
+              medio: {
+                precoMinimo,
+                precoPromo,
+                precoMedio,
+                precoIdeal,
+              },
+            },
+          );
 
-          if (!existing.empty) {
-            await existing.docs[0].ref.update({
-              precoMinimo,
-              precoIdeal,
-              precoMedio,
-              precoPromo,
-              custo,
-              taxas
-            });
-          } else {
-            await salvarProduto(nome, sku, plataforma, precoMinimo, precoIdeal, precoMedio, precoPromo, custo, taxas);
-          }
+          await salvarProduto(nome, sku, plataforma, resultadoBasico);
           imported++;
         }
 

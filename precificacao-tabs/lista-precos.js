@@ -10,6 +10,135 @@ let produtos = [];
 let viewMode = 'cards';
 let selecionados = new Set();
 
+const NIVEIS_CUSTO = ['minimo', 'medio', 'maximo'];
+
+function normalizarCustosProduto(custos = {}) {
+  const normalizado = {};
+  NIVEIS_CUSTO.forEach((nivel) => {
+    const info = custos?.[nivel] || {};
+    normalizado[nivel] = {
+      valor: Number.parseFloat(info.valor) || 0,
+      comissao: Number.parseFloat(info.comissao) || 0,
+    };
+  });
+  return normalizado;
+}
+
+function formatCurrency(valor) {
+  return `R$ ${Number.parseFloat(valor || 0).toFixed(2)}`;
+}
+
+function obterCustosDoProduto(prod) {
+  if (prod?.custos) return normalizarCustosProduto(prod.custos);
+  const custoBase = Number.parseFloat(prod?.custo || 0) || 0;
+  return normalizarCustosProduto({
+    medio: { valor: custoBase, comissao: 0 },
+  });
+}
+
+function coletarCustosDoModal() {
+  return normalizarCustosProduto({
+    minimo: {
+      valor: document.getElementById('editCustoMinimo')?.value,
+      comissao: document.getElementById('editComissaoMinimo')?.value,
+    },
+    medio: {
+      valor: document.getElementById('editCustoMedio')?.value,
+      comissao: document.getElementById('editComissaoMedio')?.value,
+    },
+    maximo: {
+      valor: document.getElementById('editCustoMaximo')?.value,
+      comissao: document.getElementById('editComissaoMaximo')?.value,
+    },
+  });
+}
+
+function gerarTabelaPreview(resultado) {
+  const cenarios = [
+    { chave: 'precoPromo', titulo: 'Sem lucro' },
+    { chave: 'precoMedio', titulo: 'Lucro 5%' },
+    { chave: 'precoIdeal', titulo: 'Lucro 10%' },
+  ];
+  const linhas = NIVEIS_CUSTO.map((nivel) => {
+    const dados = resultado.precosPorCusto?.[nivel];
+    if (!dados) return '';
+    const titulo =
+      nivel === 'minimo' ? 'Custo mínimo' : nivel === 'medio' ? 'Custo médio' : 'Custo máximo';
+    return `
+      <tr>
+        <td class="px-2 py-1 font-medium text-gray-600">${titulo}</td>
+        ${cenarios
+          .map((cenario) => `<td class="px-2 py-1">${formatCurrency(dados[cenario.chave])}</td>`)
+          .join('')}
+      </tr>
+    `;
+  })
+    .filter(Boolean)
+    .join('');
+  if (!linhas) {
+    return '<span class="text-red-600">Informe ao menos um custo válido para visualizar os preços.</span>';
+  }
+  return `
+    <table class="min-w-full text-xs">
+      <thead>
+        <tr>
+          <th class="px-2 py-1 text-left text-gray-500">Cenário</th>
+          ${cenarios
+            .map((cenario) => `<th class="px-2 py-1 text-gray-500 text-right">${cenario.titulo}</th>`)
+            .join('')}
+        </tr>
+      </thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    <p class="mt-2 text-xs text-gray-500">Referência atual: <strong>${resultado.referenciaCusto?.toUpperCase() || 'MÉDIO'}</strong></p>
+  `;
+}
+
+function calcularTotaisTaxas(taxas = {}) {
+  return Object.entries(taxas).reduce(
+    (acc, [chave, valor]) => {
+      const numero = Number.parseFloat(valor) || 0;
+      if (String(chave).includes('%')) acc.percent += numero;
+      else acc.fix += numero;
+      return acc;
+    },
+    { percent: 0, fix: 0 },
+  );
+}
+
+function calcularPrecosCustos(custos, totalPercentual, totalFixo) {
+  const calculos = {};
+  let referencia = null;
+  NIVEIS_CUSTO.forEach((nivel) => {
+    const info = custos[nivel];
+    if (!info || !(info.valor > 0)) return;
+    const percentual = totalPercentual + (info.comissao || 0);
+    if (percentual >= 100) {
+      calculos[nivel] = null;
+      return;
+    }
+    const precoBase = (info.valor + totalFixo) / (1 - percentual / 100);
+    const precoPromo = precoBase;
+    const precoMedio = precoBase * 1.05;
+    const precoIdeal = precoBase * 1.1;
+    calculos[nivel] = {
+      custo: Number(info.valor.toFixed(2)),
+      comissao: info.comissao || 0,
+      precoMinimo: Number(precoBase.toFixed(2)),
+      precoPromo: Number(precoPromo.toFixed(2)),
+      precoMedio: Number(precoMedio.toFixed(2)),
+      precoIdeal: Number(precoIdeal.toFixed(2)),
+    };
+    if (!referencia || (referencia !== 'medio' && nivel === 'medio')) {
+      referencia = nivel;
+    }
+  });
+  if (!referencia) {
+    referencia = NIVEIS_CUSTO.find((nivel) => calculos[nivel]) || 'medio';
+  }
+  return { calculos, referencia };
+}
+
 async function carregarProdutos() {
   const user = firebase.auth().currentUser;
   const uid = user?.uid;
@@ -121,13 +250,18 @@ function renderLista(lista) {
               data.calculosTaxas
                 ? Object.entries(data.calculosTaxas)
                     .map(
-                      ([taxa, valores]) => `
+                      ([taxa, valores]) => {
+                        const referencia = valores.referencia
+                          ? ` (${String(valores.referencia).toUpperCase()})`
+                          : '';
+                        return `
               <div class="mb-2">
-                <div class="text-gray-500 text-sm">${taxa} - Preço mínimo</div>
+                <div class="text-gray-500 text-sm">${taxa}${referencia} - Preço mínimo</div>
                 <div class="text-lg font-semibold text-green-600">R$ ${parseFloat(valores.precoMinimo).toFixed(2)}</div>
                 <div class="text-xs text-gray-500">Promo: R$ ${parseFloat(valores.precoPromo).toFixed(2)} | Médio: R$ ${parseFloat(valores.precoMedio).toFixed(2)} | Ideal: R$ ${parseFloat(valores.precoIdeal).toFixed(2)}</div>
               </div>
-            `,
+            `;
+                      },
                     )
                     .join('')
                 : `
@@ -194,10 +328,26 @@ function verDetalhes(id) {
           100
         ).toFixed(2)
       : '0';
+  const custos = obterCustosDoProduto(prod);
+  const custosHtml = NIVEIS_CUSTO.map((nivel) => {
+    const info = custos[nivel];
+    if (!info || !(info.valor > 0)) return '';
+    const label =
+      nivel === 'minimo' ? 'Mínimo' : nivel === 'medio' ? 'Médio' : 'Máximo';
+    return `
+      <div class="mt-2">
+        <strong>${label}:</strong> ${formatCurrency(info.valor)}
+        ${info.comissao ? `<span class="text-sm text-gray-500">(Comissão ${info.comissao}% )</span>` : ''}
+      </div>
+    `;
+  })
+    .filter(Boolean)
+    .join('');
   body.innerHTML = `
     ${prod.sku ? `<div><strong>SKU:</strong> ${prod.sku}</div>` : ''}
     <div><strong>Plataforma:</strong> ${prod.plataforma}</div>
-    <div><strong>Custo:</strong> R$ ${prod.custo}</div>
+    <div><strong>Custo referência:</strong> ${formatCurrency(prod.custo)}</div>
+    ${custosHtml ? `<div class="mt-3"><strong>Custos cadastrados:</strong>${custosHtml}</div>` : ''}
     <div><strong>Preço mínimo:</strong> R$ ${prod.precoMinimo} (Lucro: ${lucroPercent(prod.precoMinimo)}%)</div>
     <div><strong>Preço ideal:</strong> R$ ${prod.precoIdeal} (Lucro: ${lucroPercent(prod.precoIdeal)}%)</div>
     <div><strong>Preço médio:</strong> R$ ${prod.precoMedio} (Lucro: ${lucroPercent(prod.precoMedio)}%)</div>
@@ -219,14 +369,41 @@ function editarProduto(id) {
   editId = id;
   document.getElementById('modalTitle').textContent = 'Editar ' + prod.produto;
   const body = document.getElementById('modalBody');
+  const custos = obterCustosDoProduto(prod);
   body.innerHTML = `
     <label class='block'>Nome<input id='editNome' class='w-full border p-2 rounded mt-1' value="${prod.produto}"></label>
     <label class='block mt-2'>SKU<input id='editSku' class='w-full border p-2 rounded mt-1' value="${prod.sku || ''}"></label>
-    <label class='block mt-2'>Custo<input id='editCusto' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${prod.custo}"></label>
-    <label class='block mt-2'>Preço mínimo<input id='editMin' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${prod.precoMinimo}"></label>
-    <label class='block mt-2'>Preço ideal<input id='editIdeal' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${prod.precoIdeal}"></label>
-    <label class='block mt-2'>Preço médio<input id='editMedio' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${prod.precoMedio}"></label>
-    <label class='block mt-2'>Preço promo<input id='editPromo' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${prod.precoPromo}"></label>
+    <div class='mt-4'>
+      <h3 class='font-semibold text-sm text-gray-700 mb-2'>Custos e Comissões</h3>
+      <div class='grid grid-cols-1 md:grid-cols-3 gap-4'>
+        <div>
+          <label class='block text-sm font-medium text-gray-600'>Custo mínimo (R$)</label>
+          <input id='editCustoMinimo' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${custos.minimo.valor}">
+          <label class='block text-sm font-medium text-gray-600 mt-2'>Comissão mín. (%)</label>
+          <input id='editComissaoMinimo' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${custos.minimo.comissao}">
+        </div>
+        <div>
+          <label class='block text-sm font-medium text-gray-600'>Custo médio (R$)</label>
+          <input id='editCustoMedio' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${custos.medio.valor}">
+          <label class='block text-sm font-medium text-gray-600 mt-2'>Comissão méd. (%)</label>
+          <input id='editComissaoMedio' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${custos.medio.comissao}">
+        </div>
+        <div>
+          <label class='block text-sm font-medium text-gray-600'>Custo máximo (R$)</label>
+          <input id='editCustoMaximo' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${custos.maximo.valor}">
+          <label class='block text-sm font-medium text-gray-600 mt-2'>Comissão máx. (%)</label>
+          <input id='editComissaoMaximo' type='number' step='0.01' class='w-full border p-2 rounded mt-1' value="${custos.maximo.comissao}">
+        </div>
+      </div>
+      <p class='text-xs text-gray-500 mt-2'>Os preços serão recalculados automaticamente considerando as taxas cadastradas no produto.</p>
+    </div>
+    <div class='mt-4'>
+      <div class='flex items-center justify-between mb-2'>
+        <h3 class='font-semibold text-sm text-gray-700'>Pré-visualização dos preços</h3>
+        <button type='button' id='btnRecalcularPrecos' class='text-sm text-blue-600 hover:underline'>Recalcular agora</button>
+      </div>
+      <div id='previewCustos' class='text-sm text-gray-600 bg-gray-50 border border-dashed border-gray-300 rounded-lg p-3'>Carregando...</div>
+    </div>
   `;
   document.getElementById('saveBtn').classList.remove('hidden');
   document.getElementById('detalhesModal').classList.remove('hidden');
@@ -235,20 +412,62 @@ function editarProduto(id) {
   } else {
     document.getElementById('detalhesModal').style.display = 'flex';
   }
+
+  const atualizarPreview = () => {
+    const custosAtualizados = coletarCustosDoModal();
+    const preview = document.getElementById('previewCustos');
+    const resultado = recalcularPrecos(prod, custosAtualizados);
+    if (!resultado) {
+      preview.innerHTML =
+        '<span class="text-red-600">Não foi possível calcular os preços com os valores informados.</span>';
+      return;
+    }
+    preview.innerHTML = gerarTabelaPreview(resultado);
+    preview.dataset.resultado = JSON.stringify(resultado);
+  };
+
+  document
+    .getElementById('btnRecalcularPrecos')
+    ?.addEventListener('click', atualizarPreview);
+  ['editCustoMinimo', 'editComissaoMinimo', 'editCustoMedio', 'editComissaoMedio', 'editCustoMaximo', 'editComissaoMaximo']
+    .forEach((idCampo) => {
+      document.getElementById(idCampo)?.addEventListener('input', () => {
+        // Atualização leve para pré-visualização
+        atualizarPreview();
+      });
+    });
+
+  atualizarPreview();
 }
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!editId) return;
   const user = firebase.auth().currentUser;
   if (!user) return;
+  const prod = produtos.find((p) => p.id === editId) || {};
+  const custosAtualizados = coletarCustosDoModal();
+  const resultado = recalcularPrecos(prod, custosAtualizados);
+  if (!resultado) {
+    alert('Não foi possível recalcular os preços com os valores informados. Verifique custos, comissões e taxas.');
+    return;
+  }
   const data = {
     produto: document.getElementById('editNome').value,
     sku: document.getElementById('editSku').value,
-    custo: parseFloat(document.getElementById('editCusto').value) || 0,
-    precoMinimo: parseFloat(document.getElementById('editMin').value) || 0,
-    precoIdeal: parseFloat(document.getElementById('editIdeal').value) || 0,
-    precoMedio: parseFloat(document.getElementById('editMedio').value) || 0,
-    precoPromo: parseFloat(document.getElementById('editPromo').value) || 0,
+    plataforma: prod.plataforma,
+    custo: resultado.custo,
+    precoMinimo: resultado.precoMinimo,
+    precoIdeal: resultado.precoIdeal,
+    precoMedio: resultado.precoMedio,
+    precoPromo: resultado.precoPromo,
+    custos: resultado.custos,
+    precosPorCusto: resultado.precosPorCusto,
+    referenciaCusto: resultado.referenciaCusto,
+    calculosTaxas:
+      Object.keys(resultado.calculosTaxas || {}).length
+        ? resultado.calculosTaxas
+        : prod.calculosTaxas || {},
+    taxas: resultado.taxas,
   };
   const pass = getPassphrase() || `chave-${user.uid}`;
   await dbListaPrecos
@@ -263,6 +482,10 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       },
       { merge: true },
     );
+  const idx = produtos.findIndex((p) => p.id === editId);
+  if (idx !== -1) {
+    produtos[idx] = { ...produtos[idx], ...data };
+  }
   fecharModal();
   carregarProdutos();
 });
@@ -456,27 +679,77 @@ function exportarPDFLista() {
   doc.save('lista_precos.pdf');
 }
 
-function recalcularPrecos(prod, novoCusto) {
-  const taxas = prod.taxas || {};
-  const totals = Object.entries(taxas).reduce(
-    (acc, [key, val]) => {
-      const num = parseFloat(val) || 0;
-      if (key.includes('(%)')) acc.percent += num;
-      else acc.fix += num;
-      return acc;
-    },
-    { percent: 0, fix: 0 },
+function recalcularPrecos(prod, novosCustosEntrada) {
+  const custosOriginais = obterCustosDoProduto(prod);
+  let custosAtualizados;
+  if (typeof novosCustosEntrada === 'number') {
+    custosAtualizados = {
+      ...custosOriginais,
+      medio: {
+        valor: Number.parseFloat(novosCustosEntrada) || 0,
+        comissao: custosOriginais.medio?.comissao || 0,
+      },
+    };
+  } else if (novosCustosEntrada) {
+    custosAtualizados = normalizarCustosProduto(novosCustosEntrada);
+  } else {
+    custosAtualizados = custosOriginais;
+  }
+
+  const taxasBase = prod.taxas || {};
+  const totaisBase = calcularTotaisTaxas(taxasBase);
+  const { calculos, referencia } = calcularPrecosCustos(
+    custosAtualizados,
+    totaisBase.percent,
+    totaisBase.fix,
   );
-  const precoMinimo = (novoCusto + totals.fix) / (1 - totals.percent / 100);
-  const precoPromo = precoMinimo;
-  const precoMedio = precoMinimo * 1.05;
-  const precoIdeal = precoMinimo * 1.1;
+  const referenciaDados = calculos[referencia];
+  if (!referenciaDados) {
+    return null;
+  }
+
+  const calculosTaxas = {};
+  if (prod.calculosTaxas) {
+    Object.entries(prod.calculosTaxas).forEach(([taxaKey, dados]) => {
+      const taxaNumero = Number.parseFloat(taxaKey);
+      const taxasDetalhadas = dados?.taxas
+        ? dados.taxas
+        : {
+            ...taxasBase,
+            'Taxas da Plataforma (%)': Number.isFinite(taxaNumero)
+              ? taxaNumero
+              : taxasBase['Taxas da Plataforma (%)'],
+          };
+      const totais = calcularTotaisTaxas(taxasDetalhadas);
+      const { calculos: calcCustos, referencia: refTaxa } = calcularPrecosCustos(
+        custosAtualizados,
+        totais.percent,
+        totais.fix,
+      );
+      const dadosReferencia = calcCustos[refTaxa] || {};
+      calculosTaxas[taxaKey] = {
+        referencia: refTaxa,
+        precosPorCusto: calcCustos,
+        precoMinimo: dadosReferencia.precoMinimo || 0,
+        precoMedio: dadosReferencia.precoMedio || 0,
+        precoIdeal: dadosReferencia.precoIdeal || 0,
+        precoPromo: dadosReferencia.precoPromo || 0,
+        taxas: taxasDetalhadas,
+      };
+    });
+  }
+
   return {
-    custo: novoCusto,
-    precoMinimo: parseFloat(precoMinimo.toFixed(2)),
-    precoPromo: parseFloat(precoPromo.toFixed(2)),
-    precoMedio: parseFloat(precoMedio.toFixed(2)),
-    precoIdeal: parseFloat(precoIdeal.toFixed(2)),
+    custo: Number(referenciaDados.custo || 0),
+    precoMinimo: referenciaDados.precoMinimo,
+    precoMedio: referenciaDados.precoMedio,
+    precoIdeal: referenciaDados.precoIdeal,
+    precoPromo: referenciaDados.precoPromo,
+    custos: custosAtualizados,
+    precosPorCusto: calculos,
+    referenciaCusto: referencia,
+    calculosTaxas,
+    taxas: taxasBase,
   };
 }
 

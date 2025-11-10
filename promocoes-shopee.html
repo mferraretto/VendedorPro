@@ -86,6 +86,14 @@
       <option value="14">14%</option>
     </select>
   </label>
+  <label class="flex items-center gap-2">
+    <span class="font-medium">Custo:</span>
+    <select id="costLevelSelect" class="border p-2 rounded">
+      <option value="minimo">Mínimo</option>
+      <option value="medio" selected>Médio</option>
+      <option value="maximo">Máximo</option>
+    </select>
+  </label>
   <button onclick="applyPromoPriceUpdate('promo')" class="btn-danger">
     <i class="fas fa-tag mr-2"></i> Aplicar Sem Lucro (0%)
   </button>
@@ -424,6 +432,7 @@ async function applyPromoPriceUpdate(type) {
   const skusNaoEncontrados = [];
 
   const selectedTax = document.getElementById('taxRateSelect')?.value || '20';
+  const selectedCost = document.getElementById('costLevelSelect')?.value || 'medio';
 
   sistema.promoShopeeData.forEach((importedProduct) => {
 const sku = importedProduct['Nº de Ref. SKU. (Opcional)'] ? 
@@ -452,21 +461,29 @@ const searchSku = (sku || parentSku || '').toUpperCase();
     }
 
     const taxKey = `${selectedTax}%`;
-    const priceSet = (systemProduct.calculosTaxas && systemProduct.calculosTaxas[taxKey])
-      ? systemProduct.calculosTaxas[taxKey]
-      : systemProduct;
-
-    let priceToApply = 0;
-    switch(type) {
-      case 'promo':
-        priceToApply = parseFloat(priceSet.precoMinimo).toFixed(2);
-        break;
-      case 'medium':
-        priceToApply = parseFloat(priceSet.precoMedio).toFixed(2);
-        break;
-      case 'ideal':
-        priceToApply = parseFloat(priceSet.precoIdeal).toFixed(2);
-        break;
+    const priceEntry = systemProduct.calculosTaxas?.[taxKey];
+    const priceSet = priceEntry || systemProduct;
+    const precosPorCusto =
+      priceEntry?.precosPorCusto ||
+      systemProduct.precosPorCusto ||
+      {};
+    const custoInfo =
+      precosPorCusto[selectedCost] ||
+      precosPorCusto.medio ||
+      Object.values(precosPorCusto)[0];
+    const scenarioMap = {
+      promo: 'precoPromo',
+      medium: 'precoMedio',
+      ideal: 'precoIdeal',
+    };
+    const campo = scenarioMap[type] || 'precoMinimo';
+    let priceToApply;
+    if (custoInfo && custoInfo[campo] !== undefined) {
+      priceToApply = Number.parseFloat(custoInfo[campo] || 0).toFixed(2);
+    } else if (priceSet[campo] !== undefined) {
+      priceToApply = Number.parseFloat(priceSet[campo] || 0).toFixed(2);
+    } else {
+      priceToApply = Number.parseFloat(priceSet.precoMinimo || 0).toFixed(2);
     }
 
     const oldPrice = importedProduct['Preço de desconto'];
