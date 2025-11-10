@@ -1,4 +1,266 @@
 (function () {
+  const COST_LEVEL_CONFIG = [
+    {
+      key: 'minimo',
+      valueHeaders: ['Custo Mínimo (R$)', 'Custo Minimo (R$)'],
+      commissionHeaders: [
+        'Comissão Custo Mínimo (%)',
+        'Comissao Custo Minimo (%)',
+      ],
+    },
+    {
+      key: 'medio',
+      valueHeaders: ['Custo Médio (R$)', 'Custo Medio (R$)'],
+      commissionHeaders: [
+        'Comissão Custo Médio (%)',
+        'Comissao Custo Medio (%)',
+      ],
+    },
+    {
+      key: 'maximo',
+      valueHeaders: ['Custo Máximo (R$)', 'Custo Maximo (R$)'],
+      commissionHeaders: [
+        'Comissão Custo Máximo (%)',
+        'Comissao Custo Maximo (%)',
+      ],
+    },
+  ];
+
+  const REMOVE_DIACRITICS_REGEX = /[\u0300-\u036f]/g;
+
+  function normalizeHeaderKey(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(REMOVE_DIACRITICS_REGEX, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  function buildHeaderLookup(headers = []) {
+    return headers.reduce((acc, header) => {
+      const normalized = normalizeHeaderKey(header);
+      if (!(normalized in acc)) {
+        acc[normalized] = header;
+      }
+      return acc;
+    }, {});
+  }
+
+  function getValueFromVariants(product, headerLookup, variants = []) {
+    for (const variant of variants) {
+      if (Object.prototype.hasOwnProperty.call(product, variant)) {
+        const value = product[variant];
+        if (value !== undefined && value !== '') {
+          return value;
+        }
+      }
+      const normalized = normalizeHeaderKey(variant);
+      const original = headerLookup[normalized];
+      if (original && Object.prototype.hasOwnProperty.call(product, original)) {
+        const value = product[original];
+        if (value !== undefined && value !== '') {
+          return value;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  function parseNumber(value) {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.replace(/\s/g, '').replace(',', '.');
+      if (!normalized) return 0;
+      const parsed = parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  function formatTwoDecimals(number) {
+    const parsed = parseNumber(number);
+    return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
+  }
+
+  function cloneCosts(custos = {}) {
+    const clone = {};
+    COST_LEVEL_CONFIG.forEach(({ key }) => {
+      const info = custos[key] || {};
+      clone[key] = {
+        valor: formatTwoDecimals(info.valor),
+        comissao: formatTwoDecimals(info.comissao),
+      };
+    });
+    return clone;
+  }
+
+  function ensureCostsStructure(custosEntrada = {}, fallbackCusto = 0) {
+    const normalizado = {};
+    COST_LEVEL_CONFIG.forEach(({ key }) => {
+      const info = custosEntrada[key] || {};
+      normalizado[key] = {
+        valor: formatTwoDecimals(info.valor),
+        comissao: formatTwoDecimals(info.comissao),
+      };
+    });
+    if (!(normalizado.medio?.valor > 0) && fallbackCusto > 0) {
+      normalizado.medio.valor = formatTwoDecimals(fallbackCusto);
+    }
+    return normalizado;
+  }
+
+  function calculateTotals(taxas = {}) {
+    return Object.entries(taxas).reduce(
+      (acc, [key, val]) => {
+        const numero = parseNumber(val);
+        if (String(key).includes('%')) acc.percent += numero;
+        else acc.fix += numero;
+        return acc;
+      },
+      { percent: 0, fix: 0 },
+    );
+  }
+
+  function calculatePricesPerCost(
+    custosNormalizados,
+    totalPercentual,
+    totalFixo,
+  ) {
+    const calculos = {};
+    let referencia = null;
+
+    COST_LEVEL_CONFIG.forEach(({ key }) => {
+      const info = custosNormalizados[key] || {};
+      if (!(info.valor > 0)) {
+        calculos[key] = null;
+        return;
+      }
+
+      const percentualTotal = totalPercentual + (info.comissao || 0);
+      if (percentualTotal >= 100) {
+        calculos[key] = null;
+        return;
+      }
+
+      const precoBase = (info.valor + totalFixo) / (1 - percentualTotal / 100);
+      const precoPromo = precoBase;
+      const precoMedio = precoBase * 1.05;
+      const precoIdeal = precoBase * 1.1;
+
+      calculos[key] = {
+        custo: formatTwoDecimals(info.valor),
+        comissao: formatTwoDecimals(info.comissao),
+        precoMinimo: formatTwoDecimals(precoBase),
+        precoPromo: formatTwoDecimals(precoPromo),
+        precoMedio: formatTwoDecimals(precoMedio),
+        precoIdeal: formatTwoDecimals(precoIdeal),
+      };
+
+      if (!referencia || (referencia !== 'medio' && key === 'medio')) {
+        referencia = key;
+      }
+    });
+
+    if (!referencia) {
+      referencia = COST_LEVEL_CONFIG.map(({ key }) => key).find(
+        (nivel) => calculos[nivel],
+      );
+    }
+
+    return { calculos, referencia };
+  }
+
+  function formatTaxas(taxas = {}) {
+    const formatted = {};
+    Object.entries(taxas).forEach(([key, value]) => {
+      formatted[key] = formatTwoDecimals(value);
+    });
+    return formatted;
+  }
+
+  function montarResultadoImportacao(
+    custosNormalizados,
+    totalPercentual,
+    totalFixo,
+    taxasDetalhadas,
+    taxaPercentual,
+  ) {
+    const { calculos, referencia } = calculatePricesPerCost(
+      custosNormalizados,
+      totalPercentual,
+      totalFixo,
+    );
+
+    if (!referencia || !calculos[referencia]) {
+      return null;
+    }
+
+    const base = calculos[referencia];
+    const custosInformados = cloneCosts(custosNormalizados);
+
+    return {
+      taxaPercentual: formatTwoDecimals(taxaPercentual),
+      custosInformados,
+      custosCalculados: calculos,
+      referencia,
+      custoBase: custosInformados[referencia]?.valor || 0,
+      precoMinimo: base.precoMinimo,
+      precoIdeal: base.precoIdeal,
+      precoMedio: base.precoMedio,
+      precoPromo: base.precoPromo,
+      taxas: formatTaxas(taxasDetalhadas),
+    };
+  }
+
+  function gerarResultadoComTaxa(
+    custosNormalizados,
+    totaisTaxas,
+    taxasBase,
+    taxaOverride,
+  ) {
+    const taxaAtual = parseNumber(taxasBase['Taxas da Plataforma (%)']);
+    const taxaAplicada =
+      typeof taxaOverride === 'number' && Number.isFinite(taxaOverride)
+        ? taxaOverride
+        : taxaAtual;
+    const totalPercentSemTaxa = totaisTaxas.percent - taxaAtual;
+    const totalPercentual = totalPercentSemTaxa + taxaAplicada;
+    const taxasDetalhadas = {
+      ...taxasBase,
+      'Taxas da Plataforma (%)': taxaAplicada,
+    };
+    return montarResultadoImportacao(
+      custosNormalizados,
+      totalPercentual,
+      totaisTaxas.fix,
+      taxasDetalhadas,
+      taxaAplicada,
+    );
+  }
+
+  function extrairCustosDaPlanilha(product, headerLookup, custoBase) {
+    const custos = {};
+    COST_LEVEL_CONFIG.forEach(({ key, valueHeaders, commissionHeaders }) => {
+      const valorBruto = getValueFromVariants(
+        product,
+        headerLookup,
+        valueHeaders,
+      );
+      const comissaoBruta = getValueFromVariants(
+        product,
+        headerLookup,
+        commissionHeaders,
+      );
+      custos[key] = {
+        valor: parseNumber(valorBruto),
+        comissao: parseNumber(comissaoBruta),
+      };
+    });
+    return ensureCostsStructure(custos, custoBase);
+  }
+
   // Toggle visibility of the Importar Produtos card on the precificação page
   window.toggleImportCard = function () {
     var card = document.getElementById('importarProdutosCard');
@@ -19,6 +281,12 @@
       'SKU',
       'Plataforma',
       'Custo (R$)',
+      'Custo Mínimo (R$)',
+      'Comissão Custo Mínimo (%)',
+      'Custo Médio (R$)',
+      'Comissão Custo Médio (%)',
+      'Custo Máximo (R$)',
+      'Comissão Custo Máximo (%)',
       'Taxas da Plataforma (%)',
       'Custo Fixo Plataforma (R$)',
       'Frete (R$)',
@@ -59,38 +327,62 @@
       }
 
       const headers = jsonData[0];
+      const headerLookup = buildHeaderLookup(headers);
       let imported = 0;
 
       for (let i = 1; i < jsonData.length; i++) {
         const row = jsonData[i];
-        if (row.length === 0) continue;
+        if (!row || row.length === 0) continue;
 
         const product = {};
         for (let j = 0; j < headers.length; j++) {
           product[headers[j]] = row[j];
         }
 
-        const nome =
-          product['Produto'] ||
-          product['produto'] ||
-          product['Nome do Produto'] ||
-          '';
-        const sku = product['SKU'] || product['sku'] || '';
+        const nome = (
+          getValueFromVariants(product, headerLookup, [
+            'Produto',
+            'Nome do Produto',
+          ]) || ''
+        )
+          .toString()
+          .trim();
+        const sku = (
+          getValueFromVariants(product, headerLookup, ['SKU', 'sku']) || ''
+        )
+          .toString()
+          .trim();
         const plataforma = (
-          product['Plataforma'] ||
-          product['plataforma'] ||
-          ''
-        ).toUpperCase();
-        const custo = parseFloat(
-          product['Custo'] ||
-            product['Custo do Produto'] ||
-            product['Custo (R$)'] ||
-            0,
+          getValueFromVariants(product, headerLookup, ['Plataforma']) || ''
+        )
+          .toString()
+          .trim()
+          .toUpperCase();
+        const custo = parseNumber(
+          getValueFromVariants(product, headerLookup, [
+            'Custo',
+            'Custo do Produto',
+            'Custo (R$)',
+          ]),
         );
 
         if (!nome || !plataforma) continue;
 
-        const duasVal = (product['Duas Taxas Shopee (S/N)'] || '')
+        const custosNormalizados = extrairCustosDaPlanilha(
+          product,
+          headerLookup,
+          custo,
+        );
+        const possuiCustoValido = COST_LEVEL_CONFIG.some(
+          ({ key }) => custosNormalizados[key]?.valor > 0,
+        );
+        if (!possuiCustoValido) continue;
+
+        const duasVal = (
+          getValueFromVariants(product, headerLookup, [
+            'Duas Taxas Shopee (S/N)',
+          ]) || ''
+        )
           .toString()
           .trim()
           .toLowerCase();
@@ -99,70 +391,58 @@
           ['s', 'sim', 'y', 'yes', '1', 'true'].includes(duasVal);
 
         const taxas = {
-          'Taxas da Plataforma (%)': parseFloat(
-            product['Taxas da Plataforma (%)'] ||
-              product['Taxa da Plataforma'] ||
-              0,
+          'Taxas da Plataforma (%)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, [
+              'Taxas da Plataforma (%)',
+              'Taxa da Plataforma',
+            ]),
           ),
-          'Custo Fixo Plataforma (R$)': parseFloat(
-            product['Custo Fixo Plataforma (R$)'] || product['Custo Fixo'] || 0,
+          'Custo Fixo Plataforma (R$)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, [
+              'Custo Fixo Plataforma (R$)',
+              'Custo Fixo',
+            ]),
           ),
-          'Frete (R$)': parseFloat(product['Frete (R$)'] || 0),
-          'Taxa de Transação (%)': parseFloat(
-            product['Taxa de Transação (%)'] || 0,
+          'Frete (R$)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, ['Frete (R$)']),
           ),
-          'Taxa de Transferência (%)': parseFloat(
-            product['Taxa de Transferência (%)'] || 0,
+          'Taxa de Transação (%)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, [
+              'Taxa de Transação (%)',
+            ]),
           ),
-          'Taxa de Antecipação (%)': parseFloat(
-            product['Taxa de Antecipação (%)'] || 0,
+          'Taxa de Transferência (%)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, [
+              'Taxa de Transferência (%)',
+            ]),
           ),
-          'Custos Variáveis (R$)': parseFloat(
-            product['Custos Variáveis (R$)'] || 0,
+          'Taxa de Antecipação (%)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, [
+              'Taxa de Antecipação (%)',
+            ]),
           ),
-          'Imposto (%)': parseFloat(product['Imposto (%)'] || 0),
-          'Comissão do Vendedor (%)': parseFloat(
-            product['Comissão do Vendedor (%)'] || 0,
+          'Custos Variáveis (R$)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, [
+              'Custos Variáveis (R$)',
+            ]),
+          ),
+          'Imposto (%)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, ['Imposto (%)']),
+          ),
+          'Comissão do Vendedor (%)': formatTwoDecimals(
+            getValueFromVariants(product, headerLookup, [
+              'Comissão do Vendedor (%)',
+            ]),
           ),
         };
 
-        const totals = Object.entries(taxas).reduce(
-          (acc, [key, val]) => {
-            if (key.includes('(%)')) acc.percent += val || 0;
-            else acc.fix += val || 0;
-            return acc;
-          },
-          { percent: 0, fix: 0 },
-        );
-
-        const taxaPlataforma = taxas['Taxas da Plataforma (%)'] || 0;
+        const totais = calculateTotals(taxas);
 
         if (usarDuas) {
-          const basePercent = totals.percent - taxaPlataforma;
           const resultados = [20, 14]
-            .map((taxa) => {
-              const totalPercent = basePercent + taxa;
-              if (totalPercent >= 100) return null;
-              const precoMinimo = (
-                (custo + totals.fix) /
-                (1 - totalPercent / 100)
-              ).toFixed(2);
-              const precoPromo = precoMinimo;
-              const precoMedio = (precoMinimo * 1.05).toFixed(2);
-              const precoIdeal = (precoMinimo * 1.1).toFixed(2);
-              const taxasDetalhadas = {
-                ...taxas,
-                'Taxas da Plataforma (%)': taxa,
-              };
-              return {
-                taxaPercentual: taxa,
-                precoMinimo: parseFloat(precoMinimo),
-                precoPromo: parseFloat(precoPromo),
-                precoMedio: parseFloat(precoMedio),
-                precoIdeal: parseFloat(precoIdeal),
-                taxas: taxasDetalhadas,
-              };
-            })
+            .map((taxa) =>
+              gerarResultadoComTaxa(custosNormalizados, totais, taxas, taxa),
+            )
             .filter(Boolean);
 
           if (resultados.length) {
@@ -170,7 +450,6 @@
               nome,
               sku,
               plataforma,
-              custo,
               resultados,
             );
             if (salvo) imported++;
@@ -178,26 +457,18 @@
           continue;
         }
 
-        if (totals.percent >= 100) continue;
-
-        const precoMinimo = (
-          (custo + totals.fix) /
-          (1 - totals.percent / 100)
-        ).toFixed(2);
-        const precoPromo = precoMinimo;
-        const precoMedio = (precoMinimo * 1.05).toFixed(2);
-        const precoIdeal = (precoMinimo * 1.1).toFixed(2);
+        const resultadoBasico = gerarResultadoComTaxa(
+          custosNormalizados,
+          totais,
+          taxas,
+        );
+        if (!resultadoBasico) continue;
 
         const salvo = await salvarProduto(
           nome,
           sku,
           plataforma,
-          precoMinimo,
-          precoIdeal,
-          precoMedio,
-          precoPromo,
-          custo,
-          taxas,
+          resultadoBasico,
         );
         if (salvo) imported++;
       }
