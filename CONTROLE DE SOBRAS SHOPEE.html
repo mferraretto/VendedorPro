@@ -6889,14 +6889,22 @@ let consulta;
     }
 
     function classificarSobraPorFaixa(metaInfo, sobra) {
+      const resultadoPadrao = {
+        label: 'Sem meta',
+        detalhe: 'Cadastre uma meta para este SKU',
+        situacao: 'sem-meta',
+        diferenca: 0,
+        comissao: null,
+        comissaoTexto: '',
+        comissaoDescricao: '',
+        valorApresentacao: null,
+        excedenteMaximo: 0,
+        excedenteAcimaLimite: 0,
+        excedenteTexto: ''
+      };
+
       if (!metaInfo) {
-        return {
-          label: 'Sem meta',
-          detalhe: 'Cadastre uma meta para este SKU',
-          situacao: 'sem-meta',
-          diferenca: 0,
-          comissao: null
-        };
+        return resultadoPadrao;
       }
 
       const minimo = numeroValido(metaInfo.minimo) ? metaInfo.minimo : null;
@@ -6918,53 +6926,6 @@ let consulta;
       const faixaConfigurada =
         numeroValido(minimo) || numeroValido(medio) || numeroValido(maximo);
 
-      if (!faixaConfigurada) {
-        return {
-          label: 'Sem faixa configurada',
-          detalhe: 'Configure mínimo, médio ou máximo para este SKU',
-          situacao: 'sem-faixa',
-          diferenca: 0,
-          comissao: null
-        };
-      }
-
-      if (minimo !== null && sobra < minimo) {
-        const diferenca = minimo - sobra;
-        return {
-          label: 'Abaixo do Mínimo',
-          detalhe: `Falta ${formatarMoedaBR(diferenca)}`,
-          situacao: 'abaixo',
-          diferenca,
-          comissao: null
-        };
-      }
-
-      if (maximo !== null && sobra > maximo) {
-        const diferenca = sobra - maximo;
-        return {
-          label: 'Acima do Máximo',
-          detalhe: `Excedente de ${formatarMoedaBR(diferenca)}`,
-          situacao: 'acima',
-          diferenca,
-          comissao: null
-        };
-      }
-
-      let faixa = 'Dentro da Faixa';
-      if (medio !== null) {
-        if (maximo !== null && sobra >= maximo) {
-          faixa = 'Máximo';
-        } else if (sobra >= medio) {
-          faixa = 'Médio';
-        } else {
-          faixa = 'Mínimo';
-        }
-      } else if (maximo !== null) {
-        faixa = 'Máximo';
-      } else if (minimo !== null) {
-        faixa = 'Mínimo';
-      }
-
       const selecionarComissaoNivel = (nivel) => {
         if (!nivel) return null;
         const valor = comissoesPorFaixa?.[nivel];
@@ -6972,59 +6933,160 @@ let consulta;
         return null;
       };
 
-      let nivelFaixa = null;
-      switch (faixa) {
-        case 'Mínimo':
-          nivelFaixa = 'minimo';
-          break;
-        case 'Médio':
-          nivelFaixa = 'medio';
-          break;
-        case 'Máximo':
-          nivelFaixa = 'maximo';
-          break;
-        default:
-          break;
-      }
+      const nomeNivelMap = {
+        minimo: 'mínima',
+        medio: 'média',
+        maximo: 'máxima'
+      };
 
-      if (!nivelFaixa && faixa === 'Dentro da Faixa') {
-        if (numeroValido(medio)) {
-          nivelFaixa = 'medio';
-        } else if (numeroValido(minimo) && sobra <= minimo) {
-          nivelFaixa = 'minimo';
-        } else if (numeroValido(maximo)) {
-          nivelFaixa = 'maximo';
+      const calcularComissao = (nivel) => {
+        if (comissaoFixaPadrao !== null) {
+          const descricao = 'Comissão fixa configurada';
+          return {
+            valor: comissaoFixaPadrao,
+            descricao,
+            texto: `${descricao}: ${formatarMoedaBR(comissaoFixaPadrao)}`
+          };
         }
+
+        let percentual = nivel ? selecionarComissaoNivel(nivel) : null;
+        if (percentual === null) {
+          percentual = comissaoPercentualPadrao;
+        }
+
+        if (percentual === null) {
+          const descricao = nivel
+            ? `Sem comissão ${nomeNivelMap[nivel]} configurada`
+            : 'Sem comissão configurada';
+          return { valor: null, descricao, texto: descricao };
+        }
+
+        const percentualDecimal = percentual > 1 ? percentual / 100 : percentual;
+        const percentualDisplay = percentual > 1 ? percentual : percentual * 100;
+        const valor = sobra * percentualDecimal;
+        const nivelNome = nivel ? nomeNivelMap[nivel] : 'padrão';
+        const descricao = `Comissão ${nivelNome} (${percentualDisplay.toFixed(2)}%)`;
+        return {
+          valor,
+          descricao,
+          texto: `${descricao}: ${formatarMoedaBR(valor)}`
+        };
+      };
+
+      if (!faixaConfigurada) {
+        return {
+          label: 'Sem faixa configurada',
+          detalhe: 'Configure mínimo, médio ou máximo para este SKU',
+          situacao: 'sem-faixa',
+          diferenca: 0,
+          comissao: null,
+          comissaoTexto: '',
+          comissaoDescricao: 'Sem faixa configurada',
+          valorApresentacao: null,
+          excedenteMaximo: 0,
+          excedenteAcimaLimite: 0,
+          excedenteTexto: ''
+        };
       }
 
-      let comissaoPercentual = selecionarComissaoNivel(nivelFaixa);
-      if (comissaoPercentual === null) {
-        comissaoPercentual = comissaoPercentualPadrao;
+      if (minimo !== null && sobra < minimo) {
+        const diferenca = minimo - sobra;
+        return {
+          label: 'Abaixo do mínimo',
+          detalhe: `Falta ${formatarMoedaBR(diferenca)} para o mínimo (${formatarMoedaBR(minimo)})`,
+          situacao: 'abaixo',
+          diferenca,
+          comissao: null,
+          comissaoTexto: `Abaixo do mínimo por ${formatarMoedaBR(diferenca)}`,
+          comissaoDescricao: 'Abaixo do mínimo',
+          valorApresentacao: -diferenca,
+          excedenteMaximo: 0,
+          excedenteAcimaLimite: 0,
+          excedenteTexto: ''
+        };
       }
-      const comissaoFixa = comissaoFixaPadrao;
 
-      let comissaoCalculada = null;
+      if (maximo !== null && sobra > maximo) {
+        const diferenca = sobra - maximo;
+        const comissaoInfo = calcularComissao('maximo');
+        const limiteTresPorCento = maximo * 1.03;
+        const excedenteAcimaLimite = sobra > limiteTresPorCento ? sobra - limiteTresPorCento : 0;
+        return {
+          label: 'Acima do máximo',
+          detalhe: `Excedeu ${formatarMoedaBR(diferenca)} o máximo (${formatarMoedaBR(maximo)})`,
+          situacao: 'acima',
+          diferenca,
+          comissao: comissaoInfo.valor,
+          comissaoTexto: comissaoInfo.texto,
+          comissaoDescricao: comissaoInfo.descricao,
+          valorApresentacao: comissaoInfo.valor,
+          excedenteMaximo: diferenca,
+          excedenteAcimaLimite,
+          excedenteTexto: excedenteAcimaLimite > 0
+            ? `Excedeu o limite de 3% em ${formatarMoedaBR(excedenteAcimaLimite)}`
+            : ''
+        };
+      }
+
+      let classificacao = 'Dentro da faixa';
       let detalhe = 'Dentro da faixa configurada';
-      if (comissaoFixa !== null) {
-        comissaoCalculada = comissaoFixa;
-        detalhe = `Comissão fixa: ${formatarMoedaBR(comissaoCalculada)}`;
-      } else if (comissaoPercentual !== null) {
-        const percentual = comissaoPercentual > 1
-          ? comissaoPercentual / 100
-          : comissaoPercentual;
-        comissaoCalculada = sobra * percentual;
-        const percentualDisplay = comissaoPercentual > 1
-          ? comissaoPercentual
-          : comissaoPercentual * 100;
-        detalhe = `Comissão estimada (${percentualDisplay.toFixed(2)}%): ${formatarMoedaBR(comissaoCalculada)}`;
+      let nivelFaixa = null;
+
+      if (medio !== null) {
+        if (sobra < medio) {
+          classificacao = 'Entre o mínimo e o médio';
+          nivelFaixa = 'minimo';
+          detalhe = numeroValido(minimo)
+            ? `Entre ${formatarMoedaBR(minimo)} e ${formatarMoedaBR(medio)}`
+            : `Até ${formatarMoedaBR(medio)}`;
+        } else if (maximo !== null && sobra < maximo) {
+          classificacao = 'Entre o médio e o máximo';
+          nivelFaixa = 'medio';
+          detalhe = `Entre ${formatarMoedaBR(medio)} e ${formatarMoedaBR(maximo)}`;
+        } else if (maximo !== null && sobra === maximo) {
+          classificacao = 'No máximo';
+          nivelFaixa = 'maximo';
+          detalhe = `No valor máximo configurado (${formatarMoedaBR(maximo)})`;
+        } else if (maximo === null) {
+          classificacao = 'Acima do médio';
+          nivelFaixa = 'medio';
+          detalhe = `Acima do médio configurado (${formatarMoedaBR(medio)})`;
+        } else {
+          classificacao = 'No máximo';
+          nivelFaixa = 'maximo';
+          detalhe = `No valor máximo configurado (${formatarMoedaBR(maximo)})`;
+        }
+      } else if (maximo !== null) {
+        if (sobra === maximo) {
+          classificacao = 'No máximo';
+          nivelFaixa = 'maximo';
+          detalhe = `No valor máximo configurado (${formatarMoedaBR(maximo)})`;
+        } else {
+          classificacao = 'Entre o mínimo e o máximo';
+          nivelFaixa = numeroValido(minimo) ? 'minimo' : 'maximo';
+          detalhe = numeroValido(minimo)
+            ? `Entre ${formatarMoedaBR(minimo)} e ${formatarMoedaBR(maximo)}`
+            : `Até ${formatarMoedaBR(maximo)}`;
+        }
+      } else if (minimo !== null) {
+        classificacao = 'Acima do mínimo';
+        nivelFaixa = 'minimo';
+        detalhe = `Acima do mínimo configurado (${formatarMoedaBR(minimo)})`;
       }
 
+      const comissaoInfo = calcularComissao(nivelFaixa);
       return {
-        label: faixa,
+        label: classificacao,
         detalhe,
         situacao: 'dentro',
         diferenca: 0,
-        comissao: comissaoCalculada
+        comissao: comissaoInfo.valor,
+        comissaoTexto: comissaoInfo.texto,
+        comissaoDescricao: comissaoInfo.descricao,
+        valorApresentacao: comissaoInfo.valor,
+        excedenteMaximo: 0,
+        excedenteAcimaLimite: 0,
+        excedenteTexto: ''
       };
     }
 
@@ -7123,7 +7185,13 @@ let consulta;
           detalheFaixa: faixaInfo.detalhe,
           situacaoFaixa: faixaInfo.situacao,
           diferencaFaixa: faixaInfo.diferenca,
-          comissaoFaixa: faixaInfo.comissao
+          comissaoFaixa: faixaInfo.comissao,
+          comissaoTexto: faixaInfo.comissaoTexto,
+          comissaoDescricao: faixaInfo.comissaoDescricao,
+          comissaoValorDisplay: faixaInfo.valorApresentacao,
+          excedenteMaximo: faixaInfo.excedenteMaximo,
+          excedenteAcimaLimite: faixaInfo.excedenteAcimaLimite,
+          excedenteTexto: faixaInfo.excedenteTexto
         };
 
         pedidosProcessados.push(pedidoData);
@@ -7156,6 +7224,34 @@ let consulta;
           statusIcon = '⚠️';
         }
 
+        const classificacaoHTML = `
+          <strong>${faixaInfo.label}</strong>
+          ${faixaInfo.detalhe ? `<br><small>${faixaInfo.detalhe}</small>` : ''}
+        `;
+
+        let comissaoColumn = '';
+        const valorApresentacao = faixaInfo.valorApresentacao;
+        if (valorApresentacao !== null && valorApresentacao !== undefined) {
+          const sinal = valorApresentacao < 0 ? '-' : '';
+          const valorFormatado = Math.abs(valorApresentacao).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          comissaoColumn = `<strong>${sinal}R$ ${valorFormatado}</strong>`;
+        }
+        if (faixaInfo.comissaoTexto) {
+          comissaoColumn += `${comissaoColumn ? '<br>' : ''}<small>${faixaInfo.comissaoTexto}</small>`;
+        }
+        if (!comissaoColumn) {
+          comissaoColumn = '<span class="text-muted">-</span>';
+        }
+
+        let excedenteColumn = '<span class="text-muted">-</span>';
+        if (faixaInfo.excedenteAcimaLimite > 0) {
+          const excedenteFormatado = faixaInfo.excedenteAcimaLimite.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          excedenteColumn = `<span class="text-danger">R$ ${excedenteFormatado}</span>`;
+          if (faixaInfo.excedenteTexto) {
+            excedenteColumn += `<br><small>${faixaInfo.excedenteTexto}</small>`;
+          }
+        }
+
         tr.className = rowClass;
         tr.innerHTML = `
           <td>${id}</td>
@@ -7166,10 +7262,9 @@ let consulta;
           <td>R$ ${comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
           <td>R$ ${servico.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
           <td><strong>R$ ${sobra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong><br><small>Meta: R$ ${meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</small></td>
-          <td>
-            <strong>${faixaInfo.label}</strong>
-            ${faixaInfo.detalhe ? `<br><small>${faixaInfo.detalhe}</small>` : ''}
-          </td>
+          <td>${classificacaoHTML}</td>
+          <td>${comissaoColumn}</td>
+          <td>${excedenteColumn}</td>
           <td>${percentual.toFixed(2)}%</td>
           <td class="status-only" data-status="${statusText}">${statusIcon} ${statusText}</td>
         `;
@@ -7249,26 +7344,32 @@ let consulta;
             media
         }
     };
-      const sobras = pedidosProcessados.map(p => {
-  return {
-    sku: p.sku,
-    vendido: p.subtotal,
-    sobra: p.sobra,
-    meta: p.meta,
-    faixa: p.faixa,
-    detalheFaixa: p.detalheFaixa,
-    comissaoFaixa: p.comissaoFaixa,
-    data: new Date().toLocaleDateString()
-  };
-});
+      const sobras = pedidosProcessados.map(p => ({
+        sku: p.sku,
+        vendido: p.subtotal,
+        sobra: p.sobra,
+        meta: p.meta,
+        faixa: p.faixa,
+        detalheFaixa: p.detalheFaixa,
+        comissaoFaixa: p.comissaoFaixa,
+        comissaoValorDisplay: p.comissaoValorDisplay,
+        comissaoTexto: p.comissaoTexto,
+        excedenteAcimaLimite: p.excedenteAcimaLimite,
+        data: new Date().toLocaleDateString()
+      }));
 
-document.getElementById("dadosSobrasIA").value = sobras.map(s => {
-  const comissaoTexto = typeof s.comissaoFaixa === 'number'
-    ? `, Comissão: R$ ${s.comissaoFaixa.toFixed(2)}`
-    : '';
-  const detalheFaixa = s.detalheFaixa ? `, Detalhe: ${s.detalheFaixa}` : '';
-  return `SKU: ${s.sku}, Vendido: R$ ${s.vendido.toFixed(2)}, Sobra: R$ ${s.sobra.toFixed(2)}, Meta: R$ ${s.meta?.toFixed(2) || 0}, Faixa: ${s.faixa || 'Não definida'}${detalheFaixa}${comissaoTexto}, Data: ${s.data}`;
-}).join("\n");
+      document.getElementById("dadosSobrasIA").value = sobras
+        .map(s => {
+          const comissaoTexto = typeof s.comissaoValorDisplay === 'number'
+            ? `, Comissão/Desvio: R$ ${s.comissaoValorDisplay.toFixed(2)}`
+            : (s.comissaoTexto ? `, Comissão/Desvio: ${s.comissaoTexto}` : '');
+          const excedenteTexto = s.excedenteAcimaLimite > 0
+            ? `, Excedente >3%: R$ ${s.excedenteAcimaLimite.toFixed(2)}`
+            : '';
+          const detalheFaixa = s.detalheFaixa ? `, Detalhe: ${s.detalheFaixa}` : '';
+          return `SKU: ${s.sku}, Vendido: R$ ${s.vendido.toFixed(2)}, Sobra: R$ ${s.sobra.toFixed(2)}, Meta: R$ ${s.meta?.toFixed(2) || 0}, Faixa: ${s.faixa || 'Não definida'}${detalheFaixa}${comissaoTexto}${excedenteTexto}, Data: ${s.data}`;
+        })
+        .join("\n");
         renderizarTabelaLogistica();
 }
 
@@ -9112,7 +9213,7 @@ await db
 
       try {
         // Cabeçalhos
-        let csv = 'ID do Pedido;SKU;Subtotal;Reembolso;Cupom;Comissão;Serviço;Sobra;Meta;Faixa de Sobra;Detalhe da Faixa;Comissão Estimada;% vs Meta;Status\n';
+        let csv = 'ID do Pedido;SKU;Subtotal;Reembolso;Cupom;Comissão;Serviço;Sobra;Meta;Classificação do Preço;Detalhe da Classificação;Valor Comissão/Desvio (R$);Descrição Comissão;Excedente >3% Máx (R$);% vs Meta;Status\n';
 
         // Dados
         pedidosProcessados.forEach(pedido => {
@@ -9122,11 +9223,16 @@ await db
              pedido.percentual >= 5 ? 'Bom' : 'Normal') : 'Sem meta';
 
           const detalheFaixa = (pedido.detalheFaixa || '').replace(/"/g, '""');
-          const comissaoFaixa = pedido.comissaoFaixa !== null && pedido.comissaoFaixa !== undefined
-            ? pedido.comissaoFaixa.toFixed(2)
+          const classificacao = (pedido.faixa || '').replace(/"/g, '""');
+          const valorComissao = pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
+            ? pedido.comissaoValorDisplay.toFixed(2)
+            : '';
+          const descricaoComissao = (pedido.comissaoTexto || '').replace(/"/g, '""');
+          const excedenteLimite = pedido.excedenteAcimaLimite > 0
+            ? pedido.excedenteAcimaLimite.toFixed(2)
             : '';
 
-          csv += `"${pedido.id}";"${pedido.sku}";"${pedido.subtotal.toFixed(2)}";"${pedido.reembolso.toFixed(2)}";"${pedido.cupom.toFixed(2)}";"${pedido.comissao.toFixed(2)}";"${pedido.servico.toFixed(2)}";"${pedido.sobra.toFixed(2)}";"${pedido.meta.toFixed(2)}";"${pedido.faixa || ''}";"${detalheFaixa}";"${comissaoFaixa}";"${pedido.percentual.toFixed(2)}";"${status}"\n`;
+          csv += `"${pedido.id}";"${pedido.sku}";"${pedido.subtotal.toFixed(2)}";"${pedido.reembolso.toFixed(2)}";"${pedido.cupom.toFixed(2)}";"${pedido.comissao.toFixed(2)}";"${pedido.servico.toFixed(2)}";"${pedido.sobra.toFixed(2)}";"${pedido.meta.toFixed(2)}";"${classificacao}";"${detalheFaixa}";"${valorComissao}";"${descricaoComissao}";"${excedenteLimite}";"${pedido.percentual.toFixed(2)}";"${status}"\n`;
         });
 
         const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
@@ -9162,10 +9268,14 @@ await db
             'Serviço (R$)': Number(pedido.servico.toFixed(2)),
             'Sobra (R$)': Number(pedido.sobra.toFixed(2)),
             'Meta (R$)': Number(pedido.meta.toFixed(2)),
-            'Faixa de Sobra': pedido.faixa || '',
-            'Detalhe da Faixa': pedido.detalheFaixa || '',
-            'Comissão Estimada (R$)': pedido.comissaoFaixa !== null && pedido.comissaoFaixa !== undefined
-              ? Number(pedido.comissaoFaixa.toFixed(2))
+            'Classificação do Preço': pedido.faixa || '',
+            'Detalhe da Classificação': pedido.detalheFaixa || '',
+            'Valor Comissão/Desvio (R$)': pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
+              ? Number(pedido.comissaoValorDisplay.toFixed(2))
+              : '',
+            'Descrição Comissão': pedido.comissaoTexto || '',
+            'Excedente >3% Máx (R$)': pedido.excedenteAcimaLimite > 0
+              ? Number(pedido.excedenteAcimaLimite.toFixed(2))
               : '',
             '% vs Meta': Number(pedido.percentual.toFixed(2)),
             'Status': status
