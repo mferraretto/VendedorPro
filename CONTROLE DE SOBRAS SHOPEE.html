@@ -6251,17 +6251,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       };
     }
 
+    function selecionarPrimeiroNumeroValido(...valores) {
+      for (const valor of valores) {
+        if (numeroValido(valor) || valor === 0) {
+          return valor;
+        }
+      }
+      return null;
+    }
+
     function calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, fallback) {
+      if (numeroValido(maximoInfo?.valor)) return maximoInfo.valor;
       if (numeroValido(medioInfo?.valor)) return medioInfo.valor;
       if (numeroValido(minimoInfo?.valor)) return minimoInfo.valor;
-      if (numeroValido(maximoInfo?.valor)) return maximoInfo.valor;
       if (numeroValido(fallback)) return fallback;
       return 0;
     }
 
     async function carregarProdutos() {
       try {
-let consulta;
+        let consulta;
         if (["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())) {
           consulta = db.collectionGroup('produtos');
         } else {
@@ -6278,13 +6287,19 @@ let consulta;
           if (!sku) return;
 
           const custosBrutos = data.custos || {};
+          const calculosTaxas = data.calculosTaxas || {};
           const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
           const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
           const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
+          const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
           const custoFallback = normalizarNumeroMeta(data.custo, null);
-          const custoBase = calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback);
+          const custoParaMeta = selecionarPrimeiroNumeroValido(
+            maximoTaxaInfo.valor,
+            maximoInfo.valor,
+            calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback)
+          );
 
-          produtos[sku] = numeroValido(custoBase) ? custoBase : 0;
+          produtos[sku] = numeroValido(custoParaMeta) ? custoParaMeta : 0;
 
           if (datalist) {
             const opt = document.createElement('option');
@@ -6306,7 +6321,7 @@ let consulta;
         return await executarComRetry(async () => {
           metas = {};
           // Carrega SKUs e custo dos produtos cadastrados
-  let produtosSnapQuery;
+          let produtosSnapQuery;
           if (["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())) {
             produtosSnapQuery = db.collectionGroup('produtos');
           } else {
@@ -6323,33 +6338,44 @@ let consulta;
             if (!sku) return;
 
             const custosBrutos = data.custos || {};
+            const calculosTaxas = data.calculosTaxas || {};
             const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
             const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
             const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
+            const minimoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.minimo);
+            const medioTaxaInfo = extrairInfoCustoProduto(calculosTaxas.medio);
+            const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
             const custoFallback = normalizarNumeroMeta(data.custo, null);
 
-            const custoBase = calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback);
+            const custoMaximo = selecionarPrimeiroNumeroValido(
+              maximoTaxaInfo.valor,
+              maximoInfo.valor,
+              calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback)
+            );
 
             const comissoesPorFaixa = {
-              minimo: numeroValido(minimoInfo.comissao) || minimoInfo.comissao === 0 ? minimoInfo.comissao : null,
-              medio: numeroValido(medioInfo.comissao) || medioInfo.comissao === 0 ? medioInfo.comissao : null,
-              maximo: numeroValido(maximoInfo.comissao) || maximoInfo.comissao === 0 ? maximoInfo.comissao : null
+              minimo: selecionarPrimeiroNumeroValido(minimoTaxaInfo.comissao, minimoInfo.comissao),
+              medio: selecionarPrimeiroNumeroValido(medioTaxaInfo.comissao, medioInfo.comissao),
+              maximo: selecionarPrimeiroNumeroValido(maximoTaxaInfo.comissao, maximoInfo.comissao)
             };
 
             metas[sku] = {
-              valor: numeroValido(custoBase) ? custoBase : 0,
+              valor: numeroValido(custoMaximo) ? custoMaximo : 0,
               minimo: numeroValido(minimoInfo.valor) ? minimoInfo.valor : null,
               medio: numeroValido(medioInfo.valor) ? medioInfo.valor : null,
-              maximo: numeroValido(maximoInfo.valor) ? maximoInfo.valor : null,
-              comissaoPercentual: numeroValido(comissoesPorFaixa.medio) || comissoesPorFaixa.medio === 0
-                ? comissoesPorFaixa.medio
-                : null,
+              maximo: numeroValido(maximoInfo.valor)
+                ? maximoInfo.valor
+                : (numeroValido(custoMaximo) ? custoMaximo : null),
+              comissaoPercentual: selecionarPrimeiroNumeroValido(
+                maximoTaxaInfo.comissao,
+                maximoInfo.comissao
+              ),
               comissaoFixa: null,
               comissoes: comissoesPorFaixa,
               atualizadoEm: new Date()
             };
 
-            produtos[sku] = numeroValido(custoBase) ? custoBase : 0;
+            produtos[sku] = numeroValido(custoMaximo) ? custoMaximo : 0;
 
             if (datalist) {
               const opt = document.createElement('option');
