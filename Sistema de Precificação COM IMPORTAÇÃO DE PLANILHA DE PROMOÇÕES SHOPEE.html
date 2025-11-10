@@ -432,7 +432,10 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
     }
 
     function showUserArea(user) {
-      document.getElementById('currentUser').textContent = user.email;
+      const currentUserEl = document.getElementById('currentUser');
+      if (currentUserEl) {
+        currentUserEl.textContent = user.email;
+      }
       
       // Atualizar avatar com iniciais, se o elemento existir
       const nameParts = user.email.split('@')[0].split('.');
@@ -448,11 +451,20 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
     }
 
     function hideUserArea() {
-      document.getElementById('currentUser').textContent = '';
+      const currentUserEl = document.getElementById('currentUser');
+      if (currentUserEl) {
+        currentUserEl.textContent = '';
+      }
       
       // Remove todas as restrições de permissão
-      document.getElementById('configTab').classList.remove('hidden');
-      document.getElementById('historyTab').classList.remove('hidden');
+      const configTabEl = document.getElementById('configTab');
+      if (configTabEl) {
+        configTabEl.classList.remove('hidden');
+      }
+      const historyTabEl = document.getElementById('historyTab');
+      if (historyTabEl) {
+        historyTabEl.classList.remove('hidden');
+      }
       // Limpa dados carregados
       sistema.produtos = [];
       sistema.historico = [];
@@ -466,7 +478,10 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
       // Verificação simplificada de permissões
       // Implementação real dependeria de dados do Firestore
       if (user.email !== "admin@empresa.com") {
-        document.getElementById('configTab').classList.add('hidden');
+        const configTabEl = document.getElementById('configTab');
+        if (configTabEl) {
+          configTabEl.classList.add('hidden');
+        }
       }
     }
 
