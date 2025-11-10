@@ -7389,6 +7389,25 @@ let consulta;
     // CONTROLE LOGÍSTICO DE PEDIDOS
     // =============================================
 
+    let logistica = {};
+
+    function carregarLogistica() {
+      try {
+        const armazenado = localStorage.getItem('controleLogistica');
+        if (armazenado) {
+          const parsed = JSON.parse(armazenado);
+          if (parsed && typeof parsed === 'object') {
+            logistica = parsed;
+          }
+        }
+      } catch (error) {
+        console.warn('Não foi possível carregar o controle logístico salvo:', error);
+        logistica = {};
+      }
+    }
+
+    carregarLogistica();
+
     function salvarLogistica() {
       localStorage.setItem('controleLogistica', JSON.stringify(logistica));
     }
