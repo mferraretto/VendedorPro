@@ -8960,7 +8960,7 @@ await db
         mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
         return;
       }
-      
+
       try {
         // Cabeçalhos
         let csv = 'ID do Pedido;SKU;Subtotal;Reembolso;Cupom;Comissão;Serviço;Sobra;Meta;Faixa de Sobra;Detalhe da Faixa;Comissão Estimada;% vs Meta;Status\n';
@@ -8979,14 +8979,60 @@ await db
 
           csv += `"${pedido.id}";"${pedido.sku}";"${pedido.subtotal.toFixed(2)}";"${pedido.reembolso.toFixed(2)}";"${pedido.cupom.toFixed(2)}";"${pedido.comissao.toFixed(2)}";"${pedido.servico.toFixed(2)}";"${pedido.sobra.toFixed(2)}";"${pedido.meta.toFixed(2)}";"${pedido.faixa || ''}";"${detalheFaixa}";"${comissaoFaixa}";"${pedido.percentual.toFixed(2)}";"${status}"\n`;
         });
-        
+
         const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, `relatorio_sobras_${new Date().toISOString().slice(0,10)}.csv`);
-        
+
         mostrarSucesso('Arquivo CSV exportado com sucesso!');
       } catch (error) {
         mostrarErro(`Erro ao exportar CSV: ${error.message}`);
         console.error("Erro ao exportar CSV:", error);
+      }
+    }
+
+    function exportarExcel() {
+      if (pedidosProcessados.length === 0) {
+        mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
+        return;
+      }
+
+      try {
+        const linhas = pedidosProcessados.map(pedido => {
+          const status = pedido.meta ?
+            (pedido.percentual <= -10 ? 'Crítico' :
+              pedido.percentual <= -5 ? 'Atenção' :
+              pedido.percentual >= 5 ? 'Bom' : 'Normal') : 'Sem meta';
+
+          return {
+            'ID do Pedido': pedido.id,
+            'SKU': pedido.sku,
+            'Subtotal (R$)': Number(pedido.subtotal.toFixed(2)),
+            'Reembolso (R$)': Number(pedido.reembolso.toFixed(2)),
+            'Cupom (R$)': Number(pedido.cupom.toFixed(2)),
+            'Comissão (R$)': Number(pedido.comissao.toFixed(2)),
+            'Serviço (R$)': Number(pedido.servico.toFixed(2)),
+            'Sobra (R$)': Number(pedido.sobra.toFixed(2)),
+            'Meta (R$)': Number(pedido.meta.toFixed(2)),
+            'Faixa de Sobra': pedido.faixa || '',
+            'Detalhe da Faixa': pedido.detalheFaixa || '',
+            'Comissão Estimada (R$)': pedido.comissaoFaixa !== null && pedido.comissaoFaixa !== undefined
+              ? Number(pedido.comissaoFaixa.toFixed(2))
+              : '',
+            '% vs Meta': Number(pedido.percentual.toFixed(2)),
+            'Status': status
+          };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(linhas);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sobras');
+
+        const nomeArquivo = `relatorio_sobras_${new Date().toISOString().slice(0,10)}.xlsx`;
+        XLSX.writeFile(workbook, nomeArquivo);
+        mostrarSucesso('Arquivo Excel exportado com sucesso!');
+      } catch (error) {
+        mostrarErro(`Erro ao exportar Excel: ${error.message}`);
+        console.error('Erro ao exportar Excel:', error);
       }
     }
     const registrosFaturamentoSelecionados = new Set();
@@ -16216,6 +16262,7 @@ window.excluirFaturamentosSelecionados = excluirFaturamentosSelecionados;
 window.excluirFaturamento = excluirFaturamento;
 window.analisarSobrasIA = analisarSobrasIA;
 window.exportarCSV = exportarCSV;
+window.exportarExcel = exportarExcel;
 window.exportarJSON = exportarJSON;
 window.verificarConexao = verificarConexao;
 window.editarMeta = editarMeta;

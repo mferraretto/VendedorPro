@@ -1285,15 +1285,24 @@ select:focus {
 }
 .table-container {
   border-radius: 0.5rem;
-  overflow: hidden;
   border: 1px solid var(--border);
   background: var(--background);
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 .table {
   width: 100%;
   border-collapse: collapse;
 }
-.table th {
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 960px;
+}
+.table th,
+.data-table th {
   background: var(--background);
   text-align: left;
   padding: 12px 15px;
@@ -1304,18 +1313,23 @@ select:focus {
   position: sticky;
   top: 0;
 }
-.table td {
+.table td,
+.data-table td {
   padding: 12px 15px;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
+  vertical-align: top;
 }
-.table tr:last-child td {
+.table tr:last-child td,
+.data-table tr:last-child td {
   border-bottom: none;
 }
-.table tr:nth-child(2n) {
+.table tr:nth-child(2n),
+.data-table tr:nth-child(2n) {
   background: rgba(0, 0, 0, 0.02);
 }
-body.dark-mode .table tr:nth-child(2n) {
+body.dark-mode .table tr:nth-child(2n),
+body.dark-mode .data-table tr:nth-child(2n) {
   background: rgba(255, 255, 255, 0.03);
 }
 .platform-tag {
