@@ -6226,6 +6226,39 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     // =============================================
     // FUNÇÕES DE GERENCIAMENTO DE METAS
     // =============================================
+    function extrairInfoCustoProduto(entrada) {
+      if (entrada === undefined || entrada === null) {
+        return { valor: null, comissao: null };
+      }
+      if (typeof entrada === 'object') {
+        const valor = normalizarNumeroMeta(
+          entrada.valor ?? entrada.custo ?? entrada.preco ?? entrada.base ?? null,
+          null
+        );
+        const comissao = normalizarNumeroMeta(
+          entrada.comissao ?? entrada.percentual ?? entrada.comissaoPercentual ?? entrada.taxa ?? null,
+          null
+        );
+        return {
+          valor: numeroValido(valor) ? valor : null,
+          comissao: numeroValido(comissao) ? comissao : (comissao === 0 ? 0 : null)
+        };
+      }
+      const valorNormalizado = normalizarNumeroMeta(entrada, null);
+      return {
+        valor: numeroValido(valorNormalizado) ? valorNormalizado : null,
+        comissao: null
+      };
+    }
+
+    function calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, fallback) {
+      if (numeroValido(medioInfo?.valor)) return medioInfo.valor;
+      if (numeroValido(minimoInfo?.valor)) return minimoInfo.valor;
+      if (numeroValido(maximoInfo?.valor)) return maximoInfo.valor;
+      if (numeroValido(fallback)) return fallback;
+      return 0;
+    }
+
     async function carregarProdutos() {
       try {
 let consulta;
@@ -6240,14 +6273,24 @@ let consulta;
         if (datalist) datalist.innerHTML = '';
 
         snapshot.forEach(doc => {
-          const data = doc.data();
-          if (!data.sku) return;
-          produtos[data.sku] = data.custo;
+          const data = doc.data() || {};
+          const sku = (data.sku || '').toString().trim();
+          if (!sku) return;
+
+          const custosBrutos = data.custos || {};
+          const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
+          const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
+          const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
+          const custoFallback = normalizarNumeroMeta(data.custo, null);
+          const custoBase = calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback);
+
+          produtos[sku] = numeroValido(custoBase) ? custoBase : 0;
+
           if (datalist) {
             const opt = document.createElement('option');
-            const preco = data.custo ? parseFloat(data.custo).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0.00';
-            opt.value = data.sku;
-            opt.label = `${data.sku} - R$ ${preco}`;
+            const preco = Number(produtos[sku] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            opt.value = sku;
+            opt.label = `${sku} - R$ ${preco}`;
             datalist.appendChild(opt);
           }
         });
@@ -6259,7 +6302,7 @@ let consulta;
     async function carregarMetas() {
       try {
         toggleLoading(document.getElementById('btnAdicionarMeta'), '<i class="fas fa-plus"></i> Adicionar Meta');
-        
+
         return await executarComRetry(async () => {
           metas = {};
           // Carrega SKUs e custo dos produtos cadastrados
@@ -6270,20 +6313,50 @@ let consulta;
             produtosSnapQuery = db.collection('uid').doc(usuarioLogado.uid).collection('produtos');
           }
           const produtosSnap = await produtosSnapQuery.get();
+          produtos = {};
+          const datalist = document.getElementById('listaSkus');
+          if (datalist) datalist.innerHTML = '';
+
           produtosSnap.forEach((doc) => {
-            const data = doc.data();
-            if (data.sku && data.custo !== undefined) {
-              const custoNormalizado = normalizarNumeroMeta(data.custo, 0);
-              metas[data.sku] = {
-                valor: numeroValido(custoNormalizado) ? custoNormalizado : 0,
-                minimo: null,
-                medio: null,
-                maximo: null,
-                comissaoPercentual: null,
-                comissaoFixa: null,
-                atualizadoEm: new Date()
-              };
-              produtos[data.sku] = data.custo;
+            const data = doc.data() || {};
+            const sku = (data.sku || '').toString().trim();
+            if (!sku) return;
+
+            const custosBrutos = data.custos || {};
+            const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
+            const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
+            const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
+            const custoFallback = normalizarNumeroMeta(data.custo, null);
+
+            const custoBase = calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback);
+
+            const comissoesPorFaixa = {
+              minimo: numeroValido(minimoInfo.comissao) || minimoInfo.comissao === 0 ? minimoInfo.comissao : null,
+              medio: numeroValido(medioInfo.comissao) || medioInfo.comissao === 0 ? medioInfo.comissao : null,
+              maximo: numeroValido(maximoInfo.comissao) || maximoInfo.comissao === 0 ? maximoInfo.comissao : null
+            };
+
+            metas[sku] = {
+              valor: numeroValido(custoBase) ? custoBase : 0,
+              minimo: numeroValido(minimoInfo.valor) ? minimoInfo.valor : null,
+              medio: numeroValido(medioInfo.valor) ? medioInfo.valor : null,
+              maximo: numeroValido(maximoInfo.valor) ? maximoInfo.valor : null,
+              comissaoPercentual: numeroValido(comissoesPorFaixa.medio) || comissoesPorFaixa.medio === 0
+                ? comissoesPorFaixa.medio
+                : null,
+              comissaoFixa: null,
+              comissoes: comissoesPorFaixa,
+              atualizadoEm: new Date()
+            };
+
+            produtos[sku] = numeroValido(custoBase) ? custoBase : 0;
+
+            if (datalist) {
+              const opt = document.createElement('option');
+              opt.value = sku;
+              const preco = Number(produtos[sku] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+              opt.label = `${sku} - R$ ${preco}`;
+              datalist.appendChild(opt);
             }
           });
 
@@ -6319,6 +6392,32 @@ let consulta;
               metaAtual.comissaoFixa ?? null
             );
 
+            const comissoesExistentes = metaAtual.comissoes || {};
+            const extrairComissaoNivel = (nivel, ...campos) => {
+              for (const campo of campos) {
+                if (metaDoc[campo] !== undefined) {
+                  const valorCampo = normalizarNumeroMeta(metaDoc[campo], comissoesExistentes[nivel] ?? null);
+                  if (numeroValido(valorCampo) || valorCampo === 0) return valorCampo;
+                }
+              }
+              const infoCustos = metaDoc.custos && metaDoc.custos[nivel];
+              if (infoCustos) {
+                const infoNormalizada = extrairInfoCustoProduto(infoCustos);
+                if (numeroValido(infoNormalizada.comissao) || infoNormalizada.comissao === 0) {
+                  return infoNormalizada.comissao;
+                }
+              }
+              const existente = comissoesExistentes[nivel];
+              if (numeroValido(existente) || existente === 0) return existente;
+              return null;
+            };
+
+            const comissoesAtualizadas = {
+              minimo: extrairComissaoNivel('minimo', 'comissaoMinimo', 'percentualMinimo'),
+              medio: extrairComissaoNivel('medio', 'comissaoMedio', 'percentualMedio'),
+              maximo: extrairComissaoNivel('maximo', 'comissaoMaximo', 'percentualMaximo')
+            };
+
             let atualizadoEm = new Date();
             if (metaDoc.atualizadoEm) {
               if (typeof metaDoc.atualizadoEm.toDate === 'function') {
@@ -6340,12 +6439,19 @@ let consulta;
               minimo: numeroValido(minimoDoc) ? minimoDoc : null,
               medio: numeroValido(medioDoc) ? medioDoc : null,
               maximo: numeroValido(maximoDoc) ? maximoDoc : null,
-              comissaoPercentual: numeroValido(comissaoPercentualDoc) ? comissaoPercentualDoc : null,
+              comissaoPercentual: numeroValido(comissaoPercentualDoc)
+                ? comissaoPercentualDoc
+                : (numeroValido(comissoesAtualizadas.medio) || comissoesAtualizadas.medio === 0)
+                  ? comissoesAtualizadas.medio
+                  : numeroValido(metaAtual.comissaoPercentual)
+                    ? metaAtual.comissaoPercentual
+                    : null,
               comissaoFixa: numeroValido(comissaoFixaDoc) ? comissaoFixaDoc : null,
+              comissoes: comissoesAtualizadas,
               atualizadoEm
             };
           });
-          
+
           renderizarMetas();
           return true;
         });
@@ -6591,6 +6697,7 @@ let consulta;
         
         // Atualizar localmente
         metas[sku] = {
+          ...metaAtual,
           valor: valor,
           minimo: minimoExistente,
           medio: medioExistente,
@@ -6679,6 +6786,7 @@ let consulta;
           
           // Atualizar localmente
           metas[sku] = {
+            ...metaAtual,
             valor: novoValor,
             minimo: minimoExistente,
             medio: medioExistente,
@@ -6794,15 +6902,16 @@ let consulta;
       const minimo = numeroValido(metaInfo.minimo) ? metaInfo.minimo : null;
       const maximo = numeroValido(metaInfo.maximo) ? metaInfo.maximo : null;
       let medio = numeroValido(metaInfo.medio) ? metaInfo.medio : null;
+      const comissoesPorFaixa = metaInfo.comissoes || {};
 
       if (medio === null && numeroValido(minimo) && numeroValido(maximo)) {
         medio = (minimo + maximo) / 2;
       }
 
-      const comissaoPercentual = numeroValido(metaInfo.comissaoPercentual)
+      const comissaoPercentualPadrao = (numeroValido(metaInfo.comissaoPercentual) || metaInfo.comissaoPercentual === 0)
         ? metaInfo.comissaoPercentual
         : null;
-      const comissaoFixa = numeroValido(metaInfo.comissaoFixa)
+      const comissaoFixaPadrao = (numeroValido(metaInfo.comissaoFixa) || metaInfo.comissaoFixa === 0)
         ? metaInfo.comissaoFixa
         : null;
 
@@ -6856,19 +6965,59 @@ let consulta;
         faixa = 'Mínimo';
       }
 
+      const selecionarComissaoNivel = (nivel) => {
+        if (!nivel) return null;
+        const valor = comissoesPorFaixa?.[nivel];
+        if (numeroValido(valor) || valor === 0) return valor;
+        return null;
+      };
+
+      let nivelFaixa = null;
+      switch (faixa) {
+        case 'Mínimo':
+          nivelFaixa = 'minimo';
+          break;
+        case 'Médio':
+          nivelFaixa = 'medio';
+          break;
+        case 'Máximo':
+          nivelFaixa = 'maximo';
+          break;
+        default:
+          break;
+      }
+
+      if (!nivelFaixa && faixa === 'Dentro da Faixa') {
+        if (numeroValido(medio)) {
+          nivelFaixa = 'medio';
+        } else if (numeroValido(minimo) && sobra <= minimo) {
+          nivelFaixa = 'minimo';
+        } else if (numeroValido(maximo)) {
+          nivelFaixa = 'maximo';
+        }
+      }
+
+      let comissaoPercentual = selecionarComissaoNivel(nivelFaixa);
+      if (comissaoPercentual === null) {
+        comissaoPercentual = comissaoPercentualPadrao;
+      }
+      const comissaoFixa = comissaoFixaPadrao;
+
       let comissaoCalculada = null;
+      let detalhe = 'Dentro da faixa configurada';
       if (comissaoFixa !== null) {
         comissaoCalculada = comissaoFixa;
+        detalhe = `Comissão fixa: ${formatarMoedaBR(comissaoCalculada)}`;
       } else if (comissaoPercentual !== null) {
         const percentual = comissaoPercentual > 1
           ? comissaoPercentual / 100
           : comissaoPercentual;
         comissaoCalculada = sobra * percentual;
+        const percentualDisplay = comissaoPercentual > 1
+          ? comissaoPercentual
+          : comissaoPercentual * 100;
+        detalhe = `Comissão estimada (${percentualDisplay.toFixed(2)}%): ${formatarMoedaBR(comissaoCalculada)}`;
       }
-
-      const detalhe = comissaoCalculada !== null
-        ? `Comissão estimada: ${formatarMoedaBR(comissaoCalculada)}`
-        : 'Dentro da faixa configurada';
 
       return {
         label: faixa,
