@@ -99,6 +99,24 @@
   font-weight: 700;
 }
 
+.scenario-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  text-align: right;
+}
+
+.scenario-values .scenario-value {
+  display: inline-block;
+  min-width: 4.5rem;
+}
+
+.scenario-label {
+  font-weight: 500;
+  margin-right: 0.25rem;
+  color: #4b5563;
+}
+
 .scenario-ideal {
   background-color: rgba(76, 175, 80, 0.1);
 }

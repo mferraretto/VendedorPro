@@ -662,9 +662,50 @@ function numerosSaoQuaseIguais(a, b, tolerancia = 0.009) {
   return Math.abs(numA - numB) <= tolerancia;
 }
 
+function calcularTotaisTaxasPainel(taxas = {}, conversor) {
+  return Object.entries(taxas).reduce(
+    (acc, [chave, valor]) => {
+      const numero = conversor ? conversor(valor) : Number(valor);
+      if (!Number.isFinite(numero)) return acc;
+      if (String(chave).includes('%')) acc.percent += numero;
+      else acc.fix += numero;
+      return acc;
+    },
+    { percent: 0, fix: 0 },
+  );
+}
+
 function calcularPrecosComNovoCusto(produto = {}, novoCusto) {
+  const niveis = ['minimo', 'medio', 'maximo'];
   const custoConvertido = converterNumero(novoCusto);
   const custoNumero = Number.isFinite(custoConvertido) ? custoConvertido : 0;
+
+  const normalizarCustos = (custos = {}) => {
+    const resultado = {};
+    niveis.forEach((nivel) => {
+      const info = custos?.[nivel] || {};
+      resultado[nivel] = {
+        valor: converterNumero(info.valor),
+        comissao: converterNumero(info.comissao) || 0,
+      };
+    });
+    return resultado;
+  };
+
+  const custosOriginais =
+    produto && produto.custos
+      ? normalizarCustos(produto.custos)
+      : normalizarCustos({
+          medio: { valor: converterNumero(produto.custo), comissao: 0 },
+        });
+
+  const custosAtualizados = {
+    ...custosOriginais,
+    medio: {
+      valor: custoNumero,
+      comissao: custosOriginais.medio?.comissao || 0,
+    },
+  };
 
   let percentualTotal = 0;
   let valorFixoTotal = 0;
@@ -681,29 +722,92 @@ function calcularPrecosComNovoCusto(produto = {}, novoCusto) {
     });
   }
 
-  const denominador = 1 - percentualTotal / 100;
-  let precoMinimo = custoNumero;
-  if (Number.isFinite(valorFixoTotal)) {
-    if (denominador > 0.000001) {
-      precoMinimo = (custoNumero + valorFixoTotal) / denominador;
-    } else {
-      precoMinimo = custoNumero + valorFixoTotal;
-    }
-  }
+  const calcularParaCustos = (percentualExtra = 0, fixoExtra = 0) => {
+    const calculos = {};
+    let referencia = null;
+    niveis.forEach((nivel) => {
+      const info = custosAtualizados[nivel];
+      if (!info || !(info.valor > 0)) return;
+      const percent = percentualTotal + percentualExtra + (info.comissao || 0);
+      if (percent >= 100) {
+        calculos[nivel] = null;
+        return;
+      }
+      const base = info.valor + valorFixoTotal + fixoExtra;
+      const precoMinimo = base / (1 - percent / 100);
+      const precoPromo = precoMinimo;
+      const precoMedio = precoMinimo * 1.05;
+      const precoIdeal = precoMinimo * 1.1;
+      calculos[nivel] = {
+        custo: Number.isFinite(info.valor) ? Number(info.valor.toFixed(2)) : 0,
+        comissao: info.comissao || 0,
+        precoMinimo: Number(precoMinimo.toFixed(2)),
+        precoPromo: Number(precoPromo.toFixed(2)),
+        precoMedio: Number(precoMedio.toFixed(2)),
+        precoIdeal: Number(precoIdeal.toFixed(2)),
+      };
+      if (!referencia || (referencia !== 'medio' && nivel === 'medio')) {
+        referencia = nivel;
+      }
+    });
+    if (!referencia)
+      referencia = niveis.find((nivel) => calculos[nivel]) || 'medio';
+    return { calculos, referencia };
+  };
 
-  const precoPromo = precoMinimo;
-  const precoMedio = precoMinimo * 1.05;
-  const precoIdeal = precoMinimo * 1.1;
+  const baseCalculo = calcularParaCustos();
+  const referenciaDados = baseCalculo.calculos[baseCalculo.referencia] || {
+    precoMinimo: 0,
+    precoPromo: 0,
+    precoMedio: 0,
+    precoIdeal: 0,
+    custo: custoNumero,
+  };
 
   const arredondar = (valor) =>
     Number.isFinite(valor) ? Number(valor.toFixed(2)) : 0;
 
+  const calculosTaxas = {};
+  if (produto?.calculosTaxas) {
+    Object.entries(produto.calculosTaxas).forEach(([taxaKey, valores]) => {
+      const taxaNumero = converterNumero(
+        valores?.taxas?.['Taxas da Plataforma (%)'] || taxaKey,
+      );
+      const taxasDetalhadas = valores?.taxas || {
+        ...produto.taxas,
+        'Taxas da Plataforma (%)': taxaNumero,
+      };
+      const extras = calcularTotaisTaxasPainel(
+        taxasDetalhadas,
+        converterNumero,
+      );
+      const calculos = calcularParaCustos(
+        extras.percent - percentualTotal,
+        extras.fix - valorFixoTotal,
+      );
+      const dadosRef = calculos.calculos[calculos.referencia] || {};
+      calculosTaxas[taxaKey] = {
+        referencia: calculos.referencia,
+        precosPorCusto: calculos.calculos,
+        precoMinimo: dadosRef.precoMinimo || 0,
+        precoMedio: dadosRef.precoMedio || 0,
+        precoIdeal: dadosRef.precoIdeal || 0,
+        precoPromo: dadosRef.precoPromo || 0,
+        taxas: taxasDetalhadas,
+      };
+    });
+  }
+
   return {
-    custo: arredondar(custoNumero),
-    precoMinimo: arredondar(precoMinimo),
-    precoPromo: arredondar(precoPromo),
-    precoMedio: arredondar(precoMedio),
-    precoIdeal: arredondar(precoIdeal),
+    custo: arredondar(referenciaDados.custo || custoNumero),
+    precoMinimo: arredondar(referenciaDados.precoMinimo),
+    precoPromo: arredondar(referenciaDados.precoPromo),
+    precoMedio: arredondar(referenciaDados.precoMedio),
+    precoIdeal: arredondar(referenciaDados.precoIdeal),
+    custos: custosAtualizados,
+    precosPorCusto: baseCalculo.calculos,
+    referenciaCusto: baseCalculo.referencia,
+    calculosTaxas,
   };
 }
 
