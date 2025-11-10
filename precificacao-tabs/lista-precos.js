@@ -63,12 +63,19 @@ function gerarTabelaPreview(resultado) {
     const dados = resultado.precosPorCusto?.[nivel];
     if (!dados) return '';
     const titulo =
-      nivel === 'minimo' ? 'Custo mínimo' : nivel === 'medio' ? 'Custo médio' : 'Custo máximo';
+      nivel === 'minimo'
+        ? 'Custo mínimo'
+        : nivel === 'medio'
+          ? 'Custo médio'
+          : 'Custo máximo';
     return `
       <tr>
         <td class="px-2 py-1 font-medium text-gray-600">${titulo}</td>
         ${cenarios
-          .map((cenario) => `<td class="px-2 py-1">${formatCurrency(dados[cenario.chave])}</td>`)
+          .map(
+            (cenario) =>
+              `<td class="px-2 py-1">${formatCurrency(dados[cenario.chave])}</td>`,
+          )
           .join('')}
       </tr>
     `;
@@ -84,7 +91,10 @@ function gerarTabelaPreview(resultado) {
         <tr>
           <th class="px-2 py-1 text-left text-gray-500">Cenário</th>
           ${cenarios
-            .map((cenario) => `<th class="px-2 py-1 text-gray-500 text-right">${cenario.titulo}</th>`)
+            .map(
+              (cenario) =>
+                `<th class="px-2 py-1 text-gray-500 text-right">${cenario.titulo}</th>`,
+            )
             .join('')}
         </tr>
       </thead>
@@ -249,20 +259,18 @@ function renderLista(lista) {
             ${
               data.calculosTaxas
                 ? Object.entries(data.calculosTaxas)
-                    .map(
-                      ([taxa, valores]) => {
-                        const referencia = valores.referencia
-                          ? ` (${String(valores.referencia).toUpperCase()})`
-                          : '';
-                        return `
+                    .map(([taxa, valores]) => {
+                      const referencia = valores.referencia
+                        ? ` (${String(valores.referencia).toUpperCase()})`
+                        : '';
+                      return `
               <div class="mb-2">
                 <div class="text-gray-500 text-sm">${taxa}${referencia} - Preço mínimo</div>
                 <div class="text-lg font-semibold text-green-600">R$ ${parseFloat(valores.precoMinimo).toFixed(2)}</div>
                 <div class="text-xs text-gray-500">Promo: R$ ${parseFloat(valores.precoPromo).toFixed(2)} | Médio: R$ ${parseFloat(valores.precoMedio).toFixed(2)} | Ideal: R$ ${parseFloat(valores.precoIdeal).toFixed(2)}</div>
               </div>
             `;
-                      },
-                    )
+                    })
                     .join('')
                 : `
               <div class="text-gray-500 text-sm">Preço mínimo</div>
@@ -429,13 +437,19 @@ function editarProduto(id) {
   document
     .getElementById('btnRecalcularPrecos')
     ?.addEventListener('click', atualizarPreview);
-  ['editCustoMinimo', 'editComissaoMinimo', 'editCustoMedio', 'editComissaoMedio', 'editCustoMaximo', 'editComissaoMaximo']
-    .forEach((idCampo) => {
-      document.getElementById(idCampo)?.addEventListener('input', () => {
-        // Atualização leve para pré-visualização
-        atualizarPreview();
-      });
+  [
+    'editCustoMinimo',
+    'editComissaoMinimo',
+    'editCustoMedio',
+    'editComissaoMedio',
+    'editCustoMaximo',
+    'editComissaoMaximo',
+  ].forEach((idCampo) => {
+    document.getElementById(idCampo)?.addEventListener('input', () => {
+      // Atualização leve para pré-visualização
+      atualizarPreview();
     });
+  });
 
   atualizarPreview();
 }
@@ -448,7 +462,9 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const custosAtualizados = coletarCustosDoModal();
   const resultado = recalcularPrecos(prod, custosAtualizados);
   if (!resultado) {
-    alert('Não foi possível recalcular os preços com os valores informados. Verifique custos, comissões e taxas.');
+    alert(
+      'Não foi possível recalcular os preços com os valores informados. Verifique custos, comissões e taxas.',
+    );
     return;
   }
   const data = {
@@ -463,10 +479,9 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     custos: resultado.custos,
     precosPorCusto: resultado.precosPorCusto,
     referenciaCusto: resultado.referenciaCusto,
-    calculosTaxas:
-      Object.keys(resultado.calculosTaxas || {}).length
-        ? resultado.calculosTaxas
-        : prod.calculosTaxas || {},
+    calculosTaxas: Object.keys(resultado.calculosTaxas || {}).length
+      ? resultado.calculosTaxas
+      : prod.calculosTaxas || {},
     taxas: resultado.taxas,
   };
   const pass = getPassphrase() || `chave-${user.uid}`;
@@ -565,6 +580,12 @@ function exportarExcelLista() {
     'SKU',
     'Plataforma',
     'Custo (R$)',
+    'Custo Mínimo (R$)',
+    'Comissão Custo Mínimo (%)',
+    'Custo Médio (R$)',
+    'Comissão Custo Médio (%)',
+    'Custo Máximo (R$)',
+    'Comissão Custo Máximo (%)',
     'Taxas da Plataforma (%)',
     'Custo Fixo Plataforma (R$)',
     'Frete (R$)',
@@ -581,7 +602,18 @@ function exportarExcelLista() {
     Produto: p.produto,
     SKU: p.sku || '',
     Plataforma: p.plataforma || '',
-    'Custo (R$)': parseFloat(p.custo || 0),
+    ...(() => {
+      const custos = obterCustosDoProduto(p);
+      return {
+        'Custo (R$)': parseFloat(p.custo ?? custos.medio?.valor ?? 0),
+        'Custo Mínimo (R$)': custos.minimo.valor,
+        'Comissão Custo Mínimo (%)': custos.minimo.comissao,
+        'Custo Médio (R$)': custos.medio.valor,
+        'Comissão Custo Médio (%)': custos.medio.comissao,
+        'Custo Máximo (R$)': custos.maximo.valor,
+        'Comissão Custo Máximo (%)': custos.maximo.comissao,
+      };
+    })(),
     'Taxas da Plataforma (%)': '',
     'Custo Fixo Plataforma (R$)': '',
     'Frete (R$)': '',
@@ -607,6 +639,12 @@ function exportarPlanilhaPrecificacao() {
     'SKU',
     'Plataforma',
     'Custo (R$)',
+    'Custo Mínimo (R$)',
+    'Comissão Custo Mínimo (%)',
+    'Custo Médio (R$)',
+    'Comissão Custo Médio (%)',
+    'Custo Máximo (R$)',
+    'Comissão Custo Máximo (%)',
     'Taxas da Plataforma (%)',
     'Custo Fixo Plataforma (R$)',
     'Frete (R$)',
@@ -621,7 +659,18 @@ function exportarPlanilhaPrecificacao() {
     Produto: p.produto,
     SKU: p.sku || '',
     Plataforma: p.plataforma,
-    'Custo (R$)': parseFloat(p.custo || 0),
+    ...(() => {
+      const custos = obterCustosDoProduto(p);
+      return {
+        'Custo (R$)': parseFloat(p.custo ?? custos.medio?.valor ?? 0),
+        'Custo Mínimo (R$)': custos.minimo.valor,
+        'Comissão Custo Mínimo (%)': custos.minimo.comissao,
+        'Custo Médio (R$)': custos.medio.valor,
+        'Comissão Custo Médio (%)': custos.medio.comissao,
+        'Custo Máximo (R$)': custos.maximo.valor,
+        'Comissão Custo Máximo (%)': custos.maximo.comissao,
+      };
+    })(),
     'Taxas da Plataforma (%)': parseFloat(
       p.taxas?.['Taxas da Plataforma (%)'] || 0,
     ),
@@ -721,11 +770,8 @@ function recalcularPrecos(prod, novosCustosEntrada) {
               : taxasBase['Taxas da Plataforma (%)'],
           };
       const totais = calcularTotaisTaxas(taxasDetalhadas);
-      const { calculos: calcCustos, referencia: refTaxa } = calcularPrecosCustos(
-        custosAtualizados,
-        totais.percent,
-        totais.fix,
-      );
+      const { calculos: calcCustos, referencia: refTaxa } =
+        calcularPrecosCustos(custosAtualizados, totais.percent, totais.fix);
       const dadosReferencia = calcCustos[refTaxa] || {};
       calculosTaxas[taxaKey] = {
         referencia: refTaxa,
@@ -885,5 +931,5 @@ Object.assign(window, {
   verDetalhes,
   editarProduto,
   excluirProduto,
-  fecharModal
+  fecharModal,
 });
