@@ -6314,9 +6314,20 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
     }
 
-    async function carregarMetas() {
+    async function carregarMetas(opcoes = {}) {
+      const {
+        atualizarDatalist = true,
+        renderizarInterface = true,
+        mostrarLoading = true
+      } = opcoes;
+
       try {
-        toggleLoading(document.getElementById('btnAdicionarMeta'), '<i class="fas fa-plus"></i> Adicionar Meta');
+        if (mostrarLoading) {
+          toggleLoading(
+            document.getElementById('btnAdicionarMeta'),
+            '<i class="fas fa-plus"></i> Adicionar Meta'
+          );
+        }
 
         return await executarComRetry(async () => {
           metas = {};
@@ -6329,7 +6340,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
           const produtosSnap = await produtosSnapQuery.get();
           produtos = {};
-          const datalist = document.getElementById('listaSkus');
+          const datalist = atualizarDatalist ? document.getElementById('listaSkus') : null;
           if (datalist) datalist.innerHTML = '';
 
           produtosSnap.forEach((doc) => {
@@ -6478,7 +6489,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             };
           });
 
-          renderizarMetas();
+          if (renderizarInterface) {
+            renderizarMetas();
+          }
           return true;
         });
       } catch (error) {
@@ -6486,7 +6499,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         console.error("Erro ao carregar metas:", error);
         return false;
       } finally {
-        toggleLoading(document.getElementById('btnAdicionarMeta'), '<i class="fas fa-plus"></i> Adicionar Meta');
+        if (mostrarLoading) {
+          toggleLoading(
+            document.getElementById('btnAdicionarMeta'),
+            '<i class="fas fa-plus"></i> Adicionar Meta'
+          );
+        }
       }
     }
 
@@ -7116,7 +7134,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       };
     }
 
-    function processarPlanilha() {
+    async function processarPlanilha() {
       const fileInput = document.getElementById('inputExcel');
       const file = fileInput.files[0];
       const feedback = document.getElementById('feedbackImportacao');
@@ -7128,6 +7146,18 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       try {
+        const metasSincronizadas = await carregarMetas({
+          atualizarDatalist: false,
+          renderizarInterface: false,
+          mostrarLoading: false
+        });
+
+        const semMetasDisponiveis = Object.keys(metas).length === 0;
+        if (metasSincronizadas === false) {
+          feedback.innerHTML = '<span class="badge badge-danger">⚠️ Não foi possível carregar as metas dos produtos.</span>';
+          return;
+        }
+
         toggleLoading(document.getElementById('btnProcessar'), 'Processar Planilha');
 
         const reader = new FileReader();
@@ -7139,7 +7169,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             const pedidos = XLSX.utils.sheet_to_json(sheet);
 
             processarPedidos(pedidos);
-            feedback.innerHTML = '<span class="badge badge-success">✔️ Importado com sucesso</span>';
+            if (semMetasDisponiveis) {
+              feedback.innerHTML = '<span class="badge badge-warning">⚠️ Planilha importada, mas nenhum custo cadastrado foi encontrado para cruzamento.</span>';
+            } else {
+              feedback.innerHTML = '<span class="badge badge-success">✔️ Importado com sucesso</span>';
+            }
           } catch (error) {
             feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
             console.error("Erro ao ler arquivo:", error);
