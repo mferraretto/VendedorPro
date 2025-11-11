@@ -197,17 +197,8 @@
       return null;
     }
 
+    const base = calculos[referencia];
     const custosInformados = cloneCosts(custosNormalizados);
-
-    const precoMinimoBase = calculos.minimo?.precoPromo;
-    const precoMedioBase = calculos.medio?.precoPromo;
-    const precoIdealBase = calculos.maximo?.precoPromo;
-
-    const precoMinimo =
-      precoMinimoBase ?? precoMedioBase ?? precoIdealBase ?? 0;
-    const precoMedio = precoMedioBase ?? precoIdealBase ?? precoMinimo;
-    const precoIdeal = precoIdealBase ?? precoMedioBase ?? precoMedio;
-    const precoPromo = precoMinimo;
 
     return {
       taxaPercentual: formatTwoDecimals(taxaPercentual),
@@ -215,10 +206,10 @@
       custosCalculados: calculos,
       referencia,
       custoBase: custosInformados[referencia]?.valor || 0,
-      precoMinimo: formatTwoDecimals(precoMinimo),
-      precoIdeal: formatTwoDecimals(precoIdeal),
-      precoMedio: formatTwoDecimals(precoMedio),
-      precoPromo: formatTwoDecimals(precoPromo),
+      precoMinimo: base.precoMinimo,
+      precoIdeal: base.precoIdeal,
+      precoMedio: base.precoMedio,
+      precoPromo: base.precoPromo,
       taxas: formatTaxas(taxasDetalhadas),
     };
   }
