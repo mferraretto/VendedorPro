@@ -194,7 +194,9 @@
               class="card-header flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-4"
             >
               <div class="flex flex-col gap-1">
-                <h2 class="text-lg font-semibold">Peças faltantes registradas</h2>
+                <h2 class="text-lg font-semibold">
+                  Peças faltantes registradas
+                </h2>
                 <span
                   id="pecasSelecaoResumo"
                   class="text-xs text-gray-500 hidden"
@@ -211,10 +213,17 @@
                     <i class="fa-solid fa-download"></i>
                     Modelo Excel
                   </button>
-                  <label class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer">
+                  <label
+                    class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer"
+                  >
                     <i class="fa-solid fa-file-import"></i>
                     Importar planilha
-                    <input id="pecasImportarXlsx" type="file" accept=".xlsx,.xls" class="hidden" />
+                    <input
+                      id="pecasImportarXlsx"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      class="hidden"
+                    />
                   </label>
                   <button
                     id="pecasExportExcel"
@@ -361,7 +370,7 @@
                   type="text"
                   id="reembolsosBusca"
                   class="form-control"
-                  placeholder="Número do pedido, loja, NF ou apelido"
+                  placeholder="Número do pedido, loja, NF, peça ou apelido"
                 />
               </div>
             </div>
@@ -392,10 +401,17 @@
                     <i class="fa-solid fa-download"></i>
                     Modelo Excel
                   </button>
-                  <label class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer">
+                  <label
+                    class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer"
+                  >
                     <i class="fa-solid fa-file-import"></i>
                     Importar planilha
-                    <input id="reembolsosImportarXlsx" type="file" accept=".xlsx,.xls" class="hidden" />
+                    <input
+                      id="reembolsosImportarXlsx"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      class="hidden"
+                    />
                   </label>
                   <button
                     id="reembolsosExportExcel"
@@ -436,6 +452,7 @@
                       <th class="px-4 py-3">Apelido</th>
                       <th class="px-4 py-3">NF</th>
                       <th class="px-4 py-3">Loja</th>
+                      <th class="px-4 py-3">Peça</th>
                       <th class="px-4 py-3">Problema</th>
                       <th class="px-4 py-3 text-right">Valor</th>
                       <th class="px-4 py-3">PIX</th>

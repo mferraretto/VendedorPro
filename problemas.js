@@ -631,6 +631,7 @@ async function salvarReembolso(ev) {
     data: form.data.value,
     numero: form.numero.value.trim(),
     loja: form.loja.value.trim(),
+    peca: form.peca?.value.trim() || '',
     apelido: form.apelido.value.trim(),
     nf: form.nf.value.trim(),
     valor: parseFloat(form.valor.value) || 0,
@@ -673,6 +674,7 @@ async function carregarReembolsos() {
           ? Number(dados.valor)
           : Number.parseFloat(dados.valor) || 0,
         pix: dados.pix || '',
+        peca: dados.peca || '',
         problema: dados.problema || '',
         status: statusValido,
       };
@@ -737,6 +739,15 @@ function renderReembolsos() {
         tipo: 'text',
         valor: d.loja || '',
         onChange: (valor) => atualizarReembolso(d, { loja: valor.trim() }),
+        classe: baseInputClass,
+      }),
+    );
+
+    tr.appendChild(
+      criarCelulaInput({
+        tipo: 'text',
+        valor: d.peca || '',
+        onChange: (valor) => atualizarReembolso(d, { peca: valor.trim() }),
         classe: baseInputClass,
       }),
     );
