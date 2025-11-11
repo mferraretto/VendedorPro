@@ -12,6 +12,50 @@ let selecionados = new Set();
 
 const NIVEIS_CUSTO = ['minimo', 'medio', 'maximo'];
 
+function normalizeHeader(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findHeaderIndex(headers, keywords, excludes = []) {
+  return headers.findIndex(
+    (header) =>
+      keywords.every((keyword) => header.includes(keyword)) &&
+      excludes.every((keyword) => !header.includes(keyword)),
+  );
+}
+
+function hasCellValue(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
+}
+
+function parsePlanilhaNumero(raw) {
+  if (raw === undefined || raw === null || raw === '') return NaN;
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : NaN;
+  }
+  if (typeof raw === 'string') {
+    const cleaned = raw.replace(/\s+/g, '');
+    if (!cleaned) return NaN;
+    const sanitized = cleaned.replace(/[^0-9.,-]/g, '');
+    if (!sanitized) return NaN;
+    if (sanitized.includes(',') && sanitized.includes('.')) {
+      return Number.parseFloat(sanitized.replace(/\./g, '').replace(',', '.'));
+    }
+    if (sanitized.includes(',')) {
+      return Number.parseFloat(sanitized.replace(',', '.'));
+    }
+    return Number.parseFloat(sanitized);
+  }
+  return NaN;
+}
+
 function normalizarCustosProduto(custos = {}) {
   const normalizado = {};
   NIVEIS_CUSTO.forEach((nivel) => {
@@ -810,33 +854,115 @@ function importarExcelLista() {
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
     if (!rows.length) return;
-    const headers = rows[0].map((h) => String(h).toLowerCase());
-    const idxSku = headers.indexOf('sku');
-    const idxCusto = headers.indexOf('custo');
-    const idxMin = headers.findIndex((h) => h.includes('mín'));
-    const idxIdeal = headers.findIndex((h) => h.includes('ideal'));
-    const idxMedio = headers.findIndex((h) => h.includes('médio'));
-    const idxPromo = headers.findIndex((h) => h.includes('promo'));
+    const normalizedHeaders = rows[0].map((header) => normalizeHeader(header));
+    const idxSku = normalizedHeaders.indexOf('sku');
+    if (idxSku === -1) {
+      alert('A planilha precisa conter uma coluna de SKU.');
+      return;
+    }
+    const idxCusto = normalizedHeaders.findIndex((header) => {
+      if (!header.includes('custo')) return false;
+      if (
+        header.includes('minimo') ||
+        header.includes('medio') ||
+        header.includes('maximo') ||
+        header.includes('comissao')
+      ) {
+        return false;
+      }
+      return (
+        header === 'custo' ||
+        header.startsWith('custo (r$') ||
+        header.startsWith('custo r$') ||
+        header.startsWith('custo base')
+      );
+    });
+    const idxPrecoMin = findHeaderIndex(normalizedHeaders, ['preco', 'minimo']);
+    const idxPrecoIdeal = findHeaderIndex(normalizedHeaders, ['preco', 'ideal']);
+    const idxPrecoMedio = findHeaderIndex(normalizedHeaders, ['preco', 'medio']);
+    const idxPrecoPromo = findHeaderIndex(normalizedHeaders, ['preco', 'promo']);
+    const idxCustoMin = findHeaderIndex(normalizedHeaders, ['custo', 'minimo'], [
+      'comissao',
+    ]);
+    const idxComissaoMin = findHeaderIndex(normalizedHeaders, ['comissao', 'minimo']);
+    const idxCustoMedio = findHeaderIndex(normalizedHeaders, ['custo', 'medio'], [
+      'comissao',
+    ]);
+    const idxComissaoMedio = findHeaderIndex(normalizedHeaders, ['comissao', 'medio']);
+    const idxCustoMax = findHeaderIndex(normalizedHeaders, ['custo', 'maximo'], [
+      'comissao',
+    ]);
+    const idxComissaoMax = findHeaderIndex(normalizedHeaders, ['comissao', 'maximo']);
     let updated = 0;
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      const sku = row[idxSku];
+      const skuCell = row[idxSku];
+      const sku = skuCell !== undefined && skuCell !== null ? String(skuCell).trim() : '';
       if (!sku) continue;
-      const prod = produtos.find((p) => String(p.sku) === String(sku));
+      const prod = produtos.find((p) => String(p.sku).trim() === sku);
       if (!prod) continue;
       const updateData = {};
-      if (idxCusto !== -1 && row[idxCusto] !== undefined) {
-        const novoCusto = parseFloat(row[idxCusto]) || 0;
-        Object.assign(updateData, recalcularPrecos(prod, novoCusto));
+      const custosImportados = {};
+      const aplicarCusto = (nivel, idxValor, idxComissao) => {
+        const temValor = idxValor !== -1 && hasCellValue(row[idxValor]);
+        const temComissao = idxComissao !== -1 && hasCellValue(row[idxComissao]);
+        if (!temValor && !temComissao) return;
+        const dados = {};
+        if (temValor) {
+          const valor = parsePlanilhaNumero(row[idxValor]);
+          if (Number.isFinite(valor)) dados.valor = valor;
+        }
+        if (temComissao) {
+          const comissao = parsePlanilhaNumero(row[idxComissao]);
+          if (Number.isFinite(comissao)) dados.comissao = comissao;
+        }
+        if (Object.keys(dados).length) {
+          custosImportados[nivel] = dados;
+        }
+      };
+      aplicarCusto('minimo', idxCustoMin, idxComissaoMin);
+      aplicarCusto('medio', idxCustoMedio, idxComissaoMedio);
+      aplicarCusto('maximo', idxCustoMax, idxComissaoMax);
+      if (Object.keys(custosImportados).length) {
+        const custosAtuais = obterCustosDoProduto(prod);
+        const custosMesclados = {};
+        NIVEIS_CUSTO.forEach((nivel) => {
+          const atual = custosAtuais[nivel] || {};
+          const novo = custosImportados[nivel] || {};
+          custosMesclados[nivel] = {
+            valor: novo.valor !== undefined ? novo.valor : atual.valor,
+            comissao: novo.comissao !== undefined ? novo.comissao : atual.comissao,
+          };
+        });
+        const resultado = recalcularPrecos(prod, custosMesclados);
+        if (resultado) {
+          Object.assign(updateData, resultado);
+        }
+      } else if (idxCusto !== -1 && hasCellValue(row[idxCusto])) {
+        const novoCusto = parsePlanilhaNumero(row[idxCusto]);
+        if (Number.isFinite(novoCusto)) {
+          const resultado = recalcularPrecos(prod, novoCusto);
+          if (resultado) {
+            Object.assign(updateData, resultado);
+          }
+        }
       } else {
-        if (idxMin !== -1 && row[idxMin] !== undefined)
-          updateData.precoMinimo = parseFloat(row[idxMin]) || 0;
-        if (idxIdeal !== -1 && row[idxIdeal] !== undefined)
-          updateData.precoIdeal = parseFloat(row[idxIdeal]) || 0;
-        if (idxMedio !== -1 && row[idxMedio] !== undefined)
-          updateData.precoMedio = parseFloat(row[idxMedio]) || 0;
-        if (idxPromo !== -1 && row[idxPromo] !== undefined)
-          updateData.precoPromo = parseFloat(row[idxPromo]) || 0;
+        if (idxPrecoMin !== -1 && hasCellValue(row[idxPrecoMin])) {
+          const precoMinimo = parsePlanilhaNumero(row[idxPrecoMin]);
+          if (Number.isFinite(precoMinimo)) updateData.precoMinimo = precoMinimo;
+        }
+        if (idxPrecoIdeal !== -1 && hasCellValue(row[idxPrecoIdeal])) {
+          const precoIdeal = parsePlanilhaNumero(row[idxPrecoIdeal]);
+          if (Number.isFinite(precoIdeal)) updateData.precoIdeal = precoIdeal;
+        }
+        if (idxPrecoMedio !== -1 && hasCellValue(row[idxPrecoMedio])) {
+          const precoMedio = parsePlanilhaNumero(row[idxPrecoMedio]);
+          if (Number.isFinite(precoMedio)) updateData.precoMedio = precoMedio;
+        }
+        if (idxPrecoPromo !== -1 && hasCellValue(row[idxPrecoPromo])) {
+          const precoPromo = parsePlanilhaNumero(row[idxPrecoPromo]);
+          if (Number.isFinite(precoPromo)) updateData.precoPromo = precoPromo;
+        }
       }
       if (Object.keys(updateData).length) {
         await dbListaPrecos
