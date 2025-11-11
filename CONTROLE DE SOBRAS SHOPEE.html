@@ -6260,12 +6260,21 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return null;
     }
 
-    function calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, fallback) {
-      if (numeroValido(maximoInfo?.valor)) return maximoInfo.valor;
-      if (numeroValido(medioInfo?.valor)) return medioInfo.valor;
-      if (numeroValido(minimoInfo?.valor)) return minimoInfo.valor;
-      if (numeroValido(fallback)) return fallback;
-      return 0;
+    function calcularValorTotalComComissao(info) {
+      if (!info || !numeroValido(info.valor)) {
+        return null;
+      }
+
+      const percentualComissao =
+        numeroValido(info.comissao) || info.comissao === 0
+          ? Number(info.comissao)
+          : null;
+
+      if (percentualComissao === null) {
+        return info.valor;
+      }
+
+      return info.valor + (info.valor * percentualComissao) / 100;
     }
 
     async function obterSnapshotProdutosUsuario(uid) {
@@ -6342,11 +6351,22 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
           const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
           const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
+          const minimoTotal = calcularValorTotalComComissao(minimoInfo);
+          const medioTotal = calcularValorTotalComComissao(medioInfo);
+          const maximoTotal = calcularValorTotalComComissao(maximoInfo);
+          const maximoTaxaValor = numeroValido(maximoTaxaInfo.valor)
+            ? maximoTaxaInfo.valor
+            : null;
           const custoFallback = normalizarNumeroMeta(data.custo, null);
           const custoParaMeta = selecionarPrimeiroNumeroValido(
-            maximoTaxaInfo.valor,
+            maximoTaxaValor,
+            maximoTotal,
             maximoInfo.valor,
-            calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback)
+            medioTotal,
+            medioInfo.valor,
+            minimoTotal,
+            minimoInfo.valor,
+            custoFallback
           );
 
           produtos[sku] = numeroValido(custoParaMeta) ? custoParaMeta : 0;
@@ -6403,25 +6423,41 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
               const custoFallback = normalizarNumeroMeta(data.custo, null);
 
-              const custoMaximo = selecionarPrimeiroNumeroValido(
-                maximoTaxaInfo.valor,
-                maximoInfo.valor,
-                calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback)
+              const minimoTotal = selecionarPrimeiroNumeroValido(
+                minimoTaxaInfo.valor,
+                calcularValorTotalComComissao(minimoInfo),
+                minimoInfo.valor
               );
 
-            const comissoesPorFaixa = {
-              minimo: selecionarPrimeiroNumeroValido(minimoTaxaInfo.comissao, minimoInfo.comissao),
-              medio: selecionarPrimeiroNumeroValido(medioTaxaInfo.comissao, medioInfo.comissao),
-              maximo: selecionarPrimeiroNumeroValido(maximoTaxaInfo.comissao, maximoInfo.comissao)
-            };
+              const medioTotal = selecionarPrimeiroNumeroValido(
+                medioTaxaInfo.valor,
+                calcularValorTotalComComissao(medioInfo),
+                medioInfo.valor,
+                minimoTotal
+              );
+
+              const maximoTotal = selecionarPrimeiroNumeroValido(
+                maximoTaxaInfo.valor,
+                calcularValorTotalComComissao(maximoInfo),
+                maximoInfo.valor,
+                medioTotal,
+                minimoTotal,
+                custoFallback
+              );
+
+              const comissoesPorFaixa = {
+                minimo: selecionarPrimeiroNumeroValido(minimoTaxaInfo.comissao, minimoInfo.comissao),
+                medio: selecionarPrimeiroNumeroValido(medioTaxaInfo.comissao, medioInfo.comissao),
+                maximo: selecionarPrimeiroNumeroValido(maximoTaxaInfo.comissao, maximoInfo.comissao)
+              };
 
               metas[sku] = {
-                valor: numeroValido(custoMaximo) ? custoMaximo : 0,
-                minimo: numeroValido(minimoInfo.valor) ? minimoInfo.valor : null,
-                medio: numeroValido(medioInfo.valor) ? medioInfo.valor : null,
-                maximo: numeroValido(maximoInfo.valor)
-                  ? maximoInfo.valor
-                  : (numeroValido(custoMaximo) ? custoMaximo : null),
+                valor: numeroValido(maximoTotal) ? maximoTotal : 0,
+                minimo: numeroValido(minimoTotal) ? minimoTotal : null,
+                medio: numeroValido(medioTotal) ? medioTotal : null,
+                maximo: numeroValido(maximoTotal)
+                  ? maximoTotal
+                  : (numeroValido(medioTotal) ? medioTotal : null),
                 comissaoPercentual: selecionarPrimeiroNumeroValido(
                   maximoTaxaInfo.comissao,
                   maximoInfo.comissao
@@ -6431,7 +6467,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
                 atualizadoEm: new Date()
               };
 
-              produtos[sku] = numeroValido(custoMaximo) ? custoMaximo : 0;
+              produtos[sku] = numeroValido(maximoTotal) ? maximoTotal : 0;
 
               if (datalist) {
                 const opt = document.createElement('option');
