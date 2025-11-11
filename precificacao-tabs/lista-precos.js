@@ -172,16 +172,15 @@ function calcularPrecosCustos(custos, totalPercentual, totalFixo) {
       return;
     }
     const precoBase = (info.valor + totalFixo) / (1 - percentual / 100);
-    const precoPromo = precoBase;
-    const precoMedio = precoBase * 1.05;
-    const precoIdeal = precoBase * 1.1;
+    const precoCalculado = Number(precoBase.toFixed(2));
     calculos[nivel] = {
       custo: Number(info.valor.toFixed(2)),
       comissao: info.comissao || 0,
-      precoMinimo: Number(precoBase.toFixed(2)),
-      precoPromo: Number(precoPromo.toFixed(2)),
-      precoMedio: Number(precoMedio.toFixed(2)),
-      precoIdeal: Number(precoIdeal.toFixed(2)),
+      precoMinimo: precoCalculado,
+      precoMedio: precoCalculado,
+      precoIdeal: precoCalculado,
+      precoPromo: precoCalculado,
+      precoVenda: precoCalculado,
     };
     if (!referencia || (referencia !== 'medio' && nivel === 'medio')) {
       referencia = nivel;
@@ -801,6 +800,11 @@ function recalcularPrecos(prod, novosCustosEntrada) {
     return null;
   }
 
+  const precoMinimoCalculado = calculos.minimo?.precoMinimo ?? referenciaDados.precoMinimo;
+  const precoMedioCalculado = calculos.medio?.precoMinimo ?? referenciaDados.precoMinimo;
+  const precoIdealCalculado = calculos.maximo?.precoMinimo ?? calculos.medio?.precoMinimo ?? referenciaDados.precoMinimo;
+  const precoPromoCalculado = calculos.minimo?.precoPromo ?? referenciaDados.precoPromo;
+
   const calculosTaxas = {};
   if (prod.calculosTaxas) {
     Object.entries(prod.calculosTaxas).forEach(([taxaKey, dados]) => {
@@ -817,13 +821,21 @@ function recalcularPrecos(prod, novosCustosEntrada) {
       const { calculos: calcCustos, referencia: refTaxa } =
         calcularPrecosCustos(custosAtualizados, totais.percent, totais.fix);
       const dadosReferencia = calcCustos[refTaxa] || {};
+      const precoMinimoTaxa =
+        calcCustos.minimo?.precoMinimo ?? dadosReferencia.precoMinimo ?? 0;
+      const precoMedioTaxa =
+        calcCustos.medio?.precoMinimo ?? dadosReferencia.precoMinimo ?? precoMinimoTaxa;
+      const precoIdealTaxa =
+        calcCustos.maximo?.precoMinimo ?? calcCustos.medio?.precoMinimo ?? dadosReferencia.precoMinimo ?? precoMedioTaxa;
+      const precoPromoTaxa =
+        calcCustos.minimo?.precoPromo ?? dadosReferencia.precoPromo ?? precoMinimoTaxa;
       calculosTaxas[taxaKey] = {
         referencia: refTaxa,
         precosPorCusto: calcCustos,
-        precoMinimo: dadosReferencia.precoMinimo || 0,
-        precoMedio: dadosReferencia.precoMedio || 0,
-        precoIdeal: dadosReferencia.precoIdeal || 0,
-        precoPromo: dadosReferencia.precoPromo || 0,
+        precoMinimo: precoMinimoTaxa,
+        precoMedio: precoMedioTaxa,
+        precoIdeal: precoIdealTaxa,
+        precoPromo: precoPromoTaxa,
         taxas: taxasDetalhadas,
       };
     });
@@ -831,10 +843,10 @@ function recalcularPrecos(prod, novosCustosEntrada) {
 
   return {
     custo: Number(referenciaDados.custo || 0),
-    precoMinimo: referenciaDados.precoMinimo,
-    precoMedio: referenciaDados.precoMedio,
-    precoIdeal: referenciaDados.precoIdeal,
-    precoPromo: referenciaDados.precoPromo,
+    precoMinimo: precoMinimoCalculado,
+    precoMedio: precoMedioCalculado,
+    precoIdeal: precoIdealCalculado,
+    precoPromo: precoPromoCalculado,
     custos: custosAtualizados,
     precosPorCusto: calculos,
     referenciaCusto: referencia,
