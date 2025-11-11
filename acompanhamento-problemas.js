@@ -468,6 +468,7 @@ function renderReembolsos() {
           item.apelido,
           item.nf,
           item.loja,
+          item.peca,
           item.pix,
           item.usuarioNome,
           item.usuarioEmail,
@@ -530,6 +531,7 @@ function renderReembolsos() {
         <td class="px-4 py-3">${escapeHtml(item.apelido || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.nf || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.loja || '-')}</td>
+        <td class="px-4 py-3">${escapeHtml(item.peca || '-')}</td>
         <td class="px-4 py-3">${escapeHtml(item.problema || item.motivo || '-')}</td>
         <td class="px-4 py-3 text-right font-medium text-gray-700">${valorFormatado}</td>
         <td class="px-4 py-3">${escapeHtml(item.pix || '-')}</td>
@@ -789,6 +791,7 @@ function exportarReembolsosExcel() {
     'Apelido',
     'NF',
     'Loja',
+    'Peça',
     'Problema',
     'Valor (R$)',
     'PIX',
@@ -802,6 +805,7 @@ function exportarReembolsosExcel() {
     item.apelido || '',
     item.nf || '',
     item.loja || '',
+    item.peca || '',
     item.problema || item.motivo || '',
     Number(item.valor) || 0,
     item.pix || '',
@@ -835,6 +839,7 @@ function exportarReembolsosPdf() {
     'Apelido',
     'NF',
     'Loja',
+    'Peça',
     'Problema',
     'Valor',
     'PIX',
@@ -848,6 +853,7 @@ function exportarReembolsosPdf() {
     item.apelido || '',
     item.nf || '',
     item.loja || '',
+    item.peca || '',
     item.problema || item.motivo || '',
     formatarMoeda(Number(item.valor) || 0),
     item.pix || '',
@@ -981,6 +987,35 @@ function gerarRelatorioCompleto() {
     },
   };
 
+  const detalhesReembolsos = reembolsos.map((item) => ({
+    data: item.data || '',
+    responsavel: item.usuarioNome || '-',
+    responsavelEmail: item.usuarioEmail || '',
+    numero: item.numero || '',
+    apelido: item.apelido || '',
+    nf: item.nf || '',
+    loja: item.loja || '',
+    peca: item.peca || '',
+    problema: item.problema || item.motivo || '',
+    valor: Number(item.valor) || 0,
+    pix: item.pix || '',
+    status: (item.status || '').toString().toUpperCase(),
+  }));
+
+  const detalhesPecas = pecas.map((item) => ({
+    data: item.data || '',
+    responsavel: item.usuarioNome || '-',
+    responsavelEmail: item.usuarioEmail || '',
+    cliente: item.nomeCliente || '',
+    apelido: item.apelido || '',
+    numero: item.numero || '',
+    loja: item.loja || '',
+    peca: item.peca || '',
+    problema: item.problema || '',
+    status: normalizarStatus(item.status),
+    valor: Number(item.valorGasto) || 0,
+  }));
+
   const dadosRelatorio = {
     periodo,
     usuarioFiltro,
@@ -1000,6 +1035,8 @@ function gerarRelatorioCompleto() {
     statusReembolsos,
     maioresGastos,
     graficos: dadosGraficos,
+    reembolsosDetalhes: detalhesReembolsos,
+    pecasDetalhes: detalhesPecas,
     geradoEm: new Date().toLocaleString('pt-BR'),
   };
 
@@ -1072,6 +1109,7 @@ function baixarModeloReembolsosExcel() {
     'apelido',
     'nf',
     'loja',
+    'peca',
     'problema',
     'valor (R$)',
     'pix',
@@ -1085,6 +1123,7 @@ function baixarModeloReembolsosExcel() {
     'MK01',
     '12345',
     'Loja X',
+    'Produto danificado',
     'Reembolso por defeito',
     50.0,
     'chave-pix-aqui',
@@ -1210,6 +1249,7 @@ function normalizarLinhaReembolso(r) {
     apelido: r.apelido || r['apelido'] || '',
     nf: r.nf || r['nf'] || '',
     loja: r.loja || r['loja'] || '',
+    peca: r.peca || r['peca'] || '',
     problema: r.problema || r['problema'] || r.motivo || '',
     valor: Number(r['valor (R$)'] || r.valor || 0) || 0,
     pix: r.pix || r['pix'] || '',
@@ -1345,6 +1385,21 @@ function gerarHtmlRelatorio(dados) {
   const maioresGastos = dados?.maioresGastos || [];
   const graficos = dados?.graficos || {};
   const geradoEm = dados?.geradoEm || new Date().toLocaleString('pt-BR');
+  const reembolsosDetalhes = Array.isArray(dados?.reembolsosDetalhes)
+    ? dados.reembolsosDetalhes
+    : [];
+  const pecasDetalhes = Array.isArray(dados?.pecasDetalhes)
+    ? dados.pecasDetalhes
+    : [];
+
+  const ticketMedioReembolsos =
+    Number(totais?.reembolsos || 0) > 0
+      ? Number(totais?.gastoReembolsos || 0) / Number(totais?.reembolsos || 1)
+      : 0;
+  const ticketMedioPecas =
+    Number(totais?.pecas || 0) > 0
+      ? Number(totais?.gastoPecas || 0) / Number(totais?.pecas || 1)
+      : 0;
 
   const formatarQuantidade = (valor) =>
     Number(valor || 0).toLocaleString('pt-BR');
@@ -1365,6 +1420,43 @@ function gerarHtmlRelatorio(dados) {
         `,
       )
       .join('');
+  };
+
+  const valorOuTraco = (valor) => {
+    const texto = (valor ?? '').toString().trim();
+    return texto ? escapeHtml(texto) : '-';
+  };
+
+  const renderResponsavel = (nome, email) => {
+    const seguroNome = escapeHtml(nome || '-');
+    const seguroEmail = email ? escapeHtml(email) : '';
+    if (seguroEmail) {
+      return `
+        <div class="responsavel-info">
+          <span>${seguroNome}</span>
+          <small>${seguroEmail}</small>
+        </div>
+      `;
+    }
+    return `<div class="responsavel-info"><span>${seguroNome}</span></div>`;
+  };
+
+  const obterClasseStatusReembolsoRelatorio = (status) => {
+    const valor = (status || '').toString().toUpperCase();
+    if (valor.includes('FEITO')) return 'status-tag resolvido';
+    if (valor === 'EM ANDAMENTO') return 'status-tag andamento';
+    if (valor.startsWith('AGUARDANDO')) return 'status-tag pendente';
+    if (valor === 'CANCELADO') return 'status-tag neutro';
+    return 'status-tag neutro';
+  };
+
+  const obterClasseStatusPecaRelatorio = (status) => {
+    const valor = (status || '').toString().toUpperCase();
+    if (valor === 'RESOLVIDO') return 'status-tag resolvido';
+    if (valor === 'EM ANDAMENTO') return 'status-tag andamento';
+    if (valor === 'NÃO FEITO' || valor === 'NAO FEITO')
+      return 'status-tag pendente';
+    return 'status-tag neutro';
   };
 
   const linhasPecas = criarLinhasTabela(principaisPecas, 3);
@@ -1390,6 +1482,55 @@ function gerarHtmlRelatorio(dados) {
         )
         .join('')
     : '<tr><td colspan="6" class="tabela-vazia">Nenhum gasto registrado no período selecionado.</td></tr>';
+
+  const linhasDetalhesReembolsos = reembolsosDetalhes.length
+    ? reembolsosDetalhes
+        .map((item) => {
+          const dataFormatada = formatarData(item.data);
+          const statusTexto = formatarStatusReembolso(item.status);
+          const statusClasse = obterClasseStatusReembolsoRelatorio(item.status);
+          return `
+            <tr>
+              <td>${dataFormatada ? escapeHtml(dataFormatada) : '-'}</td>
+              <td>${renderResponsavel(item.responsavel, item.responsavelEmail)}</td>
+              <td>${valorOuTraco(item.numero)}</td>
+              <td>${valorOuTraco(item.apelido)}</td>
+              <td>${valorOuTraco(item.nf)}</td>
+              <td>${valorOuTraco(item.loja)}</td>
+              <td>${valorOuTraco(item.peca)}</td>
+              <td>${valorOuTraco(item.problema)}</td>
+              <td>${formatarMoedaBRL(item.valor)}</td>
+              <td>${valorOuTraco(item.pix)}</td>
+              <td><span class="${statusClasse}">${escapeHtml(statusTexto)}</span></td>
+            </tr>
+          `;
+        })
+        .join('')
+    : '<tr><td colspan="11" class="tabela-vazia">Nenhum reembolso registrado no período selecionado.</td></tr>';
+
+  const linhasDetalhesPecas = pecasDetalhes.length
+    ? pecasDetalhes
+        .map((item) => {
+          const dataFormatada = formatarData(item.data);
+          const statusTexto = formatarStatus(item.status);
+          const statusClasse = obterClasseStatusPecaRelatorio(item.status);
+          return `
+            <tr>
+              <td>${dataFormatada ? escapeHtml(dataFormatada) : '-'}</td>
+              <td>${renderResponsavel(item.responsavel, item.responsavelEmail)}</td>
+              <td>${valorOuTraco(item.cliente)}</td>
+              <td>${valorOuTraco(item.apelido)}</td>
+              <td>${valorOuTraco(item.numero)}</td>
+              <td>${valorOuTraco(item.loja)}</td>
+              <td>${valorOuTraco(item.peca)}</td>
+              <td>${valorOuTraco(item.problema)}</td>
+              <td><span class="${statusClasse}">${escapeHtml(statusTexto)}</span></td>
+              <td>${formatarMoedaBRL(item.valor)}</td>
+            </tr>
+          `;
+        })
+        .join('')
+    : '<tr><td colspan="10" class="tabela-vazia">Nenhuma peça faltante registrada no período selecionado.</td></tr>';
 
   const graficosStr = JSON.stringify(graficos).replace(/</g, '\\u003c');
 
@@ -1524,6 +1665,64 @@ function gerarHtmlRelatorio(dados) {
         color: #6b7280;
         font-size: 0.85rem;
         margin-top: 1rem;
+      }
+      .descricao-secao {
+        margin: 0.35rem 0 1rem;
+        color: #4b5563;
+        font-size: 0.95rem;
+      }
+      .table-wrapper {
+        margin-top: 1.25rem;
+        overflow-x: auto;
+      }
+      .table-wrapper table {
+        min-width: 100%;
+      }
+      .responsavel-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .responsavel-info span {
+        font-weight: 600;
+        color: #1f2937;
+      }
+      .responsavel-info small {
+        color: #6b7280;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+      .status-tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: #eef2ff;
+        color: #4338ca;
+        border: 1px solid #c7d2fe;
+      }
+      .status-tag.resolvido {
+        background: #dcfce7;
+        color: #166534;
+        border-color: #bbf7d0;
+      }
+      .status-tag.andamento {
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-color: #bfdbfe;
+      }
+      .status-tag.pendente {
+        background: #fef3c7;
+        color: #b45309;
+        border-color: #fde68a;
+      }
+      .status-tag.neutro {
+        background: #ede9fe;
+        color: #5b21b6;
+        border-color: #ddd6fe;
       }
       @media print {
         body {
@@ -1698,6 +1897,97 @@ function gerarHtmlRelatorio(dados) {
             ${linhasGastos}
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h2>Relatório de reembolsos</h2>
+        <p class="descricao-secao">
+          Resumo categorizado com todos os pedidos que possuem solicitação de reembolso no período filtrado.
+        </p>
+        <div class="resumo-grid">
+          <div class="resumo-card">
+            <span>Total de reembolsos</span>
+            <strong>${formatarQuantidade(totais.reembolsos || 0)}</strong>
+            <small>Pedidos com reembolso registrado</small>
+          </div>
+          <div class="resumo-card">
+            <span>Valor total reembolsado</span>
+            <strong>${formatarMoedaBRL(totais.gastoReembolsos)}</strong>
+            <small>Soma dos valores solicitados</small>
+          </div>
+          <div class="resumo-card">
+            <span>Ticket médio</span>
+            <strong>${formatarMoedaBRL(ticketMedioReembolsos)}</strong>
+            <small>Valor médio por reembolso</small>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Responsável</th>
+                <th>Número do pedido</th>
+                <th>Apelido</th>
+                <th>NF</th>
+                <th>Loja</th>
+                <th>Peça</th>
+                <th>Problema</th>
+                <th>Valor</th>
+                <th>PIX</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhasDetalhesReembolsos}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2>Relatório de peças faltantes</h2>
+        <p class="descricao-secao">
+          Painel completo das ocorrências de peças faltantes registradas pelos usuários selecionados.
+        </p>
+        <div class="resumo-grid">
+          <div class="resumo-card">
+            <span>Total de peças</span>
+            <strong>${formatarQuantidade(totais.pecas || 0)}</strong>
+            <small>Registros de peças faltantes</small>
+          </div>
+          <div class="resumo-card">
+            <span>Valor total investido</span>
+            <strong>${formatarMoedaBRL(totais.gastoPecas)}</strong>
+            <small>Soma dos custos com peças</small>
+          </div>
+          <div class="resumo-card">
+            <span>Custo médio por peça</span>
+            <strong>${formatarMoedaBRL(ticketMedioPecas)}</strong>
+            <small>Investimento médio por ocorrência</small>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Responsável</th>
+                <th>Cliente</th>
+                <th>Apelido</th>
+                <th>Número do pedido</th>
+                <th>Loja</th>
+                <th>Peça</th>
+                <th>Problema</th>
+                <th>Status</th>
+                <th>Valor gasto</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhasDetalhesPecas}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section>
