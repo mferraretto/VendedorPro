@@ -6268,18 +6268,68 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return 0;
     }
 
+    async function obterSnapshotProdutosUsuario(uid) {
+      if (!db || !uid) {
+        return null;
+      }
+
+      const baseCollection = db.collection('uid');
+      const directRef = baseCollection.doc(uid).collection('produtos');
+      let directSnapshot = null;
+
+      try {
+        directSnapshot = await directRef.get();
+      } catch (error) {
+        console.error('Erro ao buscar produtos no caminho padrão:', error);
+      }
+
+      if (directSnapshot && !directSnapshot.empty) {
+        return directSnapshot;
+      }
+
+      if (!(firebase && firebase.firestore && firebase.firestore.FieldPath)) {
+        return directSnapshot;
+      }
+
+      try {
+        const docIdField = firebase.firestore.FieldPath.documentId();
+        const prefix = `${uid} (`;
+        const possiveisDocs = await baseCollection
+          .where(docIdField, '>=', prefix)
+          .where(docIdField, '<', prefix + '')
+          .limit(1)
+          .get();
+
+        if (!possiveisDocs.empty) {
+          const alternativaSnapshot = await possiveisDocs.docs[0].ref
+            .collection('produtos')
+            .get();
+
+          if (alternativaSnapshot && !alternativaSnapshot.empty) {
+            return alternativaSnapshot;
+          }
+
+          if (!directSnapshot) {
+            directSnapshot = alternativaSnapshot;
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao localizar coleção alternativa de produtos:', error);
+      }
+
+      return directSnapshot;
+    }
+
     async function carregarProdutos() {
       try {
-        let consulta;
-        if (["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())) {
-          consulta = db.collectionGroup('produtos');
-        } else {
-          consulta = db.collection('uid').doc(usuarioLogado.uid).collection('produtos');
-        }
-        const snapshot = await consulta.get();
+        const snapshot = await obterSnapshotProdutosUsuario(usuarioLogado.uid);
         produtos = {};
         const datalist = document.getElementById('listaSkus');
         if (datalist) datalist.innerHTML = '';
+
+        if (!snapshot) {
+          return;
+        }
 
         snapshot.forEach(doc => {
           const data = doc.data() || {};
@@ -6332,37 +6382,32 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         return await executarComRetry(async () => {
           metas = {};
           // Carrega SKUs e custo dos produtos cadastrados
-          let produtosSnapQuery;
-          if (["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())) {
-            produtosSnapQuery = db.collectionGroup('produtos');
-          } else {
-            produtosSnapQuery = db.collection('uid').doc(usuarioLogado.uid).collection('produtos');
-          }
-          const produtosSnap = await produtosSnapQuery.get();
+          const produtosSnap = await obterSnapshotProdutosUsuario(usuarioLogado.uid);
           produtos = {};
           const datalist = atualizarDatalist ? document.getElementById('listaSkus') : null;
           if (datalist) datalist.innerHTML = '';
 
-          produtosSnap.forEach((doc) => {
-            const data = doc.data() || {};
-            const sku = (data.sku || '').toString().trim();
-            if (!sku) return;
+          if (produtosSnap) {
+            produtosSnap.forEach((doc) => {
+              const data = doc.data() || {};
+              const sku = (data.sku || '').toString().trim();
+              if (!sku) return;
 
-            const custosBrutos = data.custos || {};
-            const calculosTaxas = data.calculosTaxas || {};
-            const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
-            const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
-            const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
-            const minimoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.minimo);
-            const medioTaxaInfo = extrairInfoCustoProduto(calculosTaxas.medio);
-            const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
-            const custoFallback = normalizarNumeroMeta(data.custo, null);
+              const custosBrutos = data.custos || {};
+              const calculosTaxas = data.calculosTaxas || {};
+              const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
+              const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
+              const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
+              const minimoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.minimo);
+              const medioTaxaInfo = extrairInfoCustoProduto(calculosTaxas.medio);
+              const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
+              const custoFallback = normalizarNumeroMeta(data.custo, null);
 
-            const custoMaximo = selecionarPrimeiroNumeroValido(
-              maximoTaxaInfo.valor,
-              maximoInfo.valor,
-              calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback)
-            );
+              const custoMaximo = selecionarPrimeiroNumeroValido(
+                maximoTaxaInfo.valor,
+                maximoInfo.valor,
+                calcularCustoBaseProduto(minimoInfo, medioInfo, maximoInfo, custoFallback)
+              );
 
             const comissoesPorFaixa = {
               minimo: selecionarPrimeiroNumeroValido(minimoTaxaInfo.comissao, minimoInfo.comissao),
@@ -6370,32 +6415,33 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               maximo: selecionarPrimeiroNumeroValido(maximoTaxaInfo.comissao, maximoInfo.comissao)
             };
 
-            metas[sku] = {
-              valor: numeroValido(custoMaximo) ? custoMaximo : 0,
-              minimo: numeroValido(minimoInfo.valor) ? minimoInfo.valor : null,
-              medio: numeroValido(medioInfo.valor) ? medioInfo.valor : null,
-              maximo: numeroValido(maximoInfo.valor)
-                ? maximoInfo.valor
-                : (numeroValido(custoMaximo) ? custoMaximo : null),
-              comissaoPercentual: selecionarPrimeiroNumeroValido(
-                maximoTaxaInfo.comissao,
-                maximoInfo.comissao
-              ),
-              comissaoFixa: null,
-              comissoes: comissoesPorFaixa,
-              atualizadoEm: new Date()
-            };
+              metas[sku] = {
+                valor: numeroValido(custoMaximo) ? custoMaximo : 0,
+                minimo: numeroValido(minimoInfo.valor) ? minimoInfo.valor : null,
+                medio: numeroValido(medioInfo.valor) ? medioInfo.valor : null,
+                maximo: numeroValido(maximoInfo.valor)
+                  ? maximoInfo.valor
+                  : (numeroValido(custoMaximo) ? custoMaximo : null),
+                comissaoPercentual: selecionarPrimeiroNumeroValido(
+                  maximoTaxaInfo.comissao,
+                  maximoInfo.comissao
+                ),
+                comissaoFixa: null,
+                comissoes: comissoesPorFaixa,
+                atualizadoEm: new Date()
+              };
 
-            produtos[sku] = numeroValido(custoMaximo) ? custoMaximo : 0;
+              produtos[sku] = numeroValido(custoMaximo) ? custoMaximo : 0;
 
-            if (datalist) {
-              const opt = document.createElement('option');
-              opt.value = sku;
-              const preco = Number(produtos[sku] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-              opt.label = `${sku} - R$ ${preco}`;
-              datalist.appendChild(opt);
-            }
-          });
+              if (datalist) {
+                const opt = document.createElement('option');
+                opt.value = sku;
+                const preco = Number(produtos[sku] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                opt.label = `${sku} - R$ ${preco}`;
+                datalist.appendChild(opt);
+              }
+            });
+          }
 
           // Sobrepõe com metas salvas manualmente se existirem
           let metasSnapQuery = db.collection("metasSKU");
