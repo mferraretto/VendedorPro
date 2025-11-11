@@ -983,11 +983,8 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         const { valor, comissao } = custos[nivel] || {};
         if (!(valor > 0)) return;
         const percentualTotal = totalPercentual + comissao;
-        if (percentualTotal >= 100) {
-          calculos[nivel] = null;
-          return;
-        }
-        const precoBase = (valor + totalFixo) / (1 - percentualTotal / 100);
+        const precoBase =
+          valor + totalFixo + (valor * percentualTotal) / 100;
         const precoPromo = precoBase;
         const precoMedio = precoBase * 1.05;
         const precoIdeal = precoBase * 1.1;

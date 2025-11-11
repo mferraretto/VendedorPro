@@ -139,12 +139,8 @@
       }
 
       const percentualTotal = totalPercentual + (info.comissao || 0);
-      if (percentualTotal >= 100) {
-        calculos[key] = null;
-        return;
-      }
-
-      const precoBase = (info.valor + totalFixo) / (1 - percentualTotal / 100);
+      const precoBase =
+        info.valor + totalFixo + (info.valor * percentualTotal) / 100;
       const precoPromo = precoBase;
       const precoMedio = precoBase * 1.05;
       const precoIdeal = precoBase * 1.1;

@@ -167,11 +167,7 @@ function calcularPrecosCustos(custos, totalPercentual, totalFixo) {
     const info = custos[nivel];
     if (!info || !(info.valor > 0)) return;
     const percentual = totalPercentual + (info.comissao || 0);
-    if (percentual >= 100) {
-      calculos[nivel] = null;
-      return;
-    }
-    const precoBase = (info.valor + totalFixo) / (1 - percentual / 100);
+    const precoBase = info.valor + totalFixo + (info.valor * percentual) / 100;
     const precoPromo = precoBase;
     const precoMedio = precoBase * 1.05;
     const precoIdeal = precoBase * 1.1;
