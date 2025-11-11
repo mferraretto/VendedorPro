@@ -3,6 +3,8 @@ import {
   getDocs,
   doc,
   getDoc,
+  query,
+  where,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { db, auth, getPassphrase } from './firebase-config.js';
@@ -693,67 +695,44 @@ async function carregarPrevisaoDashboard(uid, baseDate = new Date()) {
 
 async function carregarProdutosEMetas(uid) {
   const precos = {};
-  const metas = {};
   try {
     const snap = await getDocs(collection(db, `uid/${uid}/produtos`));
     for (const p of snap.docs) {
-      let dadosProduto = p.data();
-      if (dadosProduto.encrypted) {
+      let d = p.data();
+      if (d.encrypted) {
         const pass = getPassphrase() || `chave-${uid}`;
         let txt;
         try {
-          txt = await decryptString(dadosProduto.encrypted, pass);
+          txt = await decryptString(d.encrypted, pass);
         } catch (e) {
           try {
-            txt = await decryptString(dadosProduto.encrypted, uid);
+            txt = await decryptString(d.encrypted, uid);
           } catch (_) {}
         }
-        if (txt) dadosProduto = JSON.parse(txt);
+        if (txt) d = JSON.parse(txt);
       }
-
-      const sku = (dadosProduto.sku || p.id || '').toString().trim();
-      if (!sku) continue;
-
-      const custosBrutos = dadosProduto.custos || {};
-      const metaSku = {};
-      ['minimo', 'medio', 'maximo'].forEach((nivel) => {
-        const info = custosBrutos?.[nivel];
-        if (
-          !info ||
-          (info.valor === undefined && info.comissao === undefined)
-        ) {
-          return;
-        }
-        const valor = toNumber(info.valor);
-        const comissaoBruta = toNumber(info.comissao);
-        const fatorComissao =
-          comissaoBruta > 1 ? comissaoBruta / 100 : comissaoBruta;
-        const total = valor + valor * fatorComissao;
-        metaSku[nivel] = {
-          valor,
-          comissao: comissaoBruta,
-          total,
-        };
-      });
-
-      if (Object.keys(metaSku).length) {
-        metas[sku] = metaSku;
-      }
-
-      if (metaSku.medio) {
-        precos[sku] = metaSku.medio.total;
-      } else if (metaSku.maximo) {
-        precos[sku] = metaSku.maximo.total;
-      } else if (metaSku.minimo) {
-        precos[sku] = metaSku.minimo.total;
-      } else if (dadosProduto.custo !== undefined) {
-        precos[sku] = toNumber(dadosProduto.custo);
-      }
+      const sku = d.sku || p.id;
+      precos[sku] = toNumber(d.custo);
     }
   } catch (err) {
     console.error('Erro ao carregar produtos', err);
   }
 
+  const metas = {};
+  try {
+    const q = query(collection(db, 'metasSKU'), where('uid', '==', uid));
+    const metasSnap = await getDocs(q);
+    metasSnap.forEach((m) => {
+      const originalSku = m.id.replaceAll('__', '/');
+      metas[originalSku] = toNumber(m.data().valor);
+    });
+  } catch (err) {
+    console.error('Erro ao carregar metasSKU', err);
+  }
+
+  Object.keys(precos).forEach((sku) => {
+    if (metas[sku] === undefined) metas[sku] = precos[sku];
+  });
   return { precos, metas };
 }
 
