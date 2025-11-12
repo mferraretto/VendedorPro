@@ -11042,14 +11042,41 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         const agregados = new Map();
         for (const [uid, info] of usuariosMap.entries()) {
           try {
-            const vendasSnap = await db
+            const colecaoSkusVendidos = db
               .collection('uid')
               .doc(uid)
-              .collection('skusVendidos')
-              .get();
+              .collection('skusVendidos');
+
+            const aplicarFiltroPorData = Boolean(dataInicio || dataFim);
+            let vendasQuery = colecaoSkusVendidos;
+
+            if (aplicarFiltroPorData) {
+              if (dataInicio) {
+                vendasQuery = vendasQuery.where('data', '>=', dataInicio);
+              }
+              if (dataFim) {
+                vendasQuery = vendasQuery.where('data', '<=', dataFim);
+              }
+              vendasQuery = vendasQuery.orderBy('data');
+            }
+
+            let vendasSnap;
+            try {
+              vendasSnap = await vendasQuery.get();
+            } catch (consultaErr) {
+              console.warn(
+                'Falha ao consultar skusVendidos com filtro por data, usando fallback.',
+                { uid, dataInicio, dataFim },
+                consultaErr,
+              );
+              vendasSnap = await colecaoSkusVendidos.get();
+            }
 
             const docsFiltrados = vendasSnap.docs.filter((docDia) => {
-              const dataDoc = docDia.id || '';
+              if (!aplicarFiltroPorData) {
+                return true;
+              }
+              const dataDoc = (docDia.get('data') || docDia.id || '').toString();
               if (dataInicio && dataDoc && dataDoc < dataInicio) return false;
               if (dataFim && dataDoc && dataDoc > dataFim) return false;
               return true;
@@ -11071,17 +11098,18 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
               }),
             );
 
+            let documentosProcessados = 0;
             for (const resultadoLista of listasResultado) {
               if (!resultadoLista) continue;
               const { listaSnap } = resultadoLista;
-              listaSnap.forEach((itemDoc) => {
+              for (const itemDoc of listaSnap.docs) {
                 const dados = itemDoc.data() || {};
                 const skuOriginal = String(
                   dados.sku || itemDoc.id || '',
                 ).trim();
-                if (!skuOriginal) return;
+                if (!skuOriginal) continue;
                 const total = Number(dados.total || 0);
-                if (!Number.isFinite(total) || total <= 0) return;
+                if (!Number.isFinite(total) || total <= 0) continue;
                 const valorLiquido = Number(
                   dados.valorLiquido ?? dados.liquido ?? 0,
                 );
@@ -11264,7 +11292,11 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
                     registro.principaisVinculadosQuantidades = mapaQuantidades;
                   }
                 }
-              });
+                documentosProcessados += 1;
+                if (documentosProcessados % 200 === 0) {
+                  await new Promise((resolve) => setTimeout(resolve, 0));
+                }
+              }
             }
           } catch (loopErr) {
             console.error('Erro ao processar vendas do usuário', uid, loopErr);
