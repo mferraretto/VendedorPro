@@ -733,18 +733,13 @@ function calcularPrecosComNovoCusto(produto = {}, novoCusto) {
         calculos[nivel] = null;
         return;
       }
-      const base = info.valor + valorFixoTotal + fixoExtra;
-      const precoMinimo = base / (1 - percent / 100);
-      const precoPromo = precoMinimo;
-      const precoMedio = precoMinimo * 1.05;
-      const precoIdeal = precoMinimo * 1.1;
+      const fixoTotalAtual = valorFixoTotal + fixoExtra;
+      const precoCalculado =
+        info.valor + fixoTotalAtual + (info.valor * percent) / 100;
       calculos[nivel] = {
         custo: Number.isFinite(info.valor) ? Number(info.valor.toFixed(2)) : 0,
         comissao: info.comissao || 0,
-        precoMinimo: Number(precoMinimo.toFixed(2)),
-        precoPromo: Number(precoPromo.toFixed(2)),
-        precoMedio: Number(precoMedio.toFixed(2)),
-        precoIdeal: Number(precoIdeal.toFixed(2)),
+        preco: Number(precoCalculado.toFixed(2)),
       };
       if (!referencia || (referencia !== 'medio' && nivel === 'medio')) {
         referencia = nivel;
@@ -752,17 +747,43 @@ function calcularPrecosComNovoCusto(produto = {}, novoCusto) {
     });
     if (!referencia)
       referencia = niveis.find((nivel) => calculos[nivel]) || 'medio';
-    return { calculos, referencia };
+    const resumo = {
+      precoMinimo: calculos.minimo?.preco ?? null,
+      precoMedio: calculos.medio?.preco ?? null,
+      precoIdeal: calculos.maximo?.preco ?? null,
+    };
+    return { calculos, referencia, resumo };
   };
 
   const baseCalculo = calcularParaCustos();
   const referenciaDados = baseCalculo.calculos[baseCalculo.referencia] || {
-    precoMinimo: 0,
-    precoPromo: 0,
-    precoMedio: 0,
-    precoIdeal: 0,
+    preco: 0,
     custo: custoNumero,
   };
+  const obterPrecoResumo = (resumo, ordem) => {
+    for (const chave of ordem) {
+      const valor = resumo?.[chave];
+      if (typeof valor === 'number' && Number.isFinite(valor)) {
+        return valor;
+      }
+    }
+    return 0;
+  };
+  const precoMinimoCalculado = obterPrecoResumo(baseCalculo.resumo, [
+    'precoMinimo',
+    'precoMedio',
+    'precoIdeal',
+  ]);
+  const precoMedioCalculado = obterPrecoResumo(baseCalculo.resumo, [
+    'precoMedio',
+    'precoIdeal',
+    'precoMinimo',
+  ]);
+  const precoIdealCalculado = obterPrecoResumo(baseCalculo.resumo, [
+    'precoIdeal',
+    'precoMedio',
+    'precoMinimo',
+  ]);
 
   const arredondar = (valor) =>
     Number.isFinite(valor) ? Number(valor.toFixed(2)) : 0;
@@ -785,14 +806,29 @@ function calcularPrecosComNovoCusto(produto = {}, novoCusto) {
         extras.percent - percentualTotal,
         extras.fix - valorFixoTotal,
       );
-      const dadosRef = calculos.calculos[calculos.referencia] || {};
+      const resumoAtual = calculos.resumo;
+      const precoMinimoTaxa = obterPrecoResumo(resumoAtual, [
+        'precoMinimo',
+        'precoMedio',
+        'precoIdeal',
+      ]);
+      const precoMedioTaxa = obterPrecoResumo(resumoAtual, [
+        'precoMedio',
+        'precoIdeal',
+        'precoMinimo',
+      ]);
+      const precoIdealTaxa = obterPrecoResumo(resumoAtual, [
+        'precoIdeal',
+        'precoMedio',
+        'precoMinimo',
+      ]);
       calculosTaxas[taxaKey] = {
         referencia: calculos.referencia,
         precosPorCusto: calculos.calculos,
-        precoMinimo: dadosRef.precoMinimo || 0,
-        precoMedio: dadosRef.precoMedio || 0,
-        precoIdeal: dadosRef.precoIdeal || 0,
-        precoPromo: dadosRef.precoPromo || 0,
+        precoMinimo: precoMinimoTaxa,
+        precoMedio: precoMedioTaxa,
+        precoIdeal: precoIdealTaxa,
+        precoPromo: precoMinimoTaxa,
         taxas: taxasDetalhadas,
       };
     });
@@ -800,10 +836,10 @@ function calcularPrecosComNovoCusto(produto = {}, novoCusto) {
 
   return {
     custo: arredondar(referenciaDados.custo || custoNumero),
-    precoMinimo: arredondar(referenciaDados.precoMinimo),
-    precoPromo: arredondar(referenciaDados.precoPromo),
-    precoMedio: arredondar(referenciaDados.precoMedio),
-    precoIdeal: arredondar(referenciaDados.precoIdeal),
+    precoMinimo: arredondar(precoMinimoCalculado),
+    precoPromo: arredondar(precoMinimoCalculado),
+    precoMedio: arredondar(precoMedioCalculado),
+    precoIdeal: arredondar(precoIdealCalculado),
     custos: custosAtualizados,
     precosPorCusto: baseCalculo.calculos,
     referenciaCusto: baseCalculo.referencia,
