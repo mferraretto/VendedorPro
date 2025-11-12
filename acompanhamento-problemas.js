@@ -1016,6 +1016,114 @@ function gerarRelatorioCompleto() {
     valor: Number(item.valorGasto) || 0,
   }));
 
+  const normalizarTextoResumo = (valor, fallback) => {
+    const texto = (valor || '').toString().trim();
+    return texto || fallback;
+  };
+
+  const mapaResumoPecas = new Map();
+
+  const registrarResumoPeca = (entrada, origem) => {
+    const nomePeca = normalizarTextoResumo(entrada.peca, 'Sem peça informada');
+    const chave = nomePeca.toLowerCase();
+    const valorNumerico = Number(entrada.valor) || 0;
+    if (!mapaResumoPecas.has(chave)) {
+      mapaResumoPecas.set(chave, {
+        peca: nomePeca,
+        totalOcorrencias: 0,
+        valorTotal: 0,
+        registrosPecas: 0,
+        registrosReembolsos: 0,
+        problemas: new Map(),
+      });
+    }
+    const resumo = mapaResumoPecas.get(chave);
+    resumo.peca = nomePeca;
+    resumo.totalOcorrencias += 1;
+    resumo.valorTotal += valorNumerico;
+    if (origem === 'peca') resumo.registrosPecas += 1;
+    if (origem === 'reembolso') resumo.registrosReembolsos += 1;
+
+    const problemaNome = normalizarTextoResumo(
+      entrada.problema,
+      'Não informado',
+    );
+    if (!resumo.problemas.has(problemaNome)) {
+      resumo.problemas.set(problemaNome, {
+        descricao: problemaNome,
+        quantidade: 0,
+        valorTotal: 0,
+      });
+    }
+    const problemaResumo = resumo.problemas.get(problemaNome);
+    problemaResumo.quantidade += 1;
+    problemaResumo.valorTotal += valorNumerico;
+  };
+
+  detalhesPecas.forEach((item) =>
+    registrarResumoPeca(
+      {
+        peca: item.peca,
+        problema: item.problema,
+        valor: item.valor,
+      },
+      'peca',
+    ),
+  );
+
+  detalhesReembolsos.forEach((item) =>
+    registrarResumoPeca(
+      {
+        peca: item.peca,
+        problema: item.problema,
+        valor: item.valor,
+      },
+      'reembolso',
+    ),
+  );
+
+  const resumoPorPeca = Array.from(mapaResumoPecas.values())
+    .map((item) => ({
+      peca: item.peca,
+      totalOcorrencias: item.totalOcorrencias,
+      valorTotal: item.valorTotal,
+      registrosPecas: item.registrosPecas,
+      registrosReembolsos: item.registrosReembolsos,
+      principaisProblemas: Array.from(item.problemas.values())
+        .sort((a, b) => {
+          if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;
+          if (b.valorTotal !== a.valorTotal) return b.valorTotal - a.valorTotal;
+          return a.descricao.localeCompare(b.descricao);
+        })
+        .slice(0, 3),
+    }))
+    .sort((a, b) => {
+      if (b.valorTotal !== a.valorTotal) return b.valorTotal - a.valorTotal;
+      if (b.totalOcorrencias !== a.totalOcorrencias)
+        return b.totalOcorrencias - a.totalOcorrencias;
+      return a.peca.localeCompare(b.peca);
+    });
+
+  const detalhesReembolsosOrdenados = detalhesReembolsos
+    .slice()
+    .sort((a, b) => {
+      const pecaA = normalizarTextoResumo(
+        a.peca,
+        'Sem peça informada',
+      ).toLowerCase();
+      const pecaB = normalizarTextoResumo(
+        b.peca,
+        'Sem peça informada',
+      ).toLowerCase();
+      if (pecaA !== pecaB) return pecaA.localeCompare(pecaB);
+      const dataA = (a.data || '').toString();
+      const dataB = (b.data || '').toString();
+      if (dataA !== dataB) return dataA.localeCompare(dataB);
+      return (a.numero || '')
+        .toString()
+        .localeCompare((b.numero || '').toString());
+    });
+
   const dadosRelatorio = {
     periodo,
     usuarioFiltro,
@@ -1035,8 +1143,9 @@ function gerarRelatorioCompleto() {
     statusReembolsos,
     maioresGastos,
     graficos: dadosGraficos,
-    reembolsosDetalhes: detalhesReembolsos,
+    reembolsosDetalhes: detalhesReembolsosOrdenados,
     pecasDetalhes: detalhesPecas,
+    resumoPorPeca,
     geradoEm: new Date().toLocaleString('pt-BR'),
   };
 
@@ -1391,6 +1500,9 @@ function gerarHtmlRelatorio(dados) {
   const pecasDetalhes = Array.isArray(dados?.pecasDetalhes)
     ? dados.pecasDetalhes
     : [];
+  const resumoPorPeca = Array.isArray(dados?.resumoPorPeca)
+    ? dados.resumoPorPeca
+    : [];
 
   const ticketMedioReembolsos =
     Number(totais?.reembolsos || 0) > 0
@@ -1425,6 +1537,50 @@ function gerarHtmlRelatorio(dados) {
   const valorOuTraco = (valor) => {
     const texto = (valor ?? '').toString().trim();
     return texto ? escapeHtml(texto) : '-';
+  };
+
+  const renderOrigemResumo = (pecasCount, reembolsosCount) => {
+    const partes = [];
+    if (pecasCount) {
+      partes.push(
+        `<span class="origem-badge origem-pecas">Peças faltantes: ${formatarQuantidade(
+          pecasCount,
+        )}</span>`,
+      );
+    }
+    if (reembolsosCount) {
+      partes.push(
+        `<span class="origem-badge origem-reembolsos">Reembolsos: ${formatarQuantidade(
+          reembolsosCount,
+        )}</span>`,
+      );
+    }
+    if (!partes.length) {
+      partes.push(
+        '<span class="origem-badge origem-neutra">Sem origem identificada</span>',
+      );
+    }
+    return partes.join('');
+  };
+
+  const renderProblemasResumo = (problemas) => {
+    if (!Array.isArray(problemas) || !problemas.length) {
+      return '<span>-</span>';
+    }
+    return `
+      <ul class="lista-problemas">
+        ${problemas
+          .map(
+            (prob) => `
+              <li>
+                <strong>${escapeHtml(prob.descricao)}</strong>
+                <small>${formatarQuantidade(prob.quantidade)} ocorrências • ${formatarMoedaBRL(prob.valorTotal)}</small>
+              </li>
+            `,
+          )
+          .join('')}
+      </ul>
+    `;
   };
 
   const renderResponsavel = (nome, email) => {
@@ -1483,29 +1639,75 @@ function gerarHtmlRelatorio(dados) {
         .join('')
     : '<tr><td colspan="6" class="tabela-vazia">Nenhum gasto registrado no período selecionado.</td></tr>';
 
-  const linhasDetalhesReembolsos = reembolsosDetalhes.length
-    ? reembolsosDetalhes
-        .map((item) => {
-          const dataFormatada = formatarData(item.data);
-          const statusTexto = formatarStatusReembolso(item.status);
-          const statusClasse = obterClasseStatusReembolsoRelatorio(item.status);
-          return `
+  const linhasResumoPecas = resumoPorPeca.length
+    ? resumoPorPeca
+        .map(
+          (item) => `
             <tr>
-              <td>${dataFormatada ? escapeHtml(dataFormatada) : '-'}</td>
-              <td>${renderResponsavel(item.responsavel, item.responsavelEmail)}</td>
-              <td>${valorOuTraco(item.numero)}</td>
-              <td>${valorOuTraco(item.apelido)}</td>
-              <td>${valorOuTraco(item.nf)}</td>
-              <td>${valorOuTraco(item.loja)}</td>
-              <td>${valorOuTraco(item.peca)}</td>
-              <td>${valorOuTraco(item.problema)}</td>
-              <td>${formatarMoedaBRL(item.valor)}</td>
-              <td>${valorOuTraco(item.pix)}</td>
-              <td><span class="${statusClasse}">${escapeHtml(statusTexto)}</span></td>
+              <td>${escapeHtml(item.peca)}</td>
+              <td>
+                <div class="resumo-ocorrencias">
+                  <strong>${formatarQuantidade(item.totalOcorrencias)}</strong>
+                  <div class="origem-tags">${renderOrigemResumo(
+                    item.registrosPecas,
+                    item.registrosReembolsos,
+                  )}</div>
+                </div>
+              </td>
+              <td>${formatarMoedaBRL(item.valorTotal)}</td>
+              <td>${renderProblemasResumo(item.principaisProblemas)}</td>
             </tr>
-          `;
-        })
+          `,
+        )
         .join('')
+    : `
+        <tr>
+          <td colspan="4" class="tabela-vazia">
+            Nenhum dado consolidado por peça encontrado para o período selecionado.
+          </td>
+        </tr>
+      `;
+
+  const linhasDetalhesReembolsos = reembolsosDetalhes.length
+    ? (() => {
+        let ultimoGrupo = null;
+        return reembolsosDetalhes
+          .map((item) => {
+            const dataFormatada = formatarData(item.data);
+            const statusTexto = formatarStatusReembolso(item.status);
+            const statusClasse = obterClasseStatusReembolsoRelatorio(
+              item.status,
+            );
+            const grupoAtual = (item.peca || '').trim() || 'Sem peça informada';
+            const grupoNormalizado = grupoAtual.toLowerCase();
+            const precisaCabecalho = grupoNormalizado !== ultimoGrupo;
+            if (precisaCabecalho) {
+              ultimoGrupo = grupoNormalizado;
+            }
+            const cabecalhoGrupo = precisaCabecalho
+              ? `<tr class="grupo-peca-row"><td colspan="11">Peça: ${escapeHtml(
+                  grupoAtual,
+                )}</td></tr>`
+              : '';
+            return `
+              ${cabecalhoGrupo}
+              <tr>
+                <td>${dataFormatada ? escapeHtml(dataFormatada) : '-'}</td>
+                <td>${renderResponsavel(item.responsavel, item.responsavelEmail)}</td>
+                <td>${valorOuTraco(item.numero)}</td>
+                <td>${valorOuTraco(item.apelido)}</td>
+                <td>${valorOuTraco(item.nf)}</td>
+                <td>${valorOuTraco(item.loja)}</td>
+                <td>${valorOuTraco(item.peca)}</td>
+                <td>${valorOuTraco(item.problema)}</td>
+                <td>${formatarMoedaBRL(item.valor)}</td>
+                <td>${valorOuTraco(item.pix)}</td>
+                <td><span class="${statusClasse}">${escapeHtml(statusTexto)}</span></td>
+              </tr>
+            `;
+          })
+          .join('');
+      })()
     : '<tr><td colspan="11" class="tabela-vazia">Nenhum reembolso registrado no período selecionado.</td></tr>';
 
   const linhasDetalhesPecas = pecasDetalhes.length
@@ -1643,6 +1845,60 @@ function gerarHtmlRelatorio(dados) {
         font-size: 0.9rem;
         padding: 1.5rem 1rem;
       }
+      .resumo-ocorrencias {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+      .origem-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+      .origem-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.65rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: 1px solid transparent;
+      }
+      .origem-badge.origem-pecas {
+        background: #eef2ff;
+        color: #312e81;
+        border-color: #c7d2fe;
+      }
+      .origem-badge.origem-reembolsos {
+        background: #dcfce7;
+        color: #166534;
+        border-color: #bbf7d0;
+      }
+      .origem-badge.origem-neutra {
+        background: #f3f4f6;
+        color: #374151;
+        border-color: #e5e7eb;
+      }
+      .lista-problemas {
+        margin: 0;
+        padding-left: 1.1rem;
+        color: #374151;
+      }
+      .lista-problemas li {
+        margin-bottom: 0.35rem;
+      }
+      .lista-problemas li:last-child {
+        margin-bottom: 0;
+      }
+      .lista-problemas strong {
+        display: block;
+        font-size: 0.85rem;
+        margin-bottom: 0.15rem;
+      }
+      .lista-problemas small {
+        font-size: 0.75rem;
+        color: #6b7280;
+      }
       .grid-duas-colunas {
         display: grid;
         gap: 1.75rem;
@@ -1723,6 +1979,12 @@ function gerarHtmlRelatorio(dados) {
         background: #ede9fe;
         color: #5b21b6;
         border-color: #ddd6fe;
+      }
+      .grupo-peca-row td {
+        background: #f1f5f9;
+        color: #1e3a8a;
+        font-weight: 600;
+        border-bottom: 1px solid #cbd5f5;
       }
       @media print {
         body {
@@ -1897,6 +2159,28 @@ function gerarHtmlRelatorio(dados) {
             ${linhasGastos}
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h2>Resumo por peça</h2>
+        <p class="descricao-secao">
+          Visão consolidada das peças com maiores ocorrências e os problemas mais significativos para cada uma delas.
+        </p>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Peça</th>
+                <th>Ocorrências</th>
+                <th>Valor total</th>
+                <th>Principais problemas</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhasResumoPecas}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section>
