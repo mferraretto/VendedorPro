@@ -86,22 +86,14 @@
       <option value="14">14%</option>
     </select>
   </label>
-  <label class="flex items-center gap-2">
-    <span class="font-medium">Custo:</span>
-    <select id="costLevelSelect" class="border p-2 rounded">
-      <option value="minimo">Mínimo</option>
-      <option value="medio" selected>Médio</option>
-      <option value="maximo">Máximo</option>
-    </select>
-  </label>
-  <button onclick="applyPromoPriceUpdate('promo')" class="btn-danger">
-    <i class="fas fa-tag mr-2"></i> Aplicar Sem Lucro (0%)
+  <button onclick="applyPromoPriceUpdate('precoMinimo')" class="btn-danger">
+    <i class="fas fa-tag mr-2"></i> Aplicar Preço Mínimo
   </button>
-  <button onclick="applyPromoPriceUpdate('medium')" class="btn-secondary">
-    <i class="fas fa-chart-line mr-2"></i> Aplicar Lucro 5%
+  <button onclick="applyPromoPriceUpdate('precoMedio')" class="btn-secondary">
+    <i class="fas fa-chart-line mr-2"></i> Aplicar Preço Médio
   </button>
-  <button onclick="applyPromoPriceUpdate('ideal')" class="btn-success">
-    <i class="fas fa-star mr-2"></i> Aplicar Lucro 10%
+  <button onclick="applyPromoPriceUpdate('precoIdeal')" class="btn-success">
+    <i class="fas fa-star mr-2"></i> Aplicar Preço Ideal
   </button>
 
   <button onclick="exportPromoFile()" class="btn btn-success">
@@ -432,7 +424,6 @@ async function applyPromoPriceUpdate(type) {
   const skusNaoEncontrados = [];
 
   const selectedTax = document.getElementById('taxRateSelect')?.value || '20';
-  const selectedCost = document.getElementById('costLevelSelect')?.value || 'medio';
 
   sistema.promoShopeeData.forEach((importedProduct) => {
 const sku = importedProduct['Nº de Ref. SKU. (Opcional)'] ? 
@@ -477,41 +468,29 @@ const searchSku = (sku || parentSku || '').toUpperCase();
       return 0;
     };
 
-    const precosResumo = {
-      minimo: precosPorCusto.minimo?.preco,
-      medio: precosPorCusto.medio?.preco,
-      maximo: precosPorCusto.maximo?.preco,
-    };
-
     const precoMinimoValor = escolherPreco(
-      precosPorCusto[selectedCost]?.preco,
-      precosResumo.minimo,
-      precosResumo.medio,
-      precosResumo.maximo,
+      precosPorCusto.minimo?.preco,
       priceSet.precoMinimo,
       priceSet.precoMedio,
       priceSet.precoIdeal,
     );
     const precoMedioValor = escolherPreco(
-      precosResumo.medio,
-      precosResumo.maximo,
-      precoMinimoValor,
+      precosPorCusto.medio?.preco,
       priceSet.precoMedio,
       priceSet.precoIdeal,
-      priceSet.precoMinimo,
+      precoMinimoValor,
     );
     const precoIdealValor = escolherPreco(
-      precosResumo.maximo,
-      precoMedioValor,
-      precoMinimoValor,
+      precosPorCusto.maximo?.preco,
       priceSet.precoIdeal,
       priceSet.precoMedio,
+      precoMedioValor,
     );
 
     const scenarioMap = {
-      promo: precoMinimoValor,
-      medium: precoMedioValor,
-      ideal: precoIdealValor,
+      precoMinimo: precoMinimoValor,
+      precoMedio: precoMedioValor,
+      precoIdeal: precoIdealValor,
     };
     const priceToApply = escolherPreco(
       scenarioMap[type],
