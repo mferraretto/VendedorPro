@@ -467,24 +467,56 @@ const searchSku = (sku || parentSku || '').toUpperCase();
       priceEntry?.precosPorCusto ||
       systemProduct.precosPorCusto ||
       {};
-    const custoInfo =
-      precosPorCusto[selectedCost] ||
-      precosPorCusto.medio ||
-      Object.values(precosPorCusto)[0];
-    const scenarioMap = {
-      promo: 'precoPromo',
-      medium: 'precoMedio',
-      ideal: 'precoIdeal',
+    const escolherPreco = (...valores) => {
+      for (const valor of valores) {
+        const numero = Number.parseFloat(valor);
+        if (Number.isFinite(numero)) {
+          return numero;
+        }
+      }
+      return 0;
     };
-    const campo = scenarioMap[type] || 'precoMinimo';
-    let priceToApply;
-    if (custoInfo && custoInfo[campo] !== undefined) {
-      priceToApply = Number.parseFloat(custoInfo[campo] || 0).toFixed(2);
-    } else if (priceSet[campo] !== undefined) {
-      priceToApply = Number.parseFloat(priceSet[campo] || 0).toFixed(2);
-    } else {
-      priceToApply = Number.parseFloat(priceSet.precoMinimo || 0).toFixed(2);
-    }
+
+    const precosResumo = {
+      minimo: precosPorCusto.minimo?.preco,
+      medio: precosPorCusto.medio?.preco,
+      maximo: precosPorCusto.maximo?.preco,
+    };
+
+    const precoMinimoValor = escolherPreco(
+      precosPorCusto[selectedCost]?.preco,
+      precosResumo.minimo,
+      precosResumo.medio,
+      precosResumo.maximo,
+      priceSet.precoMinimo,
+      priceSet.precoMedio,
+      priceSet.precoIdeal,
+    );
+    const precoMedioValor = escolherPreco(
+      precosResumo.medio,
+      precosResumo.maximo,
+      precoMinimoValor,
+      priceSet.precoMedio,
+      priceSet.precoIdeal,
+      priceSet.precoMinimo,
+    );
+    const precoIdealValor = escolherPreco(
+      precosResumo.maximo,
+      precoMedioValor,
+      precoMinimoValor,
+      priceSet.precoIdeal,
+      priceSet.precoMedio,
+    );
+
+    const scenarioMap = {
+      promo: precoMinimoValor,
+      medium: precoMedioValor,
+      ideal: precoIdealValor,
+    };
+    const priceToApply = escolherPreco(
+      scenarioMap[type],
+      precoMinimoValor,
+    ).toFixed(2);
 
     const oldPrice = importedProduct['Preço de desconto'];
     if (parseFloat(oldPrice) !== parseFloat(priceToApply)) {

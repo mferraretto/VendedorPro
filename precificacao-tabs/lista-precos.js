@@ -72,6 +72,15 @@ function formatCurrency(valor) {
   return `R$ ${Number.parseFloat(valor || 0).toFixed(2)}`;
 }
 
+function primeiroNumeroValido(...valores) {
+  for (const valor of valores) {
+    if (typeof valor === 'number' && Number.isFinite(valor)) {
+      return valor;
+    }
+  }
+  return null;
+}
+
 function obterCustosDoProduto(prod) {
   if (prod?.custos) return normalizarCustosProduto(prod.custos);
   const custoBase = Number.parseFloat(prod?.custo || 0) || 0;
@@ -98,14 +107,9 @@ function coletarCustosDoModal() {
 }
 
 function gerarTabelaPreview(resultado) {
-  const cenarios = [
-    { chave: 'precoPromo', titulo: 'Sem lucro' },
-    { chave: 'precoMedio', titulo: 'Lucro 5%' },
-    { chave: 'precoIdeal', titulo: 'Lucro 10%' },
-  ];
   const linhas = NIVEIS_CUSTO.map((nivel) => {
     const dados = resultado.precosPorCusto?.[nivel];
-    if (!dados) return '';
+    if (!dados || typeof dados.preco !== 'number') return '';
     const titulo =
       nivel === 'minimo'
         ? 'Custo mínimo'
@@ -115,12 +119,7 @@ function gerarTabelaPreview(resultado) {
     return `
       <tr>
         <td class="px-2 py-1 font-medium text-gray-600">${titulo}</td>
-        ${cenarios
-          .map(
-            (cenario) =>
-              `<td class="px-2 py-1">${formatCurrency(dados[cenario.chave])}</td>`,
-          )
-          .join('')}
+        <td class="px-2 py-1 text-right">${formatCurrency(dados.preco)}</td>
       </tr>
     `;
   })
@@ -133,17 +132,17 @@ function gerarTabelaPreview(resultado) {
     <table class="min-w-full text-xs">
       <thead>
         <tr>
-          <th class="px-2 py-1 text-left text-gray-500">Cenário</th>
-          ${cenarios
-            .map(
-              (cenario) =>
-                `<th class="px-2 py-1 text-gray-500 text-right">${cenario.titulo}</th>`,
-            )
-            .join('')}
+          <th class="px-2 py-1 text-left text-gray-500">Custo base</th>
+          <th class="px-2 py-1 text-gray-500 text-right">Preço calculado</th>
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
     </table>
+    <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-gray-600">
+      <div><strong>Preço mínimo:</strong> ${formatCurrency(resultado.precoMinimo)}</div>
+      <div><strong>Preço médio:</strong> ${formatCurrency(resultado.precoMedio)}</div>
+      <div><strong>Preço ideal:</strong> ${formatCurrency(resultado.precoIdeal)}</div>
+    </div>
     <p class="mt-2 text-xs text-gray-500">Referência atual: <strong>${resultado.referenciaCusto?.toUpperCase() || 'MÉDIO'}</strong></p>
   `;
 }
@@ -168,16 +167,10 @@ function calcularPrecosCustos(custos, totalPercentual, totalFixo) {
     if (!info || !(info.valor > 0)) return;
     const percentual = totalPercentual + (info.comissao || 0);
     const precoBase = info.valor + totalFixo + (info.valor * percentual) / 100;
-    const precoPromo = precoBase;
-    const precoMedio = precoBase * 1.05;
-    const precoIdeal = precoBase * 1.1;
     calculos[nivel] = {
       custo: Number(info.valor.toFixed(2)),
       comissao: info.comissao || 0,
-      precoMinimo: Number(precoBase.toFixed(2)),
-      precoPromo: Number(precoPromo.toFixed(2)),
-      precoMedio: Number(precoMedio.toFixed(2)),
-      precoIdeal: Number(precoIdeal.toFixed(2)),
+      preco: Number(precoBase.toFixed(2)),
     };
     if (!referencia || (referencia !== 'medio' && nivel === 'medio')) {
       referencia = nivel;
@@ -186,7 +179,12 @@ function calcularPrecosCustos(custos, totalPercentual, totalFixo) {
   if (!referencia) {
     referencia = NIVEIS_CUSTO.find((nivel) => calculos[nivel]) || 'medio';
   }
-  return { calculos, referencia };
+  const resumo = {
+    precoMinimo: calculos.minimo?.preco ?? null,
+    precoMedio: calculos.medio?.preco ?? null,
+    precoIdeal: calculos.maximo?.preco ?? null,
+  };
+  return { calculos, referencia, resumo };
 }
 
 async function carregarProdutos() {
@@ -305,9 +303,12 @@ function renderLista(lista) {
                         : '';
                       return `
               <div class="mb-2">
-                <div class="text-gray-500 text-sm">${taxa}${referencia} - Preço mínimo</div>
-                <div class="text-lg font-semibold text-green-600">R$ ${parseFloat(valores.precoMinimo).toFixed(2)}</div>
-                <div class="text-xs text-gray-500">Promo: R$ ${parseFloat(valores.precoPromo).toFixed(2)} | Médio: R$ ${parseFloat(valores.precoMedio).toFixed(2)} | Ideal: R$ ${parseFloat(valores.precoIdeal).toFixed(2)}</div>
+                <div class="text-gray-500 text-sm">${taxa}${referencia} - Preços calculados</div>
+                <div class="text-xs text-gray-500 space-y-0.5 mt-1">
+                  <div><strong>Mínimo:</strong> R$ ${parseFloat(valores.precoMinimo).toFixed(2)}</div>
+                  <div><strong>Médio:</strong> R$ ${parseFloat(valores.precoMedio).toFixed(2)}</div>
+                  <div><strong>Ideal:</strong> R$ ${parseFloat(valores.precoIdeal).toFixed(2)}</div>
+                </div>
               </div>
             `;
                     })
@@ -315,6 +316,7 @@ function renderLista(lista) {
                 : `
               <div class="text-gray-500 text-sm">Preço mínimo</div>
               <div class="text-lg font-semibold text-green-600">R$ ${parseFloat(data.precoMinimo).toFixed(2)}</div>
+              <div class="text-xs text-gray-500 mt-1">Médio: R$ ${parseFloat(data.precoMedio).toFixed(2)} | Ideal: R$ ${parseFloat(data.precoIdeal).toFixed(2)}</div>
             `
             }
           </div>
@@ -399,7 +401,6 @@ function verDetalhes(id) {
     <div><strong>Preço mínimo:</strong> R$ ${prod.precoMinimo} (Lucro: ${lucroPercent(prod.precoMinimo)}%)</div>
     <div><strong>Preço ideal:</strong> R$ ${prod.precoIdeal} (Lucro: ${lucroPercent(prod.precoIdeal)}%)</div>
     <div><strong>Preço médio:</strong> R$ ${prod.precoMedio} (Lucro: ${lucroPercent(prod.precoMedio)}%)</div>
-    <div><strong>Preço promo:</strong> R$ ${prod.precoPromo} (Lucro: ${lucroPercent(prod.precoPromo)}%)</div>
   `;
   // Utilize global modal helpers to ensure proper display
   document.getElementById('detalhesModal').classList.remove('hidden');
@@ -515,7 +516,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     precoMinimo: resultado.precoMinimo,
     precoIdeal: resultado.precoIdeal,
     precoMedio: resultado.precoMedio,
-    precoPromo: resultado.precoPromo,
+    precoPromo: resultado.precoMinimo,
     custos: resultado.custos,
     precosPorCusto: resultado.precosPorCusto,
     referenciaCusto: resultado.referenciaCusto,
@@ -752,7 +753,6 @@ function exportarPDFLista() {
     'Preço Mín.',
     'Preço Ideal',
     'Preço Médio',
-    'Preço Promo',
   ];
   const body = produtos.map((p) => [
     p.produto,
@@ -762,7 +762,6 @@ function exportarPDFLista() {
     parseFloat(p.precoMinimo).toFixed(2),
     parseFloat(p.precoIdeal).toFixed(2),
     parseFloat(p.precoMedio).toFixed(2),
-    parseFloat(p.precoPromo).toFixed(2),
   ]);
   doc.autoTable({ head: [headers], body, startY: 20, styles: { fontSize: 8 } });
   doc.save('lista_precos.pdf');
@@ -787,7 +786,7 @@ function recalcularPrecos(prod, novosCustosEntrada) {
 
   const taxasBase = prod.taxas || {};
   const totaisBase = calcularTotaisTaxas(taxasBase);
-  const { calculos, referencia } = calcularPrecosCustos(
+  const { calculos, referencia, resumo } = calcularPrecosCustos(
     custosAtualizados,
     totaisBase.percent,
     totaisBase.fix,
@@ -796,6 +795,25 @@ function recalcularPrecos(prod, novosCustosEntrada) {
   if (!referenciaDados) {
     return null;
   }
+
+  const precoMinimoBase =
+    primeiroNumeroValido(
+      resumo.precoMinimo,
+      resumo.precoMedio,
+      resumo.precoIdeal,
+    ) ?? 0;
+  const precoMedioBase =
+    primeiroNumeroValido(
+      resumo.precoMedio,
+      resumo.precoIdeal,
+      resumo.precoMinimo,
+    ) ?? 0;
+  const precoIdealBase =
+    primeiroNumeroValido(
+      resumo.precoIdeal,
+      resumo.precoMedio,
+      resumo.precoMinimo,
+    ) ?? 0;
 
   const calculosTaxas = {};
   if (prod.calculosTaxas) {
@@ -810,16 +828,34 @@ function recalcularPrecos(prod, novosCustosEntrada) {
               : taxasBase['Taxas da Plataforma (%)'],
           };
       const totais = calcularTotaisTaxas(taxasDetalhadas);
-      const { calculos: calcCustos, referencia: refTaxa } =
+      const { calculos: calcCustos, referencia: refTaxa, resumo: resumoTaxa } =
         calcularPrecosCustos(custosAtualizados, totais.percent, totais.fix);
       const dadosReferencia = calcCustos[refTaxa] || {};
+      const precoMinimoTaxa =
+        primeiroNumeroValido(
+          resumoTaxa.precoMinimo,
+          resumoTaxa.precoMedio,
+          resumoTaxa.precoIdeal,
+        ) ?? 0;
+      const precoMedioTaxa =
+        primeiroNumeroValido(
+          resumoTaxa.precoMedio,
+          resumoTaxa.precoIdeal,
+          resumoTaxa.precoMinimo,
+        ) ?? 0;
+      const precoIdealTaxa =
+        primeiroNumeroValido(
+          resumoTaxa.precoIdeal,
+          resumoTaxa.precoMedio,
+          resumoTaxa.precoMinimo,
+        ) ?? 0;
       calculosTaxas[taxaKey] = {
         referencia: refTaxa,
         precosPorCusto: calcCustos,
-        precoMinimo: dadosReferencia.precoMinimo || 0,
-        precoMedio: dadosReferencia.precoMedio || 0,
-        precoIdeal: dadosReferencia.precoIdeal || 0,
-        precoPromo: dadosReferencia.precoPromo || 0,
+        precoMinimo: precoMinimoTaxa,
+        precoMedio: precoMedioTaxa,
+        precoIdeal: precoIdealTaxa,
+        precoPromo: precoMinimoTaxa,
         taxas: taxasDetalhadas,
       };
     });
@@ -827,10 +863,10 @@ function recalcularPrecos(prod, novosCustosEntrada) {
 
   return {
     custo: Number(referenciaDados.custo || 0),
-    precoMinimo: referenciaDados.precoMinimo,
-    precoMedio: referenciaDados.precoMedio,
-    precoIdeal: referenciaDados.precoIdeal,
-    precoPromo: referenciaDados.precoPromo,
+    precoMinimo: precoMinimoBase,
+    precoMedio: precoMedioBase,
+    precoIdeal: precoIdealBase,
+    precoPromo: precoMinimoBase,
     custos: custosAtualizados,
     precosPorCusto: calculos,
     referenciaCusto: referencia,

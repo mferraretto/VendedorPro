@@ -948,19 +948,39 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
       return `R$ ${Number(valor || 0).toFixed(2)}`;
     }
 
+    function primeiroNumeroValido(...valores) {
+      for (const valor of valores) {
+        if (typeof valor === 'number' && Number.isFinite(valor)) {
+          return valor;
+        }
+      }
+      return null;
+    }
+
     function atualizarCenariosUI(plataforma, calculos) {
-      const camposPorCenario = {
-        promo: 'precoPromo',
-        medio: 'precoMedio',
-        ideal: 'precoIdeal',
+      const valores = {
+        minimo: primeiroNumeroValido(
+          calculos?.minimo?.preco,
+          calculos?.medio?.preco,
+          calculos?.maximo?.preco,
+        ),
+        medio: primeiroNumeroValido(
+          calculos?.medio?.preco,
+          calculos?.maximo?.preco,
+          calculos?.minimo?.preco,
+        ),
+        ideal: primeiroNumeroValido(
+          calculos?.maximo?.preco,
+          calculos?.medio?.preco,
+          calculos?.minimo?.preco,
+        ),
       };
-      Object.entries(camposPorCenario).forEach(([cenario, campo]) => {
-        NIVEIS_CUSTO.forEach((nivel) => {
-          const span = document.getElementById(`preco_${plataforma}_${cenario}_${nivel}`);
-          if (!span) return;
-          const dados = calculos?.[nivel];
-          span.textContent = dados ? formatarMoeda(dados[campo]) : '—';
-        });
+
+      Object.entries(valores).forEach(([tipo, valor]) => {
+        const span = document.getElementById(`preco_${plataforma}_${tipo}`);
+        if (!span) return;
+        span.textContent =
+          valor !== null ? formatarMoeda(valor) : '—';
       });
     }
 
@@ -980,21 +1000,17 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
       let referencia = null;
 
       NIVEIS_CUSTO.forEach((nivel) => {
-        const { valor, comissao } = custos[nivel] || {};
+        const info = custos[nivel] || {};
+        const valor = Number.parseFloat(info.valor) || 0;
+        const comissao = Number.parseFloat(info.comissao) || 0;
         if (!(valor > 0)) return;
         const percentualTotal = totalPercentual + comissao;
-        const precoBase =
+        const precoCalculado =
           valor + totalFixo + (valor * percentualTotal) / 100;
-        const precoPromo = precoBase;
-        const precoMedio = precoBase * 1.05;
-        const precoIdeal = precoBase * 1.1;
         calculos[nivel] = {
-          custo: valor,
+          custo: Number(valor.toFixed(2)),
           comissao,
-          precoMinimo: parseFloat(precoBase.toFixed(2)),
-          precoPromo: parseFloat(precoPromo.toFixed(2)),
-          precoMedio: parseFloat(precoMedio.toFixed(2)),
-          precoIdeal: parseFloat(precoIdeal.toFixed(2)),
+          preco: Number(precoCalculado.toFixed(2)),
         };
         if (!referencia || (referencia !== 'medio' && nivel === 'medio')) {
           referencia = nivel;
@@ -1005,7 +1021,13 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         referencia = NIVEIS_CUSTO.find((nivel) => calculos[nivel]);
       }
 
-      return { calculos, referencia };
+      const resumo = {
+        precoMinimo: calculos.minimo?.preco ?? null,
+        precoMedio: calculos.medio?.preco ?? null,
+        precoIdeal: calculos.maximo?.preco ?? null,
+      };
+
+      return { calculos, referencia, resumo };
     }
 
     function calcular(plataforma) {
@@ -1118,7 +1140,7 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         return;
       }
 
-      const { calculos, referencia } = calcularPrecosPorCusto(
+      const { calculos, referencia, resumo } = calcularPrecosPorCusto(
         custosNormalizados,
         totalPercentual,
         totalFixo,
@@ -1132,17 +1154,34 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         return;
       }
 
-      const base = calculos[referencia];
+      const precoMinimo =
+        primeiroNumeroValido(
+          resumo.precoMinimo,
+          resumo.precoMedio,
+          resumo.precoIdeal,
+        ) ?? 0;
+      const precoMedio =
+        primeiroNumeroValido(
+          resumo.precoMedio,
+          resumo.precoIdeal,
+          resumo.precoMinimo,
+        ) ?? 0;
+      const precoIdeal =
+        primeiroNumeroValido(
+          resumo.precoIdeal,
+          resumo.precoMedio,
+          resumo.precoMinimo,
+        ) ?? 0;
       const resultado = {
         taxaPercentual: taxa,
         custosInformados: custosNormalizados,
         custosCalculados: calculos,
         referencia,
         custoBase: custosNormalizados[referencia]?.valor || 0,
-        precoMinimo: base.precoMinimo,
-        precoIdeal: base.precoIdeal,
-        precoMedio: base.precoMedio,
-        precoPromo: base.precoPromo,
+        precoMinimo,
+        precoIdeal,
+        precoMedio,
+        precoPromo: precoMinimo,
         taxas: taxasDetalhadas,
       };
 
@@ -1222,7 +1261,7 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         precoMinimo: baseResultado.precoMinimo,
         precoIdeal: baseResultado.precoIdeal,
         precoMedio: baseResultado.precoMedio,
-        precoPromo: baseResultado.precoPromo,
+        precoPromo: baseResultado.precoMinimo,
         taxas: baseResultado.taxas,
         calculosTaxas,
       };
@@ -1245,7 +1284,7 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
             precoMinimo: r.precoMinimo,
             precoIdeal: r.precoIdeal,
             precoMedio: r.precoMedio,
-            precoPromo: r.precoPromo,
+            precoPromo: r.precoMinimo,
             taxas: r.taxas,
           };
         });

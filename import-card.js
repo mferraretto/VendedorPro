@@ -139,19 +139,13 @@
       }
 
       const percentualTotal = totalPercentual + (info.comissao || 0);
-      const precoBase =
+      const precoCalculado =
         info.valor + totalFixo + (info.valor * percentualTotal) / 100;
-      const precoPromo = precoBase;
-      const precoMedio = precoBase * 1.05;
-      const precoIdeal = precoBase * 1.1;
 
       calculos[key] = {
         custo: formatTwoDecimals(info.valor),
         comissao: formatTwoDecimals(info.comissao),
-        precoMinimo: formatTwoDecimals(precoBase),
-        precoPromo: formatTwoDecimals(precoPromo),
-        precoMedio: formatTwoDecimals(precoMedio),
-        precoIdeal: formatTwoDecimals(precoIdeal),
+        preco: formatTwoDecimals(precoCalculado),
       };
 
       if (!referencia || (referencia !== 'medio' && key === 'medio')) {
@@ -166,6 +160,14 @@
     }
 
     return { calculos, referencia };
+  }
+
+  function firstAvailable(...values) {
+    return (
+      values.find(
+        (value) => typeof value === 'number' && Number.isFinite(value),
+      ) ?? 0
+    );
   }
 
   function formatTaxas(taxas = {}) {
@@ -193,8 +195,19 @@
       return null;
     }
 
-    const base = calculos[referencia];
     const custosInformados = cloneCosts(custosNormalizados);
+    const precoMinimo = calculos.minimo?.preco;
+    const precoMedio = calculos.medio?.preco;
+    const precoIdeal = calculos.maximo?.preco;
+    const precoMinimoFinal = formatTwoDecimals(
+      firstAvailable(precoMinimo, precoMedio, precoIdeal),
+    );
+    const precoMedioFinal = formatTwoDecimals(
+      firstAvailable(precoMedio, precoIdeal, precoMinimo),
+    );
+    const precoIdealFinal = formatTwoDecimals(
+      firstAvailable(precoIdeal, precoMedio, precoMinimo),
+    );
 
     return {
       taxaPercentual: formatTwoDecimals(taxaPercentual),
@@ -202,10 +215,10 @@
       custosCalculados: calculos,
       referencia,
       custoBase: custosInformados[referencia]?.valor || 0,
-      precoMinimo: base.precoMinimo,
-      precoIdeal: base.precoIdeal,
-      precoMedio: base.precoMedio,
-      precoPromo: base.precoPromo,
+      precoMinimo: precoMinimoFinal,
+      precoMedio: precoMedioFinal,
+      precoIdeal: precoIdealFinal,
+      precoPromo: precoMinimoFinal,
       taxas: formatTaxas(taxasDetalhadas),
     };
   }
