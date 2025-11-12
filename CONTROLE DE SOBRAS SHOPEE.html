@@ -189,6 +189,7 @@
       let resumoSku = {};
       let produtosVendidosResumo = [];
       let produtosVendidosCarregado = false;
+      let produtosVendidosCarregando = false;
       let totalSaquesAcompanhamento = 0;
       let totalComissaoAcompanhamento = 0;
       let totalComissaoPagaAcompanhamento = 0;
@@ -10626,53 +10627,76 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
       const totalParafusosEl = document.getElementById(
         'produtosVendidosTotalParafusos',
       );
-      produtosVendidosResumo = [];
-      produtosVendidosCarregado = false;
-      resetPrevisaoProdutosVendidos();
-      popularFiltroResponsavelProdutosVendidos();
+      const botaoFiltrar = document.getElementById('btnProdutosVendidosFiltrar');
 
-      if (tabela) {
-        tabela.innerHTML =
-          '<tr><td colspan="4" class="py-6 text-center text-gray-500">Carregando...</td></tr>';
-      }
-      if (statusEl) {
-        statusEl.textContent = 'Carregando dados de produtos vendidos...';
-      }
-      if (totalEl) totalEl.textContent = '0';
-      if (totalLiquidoEl)
-        totalLiquidoEl.textContent = Number(0).toLocaleString('pt-BR', {
-          style: 'currency',
-          currency: 'BRL',
-        });
-      if (totalParafusosEl) totalParafusosEl.textContent = '0';
-
-      const inicioInput = document.getElementById(
-        'filtroProdutosVendidosInicio',
-      );
-      const fimInput = document.getElementById('filtroProdutosVendidosFim');
-      const hoje = new Date();
-      const ano = hoje.getFullYear();
-      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-      const dia = String(hoje.getDate()).padStart(2, '0');
-      const primeiroDiaMes = `${ano}-${mes}-01`;
-      const hojeIso = `${ano}-${mes}-${dia}`;
-
-      if (inicioInput && !inicioInput.value) inicioInput.value = primeiroDiaMes;
-      if (fimInput && !fimInput.value) fimInput.value = hojeIso;
-
-      const dataInicio = inicioInput?.value || null;
-      const dataFim = fimInput?.value || null;
-      if (dataInicio && dataFim && dataInicio > dataFim) {
-        if (statusEl)
+      if (produtosVendidosCarregando) {
+        if (statusEl) {
           statusEl.textContent =
-            'Período inválido: a data inicial é maior que a final.';
-        if (tabela)
-          tabela.innerHTML =
-            '<tr><td colspan="4" class="py-6 text-center text-red-500">Ajuste o período selecionado.</td></tr>';
+            'Já existe um carregamento em andamento. Aguarde a finalização.';
+        }
         return;
       }
 
+      produtosVendidosCarregando = true;
+
+      if (botaoFiltrar) {
+        if (!botaoFiltrar.dataset.originalHtml) {
+          botaoFiltrar.dataset.originalHtml = botaoFiltrar.innerHTML;
+        }
+        botaoFiltrar.disabled = true;
+        botaoFiltrar.classList.add('opacity-70', 'cursor-not-allowed');
+        botaoFiltrar.innerHTML =
+          '<i class="fas fa-spinner fa-spin mr-2"></i>Carregando';
+      }
+
       try {
+        produtosVendidosResumo = [];
+        produtosVendidosCarregado = false;
+        resetPrevisaoProdutosVendidos();
+        popularFiltroResponsavelProdutosVendidos();
+
+        if (tabela) {
+          tabela.innerHTML =
+            '<tr><td colspan="4" class="py-6 text-center text-gray-500">Carregando...</td></tr>';
+        }
+        if (statusEl) {
+          statusEl.textContent = 'Carregando dados de produtos vendidos...';
+        }
+        if (totalEl) totalEl.textContent = '0';
+        if (totalLiquidoEl)
+          totalLiquidoEl.textContent = Number(0).toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          });
+        if (totalParafusosEl) totalParafusosEl.textContent = '0';
+
+        const inicioInput = document.getElementById(
+          'filtroProdutosVendidosInicio',
+        );
+        const fimInput = document.getElementById('filtroProdutosVendidosFim');
+        const hoje = new Date();
+        const ano = hoje.getFullYear();
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+        const dia = String(hoje.getDate()).padStart(2, '0');
+        const primeiroDiaMes = `${ano}-${mes}-01`;
+        const hojeIso = `${ano}-${mes}-${dia}`;
+
+        if (inicioInput && !inicioInput.value)
+          inicioInput.value = primeiroDiaMes;
+        if (fimInput && !fimInput.value) fimInput.value = hojeIso;
+
+        const dataInicio = inicioInput?.value || null;
+        const dataFim = fimInput?.value || null;
+        if (dataInicio && dataFim && dataInicio > dataFim) {
+          if (statusEl)
+            statusEl.textContent =
+              'Período inválido: a data inicial é maior que a final.';
+          if (tabela)
+            tabela.innerHTML =
+              '<tr><td colspan="4" class="py-6 text-center text-red-500">Ajuste o período selecionado.</td></tr>';
+          return;
+        }
+
         const responsavelEmail = (usuarioLogado.email || '').trim();
         if (!responsavelEmail) {
           if (statusEl)
@@ -11504,6 +11528,18 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         if (tabela)
           tabela.innerHTML =
             '<tr><td colspan="4" class="py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>';
+      } finally {
+        produtosVendidosCarregando = false;
+        if (botaoFiltrar) {
+          botaoFiltrar.disabled = false;
+          botaoFiltrar.classList.remove('opacity-70', 'cursor-not-allowed');
+          if (botaoFiltrar.dataset.originalHtml) {
+            botaoFiltrar.innerHTML = botaoFiltrar.dataset.originalHtml;
+          } else {
+            botaoFiltrar.innerHTML =
+              '<i class="fas fa-filter mr-2"></i>Filtrar';
+          }
+        }
       }
     }
 
