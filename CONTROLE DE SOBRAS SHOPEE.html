@@ -7027,7 +7027,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         valorApresentacao: null,
         excedenteMaximo: 0,
         excedenteAcimaLimite: 0,
-        excedenteTexto: ''
+        excedenteTexto: '',
+        classeFaixa: ''
       };
 
       if (!metaInfo) {
@@ -7042,6 +7043,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (medio === null && numeroValido(minimo) && numeroValido(maximo)) {
         medio = (minimo + maximo) / 2;
       }
+
+      const calcularPercentual = (referencia) => {
+        if (!numeroValido(referencia) || referencia === 0) {
+          return null;
+        }
+        return ((sobra - referencia) / referencia) * 100;
+      };
+
+      const formatarPercentualTexto = (percentual) => {
+        if (percentual === null) {
+          return null;
+        }
+        const valorAbsoluto = Math.abs(percentual).toFixed(2).replace('.', ',');
+        const direcao = percentual >= 0 ? 'acima' : 'abaixo';
+        return `${valorAbsoluto}% ${direcao}`;
+      };
+
+      const percentualMinimo = calcularPercentual(minimo);
+      const percentualMedio = calcularPercentual(medio);
+      const percentualMaximo = calcularPercentual(maximo);
 
       const comissaoPercentualPadrao = (numeroValido(metaInfo.comissaoPercentual) || metaInfo.comissaoPercentual === 0)
         ? metaInfo.comissaoPercentual
@@ -7112,46 +7133,137 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           valorApresentacao: null,
           excedenteMaximo: 0,
           excedenteAcimaLimite: 0,
-          excedenteTexto: ''
+          excedenteTexto: '',
+          classeFaixa: ''
         };
       }
 
-      if (minimo !== null && sobra < minimo) {
+      const abaixoDoMinimo = minimo !== null && (
+        (percentualMinimo !== null && percentualMinimo < -2) ||
+        (percentualMinimo === null && sobra < minimo)
+      );
+
+      if (abaixoDoMinimo) {
         const diferenca = minimo - sobra;
+        const percentualTexto = formatarPercentualTexto(percentualMinimo);
         return {
           label: 'Abaixo do mínimo',
-          detalhe: `Falta ${formatarMoedaBR(diferenca)} para o mínimo (${formatarMoedaBR(minimo)})`,
+          detalhe: percentualTexto
+            ? `Está ${percentualTexto} do mínimo (${formatarMoedaBR(minimo)}). Falta ${formatarMoedaBR(diferenca)} para atingir o objetivo.`
+            : `Falta ${formatarMoedaBR(diferenca)} para o mínimo (${formatarMoedaBR(minimo)})`,
           situacao: 'abaixo',
           diferenca,
           comissao: 0,
-          comissaoTexto: `Comissão zerada por estar abaixo do mínimo. Falta ${formatarMoedaBR(diferenca)} para o objetivo.`,
+          comissaoTexto: percentualTexto
+            ? `Comissão zerada por estar ${percentualTexto} do mínimo. Falta ${formatarMoedaBR(diferenca)} para o objetivo.`
+            : `Comissão zerada por estar abaixo do mínimo. Falta ${formatarMoedaBR(diferenca)} para o objetivo.`,
           comissaoDescricao: 'Comissão zerada abaixo do mínimo',
           valorApresentacao: 0,
           excedenteMaximo: 0,
           excedenteAcimaLimite: 0,
-          excedenteTexto: ''
+          excedenteTexto: '',
+          classeFaixa: 'faixa-abaixo-minimo'
         };
       }
 
-      if (maximo !== null && sobra > maximo) {
-        const diferenca = sobra - maximo;
-        const comissaoInfo = calcularComissao('maximo');
-        const limiteTresPorCento = maximo * 1.03;
-        const excedenteAcimaLimite = sobra > limiteTresPorCento ? sobra - limiteTresPorCento : 0;
+      const dentroFaixaMinimoMedio = minimo !== null && medio !== null && (
+        (percentualMinimo !== null && percentualMedio !== null && percentualMinimo >= -2 && percentualMedio <= -2) ||
+        (percentualMinimo === null || percentualMedio === null) && sobra >= minimo && sobra < medio
+      );
+
+      if (dentroFaixaMinimoMedio) {
+        const comissaoInfo = calcularComissao('minimo');
+        const detalhePartes = [];
+        const percentualMinTexto = formatarPercentualTexto(percentualMinimo);
+        const percentualMedTexto = formatarPercentualTexto(percentualMedio);
+
+        if (minimo !== null) {
+          detalhePartes.push(`Referência mínima: ${formatarMoedaBR(minimo)}${percentualMinTexto ? ` (${percentualMinTexto})` : ''}`);
+        }
+
+        if (medio !== null) {
+          detalhePartes.push(`Distância para o médio: ${formatarMoedaBR(medio)}${percentualMedTexto ? ` (${percentualMedTexto})` : ''}`);
+        }
+
         return {
-          label: 'Acima do máximo',
-          detalhe: `Excedeu ${formatarMoedaBR(diferenca)} o máximo (${formatarMoedaBR(maximo)})`,
-          situacao: 'acima',
-          diferenca,
+          label: 'Entre o mínimo e o médio',
+          detalhe: detalhePartes.join(' | ') || 'Dentro da faixa entre o mínimo e o médio',
+          situacao: 'dentro',
+          diferenca: 0,
           comissao: comissaoInfo.valor,
           comissaoTexto: comissaoInfo.texto,
           comissaoDescricao: comissaoInfo.descricao,
           valorApresentacao: comissaoInfo.valor,
-          excedenteMaximo: diferenca,
+          excedenteMaximo: 0,
+          excedenteAcimaLimite: 0,
+          excedenteTexto: '',
+          classeFaixa: 'faixa-entre-minimo-medio'
+        };
+      }
+
+      const dentroFaixaMedioMaximo = medio !== null && maximo !== null && (
+        (percentualMedio !== null && percentualMaximo !== null && percentualMedio >= -1.9 && percentualMaximo <= -2.9) ||
+        (percentualMedio === null || percentualMaximo === null) && sobra >= medio && sobra <= maximo
+      );
+
+      if (dentroFaixaMedioMaximo) {
+        const comissaoInfo = calcularComissao('medio');
+        const percentualMedTexto = formatarPercentualTexto(percentualMedio);
+        const percentualMaxTexto = formatarPercentualTexto(percentualMaximo);
+
+        const detalhePartes = [];
+        if (medio !== null) {
+          detalhePartes.push(`Referência média: ${formatarMoedaBR(medio)}${percentualMedTexto ? ` (${percentualMedTexto})` : ''}`);
+        }
+        if (maximo !== null) {
+          detalhePartes.push(`Distância para o máximo: ${formatarMoedaBR(maximo)}${percentualMaxTexto ? ` (${percentualMaxTexto})` : ''}`);
+        }
+
+        return {
+          label: 'Entre o médio e o máximo',
+          detalhe: detalhePartes.join(' | ') || 'Dentro da faixa entre o médio e o máximo',
+          situacao: 'dentro',
+          diferenca: 0,
+          comissao: comissaoInfo.valor,
+          comissaoTexto: comissaoInfo.texto,
+          comissaoDescricao: comissaoInfo.descricao,
+          valorApresentacao: comissaoInfo.valor,
+          excedenteMaximo: 0,
+          excedenteAcimaLimite: 0,
+          excedenteTexto: '',
+          classeFaixa: 'faixa-entre-medio-maximo'
+        };
+      }
+
+      const acimaDoMaximo = maximo !== null && (
+        (percentualMaximo !== null && percentualMaximo > -2.9) ||
+        (percentualMaximo === null && sobra > maximo)
+      );
+
+      if (acimaDoMaximo) {
+        const comissaoInfo = calcularComissao('maximo');
+        const excedenteMaximo = sobra > maximo ? sobra - maximo : 0;
+        const limiteTresPorCento = maximo * 1.03;
+        const excedenteAcimaLimite = sobra > limiteTresPorCento ? sobra - limiteTresPorCento : 0;
+        const percentualMaxTexto = formatarPercentualTexto(percentualMaximo);
+        const detalhe = percentualMaximo !== null && percentualMaximo <= 0
+          ? `Na faixa superior (${percentualMaxTexto || 'referência indisponível'}) em relação ao máximo de ${formatarMoedaBR(maximo)}`
+          : `Excedeu ${formatarMoedaBR(excedenteMaximo)} o máximo (${formatarMoedaBR(maximo)})`;
+        return {
+          label: 'Acima do máximo',
+          detalhe,
+          situacao: 'acima',
+          diferenca: excedenteMaximo,
+          comissao: comissaoInfo.valor,
+          comissaoTexto: comissaoInfo.texto,
+          comissaoDescricao: comissaoInfo.descricao,
+          valorApresentacao: comissaoInfo.valor,
+          excedenteMaximo,
           excedenteAcimaLimite,
           excedenteTexto: excedenteAcimaLimite > 0
             ? `Excedeu o limite de 3% em ${formatarMoedaBR(excedenteAcimaLimite)}`
-            : ''
+            : '',
+          classeFaixa: 'faixa-acima-maximo'
         };
       }
 
@@ -7202,6 +7314,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       const comissaoInfo = calcularComissao(nivelFaixa);
+      const classePorNivel = {
+        minimo: 'faixa-entre-minimo-medio',
+        medio: 'faixa-entre-medio-maximo',
+        maximo: 'faixa-acima-maximo'
+      };
+
       return {
         label: classificacao,
         detalhe,
@@ -7213,7 +7331,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         valorApresentacao: comissaoInfo.valor,
         excedenteMaximo: 0,
         excedenteAcimaLimite: 0,
-        excedenteTexto: ''
+        excedenteTexto: '',
+        classeFaixa: classePorNivel[nivelFaixa] || ''
       };
     }
 
@@ -7311,8 +7430,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
         const faixaInfo = classificarSobraPorFaixa(metaInfo, sobra);
 
-        let faixaClasse = '';
-        if (metaInfo) {
+        let faixaClasse = faixaInfo?.classeFaixa || '';
+        if (!faixaClasse && metaInfo) {
           const minimoMeta = numeroValido(metaInfo.minimo) ? metaInfo.minimo : null;
           const medioMeta = numeroValido(metaInfo.medio) ? metaInfo.medio : null;
           const maximoMeta = numeroValido(metaInfo.maximo) ? metaInfo.maximo : null;
