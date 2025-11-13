@@ -86,23 +86,61 @@
         </section>
 
         <section class="card">
-          <div
-            class="card-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div>
-              <h2 class="text-lg font-semibold">Cadastro de produtos</h2>
-              <p class="text-sm text-gray-600">
-                Cadastre os itens que devem ser compartilhados com os usuários
-                da sua equipe.
-              </p>
-            </div>
-            <button
-              id="catalogAddItemBtn"
-              class="inline-flex hidden items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow transition hover:bg-green-700"
+          <div class="card-header space-y-4">
+            <div
+              class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
-              <i class="fa-solid fa-plus"></i>
-              <span>Novo produto</span>
-            </button>
+              <div>
+                <h2 class="text-lg font-semibold">Cadastro de produtos</h2>
+                <p class="text-sm text-gray-600">
+                  Cadastre os itens que devem ser compartilhados com os
+                  usuários da sua equipe.
+                </p>
+              </div>
+              <div
+                class="flex flex-wrap items-center gap-2"
+                id="catalogBulkActions"
+              >
+                <button
+                  id="catalogDownloadTemplate"
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50"
+                >
+                  <i class="fa-solid fa-file-arrow-down"></i>
+                  <span>Baixar planilha modelo</span>
+                </button>
+                <input
+                  id="catalogBulkImportInput"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  class="hidden"
+                />
+                <button
+                  id="catalogBulkImportBtn"
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-indigo-700"
+                >
+                  <i class="fa-solid fa-file-import"></i>
+                  <span>Importar planilha</span>
+                </button>
+                <button
+                  id="catalogAddItemBtn"
+                  class="inline-flex hidden items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow transition hover:bg-green-700"
+                >
+                  <i class="fa-solid fa-plus"></i>
+                  <span>Novo produto</span>
+                </button>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500">
+              Use a planilha modelo para cadastrar vários produtos de uma vez e
+              mantenha todas as colunas preenchidas para aproveitar o máximo de
+              informações.
+            </p>
+            <p
+              id="catalogBulkImportStatus"
+              class="hidden text-sm text-gray-600"
+            ></p>
           </div>
           <div id="catalogFormWrapper" class="card-body hidden">
             <form id="catalogProductForm" class="space-y-6">
