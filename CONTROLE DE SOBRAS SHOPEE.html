@@ -7311,6 +7311,35 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
         const faixaInfo = classificarSobraPorFaixa(metaInfo, sobra);
 
+        let faixaClasse = '';
+        if (metaInfo) {
+          const minimoMeta = numeroValido(metaInfo.minimo) ? metaInfo.minimo : null;
+          const medioMeta = numeroValido(metaInfo.medio) ? metaInfo.medio : null;
+          const maximoMeta = numeroValido(metaInfo.maximo) ? metaInfo.maximo : null;
+
+          if (minimoMeta !== null && sobra < minimoMeta) {
+            faixaClasse = 'faixa-abaixo-minimo';
+          } else if (maximoMeta !== null && sobra > maximoMeta) {
+            faixaClasse = 'faixa-acima-maximo';
+          } else if (medioMeta !== null && sobra < medioMeta) {
+            faixaClasse = 'faixa-entre-minimo-medio';
+          } else if (
+            medioMeta !== null &&
+            maximoMeta !== null &&
+            sobra >= medioMeta &&
+            sobra <= maximoMeta
+          ) {
+            faixaClasse = 'faixa-entre-medio-maximo';
+          } else if (
+            medioMeta === null &&
+            maximoMeta !== null &&
+            sobra <= maximoMeta &&
+            (minimoMeta === null || sobra >= minimoMeta)
+          ) {
+            faixaClasse = 'faixa-entre-medio-maximo';
+          }
+        }
+
         const pedidoData = {
           id,
           sku,
@@ -7395,7 +7424,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
         }
 
-        tr.className = rowClass;
+        tr.className = [rowClass, faixaClasse].filter(Boolean).join(' ');
         tr.innerHTML = `
           <td>${id}</td>
           <td>${sku}</td>

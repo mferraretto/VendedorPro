@@ -835,6 +835,33 @@ button:hover {
   background-color: #e8f5e9;
   color: #1b5e20;
 }
+
+.data-table tbody tr.faixa-abaixo-minimo {
+  background-color: #f8d7da !important;
+  color: #721c24;
+}
+
+.data-table tbody tr.faixa-entre-minimo-medio {
+  background-color: #fff3cd !important;
+  color: #856404;
+}
+
+.data-table tbody tr.faixa-entre-medio-maximo {
+  background-color: #d1ecf1 !important;
+  color: #0c5460;
+}
+
+.data-table tbody tr.faixa-acima-maximo {
+  background-color: #d4edda !important;
+  color: #155724;
+}
+
+.data-table tbody tr.faixa-abaixo-minimo a,
+.data-table tbody tr.faixa-entre-minimo-medio a,
+.data-table tbody tr.faixa-entre-medio-maximo a,
+.data-table tbody tr.faixa-acima-maximo a {
+  color: inherit;
+}
 .input-with-icon {
   position: relative;
 }
