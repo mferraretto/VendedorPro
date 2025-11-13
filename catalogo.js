@@ -121,6 +121,10 @@ const kitCalculateBtn = document.getElementById('catalogCalculateKit');
 const kitSelectionInfoEl = document.getElementById('catalogKitSelectionInfo');
 const kitResultEl = document.getElementById('catalogKitResult');
 const deleteSelectedBtn = document.getElementById('catalogDeleteSelected');
+const bulkTemplateBtn = document.getElementById('catalogDownloadTemplate');
+const bulkImportBtn = document.getElementById('catalogBulkImportBtn');
+const bulkImportInput = document.getElementById('catalogBulkImportInput');
+const bulkImportStatus = document.getElementById('catalogBulkImportStatus');
 const defaultEmptyStateMessage = emptyStateEl?.innerHTML || '';
 
 let currentUser = null;
@@ -139,9 +143,11 @@ let isDownloadingImages = false;
 let isDeletingSelectedProducts = false;
 const downloadImagesBtnDefaultContent = downloadImagesBtn?.innerHTML || '';
 const deleteSelectedBtnDefaultContent = deleteSelectedBtn?.innerHTML || '';
+const bulkImportBtnDefaultContent = bulkImportBtn?.innerHTML || '';
 let allProducts = [];
 let currentViewMode = 'card';
 let currentSearchTerm = '';
+let isBulkImporting = false;
 
 function normalizePerfil(perfil) {
   const base = (perfil || '')
@@ -194,6 +200,656 @@ function filterProductsBySearch(produtos, termo) {
     const sku = normalizeSearchValue(produto?.sku || '');
     return nome.includes(normalizedTerm) || sku.includes(normalizedTerm);
   });
+}
+
+function normalizeBulkColumnName(name) {
+  if (name === null || name === undefined) return '';
+  const normalized = normalizeSearchValue(name);
+  if (!normalized) return '';
+  return normalized.replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+const BULK_TEMPLATE_FIELDS = [
+  {
+    key: 'nome',
+    label: 'Nome do produto *',
+    example: 'Luminária decorativa',
+  },
+  {
+    key: 'sku',
+    label: 'SKU *',
+    example: 'LUMI-001',
+  },
+  {
+    key: 'custoMinimo',
+    label: 'Custo mínimo (R$)',
+    example: '25,50',
+  },
+  {
+    key: 'custoMedio',
+    label: 'Custo médio (R$)',
+    example: '27,90',
+  },
+  {
+    key: 'custoMaximo',
+    label: 'Custo máximo (R$)',
+    example: '30,00',
+  },
+  {
+    key: 'precoMinimo',
+    label: 'Preço sugerido mínimo (R$)',
+    example: '59,90',
+  },
+  {
+    key: 'precoMedio',
+    label: 'Preço sugerido médio (R$)',
+    example: '64,90',
+  },
+  {
+    key: 'precoMaximo',
+    label: 'Preço sugerido máximo (R$)',
+    example: '69,90',
+  },
+  {
+    key: 'categoria',
+    label: 'Categoria',
+    example: 'Iluminação',
+  },
+  {
+    key: 'descricao',
+    label: 'Descrição',
+    example: 'Abajur moderno com cúpula de tecido.',
+  },
+  {
+    key: 'driveLink',
+    label: 'Link da pasta no Drive',
+    example: 'https://drive.google.com/...',
+  },
+  {
+    key: 'medidas',
+    label: 'Medidas',
+    example: 'Altura 20cm x Largura 12cm',
+  },
+  {
+    key: 'tamanhoEmbalagem',
+    label: 'Tamanho da embalagem',
+    example: '25 x 18 x 18 cm',
+  },
+  {
+    key: 'parafusos',
+    label: 'Parafusos (quantidade)',
+    example: '4',
+  },
+  {
+    key: 'fiacao',
+    label: 'Fiação (quantidade)',
+    example: '1',
+  },
+  {
+    key: 'bocal',
+    label: 'Soquete (quantidade)',
+    example: '1',
+  },
+  {
+    key: 'outrosQuantidade',
+    label: 'Outros componentes (quantidade)',
+    example: '2',
+  },
+  {
+    key: 'outrosDescricao',
+    label: 'Outros componentes (descrição)',
+    example: 'Abraçadeiras plásticas',
+  },
+  {
+    key: 'fotos',
+    label: 'Fotos (URLs separadas por ponto e vírgula)',
+    example: 'https://exemplo.com/foto1.jpg; https://exemplo.com/foto2.jpg',
+  },
+  {
+    key: 'variacoesNomes',
+    label: 'Variações de cor (nomes separados por ponto e vírgula)',
+    example: 'Preto; Branco',
+  },
+  {
+    key: 'variacoesUrls',
+    label: 'Variações de cor - URLs (mesma ordem)',
+    example: 'https://exemplo.com/preto.jpg; https://exemplo.com/branco.jpg',
+  },
+];
+
+const BULK_IMPORT_FIELD_ALIASES = {
+  nome: ['nome do produto', 'nome'],
+  sku: ['sku', 'codigo', 'código'],
+  custoMinimo: [
+    'custo minimo',
+    'custo minimo rs',
+    'custo minimo r$',
+    'custo minimo (r$)',
+  ],
+  custoMedio: ['custo medio', 'custo medio rs', 'custo medio (r$)'],
+  custoMaximo: ['custo maximo', 'custo maximo rs', 'custo maximo (r$)'],
+  precoMinimo: [
+    'preco sugerido minimo',
+    'preco minimo sugerido',
+    'preco minimo (r$)',
+  ],
+  precoMedio: [
+    'preco sugerido medio',
+    'preco sugerido',
+    'preco medio sugerido',
+  ],
+  precoMaximo: [
+    'preco sugerido maximo',
+    'preco maximo sugerido',
+    'preco maximo (r$)',
+  ],
+  categoria: ['categoria'],
+  descricao: ['descricao', 'descrição'],
+  driveLink: ['link da pasta no drive', 'link drive', 'drive link'],
+  medidas: ['medidas', 'dimensoes', 'dimensões'],
+  tamanhoEmbalagem: [
+    'tamanho da embalagem',
+    'dimensoes embalagem',
+    'dimensoes da embalagem',
+  ],
+  parafusos: ['parafusos', 'parafusos (quantidade)', 'qtd parafusos'],
+  fiacao: ['fiacao', 'fiação', 'fios', 'qtd fiacao'],
+  bocal: ['soquete', 'bocal', 'qtd bocal'],
+  outrosQuantidade: [
+    'outros componentes (quantidade)',
+    'outros quantidade',
+    'qtd outros componentes',
+  ],
+  outrosDescricao: [
+    'outros componentes (descricao)',
+    'outros descricao',
+    'descricao outros componentes',
+  ],
+  fotos: [
+    'fotos',
+    'fotos urls',
+    'fotos (urls separadas por ponto e virgula)',
+    'fotos (urls separadas por ponto e vírgula)',
+  ],
+  variacoesNomes: [
+    'variacoes de cor',
+    'variacoes cor',
+    'variacoes de cor (nomes separados por ponto e virgula)',
+  ],
+  variacoesUrls: [
+    'variacoes de cor urls',
+    'variacoes urls',
+    'variacoes de cor - urls',
+    'variacoes de cor - urls (mesma ordem)',
+  ],
+};
+
+const BULK_IMPORT_FIELD_KEYS = Object.fromEntries(
+  Object.entries(BULK_IMPORT_FIELD_ALIASES).map(([field, aliases]) => [
+    field,
+    aliases.map((alias) => normalizeBulkColumnName(alias)).filter(Boolean),
+  ]),
+);
+
+function createBulkRowLookup(headers, rowValues) {
+  const lookup = new Map();
+  headers.forEach((header, index) => {
+    const normalizedHeader = normalizeBulkColumnName(header);
+    if (!normalizedHeader) return;
+    const value = index < rowValues.length ? rowValues[index] : '';
+    if (!lookup.has(normalizedHeader) || value) {
+      lookup.set(normalizedHeader, value);
+    }
+  });
+  return lookup;
+}
+
+function getBulkLookupValue(lookup, field) {
+  const normalizedKeys = BULK_IMPORT_FIELD_KEYS[field] || [];
+  for (const key of normalizedKeys) {
+    if (lookup.has(key)) {
+      const value = lookup.get(key);
+      if (value !== null && value !== undefined) {
+        if (typeof value === 'string') {
+          if (value.trim() === '') continue;
+          return value;
+        }
+        if (typeof value === 'number') {
+          if (!Number.isFinite(value)) continue;
+          return value;
+        }
+        if (typeof value === 'boolean') return value;
+        if (value) return value;
+      }
+    }
+  }
+  return null;
+}
+
+function getBulkLookupString(lookup, field) {
+  const value = getBulkLookupValue(lookup, field);
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value.toString();
+  }
+  return String(value).trim();
+}
+
+function parseBulkList(value) {
+  if (value === null || value === undefined) return [];
+  if (Array.isArray(value)) {
+    return value
+      .flat()
+      .map((item) =>
+        typeof item === 'string' ? item.trim() : String(item).trim(),
+      )
+      .filter(Boolean);
+  }
+  const text = typeof value === 'string' ? value.trim() : String(value).trim();
+  if (!text) return [];
+  return text
+    .split(/[;\n]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseBulkNumericField(lookup, field) {
+  const value = getBulkLookupValue(lookup, field);
+  if (value === null || value === undefined) return null;
+  return parseNumericValue(value);
+}
+
+function isBulkRowEmpty(rowValues) {
+  if (!Array.isArray(rowValues)) return true;
+  return rowValues.every((value) => {
+    if (value === null || value === undefined) return true;
+    if (typeof value === 'number') return Number.isNaN(value);
+    if (typeof value === 'string') return value.trim() === '';
+    if (Array.isArray(value)) return isBulkRowEmpty(value);
+    return false;
+  });
+}
+
+function buildComponentDataFromBulk({
+  parafusos,
+  fiacao,
+  bocal,
+  outrosQuantidade,
+  outrosDescricao,
+}) {
+  const parsedParafusos = normalizeComponentQuantity(parafusos);
+  const parsedFiacao = normalizeComponentQuantity(fiacao);
+  const parsedBocal = normalizeComponentQuantity(bocal);
+  const parsedOutrosQuantidade = normalizeComponentQuantity(outrosQuantidade);
+  const descricao =
+    typeof outrosDescricao === 'string'
+      ? outrosDescricao.trim()
+      : outrosDescricao
+        ? String(outrosDescricao).trim()
+        : '';
+
+  const possuiInformacoes =
+    [parsedParafusos, parsedFiacao, parsedBocal, parsedOutrosQuantidade].some(
+      (valor) => typeof valor === 'number' && valor > 0,
+    ) || Boolean(descricao);
+
+  if (!possuiInformacoes) {
+    return { possuiComponentes: null, componentes: null };
+  }
+
+  const componentes = {};
+  if (parsedParafusos !== null) componentes.parafusos = parsedParafusos;
+  if (parsedFiacao !== null) componentes.fiacao = parsedFiacao;
+  if (parsedBocal !== null) componentes.bocal = parsedBocal;
+  if (parsedOutrosQuantidade !== null)
+    componentes.outrosQuantidade = parsedOutrosQuantidade;
+  if (descricao) componentes.outrosDescricao = descricao;
+
+  return { possuiComponentes: true, componentes };
+}
+
+function setBulkImportLoading(isLoading) {
+  if (!bulkImportBtn) return;
+  if (isLoading) {
+    bulkImportBtn.disabled = true;
+    bulkImportBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    bulkImportBtn.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin"></i><span>Importando...</span>';
+  } else {
+    bulkImportBtn.disabled = false;
+    bulkImportBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    if (bulkImportBtnDefaultContent) {
+      bulkImportBtn.innerHTML = bulkImportBtnDefaultContent;
+    }
+  }
+}
+
+function updateBulkImportStatus(message, type = 'info') {
+  if (!bulkImportStatus) return;
+  if (!message) {
+    bulkImportStatus.textContent = '';
+    bulkImportStatus.className = 'hidden mt-1 text-sm';
+    return;
+  }
+  const baseClass = 'mt-1 text-sm';
+  const colorClass =
+    type === 'success'
+      ? 'text-green-600'
+      : type === 'error'
+        ? 'text-red-600'
+        : type === 'warning'
+          ? 'text-amber-600'
+          : 'text-gray-600';
+  bulkImportStatus.className = `${baseClass} ${colorClass}`;
+  bulkImportStatus.textContent = message;
+}
+
+function downloadCatalogTemplate() {
+  if (typeof XLSX === 'undefined') {
+    showToast('Biblioteca de planilhas não foi carregada.', 'error');
+    return;
+  }
+  const headers = BULK_TEMPLATE_FIELDS.map((field) => field.label);
+  const exampleRow = BULK_TEMPLATE_FIELDS.map((field) => field.example || '');
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+  worksheet['!cols'] = headers.map((header) => ({
+    wch: Math.max(20, header.length + 2),
+  }));
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Modelo');
+  XLSX.writeFile(workbook, 'modelo_catalogo_produtos.xlsx');
+  showToast('Planilha modelo gerada com sucesso!', 'success');
+}
+
+async function importCatalogRows(headers, dataRows) {
+  if (!Array.isArray(headers) || !headers.length) {
+    return {
+      successCount: 0,
+      errors: ['Cabeçalho da planilha não foi encontrado.'],
+    };
+  }
+  if (!scopeUid) {
+    return {
+      successCount: 0,
+      errors: ['Responsável do catálogo não foi identificado.'],
+    };
+  }
+  if (!currentUser) {
+    return {
+      successCount: 0,
+      errors: ['Usuário não autenticado.'],
+    };
+  }
+
+  const responsavel =
+    scopeUid === currentUser?.uid
+      ? {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          nome:
+            currentProfile?.nome ||
+            currentUser.displayName ||
+            currentUser.email,
+        }
+      : responsavelInfo;
+
+  const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
+  const existingSkus = new Set(
+    Array.from(productCache.values())
+      .map((produto) => normalizeSearchValue(produto?.sku || ''))
+      .filter(Boolean),
+  );
+
+  let successCount = 0;
+  const errors = [];
+
+  for (let index = 0; index < dataRows.length; index += 1) {
+    const rowValues = Array.isArray(dataRows[index]) ? dataRows[index] : [];
+    const rowNumber = index + 2;
+    if (isBulkRowEmpty(rowValues)) {
+      continue;
+    }
+    const lookup = createBulkRowLookup(headers, rowValues);
+
+    const nome = getBulkLookupString(lookup, 'nome');
+    const sku = getBulkLookupString(lookup, 'sku');
+
+    if (!nome && !sku) {
+      continue;
+    }
+    if (!nome) {
+      errors.push(`Linha ${rowNumber}: informe o nome do produto.`);
+      continue;
+    }
+    if (!sku) {
+      errors.push(`Linha ${rowNumber}: informe o SKU do produto.`);
+      continue;
+    }
+
+    const normalizedSku = normalizeSearchValue(sku);
+    if (!normalizedSku) {
+      errors.push(`Linha ${rowNumber}: SKU inválido.`);
+      continue;
+    }
+    if (existingSkus.has(normalizedSku)) {
+      errors.push(`Linha ${rowNumber}: SKU duplicado (${sku}).`);
+      continue;
+    }
+
+    const custoMinimo = parseBulkNumericField(lookup, 'custoMinimo');
+    const custoMedio = parseBulkNumericField(lookup, 'custoMedio');
+    const custoMaximo = parseBulkNumericField(lookup, 'custoMaximo');
+    const precoMinimo = parseBulkNumericField(lookup, 'precoMinimo');
+    const precoMedio = parseBulkNumericField(lookup, 'precoMedio');
+    const precoMaximo = parseBulkNumericField(lookup, 'precoMaximo');
+
+    const categoria = getBulkLookupString(lookup, 'categoria');
+    const descricao = getBulkLookupString(lookup, 'descricao');
+    const driveLink = getBulkLookupString(lookup, 'driveLink');
+    const medidas = getBulkLookupString(lookup, 'medidas');
+    const tamanhoEmbalagem = getBulkLookupString(lookup, 'tamanhoEmbalagem');
+
+    const componentesInfo = buildComponentDataFromBulk({
+      parafusos: getBulkLookupValue(lookup, 'parafusos'),
+      fiacao: getBulkLookupValue(lookup, 'fiacao'),
+      bocal: getBulkLookupValue(lookup, 'bocal'),
+      outrosQuantidade: getBulkLookupValue(lookup, 'outrosQuantidade'),
+      outrosDescricao: getBulkLookupValue(lookup, 'outrosDescricao'),
+    });
+
+    const fotosList = parseBulkList(getBulkLookupValue(lookup, 'fotos'));
+    const fotos = fotosList
+      .map((rawUrl, fotoIndex) => {
+        const url =
+          typeof rawUrl === 'string' ? rawUrl.trim() : String(rawUrl).trim();
+        if (!url) return null;
+        return {
+          nome: getFileNameFromUrl(url) || `Foto ${fotoIndex + 1}`,
+          url,
+        };
+      })
+      .filter(Boolean);
+
+    const variacoesNomes = parseBulkList(
+      getBulkLookupValue(lookup, 'variacoesNomes'),
+    );
+    const variacoesUrls = parseBulkList(
+      getBulkLookupValue(lookup, 'variacoesUrls'),
+    );
+    const totalVariacoes = Math.max(
+      variacoesNomes.length,
+      variacoesUrls.length,
+    );
+    const variacoesCor = [];
+    for (let i = 0; i < totalVariacoes; i += 1) {
+      const cor = variacoesNomes[i] ? variacoesNomes[i].trim() : '';
+      const fotoUrl = variacoesUrls[i] ? variacoesUrls[i].trim() : '';
+      if (!cor && !fotoUrl) continue;
+      variacoesCor.push({ cor: cor || null, fotoUrl: fotoUrl || null });
+    }
+
+    const payload = {
+      nome,
+      sku,
+      custoMinimo: custoMinimo ?? null,
+      custoMedio: custoMedio ?? null,
+      custoMaximo: custoMaximo ?? null,
+      precoSugeridoMinimo: precoMinimo ?? null,
+      precoSugeridoMedio: precoMedio ?? null,
+      precoSugeridoMaximo: precoMaximo ?? null,
+      custo: coalesceNumeric(custoMedio, custoMinimo, custoMaximo),
+      precoSugerido: coalesceNumeric(precoMedio, precoMinimo, precoMaximo),
+      categoria: categoria || null,
+      descricao: descricao || null,
+      driveFolderLink: driveLink || null,
+      medidas: medidas || null,
+      tamanhoEmbalagem: tamanhoEmbalagem || null,
+      componentes: componentesInfo.componentes ?? null,
+      possuiComponentes: componentesInfo.possuiComponentes ?? null,
+      variacoesCor,
+      fotos,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      criadoPorUid: currentUser.uid,
+      criadoPorEmail: currentUser.email,
+      criadoPorNome:
+        currentProfile?.nome || currentUser.displayName || currentUser.email,
+      responsavelUid: responsavel?.uid || scopeUid,
+      responsavelEmail: responsavel?.email || null,
+      responsavelNome: responsavel?.nome || null,
+    };
+
+    try {
+      const docRef = doc(colRef);
+      await setDoc(docRef, payload);
+      existingSkus.add(normalizedSku);
+      successCount += 1;
+    } catch (error) {
+      console.error('Erro ao salvar produto importado:', error);
+      errors.push(
+        `Linha ${rowNumber}: não foi possível salvar o produto (${sku}).`,
+      );
+    }
+  }
+
+  return { successCount, errors };
+}
+
+async function handleBulkImportFileChange(event) {
+  const input = event?.target;
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  if (!canEdit) {
+    showToast('Você não tem permissão para importar produtos.', 'warning');
+    if (input) input.value = '';
+    return;
+  }
+  if (!scopeUid) {
+    showToast(
+      'Não foi possível identificar o responsável pelo catálogo.',
+      'error',
+    );
+    if (input) input.value = '';
+    return;
+  }
+  if (!currentUser) {
+    showToast('Usuário não autenticado. Faça login novamente.', 'error');
+    if (input) input.value = '';
+    return;
+  }
+  if (typeof XLSX === 'undefined') {
+    showToast('Biblioteca de planilhas não foi carregada.', 'error');
+    if (input) input.value = '';
+    return;
+  }
+
+  isBulkImporting = true;
+  setBulkImportLoading(true);
+  updateBulkImportStatus('Processando planilha...', 'info');
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheetName = workbook.SheetNames?.[0];
+    if (!sheetName) {
+      showToast('Planilha inválida: nenhuma aba encontrada.', 'error');
+      updateBulkImportStatus(
+        'Não foi possível ler a planilha selecionada.',
+        'error',
+      );
+      return;
+    }
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!Array.isArray(rows) || rows.length <= 1) {
+      showToast('A planilha não possui dados para importar.', 'warning');
+      updateBulkImportStatus('Nenhum dado encontrado na planilha.', 'warning');
+      return;
+    }
+
+    const headers = rows[0].map((header) =>
+      header === null || header === undefined ? '' : header,
+    );
+    const dataRows = rows.slice(1);
+    const possuiDadosValidos = dataRows.some(
+      (row) => !isBulkRowEmpty(Array.isArray(row) ? row : []),
+    );
+
+    if (!possuiDadosValidos) {
+      showToast('A planilha não possui dados para importar.', 'warning');
+      updateBulkImportStatus('Nenhum dado encontrado na planilha.', 'warning');
+      return;
+    }
+
+    const { successCount, errors } = await importCatalogRows(headers, dataRows);
+
+    if (successCount > 0) {
+      showToast(
+        `${successCount} produto(s) importado(s) com sucesso!`,
+        'success',
+      );
+    }
+
+    if (errors.length) {
+      const resumoErros = errors.slice(0, 3).join(' | ');
+      const extras =
+        errors.length > 3 ? ` (+${errors.length - 3} linhas com erro)` : '';
+      updateBulkImportStatus(
+        `Algumas linhas foram ignoradas: ${resumoErros}${extras}`,
+        'error',
+      );
+      if (!successCount) {
+        showToast(
+          'Nenhum produto foi importado. Verifique a planilha.',
+          'error',
+        );
+      }
+    } else if (successCount > 0) {
+      updateBulkImportStatus(
+        `Importação concluída! ${successCount} produto(s) adicionado(s).`,
+        'success',
+      );
+    } else {
+      updateBulkImportStatus(
+        'Nenhum dado válido foi encontrado na planilha.',
+        'warning',
+      );
+      showToast('Nenhum produto foi importado.', 'warning');
+    }
+  } catch (error) {
+    console.error('Erro ao importar planilha do catálogo:', error);
+    showToast('Erro ao processar a planilha. Tente novamente.', 'error');
+    updateBulkImportStatus(
+      'Erro ao processar a planilha selecionada.',
+      'error',
+    );
+  } finally {
+    isBulkImporting = false;
+    setBulkImportLoading(false);
+    if (input) input.value = '';
+  }
 }
 
 function refreshCatalogView() {
@@ -2850,6 +3506,16 @@ function setupEventListeners() {
     toggleForm(false);
   });
   form?.addEventListener('submit', handleSubmit);
+  bulkTemplateBtn?.addEventListener('click', downloadCatalogTemplate);
+  bulkImportBtn?.addEventListener('click', () => {
+    if (!canEdit) {
+      showToast('Você não tem permissão para importar produtos.', 'warning');
+      return;
+    }
+    if (isBulkImporting) return;
+    bulkImportInput?.click();
+  });
+  bulkImportInput?.addEventListener('change', handleBulkImportFileChange);
   modalCloseBtn?.addEventListener('click', closeModal);
   modalBackdrop?.addEventListener('click', closeModal);
   document.addEventListener('keydown', (event) => {
@@ -2922,6 +3588,11 @@ onAuthStateChanged(auth, async (user) => {
     addItemBtn.classList.add('hidden');
   } else if (canEdit && addItemBtn) {
     addItemBtn.classList.remove('hidden');
+  }
+  if (!canEdit && bulkImportBtn) {
+    bulkImportBtn.classList.add('hidden');
+  } else if (canEdit && bulkImportBtn) {
+    bulkImportBtn.classList.remove('hidden');
   }
   if (!canEdit && deleteSelectedBtn) {
     deleteSelectedBtn.classList.add('hidden');
