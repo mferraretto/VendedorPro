@@ -182,6 +182,7 @@
     // Variáveis globais
     let db;
     let metas = {};
+    let metasNormalizadas = {};
     let historico = [];
     let produtos = {};
         let dadosAcompanhamento = [];
@@ -204,6 +205,35 @@ const API_URL = 'https://us-central1-matheus-35023.cloudfunctions.net/proxyDeepS
 const controleVendasSelecao = new Map();
 const controleVendasBaseCache = new Map();
 let controleVendasEventosRegistrados = false;
+
+const gerarChaveSkuNormalizada = (valor) =>
+  String(valor ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
+    .toLowerCase();
+
+const registrarMetaNormalizada = (sku, dadosMeta) => {
+  const chave = gerarChaveSkuNormalizada(sku);
+  if (!chave) return;
+  metasNormalizadas[chave] = { skuOriginal: sku, meta: dadosMeta };
+};
+
+const removerMetaNormalizada = (sku) => {
+  const chave = gerarChaveSkuNormalizada(sku);
+  if (!chave) return;
+  delete metasNormalizadas[chave];
+};
+
+const obterMetaSku = (sku) => {
+  if (sku === undefined || sku === null) return null;
+  const chaveOriginal = String(sku).trim();
+  if (!chaveOriginal) return null;
+  if (metas[chaveOriginal]) return metas[chaveOriginal];
+  const chaveNormalizada = gerarChaveSkuNormalizada(chaveOriginal);
+  return metasNormalizadas[chaveNormalizada]?.meta || null;
+};
 
 if (window.pdfjsLib?.GlobalWorkerOptions) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -6415,6 +6445,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
         return await executarComRetry(async () => {
           metas = {};
+          metasNormalizadas = {};
           // Carrega SKUs e custo dos produtos cadastrados
           const produtosSnap = await obterSnapshotProdutosUsuario(usuarioLogado.uid);
           produtos = {};
@@ -6491,6 +6522,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
                 atualizadoEm: new Date()
               };
 
+              registrarMetaNormalizada(sku, metas[sku]);
+
               produtos[sku] = numeroValido(custoMinimoParaMeta) ? custoMinimoParaMeta : 0;
 
               if (datalist) {
@@ -6512,7 +6545,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           metasSnap.forEach((doc) => {
             const originalSku = doc.id.replaceAll('__', '/');
             const metaDoc = doc.data() || {};
-            const metaAtual = metas[originalSku] || {};
+            const metaAtual = obterMetaSku(originalSku) || {};
             const valorDoc = normalizarNumeroMeta(metaDoc.valor, metaAtual.valor ?? 0);
             const minimoDoc = normalizarNumeroMeta(
               metaDoc.minimo ?? metaDoc.valorMinimo ?? metaDoc.sobraMinimo ?? metaDoc.faixaMinima,
@@ -6593,6 +6626,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               comissoes: comissoesAtualizadas,
               atualizadoEm
             };
+
+            registrarMetaNormalizada(originalSku, metas[originalSku]);
           });
 
           if (renderizarInterface) {
@@ -6818,7 +6853,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         toggleLoading(document.getElementById('btnAdicionarMeta'), '<i class="fas fa-plus"></i> Adicionar Meta');
         
         const safeSku = sku.replaceAll('/', '__');
-        const metaAtual = metas[sku] || {};
+        const metaAtual = obterMetaSku(sku) || {};
         const minimoExistente = numeroValido(metaAtual.minimo) ? metaAtual.minimo : null;
         const medioExistente = numeroValido(metaAtual.medio) ? metaAtual.medio : null;
         const maximoExistente = numeroValido(metaAtual.maximo) ? metaAtual.maximo : null;
@@ -6856,6 +6891,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           comissaoFixa: comissaoFixaExistente,
           atualizadoEm: new Date()
         };
+
+        registrarMetaNormalizada(sku, metas[sku]);
         
         // Registrar no histórico
         await registrarHistorico(sku, 'adicionar', null, valor);
@@ -6905,9 +6942,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         try {
           icon.className = 'fas fa-spinner fa-spin';
           
-          const valorAnterior = metas[sku].valor;
+          const metaAnterior = obterMetaSku(sku);
+          const valorAnterior = metaAnterior?.valor ?? null;
           const safeSku = sku.replaceAll('/', '__');
-          const metaAtual = metas[sku] || {};
+          const metaAtual = metaAnterior || {};
           const minimoExistente = numeroValido(metaAtual.minimo) ? metaAtual.minimo : null;
           const medioExistente = numeroValido(metaAtual.medio) ? metaAtual.medio : null;
           const maximoExistente = numeroValido(metaAtual.maximo) ? metaAtual.maximo : null;
@@ -6945,6 +6983,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             comissaoFixa: comissaoFixaExistente,
             atualizadoEm: new Date()
           };
+
+          registrarMetaNormalizada(sku, metas[sku]);
           
           // Registrar no histórico
           await registrarHistorico(sku, 'editar', valorAnterior, novoValor);
@@ -6960,7 +7000,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           mostrarErro(`Erro ao editar meta: ${error.message}`);
           console.error("Erro ao editar meta:", error);
           // Reverter visualmente
-          input.value = metas[sku].valor;
+          input.value = obterMetaSku(sku)?.valor ?? '';
         } finally {
           input.style.display = 'none';
           span.style.display = 'inline-block';
@@ -6978,7 +7018,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const icon = botao.querySelector('i');
         icon.className = 'fas fa-spinner fa-spin';
         
-        const valorAnterior = metas[sku].valor;
+        const metaAnterior = obterMetaSku(sku);
+        const valorAnterior = metaAnterior?.valor ?? null;
         const safeSku = sku.replaceAll('/', '__');
         
         await executarComRetry(async () => {
@@ -6988,6 +7029,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         
         // Remover localmente
         delete metas[sku];
+        removerMetaNormalizada(sku);
         
         // Registrar no histórico
         await registrarHistorico(sku, 'remover', valorAnterior, null);
@@ -7423,7 +7465,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     function processarPedidos(pedidos) {
       const contagem = {};
       pedidos.forEach(p => {
-        const id = p['ID do pedido'];
+        const id = String(p['ID do pedido'] ?? '').trim();
         if (id) contagem[id] = (contagem[id] || 0) + 1;
       });
 
@@ -7434,11 +7476,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       pedidosProcessados = [];
 
       pedidos.forEach(p => {
-        const id = p['ID do pedido'];
+        const id = String(p['ID do pedido'] ?? '').trim();
         if (!id || contagem[id] > 1) return;
 
-        const sku = p['Número de referência SKU'] || '';
-        const status = (p['Status do pedido'] || '').toLowerCase();
+        const sku = String(p['Número de referência SKU'] ?? '').trim();
+        const status = String(p['Status do pedido'] ?? '').toLowerCase();
         if (!sku || status.includes('cancelado') || status.includes('não pago')) return;
 
         const subtotal = parseFloat(p['Subtotal do produto']) || 0;
@@ -7447,7 +7489,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const comissao = parseFloat(p['Taxa de comissão']) || 0;
         const servico = parseFloat(p['Taxa de serviço']) || 0;
         const sobra = subtotal + reembolso - cupom - comissao - servico;
-        const metaInfo = metas[sku];
+        const metaInfo = obterMetaSku(sku);
         const meta = numeroValido(metaInfo?.valor) ? metaInfo.valor : 0;
         const percentual = meta ? ((sobra - meta) / meta) * 100 : 0;
         const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
@@ -7596,7 +7638,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       let esperadoTotal = 0;
       linhas.forEach(l => {
         const sku = l.children[1].textContent.trim();
-        if (metas[sku]) esperadoTotal += metas[sku].valor;
+        const metaEsperada = obterMetaSku(sku);
+        if (metaEsperada) esperadoTotal += metaEsperada.valor;
       });
     
       const media = totalPedidos ? (totalPercentual / totalPedidos).toFixed(2) : '0.00';
@@ -8549,7 +8592,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
               const headers = Object.keys(row);
               const headerSKU = headers.find(h => h.trim() === 'Número de referência SKU'); // pega o nome exato
-              const sku = headerSKU ? row[headerSKU] : null;
+              const skuValor = headerSKU ? row[headerSKU] : null;
+              const sku = String(skuValor ?? '').trim();
               if (!sku) {
                 processedRows++;
                 await updateProgress();
@@ -8564,7 +8608,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               const pedidoId = headerPedido ? row[headerPedido] : null;
               const headerQtd = headers.find(h => h.toLowerCase().includes('quantidade'));
               const quantidade = headerQtd ? parseInt(row[headerQtd]) || 0 : 0;
-              const metaUnit = metas[sku]?.valor || 0;
+              const metaUnit = obterMetaSku(sku)?.valor || 0;
               const metaEsperada = metaUnit * (quantidade || 1);
               const sobraReal = liquidoLinha;
 
@@ -9080,7 +9124,8 @@ await db
 
               const headerSku = headers.find(h => h.trim() === 'Número de referência SKU')
                 || headers.find(h => h.trim() === 'Nº de referência do SKU principal');
-              const sku = headerSku ? row[headerSku] : null;
+              const skuValor = headerSku ? row[headerSku] : null;
+              const sku = String(skuValor ?? '').trim();
 
               if (sku) {
                 if (!grupo.skusVendidos[sku]) grupo.skusVendidos[sku] = { total: 0, valorLiquido: 0 };
@@ -9091,7 +9136,7 @@ await db
                 const pedidoId = headerPedido ? row[headerPedido] : null;
                 const headerQtd = headers.find(h => h.toLowerCase().includes('quantidade'));
                 const quantidade = headerQtd ? parseInt(row[headerQtd]) || 0 : 0;
-                const metaUnit = metas[sku]?.valor || 0;
+                const metaUnit = obterMetaSku(sku)?.valor || 0;
                 const metaEsperada = metaUnit * (quantidade || 1);
                 const sobraReal = liquidoLinha;
 
@@ -13074,7 +13119,7 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
             const quantidadeBase = Number(info?.total || 0);
             const quantidade = quantidadeBase * config.fator;
             const preco = Number(produtos[sku] || 0);
-            const sobraUnit = Number(metas[sku]?.valor || 0);
+            const sobraUnit = Number(obterMetaSku(sku)?.valor || 0);
             const bruto = quantidade * preco;
             const sobra = quantidade * sobraUnit;
             return { sku, quantidade, bruto, sobra };
