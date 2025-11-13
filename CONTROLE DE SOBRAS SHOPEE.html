@@ -6351,22 +6351,35 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
           const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
           const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
+          const minimoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.minimo);
+          const medioTaxaInfo = extrairInfoCustoProduto(calculosTaxas.medio);
           const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
-          const minimoTotal = calcularValorTotalComComissao(minimoInfo);
-          const medioTotal = calcularValorTotalComComissao(medioInfo);
-          const maximoTotal = calcularValorTotalComComissao(maximoInfo);
-          const maximoTaxaValor = numeroValido(maximoTaxaInfo.valor)
-            ? maximoTaxaInfo.valor
-            : null;
+          const minimoTotal = selecionarPrimeiroNumeroValido(
+            minimoInfo.valor,
+            calcularValorTotalComComissao(minimoInfo),
+            minimoTaxaInfo.valor
+          );
+          const medioTotal = selecionarPrimeiroNumeroValido(
+            medioInfo.valor,
+            calcularValorTotalComComissao(medioInfo),
+            medioTaxaInfo.valor,
+            minimoTotal
+          );
+          const maximoTotal = selecionarPrimeiroNumeroValido(
+            maximoInfo.valor,
+            calcularValorTotalComComissao(maximoInfo),
+            maximoTaxaInfo.valor,
+            medioTotal,
+            minimoTotal
+          );
           const custoFallback = normalizarNumeroMeta(data.custo, null);
           const custoParaMeta = selecionarPrimeiroNumeroValido(
-            maximoTaxaValor,
-            maximoTotal,
-            maximoInfo.valor,
-            medioTotal,
-            medioInfo.valor,
-            minimoTotal,
             minimoInfo.valor,
+            minimoTotal,
+            medioInfo.valor,
+            medioTotal,
+            maximoInfo.valor,
+            maximoTotal,
             custoFallback
           );
 
@@ -6452,8 +6465,18 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
                 maximo: selecionarPrimeiroNumeroValido(maximoTaxaInfo.comissao, maximoInfo.comissao)
               };
 
+              const custoMinimoParaMeta = selecionarPrimeiroNumeroValido(
+                minimoInfo.valor,
+                minimoTotal,
+                medioInfo.valor,
+                medioTotal,
+                maximoInfo.valor,
+                maximoTotal,
+                custoFallback
+              );
+
               metas[sku] = {
-                valor: numeroValido(maximoTotal) ? maximoTotal : 0,
+                valor: numeroValido(custoMinimoParaMeta) ? custoMinimoParaMeta : 0,
                 minimo: numeroValido(minimoTotal) ? minimoTotal : null,
                 medio: numeroValido(medioTotal) ? medioTotal : null,
                 maximo: numeroValido(maximoTotal)
@@ -6468,7 +6491,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
                 atualizadoEm: new Date()
               };
 
-              produtos[sku] = numeroValido(maximoTotal) ? maximoTotal : 0;
+              produtos[sku] = numeroValido(custoMinimoParaMeta) ? custoMinimoParaMeta : 0;
 
               if (datalist) {
                 const opt = document.createElement('option');
