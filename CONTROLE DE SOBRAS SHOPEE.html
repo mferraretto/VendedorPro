@@ -6351,22 +6351,37 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           const minimoInfo = extrairInfoCustoProduto(custosBrutos.minimo);
           const medioInfo = extrairInfoCustoProduto(custosBrutos.medio);
           const maximoInfo = extrairInfoCustoProduto(custosBrutos.maximo);
+          const minimoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.minimo);
+          const medioTaxaInfo = extrairInfoCustoProduto(calculosTaxas.medio);
           const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
-          const minimoTotal = calcularValorTotalComComissao(minimoInfo);
-          const medioTotal = calcularValorTotalComComissao(medioInfo);
-          const maximoTotal = calcularValorTotalComComissao(maximoInfo);
-          const maximoTaxaValor = numeroValido(maximoTaxaInfo.valor)
-            ? maximoTaxaInfo.valor
-            : null;
           const custoFallback = normalizarNumeroMeta(data.custo, null);
-          const custoParaMeta = selecionarPrimeiroNumeroValido(
-            maximoTaxaValor,
-            maximoTotal,
+
+          const minimoTotal = selecionarPrimeiroNumeroValido(
+            minimoTaxaInfo.valor,
+            calcularValorTotalComComissao(minimoInfo),
+            minimoInfo.valor,
+            custoFallback
+          );
+
+          const medioTotal = selecionarPrimeiroNumeroValido(
+            medioTaxaInfo.valor,
+            calcularValorTotalComComissao(medioInfo),
+            medioInfo.valor,
+            minimoTotal
+          );
+
+          const maximoTotal = selecionarPrimeiroNumeroValido(
+            maximoTaxaInfo.valor,
+            calcularValorTotalComComissao(maximoInfo),
             maximoInfo.valor,
             medioTotal,
-            medioInfo.valor,
+            minimoTotal
+          );
+
+          const custoParaMeta = selecionarPrimeiroNumeroValido(
             minimoTotal,
-            minimoInfo.valor,
+            medioTotal,
+            maximoTotal,
             custoFallback
           );
 
@@ -6446,29 +6461,38 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
                 custoFallback
               );
 
-              const comissoesPorFaixa = {
-                minimo: selecionarPrimeiroNumeroValido(minimoTaxaInfo.comissao, minimoInfo.comissao),
-                medio: selecionarPrimeiroNumeroValido(medioTaxaInfo.comissao, medioInfo.comissao),
-                maximo: selecionarPrimeiroNumeroValido(maximoTaxaInfo.comissao, maximoInfo.comissao)
-              };
+          const comissoesPorFaixa = {
+            minimo: selecionarPrimeiroNumeroValido(minimoTaxaInfo.comissao, minimoInfo.comissao),
+            medio: selecionarPrimeiroNumeroValido(medioTaxaInfo.comissao, medioInfo.comissao),
+            maximo: selecionarPrimeiroNumeroValido(maximoTaxaInfo.comissao, maximoInfo.comissao)
+          };
 
-              metas[sku] = {
-                valor: numeroValido(maximoTotal) ? maximoTotal : 0,
-                minimo: numeroValido(minimoTotal) ? minimoTotal : null,
-                medio: numeroValido(medioTotal) ? medioTotal : null,
-                maximo: numeroValido(maximoTotal)
-                  ? maximoTotal
-                  : (numeroValido(medioTotal) ? medioTotal : null),
-                comissaoPercentual: selecionarPrimeiroNumeroValido(
-                  maximoTaxaInfo.comissao,
-                  maximoInfo.comissao
-                ),
-                comissaoFixa: null,
-                comissoes: comissoesPorFaixa,
-                atualizadoEm: new Date()
-              };
+          const metaBase = selecionarPrimeiroNumeroValido(
+            minimoTotal,
+            medioTotal,
+            maximoTotal,
+            custoFallback
+          );
 
-              produtos[sku] = numeroValido(maximoTotal) ? maximoTotal : 0;
+          metas[sku] = {
+            valor: numeroValido(metaBase) ? metaBase : 0,
+            minimo: numeroValido(minimoTotal) ? minimoTotal : null,
+            medio: numeroValido(medioTotal) ? medioTotal : null,
+            maximo: numeroValido(maximoTotal)
+              ? maximoTotal
+              : (numeroValido(medioTotal)
+                ? medioTotal
+                : (numeroValido(minimoTotal) ? minimoTotal : null)),
+            comissaoPercentual: selecionarPrimeiroNumeroValido(
+              maximoTaxaInfo.comissao,
+              maximoInfo.comissao
+            ),
+            comissaoFixa: null,
+            comissoes: comissoesPorFaixa,
+            atualizadoEm: new Date()
+          };
+
+          produtos[sku] = numeroValido(metaBase) ? metaBase : 0;
 
               if (datalist) {
                 const opt = document.createElement('option');
