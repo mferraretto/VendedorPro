@@ -7287,7 +7287,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       const tbody = document.querySelector('#resultado tbody');
       tbody.innerHTML = '';
-      let totalSobra = 0, totalPercentual = 0, totalPedidos = 0;
+      let totalSobra = 0, totalPercentual = 0, totalPedidos = 0, totalComissao = 0;
       
       pedidosProcessados = [];
 
@@ -7446,6 +7446,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         totalSobra += sobra;
         totalPercentual += percentual;
         totalPedidos++;
+        totalComissao += comissao;
       });
 
       // Calcular total esperado com base na quantidade de pedidos por SKU
@@ -7487,12 +7488,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               <h4 style="color: var(--primary); margin-bottom: 0.5rem;">Sobra Total</h4>
               <h2>R$ ${totalSobra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
             </div>
-            
+
+            <div style="background: rgba(249, 115, 22, 0.05); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #f97316;">
+              <h4 style="color: #f97316; margin-bottom: 0.5rem;">Comissão Total</h4>
+              <h2>R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+            </div>
+
             <div style="background: rgba(6, 214, 160, 0.05); padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--success);">
               <h4 style="color: var(--success); margin-bottom: 0.5rem;">Sobra Esperada</h4>
               <h2>R$ ${esperadoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
             </div>
-            
+
             <div style="background: rgba(108, 117, 125, 0.05); padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--secondary);">
               <h4 style="color: var(--secondary); margin-bottom: 0.5rem;">Média de Desempenho</h4>
               <h2>${media}%</h2>
@@ -7513,7 +7519,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         resumo: {
             totalSobra,
             esperadoTotal,
-            media
+            media,
+            totalComissao
         }
     };
       const sobras = pedidosProcessados.map(p => ({
