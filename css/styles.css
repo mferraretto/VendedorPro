@@ -842,8 +842,8 @@ button:hover {
 }
 
 .data-table tbody tr.faixa-entre-minimo-medio {
-  background-color: #cfe2ff !important;
-  color: #084298;
+  background-color: #fff3cd !important;
+  color: #856404;
 }
 
 .data-table tbody tr.faixa-entre-medio-maximo {
