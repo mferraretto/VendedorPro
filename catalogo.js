@@ -595,13 +595,24 @@ async function importCatalogRows(headers, dataRows) {
       : responsavelInfo;
 
   const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
-  const existingSkus = new Set(
-    Array.from(productCache.values())
-      .map((produto) => normalizeSearchValue(produto?.sku || ''))
-      .filter(Boolean),
-  );
+  const collectionSource =
+    Array.isArray(allProducts) && allProducts.length
+      ? allProducts
+      : Array.from(productCache.values());
+  const existingProductsBySku = new Map();
+  collectionSource.forEach((produto) => {
+    if (!produto) return;
+    const normalized = normalizeSearchValue(produto?.sku || '');
+    if (!normalized) return;
+    if (!existingProductsBySku.has(normalized)) {
+      existingProductsBySku.set(normalized, produto);
+    }
+  });
 
+  const processedSkus = new Set();
   let successCount = 0;
+  let createdCount = 0;
+  let updatedCount = 0;
   const errors = [];
 
   for (let index = 0; index < dataRows.length; index += 1) {
@@ -632,10 +643,13 @@ async function importCatalogRows(headers, dataRows) {
       errors.push(`Linha ${rowNumber}: SKU inválido.`);
       continue;
     }
-    if (existingSkus.has(normalizedSku)) {
-      errors.push(`Linha ${rowNumber}: SKU duplicado (${sku}).`);
+    if (processedSkus.has(normalizedSku)) {
+      errors.push(`Linha ${rowNumber}: SKU duplicado na planilha (${sku}).`);
       continue;
     }
+    processedSkus.add(normalizedSku);
+
+    const existingProduct = existingProductsBySku.get(normalizedSku);
 
     const custoMinimo = parseBulkNumericField(lookup, 'custoMinimo');
     const custoMedio = parseBulkNumericField(lookup, 'custoMedio');
@@ -689,7 +703,7 @@ async function importCatalogRows(headers, dataRows) {
       variacoesCor.push({ cor: cor || null, fotoUrl: fotoUrl || null });
     }
 
-    const payload = {
+    const basePayload = {
       nome,
       sku,
       custoMinimo: custoMinimo ?? null,
@@ -709,21 +723,57 @@ async function importCatalogRows(headers, dataRows) {
       possuiComponentes: componentesInfo.possuiComponentes ?? null,
       variacoesCor,
       fotos,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      criadoPorUid: currentUser.uid,
-      criadoPorEmail: currentUser.email,
-      criadoPorNome:
+    };
+
+    const auditInfo = {
+      atualizadoPorUid: currentUser.uid,
+      atualizadoPorEmail: currentUser.email,
+      atualizadoPorNome:
         currentProfile?.nome || currentUser.displayName || currentUser.email,
+    };
+    const responsavelPayload = {
       responsavelUid: responsavel?.uid || scopeUid,
       responsavelEmail: responsavel?.email || null,
       responsavelNome: responsavel?.nome || null,
     };
 
     try {
-      const docRef = doc(colRef);
-      await setDoc(docRef, payload);
-      existingSkus.add(normalizedSku);
+      if (existingProduct && existingProduct.id) {
+        const docRef = doc(
+          db,
+          'usuarios',
+          scopeUid,
+          'catalogoProdutos',
+          existingProduct.id,
+        );
+        await updateDoc(docRef, {
+          ...basePayload,
+          ...responsavelPayload,
+          ...auditInfo,
+          updatedAt: serverTimestamp(),
+        });
+        updatedCount += 1;
+      } else {
+        const docRef = doc(colRef);
+        await setDoc(docRef, {
+          ...basePayload,
+          ...responsavelPayload,
+          ...auditInfo,
+          criadoPorUid: currentUser.uid,
+          criadoPorEmail: currentUser.email,
+          criadoPorNome:
+            currentProfile?.nome ||
+            currentUser.displayName ||
+            currentUser.email,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        existingProductsBySku.set(normalizedSku, {
+          id: docRef.id,
+          ...basePayload,
+        });
+        createdCount += 1;
+      }
       successCount += 1;
     } catch (error) {
       console.error('Erro ao salvar produto importado:', error);
@@ -733,7 +783,7 @@ async function importCatalogRows(headers, dataRows) {
     }
   }
 
-  return { successCount, errors };
+  return { successCount, errors, createdCount, updatedCount };
 }
 
 async function handleBulkImportFileChange(event) {
@@ -803,40 +853,51 @@ async function handleBulkImportFileChange(event) {
       return;
     }
 
-    const { successCount, errors } = await importCatalogRows(headers, dataRows);
+    const { successCount, errors, createdCount, updatedCount } =
+      await importCatalogRows(headers, dataRows);
+
+    const successParts = [];
+    if (createdCount > 0) {
+      successParts.push(`${createdCount} produto(s) novo(s)`);
+    }
+    if (updatedCount > 0) {
+      successParts.push(`${updatedCount} produto(s) atualizado(s)`);
+    }
+    const successSummary = successParts.join(' e ');
 
     if (successCount > 0) {
-      showToast(
-        `${successCount} produto(s) importado(s) com sucesso!`,
-        'success',
-      );
+      const toastMessage = successSummary
+        ? `Importação concluída: ${successSummary}.`
+        : `${successCount} produto(s) processado(s) com sucesso!`;
+      showToast(toastMessage, 'success');
     }
 
     if (errors.length) {
       const resumoErros = errors.slice(0, 3).join(' | ');
       const extras =
         errors.length > 3 ? ` (+${errors.length - 3} linhas com erro)` : '';
-      updateBulkImportStatus(
-        `Algumas linhas foram ignoradas: ${resumoErros}${extras}`,
-        'error',
-      );
+      let statusMessage = `Algumas linhas foram ignoradas: ${resumoErros}${extras}`;
+      if (successSummary) {
+        statusMessage += ` | Processados: ${successSummary}.`;
+      }
+      updateBulkImportStatus(statusMessage, 'error');
       if (!successCount) {
         showToast(
-          'Nenhum produto foi importado. Verifique a planilha.',
+          'Nenhum produto foi importado ou atualizado. Verifique a planilha.',
           'error',
         );
       }
     } else if (successCount > 0) {
-      updateBulkImportStatus(
-        `Importação concluída! ${successCount} produto(s) adicionado(s).`,
-        'success',
-      );
+      const statusMessage = successSummary
+        ? `Importação concluída! ${successSummary}.`
+        : `Importação concluída! ${successCount} produto(s) processado(s).`;
+      updateBulkImportStatus(statusMessage, 'success');
     } else {
       updateBulkImportStatus(
         'Nenhum dado válido foi encontrado na planilha.',
         'warning',
       );
-      showToast('Nenhum produto foi importado.', 'warning');
+      showToast('Nenhum produto foi criado ou atualizado.', 'warning');
     }
   } catch (error) {
     console.error('Erro ao importar planilha do catálogo:', error);
@@ -2120,111 +2181,162 @@ function updateSummary(produtos) {
   if (todayEl) todayEl.textContent = todayCount.toString();
 }
 
-function formatCurrencyForExport(value) {
-  if (typeof value === 'number' && !Number.isNaN(value)) {
-    return formatCurrency(value);
+function formatNumberForSheet(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value.toFixed(2).replace('.', ',') : '';
   }
   if (typeof value === 'string') {
-    const direct = Number(value);
-    if (!Number.isNaN(direct)) {
-      return formatCurrency(direct);
-    }
-    const normalized = Number(
-      value
-        .replace(/R\$/gi, '')
-        .replace(/\s+/g, '')
-        .replace(/\./g, '')
-        .replace(',', '.'),
-    );
-    if (!Number.isNaN(normalized)) {
-      return formatCurrency(normalized);
-    }
-    return value;
+    const parsed = parseNumericValue(value);
+    if (parsed === null || Number.isNaN(parsed)) return '';
+    return parsed.toFixed(2).replace('.', ',');
   }
-  return '';
+  const parsed = parseNumericValue(value);
+  if (parsed === null || Number.isNaN(parsed)) return '';
+  return parsed.toFixed(2).replace('.', ',');
+}
+
+function getComponentValuesForExport(produto) {
+  const componentes = produto?.componentes;
+  if (!componentes || typeof componentes !== 'object') {
+    return {
+      parafusos: '',
+      fiacao: '',
+      bocal: '',
+      outrosQuantidade: '',
+      outrosDescricao: '',
+    };
+  }
+
+  const getQuantityString = (keys) => {
+    const value = normalizeComponentQuantity(
+      getFirstAvailableValue(componentes, keys),
+    );
+    return value !== null && value !== undefined ? `${value}` : '';
+  };
+
+  const outrosQuantidadeValor = getFirstAvailableValue(componentes, [
+    'outrosQuantidade',
+    'outrosQtd',
+    'outrosQtde',
+    'outros',
+  ]);
+  const outrosQuantidadeNormalizado = normalizeComponentQuantity(
+    outrosQuantidadeValor,
+  );
+  let outrosDescricaoRaw = getFirstAvailableValue(componentes, [
+    'outrosDescricao',
+    'descricaoOutros',
+    'outrosDescricaoTexto',
+    'outrosDetalhes',
+    'outrosNome',
+  ]);
+  if (
+    !outrosDescricaoRaw &&
+    typeof outrosQuantidadeValor === 'string' &&
+    outrosQuantidadeNormalizado === null
+  ) {
+    outrosDescricaoRaw = outrosQuantidadeValor;
+  }
+  const outrosDescricao =
+    outrosDescricaoRaw === null || outrosDescricaoRaw === undefined
+      ? ''
+      : typeof outrosDescricaoRaw === 'string'
+        ? outrosDescricaoRaw.trim()
+        : String(outrosDescricaoRaw).trim();
+
+  return {
+    parafusos: getQuantityString(['parafusos', 'qtdParafusos']),
+    fiacao: getQuantityString(['fiacao', 'fios']),
+    bocal: getQuantityString(['bocal', 'bocais']),
+    outrosQuantidade:
+      outrosQuantidadeNormalizado !== null &&
+      outrosQuantidadeNormalizado !== undefined
+        ? `${outrosQuantidadeNormalizado}`
+        : '',
+    outrosDescricao,
+  };
 }
 
 function getCatalogExportData() {
-  const produtos = Array.from(productCache.values());
-  const headers = [
-    'SKU',
-    'Nome',
-    'Categoria',
-    'Custo mínimo',
-    'Custo médio',
-    'Custo máximo',
-    'Preço sugerido mínimo',
-    'Preço sugerido médio',
-    'Preço sugerido máximo',
-    'Descrição',
-    'Medidas',
-    'Tamanho da embalagem',
-    'Componentes',
-    'Variações de cor',
-    'Fotos (URLs)',
-  ];
+  const produtosOrigem =
+    Array.isArray(allProducts) && allProducts.length
+      ? allProducts
+      : Array.from(productCache.values());
+  const produtos = Array.isArray(produtosOrigem) ? [...produtosOrigem] : [];
+  const headers = BULK_TEMPLATE_FIELDS.map((field) => field.label);
+
   const linhas = produtos.map((produto) => {
     const custoRange = getProductCostRange(produto);
     const precoRange = getProductPriceRange(produto);
-    const formatValue = (valor) =>
-      typeof valor === 'number' && !Number.isNaN(valor)
-        ? formatCurrencyForExport(valor)
-        : '';
-    const custoMinValue = custoRange.minimo;
-    const custoMedValue =
-      custoRange.medio !== null && custoRange.medio !== undefined
-        ? custoRange.medio
-        : (custoRange.fallback ?? null);
-    const custoMaxValue = custoRange.maximo;
-    const precoMinValue = precoRange.minimo;
-    const precoMedValue =
-      precoRange.medio !== null && precoRange.medio !== undefined
-        ? precoRange.medio
-        : (precoRange.fallback ?? null);
-    const precoMaxValue = precoRange.maximo;
-    const fotos = Array.isArray(produto.fotos)
+
+    const custoMinValue = formatNumberForSheet(custoRange.minimo);
+    const custoMedValue = formatNumberForSheet(
+      custoRange.medio ?? custoRange.fallback ?? null,
+    );
+    const custoMaxValue = formatNumberForSheet(custoRange.maximo);
+    const precoMinValue = formatNumberForSheet(precoRange.minimo);
+    const precoMedValue = formatNumberForSheet(
+      precoRange.medio ?? precoRange.fallback ?? null,
+    );
+    const precoMaxValue = formatNumberForSheet(precoRange.maximo);
+
+    const driveLink =
+      produto?.driveFolderLink ||
+      produto?.driveLink ||
+      produto?.linkDrive ||
+      '';
+    const medidas = produto?.medidas || '';
+    const tamanhoEmbalagem = produto?.tamanhoEmbalagem || '';
+    const categoria = produto?.categoria || '';
+    const descricao = produto?.descricao || '';
+
+    const fotosList = Array.isArray(produto?.fotos)
       ? produto.fotos
-          .map((foto) => foto?.url)
-          .filter(Boolean)
-          .join('\n')
-      : '';
-    const variacoes = Array.isArray(produto.variacoesCor)
-      ? produto.variacoesCor
-          .filter((item) => item && (item.cor || item.fotoUrl))
-          .map((item) => {
-            if (item.cor && item.fotoUrl)
-              return `${item.cor} - ${item.fotoUrl}`;
-            return item.cor || item.fotoUrl || '';
-          })
-          .filter(Boolean)
-          .join('\n')
-      : '';
-    const componentesResumo = getComponentEntries(produto)
-      .map((entry) => {
-        if (typeof entry.quantity === 'number') {
-          return `${entry.label}: ${entry.quantity}`;
-        }
-        return entry.label;
-      })
-      .join('\n');
+          .map((foto) => (foto?.url ? foto.url.toString().trim() : ''))
+          .filter((url) => Boolean(url))
+      : [];
+    const fotos = fotosList.length ? fotosList.join('; ') : '';
+
+    const variacoes = Array.isArray(produto?.variacoesCor)
+      ? produto.variacoesCor.filter(Boolean)
+      : [];
+    const variacoesNomes = variacoes
+      .map((variacao) => (variacao?.cor ? variacao.cor.toString().trim() : ''))
+      .join('; ');
+    const variacoesUrls = variacoes
+      .map((variacao) =>
+        variacao?.fotoUrl ? variacao.fotoUrl.toString().trim() : '',
+      )
+      .join('; ');
+
+    const componentes = getComponentValuesForExport(produto);
+
     return [
-      produto.sku || '',
-      produto.nome || '',
-      produto.categoria || '',
-      formatValue(custoMinValue),
-      formatValue(custoMedValue),
-      formatValue(custoMaxValue),
-      formatValue(precoMinValue),
-      formatValue(precoMedValue),
-      formatValue(precoMaxValue),
-      produto.descricao || '',
-      produto.medidas || '',
-      produto.tamanhoEmbalagem || '',
-      componentesResumo,
-      variacoes,
+      produto?.nome || '',
+      produto?.sku || '',
+      custoMinValue,
+      custoMedValue,
+      custoMaxValue,
+      precoMinValue,
+      precoMedValue,
+      precoMaxValue,
+      categoria,
+      descricao,
+      driveLink,
+      medidas,
+      tamanhoEmbalagem,
+      componentes.parafusos,
+      componentes.fiacao,
+      componentes.bocal,
+      componentes.outrosQuantidade,
+      componentes.outrosDescricao,
       fotos,
+      variacoesNomes,
+      variacoesUrls,
     ];
   });
+
   return { headers, linhas };
 }
 
@@ -2275,6 +2387,11 @@ function exportCatalogToExcel() {
     return;
   }
   const worksheet = XLSX.utils.aoa_to_sheet([headers, ...linhas]);
+  if (Array.isArray(BULK_TEMPLATE_FIELDS)) {
+    worksheet['!cols'] = BULK_TEMPLATE_FIELDS.map((field) => ({
+      wch: Math.max(18, field.label.length + 2),
+    }));
+  }
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Catálogo');
   const nomeArquivo = `catalogo_produtos_${new Date()
@@ -2635,27 +2752,25 @@ function buildCatalogCardElement(produto, { interactive = true } = {}) {
   card.dataset.productId = produto.id || '';
   card.dataset.viewType = 'card';
 
-  const selectionWrapper = document.createElement('label');
-  selectionWrapper.className =
-    'catalog-select-toggle absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-gray-600 shadow-sm';
-  selectionWrapper.title = 'Selecionar produto';
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.className =
-    'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
   if (interactive) {
+    const selectionWrapper = document.createElement('label');
+    selectionWrapper.className =
+      'catalog-select-toggle absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-gray-600 shadow-sm';
+    selectionWrapper.title = 'Selecionar produto';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className =
+      'catalog-select-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
     checkbox.checked = selectedProducts.has(produto.id);
     checkbox.addEventListener('change', (event) => {
       handleProductSelection(produto.id, event.target.checked);
       setCardSelectedState(card, selectedProducts.has(produto.id));
     });
-  } else {
-    checkbox.checked = false;
+    const checkboxLabel = document.createElement('span');
+    checkboxLabel.textContent = 'Selecionar';
+    selectionWrapper.append(checkbox, checkboxLabel);
+    card.appendChild(selectionWrapper);
   }
-  const checkboxLabel = document.createElement('span');
-  checkboxLabel.textContent = 'Selecionar';
-  selectionWrapper.append(checkbox, checkboxLabel);
-  card.appendChild(selectionWrapper);
 
   const body = document.createElement('div');
   body.className = 'flex flex-1 flex-col gap-4 p-4';
@@ -2837,48 +2952,44 @@ function buildCatalogCardElement(produto, { interactive = true } = {}) {
 
   body.appendChild(infoGrid);
 
-  const actions = document.createElement('div');
-  actions.className =
-    'mt-auto flex flex-wrap items-center justify-end gap-2 pt-1 text-xs';
-
-  const detailsBtn = document.createElement('button');
-  detailsBtn.type = 'button';
-  detailsBtn.className =
-    'inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400';
-  detailsBtn.innerHTML =
-    '<i class="fa-solid fa-circle-info"></i><span>Detalhes</span>';
   if (interactive) {
+    const actions = document.createElement('div');
+    actions.className =
+      'mt-auto flex flex-wrap items-center justify-end gap-2 pt-1 text-xs';
+
+    const detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.className =
+      'inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400';
+    detailsBtn.innerHTML =
+      '<i class="fa-solid fa-circle-info"></i><span>Detalhes</span>';
     detailsBtn.addEventListener('click', () => openModal(produto));
-  }
-  actions.appendChild(detailsBtn);
+    actions.appendChild(detailsBtn);
 
-  if (canEdit) {
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className =
-      'inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400';
-    editBtn.innerHTML =
-      '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
-    if (interactive) {
+    if (canEdit) {
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className =
+        'inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400';
+      editBtn.innerHTML =
+        '<i class="fa-solid fa-pen-to-square"></i><span>Editar</span>';
       editBtn.addEventListener('click', () => startEditingProduct(produto));
-    }
-    actions.appendChild(editBtn);
+      actions.appendChild(editBtn);
 
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className =
-      'inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400';
-    deleteBtn.innerHTML =
-      '<i class="fa-solid fa-trash-can"></i><span>Excluir</span>';
-    if (interactive) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className =
+        'inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400';
+      deleteBtn.innerHTML =
+        '<i class="fa-solid fa-trash-can"></i><span>Excluir</span>';
       deleteBtn.addEventListener('click', () =>
         handleDeleteProduct(produto, deleteBtn),
       );
+      actions.appendChild(deleteBtn);
     }
-    actions.appendChild(deleteBtn);
-  }
 
-  body.appendChild(actions);
+    body.appendChild(actions);
+  }
   card.appendChild(body);
 
   const cardDriveLink =
