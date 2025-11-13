@@ -13666,7 +13666,18 @@ let uids = [];
             const querySnap = await produtosRef.where('sku', '==', sku).limit(1).get();
             if (!querySnap.empty) {
               const dados = querySnap.docs[0].data();
-              custo = Number(dados.custo || 0);
+              const custoMinimoRaw = dados?.custos?.minimo;
+              const custoMinimoInfo =
+                typeof custoMinimoRaw === 'object'
+                  ? custoMinimoRaw?.valor
+                  : custoMinimoRaw;
+              const custoMinimo = Number(custoMinimoInfo);
+              const custoPadrao = Number(dados.custo || 0);
+              const possuiCustoMinimo =
+                custoMinimoInfo !== undefined &&
+                custoMinimoInfo !== null &&
+                Number.isFinite(custoMinimo);
+              custo = possuiCustoMinimo ? custoMinimo : custoPadrao;
 
             }
           } catch (e) {
