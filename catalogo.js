@@ -77,8 +77,12 @@ const viewListBtn = document.getElementById('catalogViewList');
 
 const nameInput = document.getElementById('catalogProductName');
 const skuInput = document.getElementById('catalogProductSku');
-const costInput = document.getElementById('catalogProductCost');
-const priceInput = document.getElementById('catalogProductPrice');
+const costMinInput = document.getElementById('catalogProductCostMin');
+const costAvgInput = document.getElementById('catalogProductCostAvg');
+const costMaxInput = document.getElementById('catalogProductCostMax');
+const priceMinInput = document.getElementById('catalogProductPriceMin');
+const priceAvgInput = document.getElementById('catalogProductPriceAvg');
+const priceMaxInput = document.getElementById('catalogProductPriceMax');
 const categoryInput = document.getElementById('catalogProductCategory');
 const descriptionInput = document.getElementById('catalogProductDescription');
 const driveLinkInput = document.getElementById('catalogProductDriveLink');
@@ -228,6 +232,204 @@ function parseNumericValue(value) {
     if (!Number.isNaN(normalized)) return normalized;
   }
   return null;
+}
+
+function coalesceNumeric(...values) {
+  for (const value of values) {
+    if (value !== null && value !== undefined) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function getNumericValueFromKeys(source, keys = []) {
+  if (!source || typeof source !== 'object') return null;
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const parsed = parseNumericValue(source[key]);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  }
+  return null;
+}
+
+function buildRangeFromProduto(produto, config = {}) {
+  if (!produto || typeof produto !== 'object') {
+    return { minimo: null, medio: null, maximo: null };
+  }
+  const {
+    minKeys = [],
+    medioKeys = [],
+    maxKeys = [],
+    fallbackKeys = [],
+  } = config;
+  const minimoDireto = getNumericValueFromKeys(produto, minKeys);
+  const medioDireto = getNumericValueFromKeys(produto, medioKeys);
+  const maximoDireto = getNumericValueFromKeys(produto, maxKeys);
+  const fallbackDireto = getNumericValueFromKeys(produto, fallbackKeys);
+
+  return {
+    minimo: minimoDireto,
+    medio: medioDireto,
+    maximo: maximoDireto,
+    fallback: coalesceNumeric(
+      fallbackDireto,
+      medioDireto,
+      minimoDireto,
+      maximoDireto,
+    ),
+  };
+}
+
+function getProductCostRange(produto) {
+  return buildRangeFromProduto(produto, {
+    minKeys: ['custoMinimo', 'custo_minimo', 'custoMin'],
+    medioKeys: ['custoMedio', 'custo_medio', 'custoMed', 'custo'],
+    maxKeys: ['custoMaximo', 'custo_maximo', 'custoMax'],
+    fallbackKeys: ['custoUnitario', 'valorCusto', 'custoTotal'],
+  });
+}
+
+function getProductPriceRange(produto) {
+  return buildRangeFromProduto(produto, {
+    minKeys: [
+      'precoSugeridoMinimo',
+      'preco_sugerido_minimo',
+      'precoMinimo',
+      'precoMin',
+    ],
+    medioKeys: [
+      'precoSugeridoMedio',
+      'precoSugerido',
+      'preco',
+      'valorVenda',
+      'precoUnitario',
+    ],
+    maxKeys: [
+      'precoSugeridoMaximo',
+      'preco_sugerido_maximo',
+      'precoMaximo',
+      'precoMax',
+    ],
+    fallbackKeys: ['precoSugerido', 'preco', 'valorVenda', 'precoUnitario'],
+  });
+}
+
+function formatRangeLines(
+  range,
+  { shortLabels = false, collapseEquals = true } = {},
+) {
+  if (!range || typeof range !== 'object') return [];
+  const labels = shortLabels
+    ? { minimo: 'Mín', medio: 'Méd', maximo: 'Máx', referencia: 'Ref.' }
+    : {
+        minimo: 'Mínimo',
+        medio: 'Médio',
+        maximo: 'Máximo',
+        referencia: 'Referência',
+      };
+  const entries = [
+    {
+      key: 'minimo',
+      label: labels.minimo,
+      value:
+        typeof range.minimo === 'number' && !Number.isNaN(range.minimo)
+          ? range.minimo
+          : null,
+    },
+    {
+      key: 'medio',
+      label: labels.medio,
+      value:
+        typeof range.medio === 'number' && !Number.isNaN(range.medio)
+          ? range.medio
+          : null,
+    },
+    {
+      key: 'maximo',
+      label: labels.maximo,
+      value:
+        typeof range.maximo === 'number' && !Number.isNaN(range.maximo)
+          ? range.maximo
+          : null,
+    },
+  ].filter((entry) => entry.value !== null);
+
+  if (!entries.length) {
+    const fallbackValue =
+      typeof range.fallback === 'number' && !Number.isNaN(range.fallback)
+        ? range.fallback
+        : null;
+    if (fallbackValue !== null) {
+      return [`${labels.referencia}: ${formatCurrency(fallbackValue)}`];
+    }
+    return [];
+  }
+
+  if (collapseEquals) {
+    const uniqueValues = new Set(entries.map((entry) => entry.value));
+    if (uniqueValues.size === 1 && entries.length > 1) {
+      const [first] = entries;
+      return [`${labels.referencia}: ${formatCurrency(first.value)}`];
+    }
+  }
+
+  return entries.map(
+    (entry) => `${entry.label}: ${formatCurrency(entry.value)}`,
+  );
+}
+
+function formatRangeForDisplay(range, options) {
+  const lines = formatRangeLines(range, options);
+  return lines.length ? lines.join('\n') : '--';
+}
+
+function formatRangeForInline(range, options) {
+  const lines = formatRangeLines(range, options);
+  return lines.length ? lines.join(' • ') : '--';
+}
+
+function formatRangeForHtml(range, options) {
+  const lines = formatRangeLines(range, options);
+  return lines.length ? lines.join('<br>') : '--';
+}
+
+function sumRangeIntoTotals(totals, range, fallbackValue = 0) {
+  if (!totals || !range) return;
+  const normalizedFallback =
+    typeof fallbackValue === 'number' && !Number.isNaN(fallbackValue)
+      ? fallbackValue
+      : 0;
+  const resolveValue = (primary, secondary, tertiary) =>
+    coalesceNumeric(
+      typeof primary === 'number' && !Number.isNaN(primary) ? primary : null,
+      typeof secondary === 'number' && !Number.isNaN(secondary)
+        ? secondary
+        : null,
+      typeof tertiary === 'number' && !Number.isNaN(tertiary) ? tertiary : null,
+      normalizedFallback,
+    ) || 0;
+
+  totals.minimo += resolveValue(range.minimo, range.medio, range.maximo);
+  totals.medio += resolveValue(range.medio, range.minimo, range.maximo);
+  totals.maximo += resolveValue(range.maximo, range.medio, range.minimo);
+}
+
+function parseFormNumberValue(rawValue) {
+  if (typeof rawValue !== 'string') return null;
+  const trimmed = rawValue.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getNumberFromInput(input) {
+  if (!input || typeof input.value !== 'string') return null;
+  return parseFormNumberValue(input.value);
 }
 
 function normalizeComponentQuantity(value) {
@@ -389,31 +591,33 @@ function getAdditionalComponentDisplays(produto) {
 }
 
 function getProductCost(produto) {
-  const valores = [
-    produto?.custo,
-    produto?.custoUnitario,
-    produto?.valorCusto,
-    produto?.custoTotal,
-  ];
-  for (const valor of valores) {
-    const parsed = parseNumericValue(valor);
-    if (parsed !== null) return parsed;
-  }
-  return 0;
+  const faixa = getProductCostRange(produto);
+  const valor = coalesceNumeric(
+    faixa.medio,
+    faixa.minimo,
+    faixa.maximo,
+    faixa.fallback,
+    parseNumericValue(produto?.custo),
+    parseNumericValue(produto?.custoUnitario),
+    parseNumericValue(produto?.valorCusto),
+    parseNumericValue(produto?.custoTotal),
+  );
+  return typeof valor === 'number' && !Number.isNaN(valor) ? valor : 0;
 }
 
 function getProductPrice(produto) {
-  const valores = [
-    produto?.precoSugerido,
-    produto?.preco,
-    produto?.valorVenda,
-    produto?.precoUnitario,
-  ];
-  for (const valor of valores) {
-    const parsed = parseNumericValue(valor);
-    if (parsed !== null) return parsed;
-  }
-  return 0;
+  const faixa = getProductPriceRange(produto);
+  const valor = coalesceNumeric(
+    faixa.medio,
+    faixa.minimo,
+    faixa.maximo,
+    faixa.fallback,
+    parseNumericValue(produto?.precoSugerido),
+    parseNumericValue(produto?.preco),
+    parseNumericValue(produto?.valorVenda),
+    parseNumericValue(produto?.precoUnitario),
+  );
+  return typeof valor === 'number' && !Number.isNaN(valor) ? valor : 0;
 }
 
 function setCardSelectedState(card, selected) {
@@ -525,13 +729,21 @@ function handleCalculateKit() {
     showToast('Selecione ao menos um produto para montar o kit.', 'warning');
     return;
   }
-  let totalCost = 0;
-  let totalPrice = 0;
+  const totalCost = { minimo: 0, medio: 0, maximo: 0 };
+  const totalPrice = { minimo: 0, medio: 0, maximo: 0 };
   selectedProducts.forEach((productId) => {
     const produto = productCache.get(productId);
     if (!produto) return;
-    totalCost += getProductCost(produto);
-    totalPrice += getProductPrice(produto);
+    sumRangeIntoTotals(
+      totalCost,
+      getProductCostRange(produto),
+      getProductCost(produto),
+    );
+    sumRangeIntoTotals(
+      totalPrice,
+      getProductPriceRange(produto),
+      getProductPrice(produto),
+    );
   });
   if (kitResultEl) {
     const count = selectedProducts.size;
@@ -539,11 +751,13 @@ function handleCalculateKit() {
       `<p class="font-semibold">Kit com ${count} produto${
         count > 1 ? 's' : ''
       } selecionado${count > 1 ? 's' : ''}.</p>`,
-      `<p class="mt-1">Custo total: <span class="font-semibold">${formatCurrency(
+      `<p class="mt-1">Custo total: <span class="font-semibold">${formatRangeForInline(
         totalCost,
+        { shortLabels: true, collapseEquals: false },
       )}</span></p>`,
-      `<p class="mt-1">Valor de venda total: <span class="font-semibold">${formatCurrency(
+      `<p class="mt-1">Valor de venda total: <span class="font-semibold">${formatRangeForInline(
         totalPrice,
+        { shortLabels: true, collapseEquals: false },
       )}</span></p>`,
     ];
     kitResultEl.innerHTML = partes.join('');
@@ -927,6 +1141,12 @@ function renderComponentsDetails(container, produto) {
 
 function clearForm() {
   form?.reset();
+  if (costMinInput) costMinInput.value = '';
+  if (costAvgInput) costAvgInput.value = '';
+  if (costMaxInput) costMaxInput.value = '';
+  if (priceMinInput) priceMinInput.value = '';
+  if (priceAvgInput) priceAvgInput.value = '';
+  if (priceMaxInput) priceMaxInput.value = '';
   if (packageSizeInput) packageSizeInput.value = '';
   if (photosInput) photosInput.value = '';
   if (photoUrlsInput) photoUrlsInput.value = '';
@@ -1102,8 +1322,26 @@ function openModal(produto) {
   modalTitle.textContent = produto.nome || 'Detalhes do produto';
   modalSku.textContent = produto.sku || '--';
   modalCategoria.textContent = produto.categoria || 'Sem categoria';
-  modalCusto.textContent = formatCurrency(produto.custo);
-  modalPreco.textContent = formatCurrency(produto.precoSugerido);
+  if (modalCusto) {
+    const custoHtml = formatRangeForHtml(getProductCostRange(produto), {
+      shortLabels: true,
+    });
+    if (custoHtml === '--') {
+      modalCusto.textContent = '--';
+    } else {
+      modalCusto.innerHTML = custoHtml;
+    }
+  }
+  if (modalPreco) {
+    const precoHtml = formatRangeForHtml(getProductPriceRange(produto), {
+      shortLabels: true,
+    });
+    if (precoHtml === '--') {
+      modalPreco.textContent = '--';
+    } else {
+      modalPreco.innerHTML = precoHtml;
+    }
+  }
   modalDescricao.textContent = produto.descricao || 'Sem descrição cadastrada.';
   modalMedidas.textContent = produto.medidas || 'Sem medidas cadastradas.';
   if (modalPackageSize) {
@@ -1256,8 +1494,12 @@ function getCatalogExportData() {
     'SKU',
     'Nome',
     'Categoria',
-    'Custo',
-    'Preço sugerido',
+    'Custo mínimo',
+    'Custo médio',
+    'Custo máximo',
+    'Preço sugerido mínimo',
+    'Preço sugerido médio',
+    'Preço sugerido máximo',
     'Descrição',
     'Medidas',
     'Tamanho da embalagem',
@@ -1266,6 +1508,24 @@ function getCatalogExportData() {
     'Fotos (URLs)',
   ];
   const linhas = produtos.map((produto) => {
+    const custoRange = getProductCostRange(produto);
+    const precoRange = getProductPriceRange(produto);
+    const formatValue = (valor) =>
+      typeof valor === 'number' && !Number.isNaN(valor)
+        ? formatCurrencyForExport(valor)
+        : '';
+    const custoMinValue = custoRange.minimo;
+    const custoMedValue =
+      custoRange.medio !== null && custoRange.medio !== undefined
+        ? custoRange.medio
+        : (custoRange.fallback ?? null);
+    const custoMaxValue = custoRange.maximo;
+    const precoMinValue = precoRange.minimo;
+    const precoMedValue =
+      precoRange.medio !== null && precoRange.medio !== undefined
+        ? precoRange.medio
+        : (precoRange.fallback ?? null);
+    const precoMaxValue = precoRange.maximo;
     const fotos = Array.isArray(produto.fotos)
       ? produto.fotos
           .map((foto) => foto?.url)
@@ -1295,8 +1555,12 @@ function getCatalogExportData() {
       produto.sku || '',
       produto.nome || '',
       produto.categoria || '',
-      formatCurrencyForExport(produto.custo),
-      formatCurrencyForExport(produto.precoSugerido),
+      formatValue(custoMinValue),
+      formatValue(custoMedValue),
+      formatValue(custoMaxValue),
+      formatValue(precoMinValue),
+      formatValue(precoMedValue),
+      formatValue(precoMaxValue),
       produto.descricao || '',
       produto.medidas || '',
       produto.tamanhoEmbalagem || '',
@@ -1540,8 +1804,8 @@ function generateListPdf(doc, grupos) {
     { label: 'SKU', width: colSkuWidth, align: 'left' },
     { label: 'Produto', width: colProdutoWidth, align: 'left' },
     { label: 'Categoria', width: colCategoriaWidth, align: 'left' },
-    { label: 'Custo', width: colCustoWidth, align: 'right' },
-    { label: 'Venda', width: colVendaWidth, align: 'right' },
+    { label: 'Custos', width: colCustoWidth, align: 'right' },
+    { label: 'Preços', width: colVendaWidth, align: 'right' },
   ];
 
   const columnPositions = [];
@@ -1619,10 +1883,18 @@ function generateListPdf(doc, grupos) {
         produto.categoria || 'Sem categoria',
         columns[2].width - 2,
       );
+      const custoLinhas = formatRangeLines(getProductCostRange(produto), {
+        shortLabels: true,
+      });
+      const vendaLinhas = formatRangeLines(getProductPriceRange(produto), {
+        shortLabels: true,
+      });
 
       const linhasNecessarias = Math.max(
         nomeLinhas.length,
         categoriaLinhas.length,
+        custoLinhas.length || 1,
+        vendaLinhas.length || 1,
         1,
       );
       const alturaLinha = linhasNecessarias * lineHeight + 2;
@@ -1648,14 +1920,20 @@ function generateListPdf(doc, grupos) {
         doc.text(linha, columnPositions[2], baseY + lineHeight * indice);
       });
 
-      const custoTexto = formatCurrencyForExport(getProductCost(produto));
-      const vendaTexto = formatCurrencyForExport(getProductPrice(produto));
-
-      doc.text(custoTexto, columnPositions[3] + columns[3].width - 1, baseY, {
-        align: 'right',
+      const custoTextoLinhas = custoLinhas.length ? custoLinhas : ['--'];
+      const custoBaseX = columnPositions[3] + columns[3].width - 1;
+      custoTextoLinhas.forEach((linha, indice) => {
+        doc.text(linha, custoBaseX, baseY + lineHeight * indice, {
+          align: 'right',
+        });
       });
-      doc.text(vendaTexto, columnPositions[4] + columns[4].width - 1, baseY, {
-        align: 'right',
+
+      const vendaTextoLinhas = vendaLinhas.length ? vendaLinhas : ['--'];
+      const vendaBaseX = columnPositions[4] + columns[4].width - 1;
+      vendaTextoLinhas.forEach((linha, indice) => {
+        doc.text(linha, vendaBaseX, baseY + lineHeight * indice, {
+          align: 'right',
+        });
       });
 
       y += alturaLinha;
@@ -1882,17 +2160,19 @@ function buildCatalogCardElement(produto, { interactive = true } = {}) {
   valoresBox.appendChild(valoresTitulo);
   const valoresLista = document.createElement('div');
   valoresLista.className = 'mt-2 grid gap-2';
+  const custoRange = getProductCostRange(produto);
+  const precoRange = getProductPriceRange(produto);
   valoresLista.appendChild(
-    createCatalogInfoItem('Custo', formatCurrency(getProductCost(produto)), {
-      valueClass: 'text-base font-bold text-emerald-800',
+    createCatalogInfoItem('Custos', formatRangeForDisplay(custoRange), {
+      valueClass: 'text-base font-bold text-emerald-800 whitespace-pre-wrap',
     }),
   );
   valoresLista.appendChild(
     createCatalogInfoItem(
-      'Preço sugerido',
-      formatCurrency(getProductPrice(produto)),
+      'Preços sugeridos',
+      formatRangeForDisplay(precoRange),
       {
-        valueClass: 'text-base font-bold text-emerald-800',
+        valueClass: 'text-base font-bold text-emerald-800 whitespace-pre-wrap',
       },
     ),
   );
@@ -2044,13 +2324,29 @@ function renderListView(displayItems) {
     row.appendChild(categoriaCell);
 
     const custoCell = document.createElement('td');
-    custoCell.className = 'px-3 py-3 text-right font-medium text-gray-900';
-    custoCell.textContent = formatCurrency(getProductCost(produto));
+    custoCell.className =
+      'px-3 py-3 text-right font-medium text-gray-900 whitespace-pre-line';
+    const custoLines = formatRangeLines(getProductCostRange(produto), {
+      shortLabels: true,
+    });
+    if (custoLines.length) {
+      custoCell.innerHTML = custoLines.join('<br>');
+    } else {
+      custoCell.textContent = '--';
+    }
     row.appendChild(custoCell);
 
     const vendaCell = document.createElement('td');
-    vendaCell.className = 'px-3 py-3 text-right font-medium text-gray-900';
-    vendaCell.textContent = formatCurrency(getProductPrice(produto));
+    vendaCell.className =
+      'px-3 py-3 text-right font-medium text-gray-900 whitespace-pre-line';
+    const vendaLines = formatRangeLines(getProductPriceRange(produto), {
+      shortLabels: true,
+    });
+    if (vendaLines.length) {
+      vendaCell.innerHTML = vendaLines.join('<br>');
+    } else {
+      vendaCell.textContent = '--';
+    }
     row.appendChild(vendaCell);
 
     const actionsCell = document.createElement('td');
@@ -2324,8 +2620,12 @@ async function handleSubmit(event) {
 
   const nome = nameInput?.value.trim();
   const sku = skuInput?.value.trim();
-  const custoValor = costInput?.value.trim();
-  const precoValor = priceInput?.value.trim();
+  const custoMin = getNumberFromInput(costMinInput);
+  const custoMedio = getNumberFromInput(costAvgInput);
+  const custoMax = getNumberFromInput(costMaxInput);
+  const precoMin = getNumberFromInput(priceMinInput);
+  const precoMedio = getNumberFromInput(priceAvgInput);
+  const precoMax = getNumberFromInput(priceMaxInput);
   const categoria = categoryInput?.value.trim();
   const descricao = descriptionInput?.value.trim();
   const driveFolderLink = driveLinkInput?.value.trim();
@@ -2345,9 +2645,6 @@ async function handleSubmit(event) {
     showToast('Preencha os campos obrigatórios (nome e SKU).', 'warning');
     return;
   }
-
-  const custo = custoValor ? Number(custoValor.replace(',', '.')) : null;
-  const preco = precoValor ? Number(precoValor.replace(',', '.')) : null;
 
   const responsavel =
     scopeUid === currentUser.uid
@@ -2370,9 +2667,14 @@ async function handleSubmit(event) {
   const basePayload = {
     nome,
     sku,
-    custo: typeof custo === 'number' && !Number.isNaN(custo) ? custo : null,
-    precoSugerido:
-      typeof preco === 'number' && !Number.isNaN(preco) ? preco : null,
+    custoMinimo: custoMin ?? null,
+    custoMedio: custoMedio ?? null,
+    custoMaximo: custoMax ?? null,
+    precoSugeridoMinimo: precoMin ?? null,
+    precoSugeridoMedio: precoMedio ?? null,
+    precoSugeridoMaximo: precoMax ?? null,
+    custo: coalesceNumeric(custoMedio, custoMin, custoMax),
+    precoSugerido: coalesceNumeric(precoMedio, precoMin, precoMax),
     categoria: categoria || null,
     descricao: descricao || null,
     driveFolderLink: driveFolderLink || null,
@@ -2467,17 +2769,59 @@ function startEditingProduct(produto) {
   editingProductData = produto;
   if (nameInput) nameInput.value = produto.nome || '';
   if (skuInput) skuInput.value = produto.sku || '';
-  if (costInput)
-    costInput.value =
-      typeof produto.custo === 'number' && !Number.isNaN(produto.custo)
-        ? produto.custo
-        : produto.custo || '';
-  if (priceInput)
-    priceInput.value =
-      typeof produto.precoSugerido === 'number' &&
-      !Number.isNaN(produto.precoSugerido)
-        ? produto.precoSugerido
-        : produto.precoSugerido || '';
+  if (costMinInput) {
+    const valor = getNumericValueFromKeys(produto, [
+      'custoMinimo',
+      'custo_minimo',
+      'custoMin',
+    ]);
+    costMinInput.value = valor ?? '';
+  }
+  if (costAvgInput) {
+    const valor = getNumericValueFromKeys(produto, [
+      'custoMedio',
+      'custo_medio',
+      'custoMed',
+      'custo',
+    ]);
+    costAvgInput.value = valor ?? '';
+  }
+  if (costMaxInput) {
+    const valor = getNumericValueFromKeys(produto, [
+      'custoMaximo',
+      'custo_maximo',
+      'custoMax',
+    ]);
+    costMaxInput.value = valor ?? '';
+  }
+  if (priceMinInput) {
+    const valor = getNumericValueFromKeys(produto, [
+      'precoSugeridoMinimo',
+      'preco_sugerido_minimo',
+      'precoMinimo',
+      'precoMin',
+    ]);
+    priceMinInput.value = valor ?? '';
+  }
+  if (priceAvgInput) {
+    const valor = getNumericValueFromKeys(produto, [
+      'precoSugeridoMedio',
+      'precoSugerido',
+      'preco',
+      'valorVenda',
+      'precoUnitario',
+    ]);
+    priceAvgInput.value = valor ?? '';
+  }
+  if (priceMaxInput) {
+    const valor = getNumericValueFromKeys(produto, [
+      'precoSugeridoMaximo',
+      'preco_sugerido_maximo',
+      'precoMaximo',
+      'precoMax',
+    ]);
+    priceMaxInput.value = valor ?? '';
+  }
   if (categoryInput) categoryInput.value = produto.categoria || '';
   if (descriptionInput) descriptionInput.value = produto.descricao || '';
   if (driveLinkInput)
