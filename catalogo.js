@@ -16,6 +16,7 @@ import {
   setDoc,
   updateDoc,
   serverTimestamp,
+  writeBatch,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getAuth,
@@ -117,6 +118,8 @@ const editingCancelBtn = document.getElementById('catalogEditingCancel');
 const submitBtn = form?.querySelector('button[type="submit"]');
 const exportPdfBtn = document.getElementById('catalogExportPdf');
 const exportExcelBtn = document.getElementById('catalogExportExcel');
+const importExcelBtn = document.getElementById('catalogImportExcel');
+const importExcelInput = document.getElementById('catalogImportExcelInput');
 const kitCalculateBtn = document.getElementById('catalogCalculateKit');
 const kitSelectionInfoEl = document.getElementById('catalogKitSelectionInfo');
 const kitResultEl = document.getElementById('catalogKitResult');
@@ -139,9 +142,11 @@ let isDownloadingImages = false;
 let isDeletingSelectedProducts = false;
 const downloadImagesBtnDefaultContent = downloadImagesBtn?.innerHTML || '';
 const deleteSelectedBtnDefaultContent = deleteSelectedBtn?.innerHTML || '';
+const importExcelBtnDefaultContent = importExcelBtn?.innerHTML || '';
 let allProducts = [];
 let currentViewMode = 'card';
 let currentSearchTerm = '';
+let isImportingExcel = false;
 
 function normalizePerfil(perfil) {
   const base = (perfil || '')
@@ -1501,6 +1506,7 @@ function getCatalogExportData() {
     'Preço sugerido médio',
     'Preço sugerido máximo',
     'Descrição',
+    'Link do Drive',
     'Medidas',
     'Tamanho da embalagem',
     'Componentes',
@@ -1562,6 +1568,7 @@ function getCatalogExportData() {
       formatValue(precoMedValue),
       formatValue(precoMaxValue),
       produto.descricao || '',
+      produto.driveFolderLink || produto.driveLink || produto.linkDrive || '',
       produto.medidas || '',
       produto.tamanhoEmbalagem || '',
       componentesResumo,
@@ -1625,6 +1632,636 @@ function exportCatalogToExcel() {
     .toISOString()
     .slice(0, 10)}.xlsx`;
   XLSX.writeFile(workbook, nomeArquivo);
+}
+
+function normalizeImportHeader(header) {
+  if (header === null || header === undefined) return '';
+  return header
+    .toString()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '_');
+}
+
+const IMPORT_HEADER_FIELD_MAP = {
+  sku: 'sku',
+  codigo: 'sku',
+  codigo_produto: 'sku',
+  cod_produto: 'sku',
+  nome: 'nome',
+  nome_do_produto: 'nome',
+  produto: 'nome',
+  categoria: 'categoria',
+  custo: 'custoMedio',
+  custo_minimo: 'custoMinimo',
+  custo_medio: 'custoMedio',
+  custo_maximo: 'custoMaximo',
+  preco_sugerido: 'precoSugeridoMedio',
+  preco_sugerido_minimo: 'precoSugeridoMinimo',
+  preco_minimo: 'precoSugeridoMinimo',
+  preco_sugerido_medio: 'precoSugeridoMedio',
+  preco_medio: 'precoSugeridoMedio',
+  preco_sugerido_maximo: 'precoSugeridoMaximo',
+  preco_maximo: 'precoSugeridoMaximo',
+  descricao: 'descricao',
+  descricao_completa: 'descricao',
+  medidas: 'medidas',
+  dimensoes: 'medidas',
+  tamanho_da_embalagem: 'tamanhoEmbalagem',
+  tamanho_embalagem: 'tamanhoEmbalagem',
+  embalagem: 'tamanhoEmbalagem',
+  componentes: 'componentes',
+  variacoes_de_cor: 'variacoesCor',
+  variacoes_cor: 'variacoesCor',
+  variacoes: 'variacoesCor',
+  fotos: 'fotos',
+  fotos_urls: 'fotos',
+  imagens: 'fotos',
+  link_do_drive: 'driveFolderLink',
+  link_drive: 'driveFolderLink',
+  drive: 'driveFolderLink',
+  link_google_drive: 'driveFolderLink',
+};
+
+function buildImportFieldIndex(headers = []) {
+  const fieldIndex = {};
+  headers.forEach((header, index) => {
+    const normalized = normalizeImportHeader(header);
+    if (!normalized) return;
+    const field = IMPORT_HEADER_FIELD_MAP[normalized];
+    if (!field) return;
+    if (!(field in fieldIndex)) {
+      fieldIndex[field] = index;
+    }
+  });
+  return fieldIndex;
+}
+
+function parseImportStringValue(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return `${value}`;
+  }
+  return null;
+}
+
+function splitMultiValueCell(value) {
+  const text = parseImportStringValue(value);
+  if (!text) return [];
+  return text
+    .replace(/\r\n/g, '\n')
+    .split(/[\n;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeComponentLabel(label) {
+  if (!label) return '';
+  return label
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function parseComponentsCell(value) {
+  const entries = splitMultiValueCell(value);
+  if (!entries.length) {
+    return { componentes: null, possuiComponentes: null };
+  }
+
+  const componentes = {};
+  let possuiInformacoes = false;
+  let outrosDescricao = '';
+
+  entries.forEach((entry) => {
+    const match = entry.match(/^([^:]+)(?::\s*(.+))?$/);
+    const labelRaw = match ? match[1].trim() : entry;
+    const quantidadeRaw = match && match[2] ? match[2].trim() : '';
+    const label = normalizeComponentLabel(labelRaw);
+    const quantidade = normalizeComponentQuantity(quantidadeRaw || labelRaw);
+
+    if (label.includes('parafus')) {
+      if (quantidade !== null) {
+        componentes.parafusos = quantidade;
+        possuiInformacoes = true;
+      }
+      return;
+    }
+
+    if (label.includes('fiacao') || label.includes('fios')) {
+      if (quantidade !== null) {
+        componentes.fiacao = quantidade;
+        possuiInformacoes = true;
+      }
+      return;
+    }
+
+    if (label.includes('bocal') || label.includes('bocais')) {
+      if (quantidade !== null) {
+        componentes.bocal = quantidade;
+        possuiInformacoes = true;
+      }
+      return;
+    }
+
+    if (label.includes('outro')) {
+      const descricaoMatch = labelRaw.match(/\((.+)\)/);
+      if (quantidade !== null) {
+        componentes.outrosQuantidade = quantidade;
+        possuiInformacoes = true;
+      }
+      if (descricaoMatch && descricaoMatch[1]) {
+        outrosDescricao = descricaoMatch[1].trim();
+      } else if (!outrosDescricao && quantidade === null && quantidadeRaw) {
+        outrosDescricao = quantidadeRaw.trim();
+      }
+      return;
+    }
+  });
+
+  if (outrosDescricao) {
+    componentes.outrosDescricao = outrosDescricao;
+    possuiInformacoes = true;
+  }
+
+  if (!possuiInformacoes) {
+    return { componentes: null, possuiComponentes: null };
+  }
+
+  return { componentes, possuiComponentes: true };
+}
+
+function parseVariationsCell(value) {
+  const entries = splitMultiValueCell(value);
+  if (!entries.length) return [];
+  return entries
+    .map((entry) => {
+      const normalized = entry.trim();
+      if (!normalized) return null;
+      const parts = normalized.split(/\s+-\s+/);
+      if (parts.length >= 2) {
+        const cor = parseImportStringValue(parts.shift());
+        const url = parseImportStringValue(parts.join(' - '));
+        if (!cor && !url) return null;
+        return { cor: cor || null, fotoUrl: url || null };
+      }
+      if (/^https?:\/\//i.test(normalized)) {
+        return { cor: null, fotoUrl: normalized };
+      }
+      return { cor: normalized, fotoUrl: null };
+    })
+    .filter(Boolean);
+}
+
+function parsePhotosCell(value) {
+  const entries = splitMultiValueCell(value);
+  if (!entries.length) return [];
+  const fotos = [];
+  entries.forEach((entry) => {
+    const url = parseImportStringValue(entry);
+    if (url) {
+      fotos.push({ url });
+    }
+  });
+  return fotos;
+}
+
+function normalizeSkuValue(value) {
+  if (value === null || value === undefined) return '';
+  return value.toString().trim().toLowerCase();
+}
+
+function buildImportRow(rawRow, fieldIndex) {
+  if (!Array.isArray(rawRow)) return null;
+  const getValue = (field) => {
+    const index = fieldIndex[field];
+    if (index === undefined) return undefined;
+    return rawRow[index];
+  };
+
+  const sku = parseImportStringValue(getValue('sku'));
+  const nome = parseImportStringValue(getValue('nome'));
+  const categoria = parseImportStringValue(getValue('categoria'));
+  const custoMinimo = parseNumericValue(getValue('custoMinimo'));
+  const custoMedio = parseNumericValue(getValue('custoMedio'));
+  const custoMaximo = parseNumericValue(getValue('custoMaximo'));
+  const precoMinimo = parseNumericValue(getValue('precoSugeridoMinimo'));
+  const precoMedio = parseNumericValue(getValue('precoSugeridoMedio'));
+  const precoMaximo = parseNumericValue(getValue('precoSugeridoMaximo'));
+  const descricao = parseImportStringValue(getValue('descricao'));
+  const driveFolderLink = parseImportStringValue(getValue('driveFolderLink'));
+  const medidas = parseImportStringValue(getValue('medidas'));
+  const tamanhoEmbalagem = parseImportStringValue(getValue('tamanhoEmbalagem'));
+  const componentesInfo = parseComponentsCell(getValue('componentes'));
+  const variacoesCor = parseVariationsCell(getValue('variacoesCor'));
+  const fotos = parsePhotosCell(getValue('fotos'));
+
+  const possuiDados = [
+    sku,
+    nome,
+    categoria,
+    custoMinimo,
+    custoMedio,
+    custoMaximo,
+    precoMinimo,
+    precoMedio,
+    precoMaximo,
+    descricao,
+    driveFolderLink,
+    medidas,
+    tamanhoEmbalagem,
+    componentesInfo.componentes,
+    variacoesCor.length ? variacoesCor : null,
+    fotos.length ? fotos : null,
+  ].some((value) => value !== null && value !== undefined);
+
+  if (!possuiDados) return null;
+
+  return {
+    sku,
+    nome,
+    categoria,
+    custoMinimo: custoMinimo ?? null,
+    custoMedio: custoMedio ?? null,
+    custoMaximo: custoMaximo ?? null,
+    precoSugeridoMinimo: precoMinimo ?? null,
+    precoSugeridoMedio: precoMedio ?? null,
+    precoSugeridoMaximo: precoMaximo ?? null,
+    descricao,
+    driveFolderLink,
+    medidas,
+    tamanhoEmbalagem,
+    componentesInfo,
+    variacoesCor,
+    fotos,
+  };
+}
+
+async function buildCatalogIndexBySku() {
+  const mapa = new Map();
+  if (!scopeUid) return mapa;
+
+  if (productCache.size) {
+    productCache.forEach((produto) => {
+      if (!produto) return;
+      const skuKey = normalizeSkuValue(produto.sku);
+      if (!skuKey) return;
+      mapa.set(skuKey, produto);
+    });
+    return mapa;
+  }
+
+  try {
+    const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
+    const snapshot = await getDocs(colRef);
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      const skuKey = normalizeSkuValue(data.sku);
+      if (!skuKey) return;
+      mapa.set(skuKey, { id: docSnap.id, ...data });
+    });
+  } catch (error) {
+    console.error('Erro ao buscar catálogo para importação:', error);
+  }
+
+  return mapa;
+}
+
+function buildPayloadFromImport(rowData, existingProduto) {
+  const variacoes = Array.isArray(rowData.variacoesCor)
+    ? rowData.variacoesCor
+    : [];
+  const fotos = Array.isArray(rowData.fotos) ? rowData.fotos : [];
+  const componentes = rowData.componentesInfo?.componentes ?? null;
+  const possuiComponentes = rowData.componentesInfo?.possuiComponentes ?? null;
+
+  return {
+    sku: rowData.sku || existingProduto?.sku || null,
+    nome: rowData.nome ?? existingProduto?.nome ?? null,
+    categoria: rowData.categoria ?? null,
+    custoMinimo: rowData.custoMinimo,
+    custoMedio: rowData.custoMedio,
+    custoMaximo: rowData.custoMaximo,
+    precoSugeridoMinimo: rowData.precoSugeridoMinimo,
+    precoSugeridoMedio: rowData.precoSugeridoMedio,
+    precoSugeridoMaximo: rowData.precoSugeridoMaximo,
+    custo: coalesceNumeric(
+      rowData.custoMedio,
+      rowData.custoMinimo,
+      rowData.custoMaximo,
+    ),
+    precoSugerido: coalesceNumeric(
+      rowData.precoSugeridoMedio,
+      rowData.precoSugeridoMinimo,
+      rowData.precoSugeridoMaximo,
+    ),
+    descricao: rowData.descricao ?? null,
+    driveFolderLink: rowData.driveFolderLink ?? null,
+    medidas: rowData.medidas ?? null,
+    tamanhoEmbalagem: rowData.tamanhoEmbalagem ?? null,
+    componentes: componentes,
+    possuiComponentes,
+    variacoesCor: variacoes,
+    fotos,
+    updatedAt: serverTimestamp(),
+  };
+}
+
+async function applyCatalogImport(rows) {
+  if (!scopeUid) {
+    showToast(
+      'Não foi possível identificar o catálogo para atualizar.',
+      'error',
+    );
+    return;
+  }
+
+  const responsavel =
+    scopeUid === currentUser?.uid
+      ? {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          nome:
+            currentProfile?.nome ||
+            currentUser.displayName ||
+            currentUser.email,
+        }
+      : responsavelInfo;
+
+  const colRef = collection(db, 'usuarios', scopeUid, 'catalogoProdutos');
+  const produtosExistentes = await buildCatalogIndexBySku();
+  let batch = writeBatch(db);
+  let operacoesBatch = 0;
+  const limiteBatch = 400;
+
+  const commitAtual = async () => {
+    if (operacoesBatch === 0) return;
+    await batch.commit();
+    batch = writeBatch(db);
+    operacoesBatch = 0;
+  };
+
+  let criados = 0;
+  let atualizados = 0;
+  const avisos = [];
+
+  for (const item of rows) {
+    const { dados, skuNormalizado, linha } = item;
+    const produtoExistente = produtosExistentes.get(skuNormalizado);
+
+    if (!produtoExistente && !dados.nome) {
+      avisos.push(
+        `Linha ${linha}: não foi possível criar o produto sem o nome preenchido.`,
+      );
+      continue;
+    }
+
+    const payload = buildPayloadFromImport(dados, produtoExistente);
+    if (!payload.nome) {
+      avisos.push(
+        `Linha ${linha}: nome do produto vazio. O cadastro não foi atualizado.`,
+      );
+      continue;
+    }
+
+    let docRef;
+    if (produtoExistente && produtoExistente.id) {
+      docRef = doc(colRef, produtoExistente.id);
+      batch.set(docRef, payload, { merge: true });
+      atualizados += 1;
+      produtosExistentes.set(skuNormalizado, {
+        ...produtoExistente,
+        sku: payload.sku || produtoExistente.sku,
+        nome: payload.nome,
+        categoria: payload.categoria,
+        custoMinimo: payload.custoMinimo,
+        custoMedio: payload.custoMedio,
+        custoMaximo: payload.custoMaximo,
+        precoSugeridoMinimo: payload.precoSugeridoMinimo,
+        precoSugeridoMedio: payload.precoSugeridoMedio,
+        precoSugeridoMaximo: payload.precoSugeridoMaximo,
+        descricao: payload.descricao,
+        driveFolderLink: payload.driveFolderLink,
+        medidas: payload.medidas,
+        tamanhoEmbalagem: payload.tamanhoEmbalagem,
+        componentes: payload.componentes,
+        possuiComponentes: payload.possuiComponentes,
+        variacoesCor: payload.variacoesCor,
+        fotos: payload.fotos,
+      });
+    } else {
+      docRef = doc(colRef);
+      const novoCadastro = {
+        ...payload,
+        createdAt: serverTimestamp(),
+        fotos: payload.fotos || [],
+        criadoPorUid: currentUser?.uid || null,
+        criadoPorEmail: currentUser?.email || null,
+        criadoPorNome:
+          currentProfile?.nome ||
+          currentUser?.displayName ||
+          currentUser?.email ||
+          null,
+        responsavelUid: responsavel?.uid || scopeUid,
+        responsavelEmail: responsavel?.email || null,
+        responsavelNome: responsavel?.nome || null,
+      };
+      batch.set(docRef, novoCadastro);
+      produtosExistentes.set(skuNormalizado, {
+        id: docRef.id,
+        sku: payload.sku,
+        nome: payload.nome,
+        categoria: payload.categoria,
+        custoMinimo: payload.custoMinimo,
+        custoMedio: payload.custoMedio,
+        custoMaximo: payload.custoMaximo,
+        precoSugeridoMinimo: payload.precoSugeridoMinimo,
+        precoSugeridoMedio: payload.precoSugeridoMedio,
+        precoSugeridoMaximo: payload.precoSugeridoMaximo,
+        descricao: payload.descricao,
+        driveFolderLink: payload.driveFolderLink,
+        medidas: payload.medidas,
+        tamanhoEmbalagem: payload.tamanhoEmbalagem,
+        componentes: payload.componentes,
+        possuiComponentes: payload.possuiComponentes,
+        variacoesCor: payload.variacoesCor,
+        fotos: payload.fotos,
+      });
+      criados += 1;
+    }
+
+    operacoesBatch += 1;
+    if (operacoesBatch >= limiteBatch) {
+      await commitAtual();
+    }
+  }
+
+  await commitAtual();
+
+  if (!criados && !atualizados) {
+    showToast('Nenhum produto foi importado da planilha.', 'warning');
+  } else {
+    const partes = [];
+    if (atualizados) partes.push(`${atualizados} atualizados`);
+    if (criados) partes.push(`${criados} criados`);
+    showToast(
+      `Importação concluída com sucesso (${partes.join(', ')}).`,
+      'success',
+    );
+  }
+
+  if (avisos.length) {
+    console.warn('Avisos durante a importação do catálogo:', avisos);
+    showToast(
+      'Importação finalizada com avisos. Verifique o console para detalhes.',
+      'warning',
+    );
+  }
+}
+
+function setImportButtonLoading(isLoading) {
+  if (!importExcelBtn) return;
+  if (isLoading) {
+    importExcelBtn.disabled = true;
+    importExcelBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    importExcelBtn.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin text-xs"></i><span>Importando...</span>';
+  } else {
+    importExcelBtn.disabled = false;
+    importExcelBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    if (importExcelBtnDefaultContent) {
+      importExcelBtn.innerHTML = importExcelBtnDefaultContent;
+    }
+  }
+}
+
+async function handleImportExcelFile(event) {
+  if (!canEdit) {
+    showToast('Você não tem permissão para importar planilhas.', 'error');
+    return;
+  }
+  if (isImportingExcel) return;
+
+  const input = event.target;
+  const arquivo = input?.files?.[0];
+  if (!arquivo) return;
+
+  if (!scopeUid) {
+    showToast('Não foi possível identificar o catálogo selecionado.', 'error');
+    input.value = '';
+    return;
+  }
+
+  isImportingExcel = true;
+  setImportButtonLoading(true);
+
+  try {
+    if (typeof XLSX === 'undefined') {
+      throw new Error('Biblioteca de planilhas não carregada.');
+    }
+
+    const arrayBuffer = await arquivo.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheetName = workbook.SheetNames?.[0];
+    if (!sheetName) {
+      showToast(
+        'Não foi possível localizar a primeira aba da planilha.',
+        'error',
+      );
+      return;
+    }
+
+    const sheet = workbook.Sheets[sheetName];
+    const linhas = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      raw: false,
+      defval: '',
+    });
+
+    if (!Array.isArray(linhas) || linhas.length < 2) {
+      showToast('A planilha não possui dados para importar.', 'warning');
+      return;
+    }
+
+    const cabecalho = linhas[0];
+    const fieldIndex = buildImportFieldIndex(cabecalho);
+    if (fieldIndex.sku === undefined) {
+      showToast(
+        'A planilha deve conter uma coluna "SKU" para identificação dos produtos.',
+        'error',
+      );
+      return;
+    }
+
+    const registros = [];
+    const erros = [];
+
+    for (let linhaIndex = 1; linhaIndex < linhas.length; linhaIndex += 1) {
+      const rawRow = linhas[linhaIndex];
+      if (!Array.isArray(rawRow)) continue;
+      const possuiConteudo = rawRow.some((celula) => {
+        if (celula === null || celula === undefined) return false;
+        if (typeof celula === 'number' && !Number.isNaN(celula)) return true;
+        if (typeof celula === 'string' && celula.trim()) return true;
+        return false;
+      });
+      if (!possuiConteudo) continue;
+
+      const dados = buildImportRow(rawRow, fieldIndex);
+      if (!dados) continue;
+      const skuNormalizado = normalizeSkuValue(dados.sku);
+      if (!skuNormalizado) {
+        erros.push(
+          `Linha ${linhaIndex + 1}: SKU ausente ou inválido. O registro foi ignorado.`,
+        );
+        continue;
+      }
+      registros.push({
+        dados,
+        skuNormalizado,
+        linha: linhaIndex + 1,
+      });
+    }
+
+    if (!registros.length) {
+      showToast('Nenhum produto válido foi encontrado na planilha.', 'warning');
+      return;
+    }
+
+    await applyCatalogImport(registros);
+
+    if (erros.length) {
+      console.warn('Erros durante a leitura da planilha do catálogo:', erros);
+      showToast(
+        'Algumas linhas foram ignoradas. Verifique o console para detalhes.',
+        'warning',
+      );
+    }
+  } catch (error) {
+    console.error('Erro ao importar planilha do catálogo:', error);
+    showToast(
+      'Não foi possível importar a planilha. Verifique o arquivo e tente novamente.',
+      'error',
+    );
+  } finally {
+    isImportingExcel = false;
+    setImportButtonLoading(false);
+    if (importExcelInput) {
+      importExcelInput.value = '';
+    }
+  }
 }
 
 async function exportCatalogToPdf() {
@@ -2862,6 +3499,11 @@ function setupEventListeners() {
   addColorVariationBtn?.addEventListener('click', () => {
     colorVariationsContainer?.appendChild(createColorVariationRow());
   });
+  importExcelBtn?.addEventListener('click', () => {
+    if (isImportingExcel) return;
+    importExcelInput?.click();
+  });
+  importExcelInput?.addEventListener('change', handleImportExcelFile);
   editingCancelBtn?.addEventListener('click', () => {
     clearForm();
     toggleForm(false);
@@ -2927,6 +3569,11 @@ onAuthStateChanged(auth, async (user) => {
     deleteSelectedBtn.classList.add('hidden');
   } else if (canEdit && deleteSelectedBtn) {
     deleteSelectedBtn.classList.remove('hidden');
+  }
+  if (!canEdit && importExcelBtn) {
+    importExcelBtn.classList.add('hidden');
+  } else if (canEdit && importExcelBtn) {
+    importExcelBtn.classList.remove('hidden');
   }
 
   responsavelInfo = await resolveResponsavel(user, currentProfile);
