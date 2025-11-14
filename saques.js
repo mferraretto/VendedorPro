@@ -8,12 +8,15 @@ import {
   getDocs,
   doc,
   getDoc,
+  query,
+  where,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 import {
   getAuth,
   onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig, getPassphrase } from './firebase-config.js';
+import { decryptString } from './crypto.js';
 import {
   registrarSaque as registrarSaqueSvc,
   deletarSaque as deletarSaqueSvc,
@@ -50,6 +53,12 @@ let percentualPadrao = null;
 let mensagemPercentualPadraoTimeout = null;
 let resumoMesAtual = null;
 let statusCobrancaTimeout = null;
+let subpaginaAtual = 'saques';
+let comissaoRegistrosPeriodo = [];
+let comissaoPedidosPeriodo = [];
+let comissaoResumoSkusPeriodo = [];
+let comissaoPeriodoSelecionado = { inicio: null, fim: null };
+let comissaoDetalhesVisiveis = false;
 
 function mensagemPadraoBase() {
   if (percentualPadrao === null) {
@@ -378,6 +387,58 @@ if (filtroLojaSelect) {
   });
 }
 
+const botoesSubpagina = {
+  saques: document.getElementById('tabSaques'),
+  comissao: document.getElementById('tabComissao'),
+};
+const secoesSubpagina = {
+  saques: document.getElementById('subpaginaSaques'),
+  comissao: document.getElementById('subpaginaComissao'),
+};
+const botaoComissaoBuscar = document.getElementById('btnComissaoBuscar');
+const botaoDetalhesComissao = document.getElementById(
+  'btnExibirDetalhesComissao',
+);
+
+function selecionarSubpagina(tab) {
+  if (!secoesSubpagina[tab]) return;
+  subpaginaAtual = tab;
+  Object.entries(secoesSubpagina).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === tab) {
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  });
+  Object.entries(botoesSubpagina).forEach(([key, botao]) => {
+    if (!botao) return;
+    if (key === tab) {
+      botao.classList.add('bg-white', 'text-slate-900', 'shadow');
+      botao.classList.remove('text-slate-500');
+    } else {
+      botao.classList.remove('bg-white', 'text-slate-900', 'shadow');
+      botao.classList.add('text-slate-500');
+    }
+  });
+}
+
+botoesSubpagina.saques?.addEventListener('click', () =>
+  selecionarSubpagina('saques'),
+);
+botoesSubpagina.comissao?.addEventListener('click', () =>
+  selecionarSubpagina('comissao'),
+);
+botaoComissaoBuscar?.addEventListener('click', () => {
+  carregarComissaoPeriodo();
+});
+botaoDetalhesComissao?.addEventListener('click', () => {
+  alternarDetalhesComissao();
+});
+
+selecionarSubpagina(subpaginaAtual);
+atualizarResumoComissao();
+
 function valorPadraoLoja(origem) {
   if (typeof origem === 'string' && origem.trim()) {
     return origem.trim();
@@ -433,6 +494,455 @@ function formatarDataBR(iso) {
   if (!iso) return '';
   const [ano, mes, dia] = iso.split('T')[0].split('-');
   return `${dia}/${mes}/${ano}`;
+}
+
+function formatarMoedaBR(valor) {
+  const numero = Number(valor);
+  const seguro = Number.isFinite(numero) ? numero : 0;
+  return `R$ ${seguro.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatarDataSimples(iso) {
+  if (!iso) return '';
+  const base = iso.split('T')[0];
+  const partes = base.split('-');
+  if (partes.length !== 3) return iso;
+  const [ano, mes, dia] = partes;
+  return `${dia}/${mes}/${ano}`;
+}
+
+function descricaoPeriodoAtual() {
+  const { inicio, fim } = comissaoPeriodoSelecionado || {};
+  if (inicio && fim) {
+    return `Período de ${formatarDataSimples(inicio)} a ${formatarDataSimples(fim)}.`;
+  }
+  if (inicio) {
+    return `A partir de ${formatarDataSimples(inicio)}.`;
+  }
+  if (fim) {
+    return `Até ${formatarDataSimples(fim)}.`;
+  }
+  return 'Selecione um período para visualizar as comissões.';
+}
+
+function setStatusComissao(mensagem = '', tipo = 'info') {
+  const statusEl = document.getElementById('comissaoStatus');
+  if (!statusEl) return;
+  statusEl.textContent = mensagem;
+  statusEl.classList.remove(
+    'text-emerald-600',
+    'text-rose-600',
+    'text-amber-600',
+    'text-slate-500',
+  );
+  if (!mensagem) {
+    statusEl.classList.add('text-slate-500');
+  } else if (tipo === 'sucesso') {
+    statusEl.classList.add('text-emerald-600');
+  } else if (tipo === 'erro') {
+    statusEl.classList.add('text-rose-600');
+  } else if (tipo === 'alerta') {
+    statusEl.classList.add('text-amber-600');
+  } else {
+    statusEl.classList.add('text-slate-500');
+  }
+}
+
+function atualizarPeriodoSelecionado(descricaoTexto = descricaoPeriodoAtual()) {
+  const periodoEl = document.getElementById('comissaoPeriodoSelecionado');
+  if (!periodoEl) return;
+  if (comissaoRegistrosPeriodo.length || comissaoPedidosPeriodo.length) {
+    periodoEl.textContent = descricaoTexto;
+  } else {
+    periodoEl.textContent = '';
+  }
+}
+
+function atualizarResumoComissao() {
+  const totalEl = document.getElementById('comissaoTotalValor');
+  const pedidosEl = document.getElementById('comissaoTotalPedidos');
+  const diasEl = document.getElementById('comissaoDiasRegistros');
+  const resumoInfoEl = document.getElementById('comissaoResumoInfo');
+
+  let totalComissao = 0;
+  comissaoRegistrosPeriodo.forEach((registro) => {
+    const valor =
+      registro.totalComissaoDia ??
+      registro.totalComissao ??
+      registro.totalComissaoPeriodo ??
+      0;
+    totalComissao += Number(valor) || 0;
+  });
+
+  if (totalComissao === 0 && comissaoPedidosPeriodo.length > 0) {
+    totalComissao = comissaoPedidosPeriodo.reduce(
+      (soma, pedido) => soma + (Number(pedido.comissao) || 0),
+      0,
+    );
+  }
+
+  if (totalEl) {
+    totalEl.textContent = formatarMoedaBR(totalComissao);
+  }
+  if (pedidosEl) {
+    pedidosEl.textContent =
+      comissaoPedidosPeriodo.length.toLocaleString('pt-BR');
+  }
+  if (diasEl) {
+    diasEl.textContent =
+      comissaoRegistrosPeriodo.length.toLocaleString('pt-BR');
+  }
+
+  const descricao = descricaoPeriodoAtual();
+  if (resumoInfoEl) {
+    resumoInfoEl.textContent = descricao;
+  }
+  if (botaoDetalhesComissao) {
+    botaoDetalhesComissao.disabled = comissaoPedidosPeriodo.length === 0;
+    if (comissaoPedidosPeriodo.length === 0) {
+      botaoDetalhesComissao.textContent =
+        'Exibir pedidos e detalhes do período';
+    }
+  }
+  atualizarPeriodoSelecionado(descricao);
+}
+
+function renderTabelaPedidosComissao() {
+  const tbody = document.getElementById('comissaoTabelaPedidos');
+  if (!tbody) return;
+  if (comissaoPedidosPeriodo.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-500">
+          Nenhum pedido encontrado para o período selecionado.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  const linhas = comissaoPedidosPeriodo
+    .map((pedido) => {
+      const quantidade = Number(pedido.quantidade) || 0;
+      const quantidadeFormatada = quantidade.toLocaleString('pt-BR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      });
+      const dataFormatada = pedido.data ? formatarDataSimples(pedido.data) : '';
+      const codigoPedido = pedido.pedido || '';
+      const sku = pedido.sku || '';
+      const comprador = pedido.comprador || '';
+      return `
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-2 text-left text-slate-600">${dataFormatada}</td>
+          <td class="px-4 py-2 text-left font-medium text-slate-800">${codigoPedido}</td>
+          <td class="px-4 py-2 text-left text-slate-600">${sku}</td>
+          <td class="px-4 py-2 text-left text-slate-600">${comprador}</td>
+          <td class="px-4 py-2 text-right text-slate-600">${quantidadeFormatada}</td>
+          <td class="px-4 py-2 text-right font-semibold text-emerald-600">${formatarMoedaBR(pedido.comissao)}</td>
+        </tr>
+      `;
+    })
+    .join('');
+  tbody.innerHTML = linhas;
+}
+
+function renderResumoSkusComissao() {
+  const container = document.getElementById('comissaoResumoSkus');
+  if (!container) return;
+  if (!comissaoResumoSkusPeriodo.length) {
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  container.innerHTML = comissaoResumoSkusPeriodo
+    .map((item) => {
+      const quantidade = Number(item.quantidade) || 0;
+      const comissao = Number(item.comissaoTotal) || 0;
+      const sku = item.sku || 'SEM SKU';
+      return `
+        <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div class="text-xs font-medium uppercase tracking-wide text-slate-500">${sku}</div>
+          <div class="mt-1 text-sm text-slate-600">
+            <span class="font-semibold text-slate-900">${quantidade.toLocaleString(
+              'pt-BR',
+              {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              },
+            )}</span>
+            itens
+          </div>
+          <div class="mt-1 text-sm text-slate-600">
+            Comissão: <span class="font-semibold text-emerald-600">${formatarMoedaBR(comissao)}</span>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function resetarDetalhesComissao() {
+  const container = document.getElementById('comissaoDetalhesContainer');
+  if (container) {
+    container.classList.add('hidden');
+  }
+  comissaoDetalhesVisiveis = false;
+  if (botaoDetalhesComissao) {
+    botaoDetalhesComissao.textContent = 'Exibir pedidos e detalhes do período';
+  }
+  renderTabelaPedidosComissao();
+  renderResumoSkusComissao();
+  atualizarResumoComissao();
+}
+
+function alternarDetalhesComissao() {
+  const container = document.getElementById('comissaoDetalhesContainer');
+  if (!container || comissaoPedidosPeriodo.length === 0) return;
+  comissaoDetalhesVisiveis = !comissaoDetalhesVisiveis;
+  if (comissaoDetalhesVisiveis) {
+    renderTabelaPedidosComissao();
+    renderResumoSkusComissao();
+    atualizarPeriodoSelecionado();
+    container.classList.remove('hidden');
+    if (botaoDetalhesComissao) {
+      botaoDetalhesComissao.textContent = 'Ocultar pedidos e detalhes';
+    }
+  } else {
+    container.classList.add('hidden');
+    if (botaoDetalhesComissao) {
+      botaoDetalhesComissao.textContent =
+        'Exibir pedidos e detalhes do período';
+    }
+  }
+}
+
+async function prepararDadosComissao(registros) {
+  comissaoPedidosPeriodo = [];
+  comissaoResumoSkusPeriodo = [];
+  if (!registros.length) {
+    return { erros: 0 };
+  }
+  let erros = 0;
+  const resumoMap = new Map();
+  let senha = '';
+  try {
+    senha = getPassphrase?.() || '';
+  } catch (_) {
+    senha = '';
+  }
+  if (!senha && uidAtual) {
+    senha = uidAtual;
+  }
+
+  for (const registro of registros) {
+    let pedidosLista = Array.isArray(registro.pedidos) ? registro.pedidos : [];
+    let resumoLista = Array.isArray(registro.resumoSkus)
+      ? registro.resumoSkus
+      : [];
+
+    if (registro.encrypted) {
+      try {
+        const texto = await decryptString(registro.encrypted, senha);
+        const payload = JSON.parse(texto);
+        if (payload) {
+          if (Array.isArray(payload.pedidos)) {
+            pedidosLista = payload.pedidos;
+          }
+          if (Array.isArray(payload.resumoSkus)) {
+            resumoLista = payload.resumoSkus;
+          }
+          if (
+            payload.totalComissaoDia !== undefined &&
+            payload.totalComissaoDia !== null
+          ) {
+            registro.totalComissaoDia = payload.totalComissaoDia;
+          }
+          if (
+            payload.totalPedidos !== undefined &&
+            payload.totalPedidos !== null
+          ) {
+            registro.totalPedidos = payload.totalPedidos;
+          }
+          if (
+            payload.totalQuantidade !== undefined &&
+            payload.totalQuantidade !== null
+          ) {
+            registro.totalQuantidade = payload.totalQuantidade;
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao descriptografar comissão de sobras', error);
+        erros += 1;
+      }
+    }
+
+    const dataRef = registro.data || null;
+    pedidosLista.forEach((pedido) => {
+      const quantidade = Number(pedido.quantidade ?? pedido.qtd ?? 0) || 0;
+      const comissaoValor =
+        Number(
+          pedido.comissao ??
+            pedido.comissaoFaixa ??
+            pedido.comissaoTotal ??
+            pedido.comissaoValor ??
+            0,
+        ) || 0;
+      comissaoPedidosPeriodo.push({
+        data: dataRef,
+        pedido: pedido.pedido || pedido.id || '',
+        sku: pedido.sku || '',
+        comprador: pedido.comprador || '',
+        quantidade,
+        comissao: comissaoValor,
+      });
+    });
+
+    if (Array.isArray(resumoLista) && resumoLista.length > 0) {
+      resumoLista.forEach((item) => {
+        const chave = item.sku || 'SEM SKU';
+        const atual = resumoMap.get(chave) || {
+          sku: chave,
+          quantidade: 0,
+          comissaoTotal: 0,
+        };
+        atual.quantidade += Number(item.quantidade ?? item.qtd ?? 0) || 0;
+        atual.comissaoTotal +=
+          Number(item.comissaoTotal ?? item.comissao ?? item.total ?? 0) || 0;
+        resumoMap.set(chave, atual);
+      });
+    } else if (pedidosLista.length > 0) {
+      pedidosLista.forEach((pedido) => {
+        const chave = pedido.sku || 'SEM SKU';
+        const atual = resumoMap.get(chave) || {
+          sku: chave,
+          quantidade: 0,
+          comissaoTotal: 0,
+        };
+        atual.quantidade += Number(pedido.quantidade ?? pedido.qtd ?? 0) || 0;
+        atual.comissaoTotal +=
+          Number(
+            pedido.comissao ??
+              pedido.comissaoFaixa ??
+              pedido.comissaoTotal ??
+              pedido.comissaoValor ??
+              0,
+          ) || 0;
+        resumoMap.set(chave, atual);
+      });
+    }
+  }
+
+  comissaoPedidosPeriodo.sort((a, b) => {
+    const dataA = a.data || '';
+    const dataB = b.data || '';
+    if (dataA !== dataB) {
+      return dataA.localeCompare(dataB);
+    }
+    const pedidoA = String(a.pedido || '');
+    const pedidoB = String(b.pedido || '');
+    if (pedidoA !== pedidoB) {
+      return pedidoA.localeCompare(pedidoB, 'pt-BR', { numeric: true });
+    }
+    return (a.sku || '').localeCompare(b.sku || '', 'pt-BR', { numeric: true });
+  });
+
+  if (resumoMap.size === 0 && comissaoPedidosPeriodo.length > 0) {
+    comissaoPedidosPeriodo.forEach((pedido) => {
+      const chave = pedido.sku || 'SEM SKU';
+      const atual = resumoMap.get(chave) || {
+        sku: chave,
+        quantidade: 0,
+        comissaoTotal: 0,
+      };
+      atual.quantidade += Number(pedido.quantidade) || 0;
+      atual.comissaoTotal += Number(pedido.comissao) || 0;
+      resumoMap.set(chave, atual);
+    });
+  }
+
+  comissaoResumoSkusPeriodo = Array.from(resumoMap.values()).sort(
+    (a, b) => (b.comissaoTotal || 0) - (a.comissaoTotal || 0),
+  );
+
+  return { erros };
+}
+
+async function carregarComissaoPeriodo() {
+  if (!uidAtual) {
+    setStatusComissao(
+      'Você precisa estar autenticado para visualizar as comissões.',
+      'erro',
+    );
+    return;
+  }
+  const inicio = document.getElementById('comissaoDataInicio')?.value || '';
+  const fim = document.getElementById('comissaoDataFim')?.value || '';
+  if (inicio && fim && inicio > fim) {
+    setStatusComissao(
+      'A data inicial deve ser anterior ou igual à data final.',
+      'erro',
+    );
+    return;
+  }
+
+  comissaoPeriodoSelecionado = {
+    inicio: inicio || null,
+    fim: fim || null,
+  };
+
+  let textoOriginal = '';
+  if (botaoComissaoBuscar) {
+    textoOriginal = botaoComissaoBuscar.textContent;
+    botaoComissaoBuscar.disabled = true;
+    botaoComissaoBuscar.textContent = 'Carregando...';
+  }
+
+  setStatusComissao('Carregando comissões do período...');
+
+  try {
+    const colRef = collection(db, 'uid', uidAtual, 'comissoesSobras');
+    const filtros = [];
+    if (inicio) filtros.push(where('data', '>=', inicio));
+    if (fim) filtros.push(where('data', '<=', fim));
+    const consulta = filtros.length ? query(colRef, ...filtros) : colRef;
+    const snap = await getDocs(consulta);
+    comissaoRegistrosPeriodo = snap.docs
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+      .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+
+    const { erros } = await prepararDadosComissao(comissaoRegistrosPeriodo);
+    resetarDetalhesComissao();
+
+    if (comissaoRegistrosPeriodo.length === 0) {
+      setStatusComissao(
+        'Nenhum registro encontrado para o período selecionado.',
+        'alerta',
+      );
+    } else if (erros > 0) {
+      setStatusComissao(
+        'Dados carregados com sucesso, mas alguns registros não puderam ser descriptografados. Verifique a senha configurada.',
+        'alerta',
+      );
+    } else {
+      setStatusComissao('Dados de comissão carregados com sucesso.', 'sucesso');
+    }
+  } catch (error) {
+    console.error('Erro ao carregar comissões de sobras', error);
+    setStatusComissao(
+      'Não foi possível carregar os dados de comissão. Tente novamente em instantes.',
+      'erro',
+    );
+  } finally {
+    if (botaoComissaoBuscar) {
+      botaoComissaoBuscar.disabled = false;
+      botaoComissaoBuscar.textContent = textoOriginal || 'Carregar período';
+    }
+  }
 }
 
 onAuthStateChanged(auth, (user) => {

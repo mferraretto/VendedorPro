@@ -65,300 +65,503 @@
           </div>
         </header>
 
-        <!-- Formulários -->
-        <section class="max-w-7xl mx-auto px-4 space-y-6">
-          <!-- Registrar Saque -->
-          <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4">
+          <div class="flex flex-wrap gap-2">
             <div
-              class="flex items-center justify-between p-4 border-b border-slate-100"
+              class="inline-flex rounded-2xl bg-slate-100 p-1 text-sm font-medium"
             >
-              <div class="flex items-center gap-2">
-                <div
-                  class="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500"
-                ></div>
-                <h2 class="text-sm font-semibold text-slate-800">
-                  Registrar Saque
-                </h2>
+              <button
+                id="tabSaques"
+                data-subpagina="saques"
+                class="px-4 py-2 rounded-xl bg-white text-slate-900 shadow transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                type="button"
+              >
+                Saques
+              </button>
+              <button
+                id="tabComissao"
+                data-subpagina="comissao"
+                class="px-4 py-2 rounded-xl text-slate-500 hover:text-slate-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                type="button"
+              >
+                Comissão
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="subpaginaSaques" class="space-y-6">
+          <!-- Formulários -->
+          <section class="max-w-7xl mx-auto px-4 space-y-6">
+            <!-- Registrar Saque -->
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div
+                class="flex items-center justify-between p-4 border-b border-slate-100"
+              >
+                <div class="flex items-center gap-2">
+                  <div
+                    class="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500"
+                  ></div>
+                  <h2 class="text-sm font-semibold text-slate-800">
+                    Registrar Saque
+                  </h2>
+                </div>
+              </div>
+              <div class="p-4">
+                <form class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                  <input
+                    type="date"
+                    id="dataSaque"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="number"
+                    id="valorSaque"
+                    placeholder="Valor (R$)"
+                    step="0.01"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="text"
+                    id="lojaSaque"
+                    placeholder="Loja"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <select
+                    id="percentualSaque"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="0">0%</option>
+                    <option value="0.03">3%</option>
+                    <option value="0.04">4%</option>
+                    <option value="0.05">5%</option>
+                  </select>
+                  <button
+                    type="button"
+                    id="btnRegistrar"
+                    onclick="registrarSaque()"
+                    class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                  >
+                    Registrar
+                  </button>
+                </form>
+                <div class="mt-4 border-t border-slate-100 pt-4">
+                  <div
+                    class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <h3 class="text-sm font-semibold text-slate-800">
+                        Comissão padrão
+                      </h3>
+                      <p class="text-xs text-slate-500">
+                        Valor aplicado automaticamente ao registrar novos
+                        saques.
+                      </p>
+                    </div>
+                    <div
+                      class="flex flex-col gap-2 sm:flex-row sm:items-center"
+                    >
+                      <select
+                        id="percentualPadraoSaque"
+                        class="h-10 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Usar cálculo automático</option>
+                        <option value="0">0%</option>
+                        <option value="0.03">3%</option>
+                        <option value="0.04">4%</option>
+                        <option value="0.05">5%</option>
+                      </select>
+                      <button
+                        type="button"
+                        id="btnSalvarPercentualPadrao"
+                        onclick="salvarPercentualPadrao()"
+                        class="h-10 rounded-xl border border-indigo-200 bg-white px-4 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        Salvar padrão
+                      </button>
+                    </div>
+                  </div>
+                  <p
+                    id="percentualPadraoStatus"
+                    class="mt-2 text-xs text-slate-500"
+                  ></p>
+                </div>
               </div>
             </div>
-            <div class="p-4">
-              <form class="grid grid-cols-1 md:grid-cols-5 gap-3">
-                <input
-                  type="date"
-                  id="dataSaque"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <input
-                  type="number"
-                  id="valorSaque"
-                  placeholder="Valor (R$)"
-                  step="0.01"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <input
-                  type="text"
-                  id="lojaSaque"
-                  placeholder="Loja"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <select
-                  id="percentualSaque"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="0">0%</option>
-                  <option value="0.03">3%</option>
-                  <option value="0.04">4%</option>
-                  <option value="0.05">5%</option>
-                </select>
-                <button
-                  type="button"
-                  id="btnRegistrar"
-                  onclick="registrarSaque()"
-                  class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-                >
-                  Registrar
-                </button>
-              </form>
-              <div class="mt-4 border-t border-slate-100 pt-4">
-                <div
-                  class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <h3 class="text-sm font-semibold text-slate-800">
-                      Comissão padrão
-                    </h3>
-                    <p class="text-xs text-slate-500">
-                      Valor aplicado automaticamente ao registrar novos saques.
-                    </p>
-                  </div>
-                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <select
-                      id="percentualPadraoSaque"
-                      class="h-10 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">Usar cálculo automático</option>
-                      <option value="0">0%</option>
-                      <option value="0.03">3%</option>
-                      <option value="0.04">4%</option>
-                      <option value="0.05">5%</option>
-                    </select>
+
+            <!-- Comissão Recebida -->
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div
+                class="flex items-center justify-between p-4 border-b border-slate-100"
+              >
+                <div class="flex items-center gap-2">
+                  <div
+                    class="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500"
+                  ></div>
+                  <h2 class="text-sm font-semibold text-slate-800">
+                    Comissão Recebida
+                  </h2>
+                </div>
+              </div>
+              <div class="p-4">
+                <form class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    type="date"
+                    id="dataComissao"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="number"
+                    id="valorComissao"
+                    placeholder="Valor (R$)"
+                    step="0.01"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onclick="registrarComissaoRecebida()"
+                    class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                  >
+                    Registrar
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Cobrança de Comissões -->
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div
+                class="flex items-center justify-between p-4 border-b border-slate-100"
+              >
+                <div class="flex items-center gap-2">
+                  <div
+                    class="h-8 w-8 rounded-xl bg-gradient-to-tr from-rose-500 to-orange-500"
+                  ></div>
+                  <h2 class="text-sm font-semibold text-slate-800">
+                    Cobrança de Comissões Pendentes
+                  </h2>
+                </div>
+              </div>
+              <div class="p-4 space-y-3">
+                <p class="text-xs text-slate-500">
+                  Gere um PDF com todas as comissões não pagas no período
+                  filtrado. Defina a data limite de pagamento e uma multa que
+                  será aplicada automaticamente caso a data esteja vencida.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                  <input
+                    type="date"
+                    id="dataPagamentoCobranca"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <select
+                    id="percentualCobranca"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="auto">Automático (usar padrão)</option>
+                    <option value="0.03">3%</option>
+                    <option value="0.04">4%</option>
+                    <option value="0.05">5%</option>
+                  </select>
+                  <input
+                    type="number"
+                    id="percentualMultaCobranca"
+                    placeholder="Multa (%)"
+                    step="0.01"
+                    min="0"
+                    value="2"
+                    class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <div class="md:col-span-2 flex items-center">
                     <button
                       type="button"
-                      id="btnSalvarPercentualPadrao"
-                      onclick="salvarPercentualPadrao()"
-                      class="h-10 rounded-xl border border-indigo-200 bg-white px-4 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-70"
+                      onclick="gerarCobrancaComissoes()"
+                      class="w-full h-11 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600"
                     >
-                      Salvar padrão
+                      Gerar PDF de Cobrança
                     </button>
                   </div>
                 </div>
-                <p
-                  id="percentualPadraoStatus"
-                  class="mt-2 text-xs text-slate-500"
-                ></p>
+                <p id="statusCobranca" class="text-xs text-slate-500"></p>
               </div>
             </div>
-          </div>
+          </section>
 
-          <!-- Comissão Recebida -->
-          <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <!-- Resumo do mês -->
+          <section class="max-w-7xl mx-auto px-4">
             <div
-              class="flex items-center justify-between p-4 border-b border-slate-100"
-            >
-              <div class="flex items-center gap-2">
-                <div
-                  class="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500"
-                ></div>
-                <h2 class="text-sm font-semibold text-slate-800">
-                  Comissão Recebida
-                </h2>
-              </div>
-            </div>
-            <div class="p-4">
-              <form class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input
-                  type="date"
-                  id="dataComissao"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <input
-                  type="number"
-                  id="valorComissao"
-                  placeholder="Valor (R$)"
-                  step="0.01"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <button
-                  type="button"
-                  onclick="registrarComissaoRecebida()"
-                  class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-                >
-                  Registrar
-                </button>
-              </form>
-            </div>
-          </div>
+              id="cardsResumo"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+            ></div>
+            <p
+              id="faltasTexto"
+              class="mt-4 text-center text-sm text-slate-500"
+            ></p>
+          </section>
 
-          <!-- Cobrança de Comissões -->
-          <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <!-- Tabela de Saques -->
+          <section class="max-w-7xl mx-auto px-4">
             <div
-              class="flex items-center justify-between p-4 border-b border-slate-100"
+              class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
             >
-              <div class="flex items-center gap-2">
-                <div
-                  class="h-8 w-8 rounded-xl bg-gradient-to-tr from-rose-500 to-orange-500"
-                ></div>
+              <div
+                class="flex items-center justify-between p-4 border-b border-slate-100"
+              >
                 <h2 class="text-sm font-semibold text-slate-800">
-                  Cobrança de Comissões Pendentes
+                  Saques Registrados
                 </h2>
+                <div class="flex items-center gap-2">
+                  <select
+                    id="filtroLoja"
+                    class="h-9 rounded-lg border-slate-300 text-sm px-3 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="__todas__">Todas as lojas</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div class="p-4 space-y-3">
-              <p class="text-xs text-slate-500">
-                Gere um PDF com todas as comissões não pagas no período
-                filtrado. Defina a data limite de pagamento e uma multa que será
-                aplicada automaticamente caso a data esteja vencida.
-              </p>
-              <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
-                <input
-                  type="date"
-                  id="dataPagamentoCobranca"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
+              <h3
+                id="tituloVendedor"
+                class="px-4 pt-4 text-sm font-medium text-slate-500"
+              ></h3>
+              <div class="max-h-[60vh] overflow-auto">
+                <table class="w-full text-sm">
+                  <thead class="sticky top-0 bg-slate-50 text-slate-600">
+                    <tr>
+                      <th class="px-4 py-3 text-center">
+                        <input
+                          id="checkboxSelecionarTodos"
+                          type="checkbox"
+                          onchange="toggleSelecaoTodos(this.checked)"
+                          class="h-4 w-4 rounded border-slate-300"
+                        />
+                      </th>
+                      <th class="text-left font-medium px-4 py-3">Data</th>
+                      <th class="text-left font-medium px-4 py-3">Loja</th>
+                      <th class="text-right font-medium px-4 py-3">Saque</th>
+                      <th class="text-right font-medium px-4 py-3">
+                        % Comissão
+                      </th>
+                      <th class="text-right font-medium px-4 py-3">Comissão</th>
+                      <th class="text-left font-medium px-4 py-3">Status</th>
+                      <th class="text-right font-medium px-4 py-3">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    id="tbodySaques"
+                    class="divide-y divide-slate-100"
+                  ></tbody>
+                  <tfoot id="tfootResumo" class="bg-slate-50"></tfoot>
+                </table>
+              </div>
+              <div
+                id="acoesSelecionados"
+                style="display: none"
+                class="flex flex-col md:flex-row items-center gap-2 p-4 border-t border-slate-100"
+              >
+                <span id="resumoSelecionados" class="text-sm"></span>
                 <select
-                  id="percentualCobranca"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                  id="percentualSelecionado"
+                  class="h-10 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="auto">Automático (usar padrão)</option>
                   <option value="0.03">3%</option>
                   <option value="0.04">4%</option>
                   <option value="0.05">5%</option>
                 </select>
-                <input
-                  type="number"
-                  id="percentualMultaCobranca"
-                  placeholder="Multa (%)"
-                  step="0.01"
-                  min="0"
-                  value="2"
-                  class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-                <div class="md:col-span-2 flex items-center">
+                <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   <button
-                    type="button"
-                    onclick="gerarCobrancaComissoes()"
-                    class="w-full h-11 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600"
+                    onclick="marcarComoPagoSelecionados()"
+                    class="h-10 px-4 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
                   >
-                    Gerar PDF de Cobrança
+                    Marcar como Pago
+                  </button>
+                  <button
+                    onclick="exportarSelecionadosExcel()"
+                    class="h-10 px-4 rounded-xl border border-emerald-600 text-emerald-600 text-sm font-medium hover:bg-emerald-50"
+                  >
+                    Exportar Excel
+                  </button>
+                  <button
+                    onclick="exportarSelecionadosPDF()"
+                    class="h-10 px-4 rounded-xl border border-indigo-600 text-indigo-600 text-sm font-medium hover:bg-indigo-50"
+                  >
+                    Exportar PDF
                   </button>
                 </div>
               </div>
-              <p id="statusCobranca" class="text-xs text-slate-500"></p>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
-        <!-- Resumo do mês -->
-        <section class="max-w-7xl mx-auto px-4">
-          <div
-            id="cardsResumo"
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-          ></div>
-          <p
-            id="faltasTexto"
-            class="mt-4 text-center text-sm text-slate-500"
-          ></p>
-        </section>
-
-        <!-- Tabela de Saques -->
-        <section class="max-w-7xl mx-auto px-4">
-          <div
-            class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
-          >
-            <div
-              class="flex items-center justify-between p-4 border-b border-slate-100"
-            >
-              <h2 class="text-sm font-semibold text-slate-800">
-                Saques Registrados
-              </h2>
-              <div class="flex items-center gap-2">
-                <select
-                  id="filtroLoja"
-                  class="h-9 rounded-lg border-slate-300 text-sm px-3 focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="__todas__">Todas as lojas</option>
-                </select>
-              </div>
-            </div>
-            <h3
-              id="tituloVendedor"
-              class="px-4 pt-4 text-sm font-medium text-slate-500"
-            ></h3>
-            <div class="max-h-[60vh] overflow-auto">
-              <table class="w-full text-sm">
-                <thead class="sticky top-0 bg-slate-50 text-slate-600">
-                  <tr>
-                    <th class="px-4 py-3 text-center">
-                      <input
-                        id="checkboxSelecionarTodos"
-                        type="checkbox"
-                        onchange="toggleSelecaoTodos(this.checked)"
-                        class="h-4 w-4 rounded border-slate-300"
-                      />
-                    </th>
-                    <th class="text-left font-medium px-4 py-3">Data</th>
-                    <th class="text-left font-medium px-4 py-3">Loja</th>
-                    <th class="text-right font-medium px-4 py-3">Saque</th>
-                    <th class="text-right font-medium px-4 py-3">% Comissão</th>
-                    <th class="text-right font-medium px-4 py-3">Comissão</th>
-                    <th class="text-left font-medium px-4 py-3">Status</th>
-                    <th class="text-right font-medium px-4 py-3">Ações</th>
-                  </tr>
-                </thead>
-                <tbody
-                  id="tbodySaques"
-                  class="divide-y divide-slate-100"
-                ></tbody>
-                <tfoot id="tfootResumo" class="bg-slate-50"></tfoot>
-              </table>
-            </div>
-            <div
-              id="acoesSelecionados"
-              style="display: none"
-              class="flex flex-col md:flex-row items-center gap-2 p-4 border-t border-slate-100"
-            >
-              <span id="resumoSelecionados" class="text-sm"></span>
-              <select
-                id="percentualSelecionado"
-                class="h-10 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+        <div id="subpaginaComissao" class="hidden space-y-6">
+          <section class="max-w-7xl mx-auto px-4 space-y-6">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div
+                class="flex items-center justify-between p-4 border-b border-slate-100"
               >
-                <option value="0.03">3%</option>
-                <option value="0.04">4%</option>
-                <option value="0.05">5%</option>
-              </select>
-              <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <button
-                  onclick="marcarComoPagoSelecionados()"
-                  class="h-10 px-4 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-                >
-                  Marcar como Pago
-                </button>
-                <button
-                  onclick="exportarSelecionadosExcel()"
-                  class="h-10 px-4 rounded-xl border border-emerald-600 text-emerald-600 text-sm font-medium hover:bg-emerald-50"
-                >
-                  Exportar Excel
-                </button>
-                <button
-                  onclick="exportarSelecionadosPDF()"
-                  class="h-10 px-4 rounded-xl border border-indigo-600 text-indigo-600 text-sm font-medium hover:bg-indigo-50"
-                >
-                  Exportar PDF
-                </button>
+                <div class="flex items-center gap-2">
+                  <div
+                    class="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-emerald-500"
+                  ></div>
+                  <h2 class="text-sm font-semibold text-slate-800">
+                    Comissão - Períodos de Pedidos
+                  </h2>
+                </div>
+              </div>
+              <div class="p-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                  <label class="flex flex-col gap-1 text-sm text-slate-600">
+                    <span
+                      class="text-xs font-medium uppercase tracking-wide text-slate-500"
+                      >Início</span
+                    >
+                    <input
+                      type="date"
+                      id="comissaoDataInicio"
+                      class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </label>
+                  <label class="flex flex-col gap-1 text-sm text-slate-600">
+                    <span
+                      class="text-xs font-medium uppercase tracking-wide text-slate-500"
+                      >Fim</span
+                    >
+                    <input
+                      type="date"
+                      id="comissaoDataFim"
+                      class="h-11 rounded-xl border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </label>
+                  <div class="md:col-span-2 flex items-end">
+                    <button
+                      id="btnComissaoBuscar"
+                      type="button"
+                      class="w-full h-11 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                    >
+                      Carregar período
+                    </button>
+                  </div>
+                  <div class="flex items-end">
+                    <button
+                      id="btnExibirDetalhesComissao"
+                      type="button"
+                      class="w-full h-11 rounded-xl border border-slate-300 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled
+                    >
+                      Exibir pedidos e detalhes do período
+                    </button>
+                  </div>
+                </div>
+                <p id="comissaoStatus" class="text-xs text-slate-500"></p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div
+                    class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <p
+                      class="text-xs font-medium uppercase tracking-wide text-slate-500"
+                    >
+                      Total de comissão no período
+                    </p>
+                    <p
+                      id="comissaoTotalValor"
+                      class="mt-2 text-2xl font-semibold text-emerald-600"
+                    >
+                      R$ 0,00
+                    </p>
+                    <p
+                      id="comissaoResumoInfo"
+                      class="mt-1 text-xs text-slate-500"
+                    ></p>
+                  </div>
+                  <div
+                    class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <p
+                      class="text-xs font-medium uppercase tracking-wide text-slate-500"
+                    >
+                      Pedidos encontrados
+                    </p>
+                    <p
+                      id="comissaoTotalPedidos"
+                      class="mt-2 text-2xl font-semibold text-slate-900"
+                    >
+                      0
+                    </p>
+                    <p class="mt-1 text-xs text-slate-500">
+                      Inclui todos os pedidos do período.
+                    </p>
+                  </div>
+                  <div
+                    class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <p
+                      class="text-xs font-medium uppercase tracking-wide text-slate-500"
+                    >
+                      Dias com registros
+                    </p>
+                    <p
+                      id="comissaoDiasRegistros"
+                      class="mt-2 text-2xl font-semibold text-slate-900"
+                    >
+                      0
+                    </p>
+                    <p class="mt-1 text-xs text-slate-500">
+                      Comissões salvas na coleção.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+
+          <section class="max-w-7xl mx-auto px-4">
+            <div
+              id="comissaoDetalhesContainer"
+              class="hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+            >
+              <div
+                class="flex items-center justify-between p-4 border-b border-slate-100"
+              >
+                <h3 class="text-sm font-semibold text-slate-800">
+                  Pedidos do período selecionado
+                </h3>
+                <span
+                  id="comissaoPeriodoSelecionado"
+                  class="text-xs text-slate-500"
+                ></span>
+              </div>
+              <div class="p-4 space-y-4">
+                <div
+                  id="comissaoResumoSkus"
+                  class="grid grid-cols-1 md:grid-cols-2 gap-3"
+                ></div>
+                <div
+                  class="max-h-[60vh] overflow-auto rounded-xl border border-slate-100"
+                >
+                  <table class="min-w-full text-sm">
+                    <thead class="sticky top-0 bg-slate-50 text-slate-600">
+                      <tr>
+                        <th class="px-4 py-3 text-left font-medium">Data</th>
+                        <th class="px-4 py-3 text-left font-medium">Pedido</th>
+                        <th class="px-4 py-3 text-left font-medium">SKU</th>
+                        <th class="px-4 py-3 text-left font-medium">
+                          Comprador
+                        </th>
+                        <th class="px-4 py-3 text-right font-medium">Qtd.</th>
+                        <th class="px-4 py-3 text-right font-medium">
+                          Comissão
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      id="comissaoTabelaPedidos"
+                      class="divide-y divide-slate-100"
+                    ></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </main>
 
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
