@@ -54,6 +54,8 @@
         <tr>
           <th>ID do Pedido</th>
           <th>SKU</th>
+          <th>Comprador</th>
+          <th>Quantidade</th>
           <th>Subtotal</th>
           <th>Reembolso</th>
           <th>Cupom</th>
@@ -89,6 +91,9 @@
         <a class="dropdown-item" onclick="exportarJSON()">JSON</a>
       </div>
     </div>
+    <button onclick="salvarComissaoSobras()" class="btn btn-primary btn-lg">
+      <i class="fas fa-save"></i> Salvar Comissão
+    </button>
     <button onclick="analisarSobrasIA()" class="btn btn-secondary btn-lg">
       <i class="fas fa-robot"></i> Analisar com IA
     </button>
