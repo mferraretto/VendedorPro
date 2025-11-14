@@ -7486,9 +7486,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const subtotal = parseFloat(p['Subtotal do produto']) || 0;
         const reembolso = parseFloat(p['Reembolso Shopee']) || 0;
         const cupom = parseFloat(p['Cupom do vendedor']) || 0;
-        const comissao = parseFloat(p['Taxa de comissão']) || 0;
+        const comissaoPercentualBruto = parseFloat(p['Taxa de comissão']) || 0;
         const servico = parseFloat(p['Taxa de serviço']) || 0;
-        const sobra = subtotal + reembolso - cupom - comissao - servico;
+        const sobraBase = subtotal + reembolso - cupom - servico;
+        const comissaoPercentualDecimal = comissaoPercentualBruto > 1
+          ? comissaoPercentualBruto / 100
+          : comissaoPercentualBruto;
+        const comissaoCalculada = sobraBase * comissaoPercentualDecimal;
+        const sobra = sobraBase + comissaoCalculada;
         const metaInfo = obterMetaSku(sku);
         const meta = numeroValido(metaInfo?.valor) ? metaInfo.valor : 0;
         const percentual = meta ? ((sobra - meta) / meta) * 100 : 0;
@@ -7530,7 +7535,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           subtotal,
           reembolso,
           cupom,
-          comissao,
+          comissao: comissaoCalculada,
+          comissaoPercentual: comissaoPercentualDecimal,
           servico,
           sobra,
           meta,
@@ -7615,7 +7621,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           <td>R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
           <td>R$ ${reembolso.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
           <td>R$ ${cupom.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-          <td>R$ ${comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+          <td>R$ ${comissaoCalculada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}<br><small>${(comissaoPercentualDecimal * 100).toFixed(2)}%</small></td>
           <td>R$ ${servico.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
           <td><strong>R$ ${sobra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong><br><small>Meta: R$ ${meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</small></td>
           <td>${classificacaoHTML}</td>
@@ -7630,7 +7636,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         totalSobra += sobra;
         totalPercentual += percentual;
         totalPedidos++;
-        totalComissao += comissao;
+        totalComissao += comissaoCalculada;
       });
 
       // Calcular total esperado com base na quantidade de pedidos por SKU
