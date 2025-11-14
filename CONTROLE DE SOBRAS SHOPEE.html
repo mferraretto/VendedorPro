@@ -7080,6 +7080,48 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return `R$ ${numero.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
     }
 
+    function normalizarQuantidadePedido(valor) {
+      if (valor === undefined || valor === null) return 1;
+      if (typeof valor === 'number') {
+        return Number.isFinite(valor) && valor > 0 ? valor : 1;
+      }
+      const texto = String(valor).trim();
+      if (!texto) return 1;
+      const numerico = texto
+        .replace(/\s+/g, '')
+        .replace(/x/gi, '')
+        .replace(/[a-zA-Z]+/g, '')
+        .replace(/\./g, '')
+        .replace(/,/g, '.');
+      const numero = Number.parseFloat(numerico);
+      if (!Number.isFinite(numero) || numero <= 0) return 1;
+      return numero;
+    }
+
+    function ajustarMetaPorQuantidade(metaInfo, quantidade) {
+      if (!metaInfo) return null;
+      const escala = Number.isFinite(quantidade) ? quantidade : 1;
+      if (escala === 1) return metaInfo;
+      const ajustada = { ...metaInfo };
+      const camposParaMultiplicar = ['valor', 'minimo', 'medio', 'maximo', 'comissaoFixa'];
+      camposParaMultiplicar.forEach(campo => {
+        if (numeroValido(metaInfo[campo]) || metaInfo[campo] === 0) {
+          ajustada[campo] = metaInfo[campo] * escala;
+        }
+      });
+      if (metaInfo.comissoes && typeof metaInfo.comissoes === 'object') {
+        ajustada.comissoes = Object.fromEntries(
+          Object.entries(metaInfo.comissoes).map(([nivel, valor]) => {
+            if (numeroValido(valor) || valor === 0) {
+              return [nivel, valor * escala];
+            }
+            return [nivel, valor];
+          })
+        );
+      }
+      return ajustada;
+    }
+
     function classificarSobraPorFaixa(metaInfo, sobra) {
       const resultadoPadrao = {
         label: 'Sem meta',
@@ -7472,7 +7514,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const tbody = document.querySelector('#resultado tbody');
       tbody.innerHTML = '';
       let totalSobra = 0, totalPercentual = 0, totalPedidos = 0, totalComissao = 0;
-      
+      let esperadoTotal = 0;
+      let quantidadeTotal = 0;
+
       pedidosProcessados = [];
 
       pedidos.forEach(p => {
@@ -7483,14 +7527,19 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const status = String(p['Status do pedido'] ?? '').toLowerCase();
         if (!sku || status.includes('cancelado') || status.includes('não pago')) return;
 
+        const comprador = String(p['Nome de usuário (comprador)'] ?? '').trim();
+        const quantidade = normalizarQuantidadePedido(p['Quantidade']);
+
         const subtotal = parseFloat(p['Subtotal do produto']) || 0;
         const reembolso = parseFloat(p['Reembolso Shopee']) || 0;
         const cupom = parseFloat(p['Cupom do vendedor']) || 0;
         const comissao = parseFloat(p['Taxa de comissão']) || 0;
         const servico = parseFloat(p['Taxa de serviço']) || 0;
         const sobra = subtotal + reembolso - cupom - comissao - servico;
-        const metaInfo = obterMetaSku(sku);
-        const meta = numeroValido(metaInfo?.valor) ? metaInfo.valor : 0;
+        const metaInfoOriginal = obterMetaSku(sku);
+        const metaInfo = ajustarMetaPorQuantidade(metaInfoOriginal, quantidade) || metaInfoOriginal;
+        const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : (numeroValido(metaInfoOriginal?.valor) ? metaInfoOriginal.valor * quantidade : 0);
+        const meta = metaValor || 0;
         const percentual = meta ? ((sobra - meta) / meta) * 100 : 0;
         const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
         const faixaInfo = classificarSobraPorFaixa(metaInfo, sobra);
@@ -7547,7 +7596,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           comissaoValorDisplay: faixaInfo.valorApresentacao,
           excedenteMaximo: faixaInfo.excedenteMaximo,
           excedenteAcimaLimite: faixaInfo.excedenteAcimaLimite,
-          excedenteTexto: faixaInfo.excedenteTexto
+          excedenteTexto: faixaInfo.excedenteTexto,
+          comprador,
+          quantidade
         };
 
         pedidosProcessados.push(pedidoData);
@@ -7609,9 +7660,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
 
         tr.className = [rowClass, faixaClasse].filter(Boolean).join(' ');
+        const quantidadeFormatada = Number.isFinite(quantidade)
+          ? quantidade.toLocaleString('pt-BR', {
+              minimumFractionDigits: Number.isInteger(quantidade) ? 0 : 2,
+              maximumFractionDigits: 2
+            })
+          : '-';
         tr.innerHTML = `
           <td>${id}</td>
           <td>${sku}</td>
+          <td>${comprador || '-'}</td>
+          <td class="text-right">${quantidadeFormatada}</td>
           <td>R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
           <td>R$ ${reembolso.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
           <td>R$ ${cupom.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -7624,24 +7683,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           <td>${percentual.toFixed(2)}%</td>
           <td class="status-only" data-status="${statusText}">${statusIcon} ${statusText}</td>
         `;
-        
+
         tbody.appendChild(tr);
 
         totalSobra += sobra;
         totalPercentual += percentual;
         totalPedidos++;
         totalComissao += comissao;
+        esperadoTotal += meta;
+        quantidadeTotal += quantidade;
       });
 
-      // Calcular total esperado com base na quantidade de pedidos por SKU
-      const linhas = document.querySelectorAll("#resultado tbody tr");
-      let esperadoTotal = 0;
-      linhas.forEach(l => {
-        const sku = l.children[1].textContent.trim();
-        const metaEsperada = obterMetaSku(sku);
-        if (metaEsperada) esperadoTotal += metaEsperada.valor;
-      });
-    
       const media = totalPedidos ? (totalPercentual / totalPedidos).toFixed(2) : '0.00';
       const diferencaTotal = totalSobra - esperadoTotal;
       const diferencaPercentual = esperadoTotal ? (diferencaTotal / esperadoTotal) * 100 : 0;
@@ -7705,7 +7757,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             totalSobra,
             esperadoTotal,
             media,
-            totalComissao
+            totalComissao,
+            quantidadeTotal
         }
     };
       const sobras = pedidosProcessados.map(p => ({
@@ -7713,6 +7766,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         vendido: p.subtotal,
         sobra: p.sobra,
         meta: p.meta,
+        quantidade: p.quantidade,
         faixa: p.faixa,
         detalheFaixa: p.detalheFaixa,
         comissaoFaixa: p.comissaoFaixa,
@@ -7731,7 +7785,13 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             ? `, Excedente >3%: R$ ${s.excedenteAcimaLimite.toFixed(2)}`
             : '';
           const detalheFaixa = s.detalheFaixa ? `, Detalhe: ${s.detalheFaixa}` : '';
-          return `SKU: ${s.sku}, Vendido: R$ ${s.vendido.toFixed(2)}, Sobra: R$ ${s.sobra.toFixed(2)}, Meta: R$ ${s.meta?.toFixed(2) || 0}, Faixa: ${s.faixa || 'Não definida'}${detalheFaixa}${comissaoTexto}${excedenteTexto}, Data: ${s.data}`;
+          const quantidadeTexto = Number.isFinite(s.quantidade)
+            ? Number(s.quantidade).toLocaleString('pt-BR', {
+                minimumFractionDigits: Number.isInteger(s.quantidade) ? 0 : 2,
+                maximumFractionDigits: 2
+              })
+            : '0';
+          return `SKU: ${s.sku}, Quantidade: ${quantidadeTexto}, Vendido: R$ ${s.vendido.toFixed(2)}, Sobra: R$ ${s.sobra.toFixed(2)}, Meta: R$ ${s.meta?.toFixed(2) || 0}, Faixa: ${s.faixa || 'Não definida'}${detalheFaixa}${comissaoTexto}${excedenteTexto}, Data: ${s.data}`;
         })
         .join("\n");
         renderizarTabelaLogistica();
@@ -9590,6 +9650,112 @@ await db
       }
     });
     
+    async function salvarComissaoSobras() {
+      if (pedidosProcessados.length === 0) {
+        mostrarErro('Nenhum dado disponível. Processe um arquivo antes de salvar a comissão.');
+        return;
+      }
+      if (!db || !usuarioLogado?.uid) {
+        mostrarErro('É necessário estar autenticado para salvar as informações.');
+        return;
+      }
+
+      const hoje = new Date().toISOString().slice(0, 10);
+      const { value: dataSelecionada } = await Swal.fire({
+        title: 'Salvar comissão do dia',
+        input: 'date',
+        inputLabel: 'Selecione a data dos pedidos',
+        inputValue: hoje,
+        showCancelButton: true,
+        confirmButtonText: 'Salvar',
+        cancelButtonText: 'Cancelar',
+        preConfirm: (valor) => {
+          if (!valor) {
+            Swal.showValidationMessage('Informe uma data para salvar o registro.');
+          }
+          return valor;
+        }
+      });
+
+      if (!dataSelecionada) return;
+
+      try {
+        Swal.fire({
+          title: 'Salvando dados',
+          text: 'Armazenando pedidos e resumo de comissões...',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        const arredondar = (valor) => Math.round((Number(valor) || 0) * 100) / 100;
+
+        const totalComissaoDia = arredondar(
+          pedidosProcessados.reduce((sum, p) => sum + (Number(p.comissao) || 0), 0)
+        );
+        const totalQuantidade = arredondar(
+          pedidosProcessados.reduce((sum, p) => sum + (Number(p.quantidade) || 0), 0)
+        );
+        const resumoMap = new Map();
+        pedidosProcessados.forEach(p => {
+          const chaveSku = p.sku || 'SEM SKU';
+          const atual = resumoMap.get(chaveSku) || { sku: chaveSku, quantidade: 0, comissao: 0 };
+          atual.quantidade += Number(p.quantidade) || 0;
+          atual.comissao += Number(p.comissao) || 0;
+          resumoMap.set(chaveSku, atual);
+        });
+
+        const resumoSkus = Array.from(resumoMap.values()).map(item => ({
+          sku: item.sku,
+          quantidade: arredondar(item.quantidade),
+          comissaoTotal: arredondar(item.comissao)
+        }));
+
+        const payload = {
+          data: dataSelecionada,
+          geradoEm: new Date().toISOString(),
+          totalPedidos: pedidosProcessados.length,
+          totalComissaoDia,
+          totalQuantidade,
+          resumoSkus,
+          pedidos: pedidosProcessados
+        };
+
+        const { encryptString } = await import('./crypto.js');
+        const pass = getPassphrase() || usuarioLogado.uid;
+        const encrypted = await encryptString(JSON.stringify(payload), pass);
+
+        const docRef = db
+          .collection('uid')
+          .doc(usuarioLogado.uid)
+          .collection('comissoesSobras')
+          .doc(dataSelecionada);
+
+        const atualizadoEm = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
+          ? firebase.firestore.FieldValue.serverTimestamp()
+          : new Date().toISOString();
+
+        await docRef.set({
+          uid: usuarioLogado.uid,
+          data: dataSelecionada,
+          totalPedidos: pedidosProcessados.length,
+          totalComissaoDia,
+          totalQuantidade,
+          resumoSkus,
+          encrypted,
+          atualizadoEm
+        });
+
+        Swal.close();
+        mostrarSucesso('Comissão salva com sucesso!');
+      } catch (error) {
+        Swal.close();
+        console.error('Erro ao salvar comissão', error);
+        mostrarErro(`Erro ao salvar a comissão: ${error.message}`);
+      }
+    }
+
     function exportarCSV() {
       if (pedidosProcessados.length === 0) {
         mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
@@ -9598,7 +9764,7 @@ await db
 
       try {
         // Cabeçalhos
-        let csv = 'ID do Pedido;SKU;Subtotal;Reembolso;Cupom;Comissão;Serviço;Sobra;Meta;Classificação do Preço;Detalhe da Classificação;Valor Comissão/Desvio (R$);Descrição Comissão;Excedente >3% Máx (R$);% vs Meta;Status\n';
+        let csv = 'ID do Pedido;SKU;Comprador;Quantidade;Subtotal;Reembolso;Cupom;Comissão;Serviço;Sobra;Meta;Classificação do Preço;Detalhe da Classificação;Valor Comissão/Desvio (R$);Descrição Comissão;Excedente >3% Máx (R$);% vs Meta;Status\n';
 
         // Dados
         pedidosProcessados.forEach(pedido => {
@@ -9609,6 +9775,13 @@ await db
 
           const detalheFaixa = (pedido.detalheFaixa || '').replace(/"/g, '""');
           const classificacao = (pedido.faixa || '').replace(/"/g, '""');
+          const comprador = (pedido.comprador || '').replace(/"/g, '""');
+          const quantidade = Number.isFinite(pedido.quantidade)
+            ? pedido.quantidade.toLocaleString('pt-BR', {
+                minimumFractionDigits: Number.isInteger(pedido.quantidade) ? 0 : 2,
+                maximumFractionDigits: 2
+              })
+            : '';
           const valorComissao = pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
             ? pedido.comissaoValorDisplay.toFixed(2)
             : '';
@@ -9617,7 +9790,7 @@ await db
             ? pedido.excedenteAcimaLimite.toFixed(2)
             : '';
 
-          csv += `"${pedido.id}";"${pedido.sku}";"${pedido.subtotal.toFixed(2)}";"${pedido.reembolso.toFixed(2)}";"${pedido.cupom.toFixed(2)}";"${pedido.comissao.toFixed(2)}";"${pedido.servico.toFixed(2)}";"${pedido.sobra.toFixed(2)}";"${pedido.meta.toFixed(2)}";"${classificacao}";"${detalheFaixa}";"${valorComissao}";"${descricaoComissao}";"${excedenteLimite}";"${pedido.percentual.toFixed(2)}";"${status}"\n`;
+          csv += `"${pedido.id}";"${pedido.sku}";"${comprador}";"${quantidade}";"${pedido.subtotal.toFixed(2)}";"${pedido.reembolso.toFixed(2)}";"${pedido.cupom.toFixed(2)}";"${pedido.comissao.toFixed(2)}";"${pedido.servico.toFixed(2)}";"${pedido.sobra.toFixed(2)}";"${pedido.meta.toFixed(2)}";"${classificacao}";"${detalheFaixa}";"${valorComissao}";"${descricaoComissao}";"${excedenteLimite}";"${pedido.percentual.toFixed(2)}";"${status}"\n`;
         });
 
         const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
@@ -9646,6 +9819,10 @@ await db
           return {
             'ID do Pedido': pedido.id,
             'SKU': pedido.sku,
+            'Comprador': pedido.comprador || '',
+            'Quantidade': Number.isFinite(pedido.quantidade)
+              ? Number(pedido.quantidade)
+              : '',
             'Subtotal (R$)': Number(pedido.subtotal.toFixed(2)),
             'Reembolso (R$)': Number(pedido.reembolso.toFixed(2)),
             'Cupom (R$)': Number(pedido.cupom.toFixed(2)),
@@ -9969,7 +10146,9 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           pedidos: pedidosProcessados,
           resumo: {
             totalSobra: pedidosProcessados.reduce((sum, p) => sum + p.sobra, 0),
-            totalMeta: pedidosProcessados.reduce((sum, p) => sum + (p.meta || 0), 0)
+            totalMeta: pedidosProcessados.reduce((sum, p) => sum + (p.meta || 0), 0),
+            totalComissao: pedidosProcessados.reduce((sum, p) => sum + (p.comissao || 0), 0),
+            totalQuantidade: pedidosProcessados.reduce((sum, p) => sum + (Number(p.quantidade) || 0), 0)
           }
         };
         
@@ -16943,6 +17122,7 @@ window.analisarSobrasIA = analisarSobrasIA;
 window.exportarCSV = exportarCSV;
 window.exportarExcel = exportarExcel;
 window.exportarJSON = exportarJSON;
+window.salvarComissaoSobras = salvarComissaoSobras;
 window.verificarConexao = verificarConexao;
 window.editarMeta = editarMeta;
 window.excluirMeta = excluirMeta;
