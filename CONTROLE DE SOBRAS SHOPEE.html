@@ -7253,6 +7253,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (abaixoDoMinimo) {
         const diferenca = minimo - sobra;
         const percentualTexto = formatarPercentualTexto(percentualMinimo);
+        const percentualComissaoAbaixoMinimo = 0.015;
+        const baseComissao = Math.max(sobra, 0);
+        const valorComissao = baseComissao * percentualComissaoAbaixoMinimo;
+        const percentualComissaoTexto = (percentualComissaoAbaixoMinimo * 100)
+          .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const comissaoMensagem = `Comissão especial (${percentualComissaoTexto}%) aplicada por estar abaixo do mínimo: ${formatarMoedaBR(valorComissao)}.`;
+        const complementoMensagem = percentualTexto
+          ? ` Está ${percentualTexto} do mínimo (${formatarMoedaBR(minimo)}). Falta ${formatarMoedaBR(diferenca)} para atingir o objetivo.`
+          : ` Falta ${formatarMoedaBR(diferenca)} para o mínimo (${formatarMoedaBR(minimo)}).`;
+
         return {
           label: 'Abaixo do mínimo',
           detalhe: percentualTexto
@@ -7260,12 +7270,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             : `Falta ${formatarMoedaBR(diferenca)} para o mínimo (${formatarMoedaBR(minimo)})`,
           situacao: 'abaixo',
           diferenca,
-          comissao: 0,
-          comissaoTexto: percentualTexto
-            ? `Comissão zerada por estar ${percentualTexto} do mínimo. Falta ${formatarMoedaBR(diferenca)} para o objetivo.`
-            : `Comissão zerada por estar abaixo do mínimo. Falta ${formatarMoedaBR(diferenca)} para o objetivo.`,
-          comissaoDescricao: 'Comissão zerada abaixo do mínimo',
-          valorApresentacao: 0,
+          comissao: valorComissao,
+          comissaoTexto: `${comissaoMensagem}${complementoMensagem}`,
+          comissaoDescricao: `Comissão ${percentualComissaoTexto}% aplicada abaixo do mínimo`,
+          valorApresentacao: valorComissao,
           excedenteMaximo: 0,
           excedenteAcimaLimite: 0,
           excedenteTexto: '',
