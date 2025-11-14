@@ -7543,6 +7543,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const percentual = meta ? ((sobra - meta) / meta) * 100 : 0;
         const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
         const faixaInfo = classificarSobraPorFaixa(metaInfo, sobra);
+        const valorComissaoDesvio = numeroValido(faixaInfo.valorApresentacao)
+          ? faixaInfo.valorApresentacao
+          : null;
 
         let faixaClasse = faixaInfo?.classeFaixa || '';
         if (!faixaClasse && metaInfo) {
@@ -7593,7 +7596,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           comissaoFaixa: faixaInfo.comissao,
           comissaoTexto: faixaInfo.comissaoTexto,
           comissaoDescricao: faixaInfo.comissaoDescricao,
-          comissaoValorDisplay: faixaInfo.valorApresentacao,
+          comissaoValorDisplay: valorComissaoDesvio,
           excedenteMaximo: faixaInfo.excedenteMaximo,
           excedenteAcimaLimite: faixaInfo.excedenteAcimaLimite,
           excedenteTexto: faixaInfo.excedenteTexto,
@@ -7637,10 +7640,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         `;
 
         let comissaoColumn = '';
-        const valorApresentacao = faixaInfo.valorApresentacao;
-        if (valorApresentacao !== null && valorApresentacao !== undefined) {
-          const sinal = valorApresentacao < 0 ? '-' : '';
-          const valorFormatado = Math.abs(valorApresentacao).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        if (valorComissaoDesvio !== null && valorComissaoDesvio !== undefined) {
+          const sinal = valorComissaoDesvio < 0 ? '-' : '';
+          const valorFormatado = Math.abs(valorComissaoDesvio).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
           comissaoColumn = `<strong>${sinal}R$ ${valorFormatado}</strong>`;
         }
         if (faixaInfo.comissaoTexto) {
@@ -7689,7 +7691,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         totalSobra += sobra;
         totalPercentual += percentual;
         totalPedidos++;
-        totalComissao += comissao;
+        if (valorComissaoDesvio !== null && valorComissaoDesvio !== undefined) {
+          totalComissao += valorComissaoDesvio;
+        }
         esperadoTotal += meta;
         quantidadeTotal += quantidade;
       });
@@ -9692,7 +9696,13 @@ await db
         const arredondar = (valor) => Math.round((Number(valor) || 0) * 100) / 100;
 
         const totalComissaoDia = arredondar(
-          pedidosProcessados.reduce((sum, p) => sum + (Number(p.comissao) || 0), 0)
+          pedidosProcessados.reduce((sum, p) => {
+            if (p.comissaoValorDisplay === null || p.comissaoValorDisplay === undefined) {
+              return sum;
+            }
+            const valor = Number(p.comissaoValorDisplay);
+            return Number.isFinite(valor) ? sum + valor : sum;
+          }, 0)
         );
         const totalQuantidade = arredondar(
           pedidosProcessados.reduce((sum, p) => sum + (Number(p.quantidade) || 0), 0)
@@ -9702,7 +9712,10 @@ await db
           const chaveSku = p.sku || 'SEM SKU';
           const atual = resumoMap.get(chaveSku) || { sku: chaveSku, quantidade: 0, comissao: 0 };
           atual.quantidade += Number(p.quantidade) || 0;
-          atual.comissao += Number(p.comissao) || 0;
+          const valorComissao = Number(p.comissaoValorDisplay);
+          if (p.comissaoValorDisplay !== null && p.comissaoValorDisplay !== undefined && Number.isFinite(valorComissao)) {
+            atual.comissao += valorComissao;
+          }
           resumoMap.set(chaveSku, atual);
         });
 
@@ -10147,7 +10160,13 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
           resumo: {
             totalSobra: pedidosProcessados.reduce((sum, p) => sum + p.sobra, 0),
             totalMeta: pedidosProcessados.reduce((sum, p) => sum + (p.meta || 0), 0),
-            totalComissao: pedidosProcessados.reduce((sum, p) => sum + (p.comissao || 0), 0),
+            totalComissao: pedidosProcessados.reduce((sum, p) => {
+              const valor = Number(p.comissaoValorDisplay);
+              if (p.comissaoValorDisplay === null || p.comissaoValorDisplay === undefined || !Number.isFinite(valor)) {
+                return sum;
+              }
+              return sum + valor;
+            }, 0),
             totalQuantidade: pedidosProcessados.reduce((sum, p) => sum + (Number(p.quantidade) || 0), 0)
           }
         };
