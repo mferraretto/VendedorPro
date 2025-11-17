@@ -166,9 +166,7 @@ function calcularPrecosCustos(custos, totalPercentual, totalFixo) {
     const info = custos[nivel];
     if (!info || !(info.valor > 0)) return;
     const percentual = totalPercentual + (info.comissao || 0);
-    const divisor = 1 - percentual / 100;
-    if (divisor <= 0) return;
-    const precoBase = (info.valor + totalFixo) / divisor;
+    const precoBase = info.valor + totalFixo + (info.valor * percentual) / 100;
     calculos[nivel] = {
       custo: Number(info.valor.toFixed(2)),
       comissao: info.comissao || 0,

@@ -1005,9 +1005,8 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
         const comissao = Number.parseFloat(info.comissao) || 0;
         if (!(valor > 0)) return;
         const percentualTotal = totalPercentual + comissao;
-        const divisor = 1 - percentualTotal / 100;
-        if (divisor <= 0) return;
-        const precoCalculado = (valor + totalFixo) / divisor;
+        const precoCalculado =
+          valor + totalFixo + (valor * percentualTotal) / 100;
         calculos[nivel] = {
           custo: Number(valor.toFixed(2)),
           comissao,
