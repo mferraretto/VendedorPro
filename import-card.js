@@ -197,16 +197,16 @@
 
     const custosInformados = cloneCosts(custosNormalizados);
     const precoMinimo = calculos.minimo?.preco;
-    const precoMedio = calculos.medio?.preco;
-    const precoIdeal = calculos.maximo?.preco;
+    const precoIdeal = calculos.medio?.preco;
+    const precoMaximo = calculos.maximo?.preco;
     const precoMinimoFinal = formatTwoDecimals(
-      firstAvailable(precoMinimo, precoMedio, precoIdeal),
-    );
-    const precoMedioFinal = formatTwoDecimals(
-      firstAvailable(precoMedio, precoIdeal, precoMinimo),
+      firstAvailable(precoMinimo, precoIdeal, precoMaximo),
     );
     const precoIdealFinal = formatTwoDecimals(
-      firstAvailable(precoIdeal, precoMedio, precoMinimo),
+      firstAvailable(precoIdeal, precoMaximo, precoMinimo),
+    );
+    const precoMaximoFinal = formatTwoDecimals(
+      firstAvailable(precoMaximo, precoIdeal, precoMinimo),
     );
 
     return {
@@ -216,8 +216,9 @@
       referencia,
       custoBase: custosInformados[referencia]?.valor || 0,
       precoMinimo: precoMinimoFinal,
-      precoMedio: precoMedioFinal,
       precoIdeal: precoIdealFinal,
+      precoMedio: precoIdealFinal,
+      precoMaximo: precoMaximoFinal,
       precoPromo: precoMinimoFinal,
       taxas: formatTaxas(taxasDetalhadas),
     };
