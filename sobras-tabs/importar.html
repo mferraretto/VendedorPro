@@ -17,6 +17,39 @@
   <div id="feedbackImportacao" class="mt-2"></div>
 </div>
 
+<div class="card import-card">
+  <div class="card-header">
+    <i class="fas fa-file-circle-check"></i>
+    <h3>Conferência de Comissão</h3>
+    <span
+      class="tooltip tooltip-lg ml-2"
+      data-tooltip="Importe uma planilha no formato DATA, Nº DA VENDA, sobra e SKU para conferir automaticamente em qual faixa de comissão cada item se enquadra."
+    >
+      <i class="fas fa-question-circle text-blue-600"></i>
+    </span>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <input
+        type="file"
+        id="inputConferenciaComissao"
+        accept=".xlsx, .xls"
+        class="form-control"
+        aria-label="Arquivo de conferência de comissão"
+      />
+    </div>
+    <button
+      onclick="processarConferenciaComissao()"
+      class="btn btn-primary btn-lg"
+      id="btnProcessarConferencia"
+      style="margin-left:auto;"
+    >
+      <i class="fas fa-upload"></i> Processar Comissão
+    </button>
+  </div>
+  <div id="feedbackConferenciaComissao" class="mt-2"></div>
+</div>
+
 <div class="card filtros-resultados-card">
   <div class="card-header">
     <i class="fas fa-filter"></i>
@@ -73,6 +106,31 @@
     </table>
   </div>
   <div id="totalSobra" style="margin-top: 1.5rem;"></div>
+</div>
+
+<div class="card filtros-resultados-card" id="conferenciaComissaoResultados" style="display: none;">
+  <div class="card-header">
+    <i class="fas fa-hand-holding-dollar"></i>
+    <h3>Resultado da Conferência de Comissão</h3>
+  </div>
+  <div class="table-container">
+    <table id="resultadoConferenciaComissao" class="data-table">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Nº da Venda</th>
+          <th>SKU</th>
+          <th>Sobra</th>
+          <th>Meta</th>
+          <th>Faixa de Comissão</th>
+          <th>Comissão Calculada</th>
+          <th>Situação</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div id="resumoConferenciaComissao" class="mt-3"></div>
 </div>
 
 <div class="card acoes-card">

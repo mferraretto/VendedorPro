@@ -7451,6 +7451,34 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       };
     }
 
+    function extrairCampoPlanilha(row, headerMap, opcoes) {
+      for (const chave of opcoes) {
+        const normalizada = normalizeHeaderKey(chave);
+        if (headerMap[normalizada] !== undefined) {
+          return row[headerMap[normalizada]];
+        }
+      }
+      return undefined;
+    }
+
+    function lerPlanilhaBasica(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            resolve(XLSX.utils.sheet_to_json(sheet));
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = () => reject(new Error('Não foi possível ler o arquivo.'));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
     async function processarPlanilha() {
       const fileInput = document.getElementById('inputExcel');
       const file = fileInput.files[0];
@@ -7813,7 +7841,125 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (document.getElementById('graficos').classList.contains('active')) {
         atualizarGraficos();
       }
-    
+
+
+      async function processarConferenciaComissao() {
+        const input = document.getElementById('inputConferenciaComissao');
+        const feedback = document.getElementById('feedbackConferenciaComissao');
+        const tbody = document.querySelector('#resultadoConferenciaComissao tbody');
+        const resumo = document.getElementById('resumoConferenciaComissao');
+        const cardResultado = document.getElementById('conferenciaComissaoResultados');
+        const botao = document.getElementById('btnProcessarConferencia');
+
+        if (!input || !feedback || !tbody || !resumo || !cardResultado || !botao) return;
+
+        feedback.innerHTML = '';
+        resumo.innerHTML = '';
+        tbody.innerHTML = '';
+        cardResultado.style.display = 'none';
+
+        const file = input.files?.[0];
+        if (!file) {
+          feedback.innerHTML = '<span class="badge badge-warning">⚠️ Selecione um arquivo</span>';
+          return;
+        }
+
+        try {
+          toggleLoading(botao, '<i class="fas fa-upload"></i> Processar Comissão');
+
+          const metasSincronizadas = await carregarMetas({
+            atualizarDatalist: false,
+            renderizarInterface: false,
+            mostrarLoading: false
+          });
+
+          if (metasSincronizadas === false) {
+            feedback.innerHTML = '<span class="badge badge-danger">⚠️ Não foi possível carregar as metas dos produtos.</span>';
+            return;
+          }
+
+          const linhas = await lerPlanilhaBasica(file);
+          if (!linhas.length) {
+            feedback.innerHTML = '<span class="badge badge-warning">⚠️ Arquivo sem dados para processar.</span>';
+            return;
+          }
+
+          const headerMap = buildHeaderMap(linhas[0]);
+          let totalItens = 0;
+          let semMeta = 0;
+          let totalComissao = 0;
+          let faixasIdentificadas = 0;
+
+          linhas.forEach((row) => {
+            const sku = String(extrairCampoPlanilha(row, headerMap, ['sku', 'número de referência sku', 'sku produto']) || '').trim();
+            if (!sku) return;
+
+            const sobraValor = parseNumber(extrairCampoPlanilha(row, headerMap, ['sobra']));
+            const numeroVenda = extrairCampoPlanilha(row, headerMap, ['nº da venda', 'numero da venda', 'pedido', 'id', 'id do pedido']) || '';
+            const dataVenda = extrairCampoPlanilha(row, headerMap, ['data', 'data da venda']) || '';
+
+            const metaInfo = obterMetaSku(sku);
+            const faixaInfo = classificarSobraPorFaixa(metaInfo, sobraValor);
+            const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : null;
+            const comissaoValor = numeroValido(faixaInfo.valorApresentacao) ? faixaInfo.valorApresentacao : null;
+
+            const comissaoHtml = comissaoValor !== null
+              ? `<strong>R$ ${Math.abs(comissaoValor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>${faixaInfo.comissaoTexto ? `<br><small>${faixaInfo.comissaoTexto}</small>` : ''}`
+              : (faixaInfo.comissaoTexto ? `<small>${faixaInfo.comissaoTexto}</small>` : '<span class="text-muted">-</span>');
+
+            const metaTexto = metaValor !== null ? `Meta: ${formatarMoedaBR(metaValor)}` : 'Sem meta';
+            const situacao = metaInfo
+              ? (faixaInfo.situacao === 'sem-meta' ? 'Sem meta configurada' : 'Comissão encontrada')
+              : 'SKU não cadastrado';
+
+            if (metaInfo) {
+              faixasIdentificadas += faixaInfo.situacao === 'sem-meta' ? 0 : 1;
+            } else {
+              semMeta += 1;
+            }
+
+            if (comissaoValor !== null) {
+              totalComissao += comissaoValor;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${dataVenda || '-'}</td>
+              <td>${numeroVenda || '-'}</td>
+              <td>${sku}</td>
+              <td><strong>${formatarMoedaBR(sobraValor)}</strong></td>
+              <td>${metaInfo ? `<strong>${metaTexto}</strong>` : '<span class="text-muted">SKU não cadastrado</span>'}</td>
+              <td><strong>${faixaInfo.label}</strong>${faixaInfo.detalhe ? `<br><small>${faixaInfo.detalhe}</small>` : ''}</td>
+              <td>${comissaoHtml}</td>
+              <td>${situacao}</td>
+            `;
+            tbody.appendChild(tr);
+            totalItens += 1;
+          });
+
+          if (totalItens === 0) {
+            feedback.innerHTML = '<span class="badge badge-warning">⚠️ Nenhuma linha válida encontrada.</span>';
+            return;
+          }
+
+          cardResultado.style.display = '';
+          resumo.innerHTML = `
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <span class="badge badge-primary">Itens avaliados: ${totalItens}</span>
+              <span class="badge badge-success">Faixas com comissão: ${faixasIdentificadas}</span>
+              <span class="badge badge-warning">SKUs sem cadastro/meta: ${semMeta}</span>
+              <span class="badge badge-secondary">Comissão total: ${formatarMoedaBR(totalComissao)}</span>
+            </div>
+          `;
+          feedback.innerHTML = '<span class="badge badge-success">✔️ Comissão conferida com sucesso</span>';
+        } catch (error) {
+          console.error('Erro ao processar conferência de comissão:', error);
+          feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
+        } finally {
+          toggleLoading(botao, '<i class="fas fa-upload"></i> Processar Comissão');
+        }
+      }
+
 
     function limparFiltros() {
       document.getElementById("filtroSKU").value = "";
@@ -17160,6 +17306,7 @@ window.atualizarRastreio = atualizarRastreio;
 window.atualizarChecklist = atualizarChecklist;
 window.aplicarFiltroLogistica = aplicarFiltroLogistica;
   window.processarPlanilha = processarPlanilha;
+window.processarConferenciaComissao = processarConferenciaComissao;
 window.toggleExportMenu = toggleExportMenu;
 window.salvarAcompanhamentoDiario = salvarAcompanhamentoDiario;
 window.carregarResumoDiario = carregarResumoDiario;
