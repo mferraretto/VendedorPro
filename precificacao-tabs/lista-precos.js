@@ -140,8 +140,8 @@ function gerarTabelaPreview(resultado) {
     </table>
     <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-gray-600">
       <div><strong>Preço mínimo:</strong> ${formatCurrency(resultado.precoMinimo)}</div>
-      <div><strong>Preço médio:</strong> ${formatCurrency(resultado.precoMedio)}</div>
       <div><strong>Preço ideal:</strong> ${formatCurrency(resultado.precoIdeal)}</div>
+      <div><strong>Preço máximo:</strong> ${formatCurrency(resultado.precoMaximo)}</div>
     </div>
     <p class="mt-2 text-xs text-gray-500">Referência atual: <strong>${resultado.referenciaCusto?.toUpperCase() || 'MÉDIO'}</strong></p>
   `;
@@ -181,8 +181,9 @@ function calcularPrecosCustos(custos, totalPercentual, totalFixo) {
   }
   const resumo = {
     precoMinimo: calculos.minimo?.preco ?? null,
+    precoIdeal: calculos.medio?.preco ?? null,
     precoMedio: calculos.medio?.preco ?? null,
-    precoIdeal: calculos.maximo?.preco ?? null,
+    precoMaximo: calculos.maximo?.preco ?? null,
   };
   return { calculos, referencia, resumo };
 }
@@ -316,7 +317,7 @@ function renderLista(lista) {
                 : `
               <div class="text-gray-500 text-sm">Preço mínimo</div>
               <div class="text-lg font-semibold text-green-600">R$ ${parseFloat(data.precoMinimo).toFixed(2)}</div>
-              <div class="text-xs text-gray-500 mt-1">Médio: R$ ${parseFloat(data.precoMedio).toFixed(2)} | Ideal: R$ ${parseFloat(data.precoIdeal).toFixed(2)}</div>
+              <div class="text-xs text-gray-500 mt-1">Ideal: R$ ${parseFloat(data.precoIdeal ?? data.precoMedio ?? data.precoMinimo).toFixed(2)} | Máximo: R$ ${parseFloat(data.precoMaximo ?? data.precoIdeal ?? data.precoMedio ?? data.precoMinimo).toFixed(2)}</div>
             `
             }
           </div>
@@ -393,14 +394,20 @@ function verDetalhes(id) {
   })
     .filter(Boolean)
     .join('');
+  const precoIdeal = parseFloat(
+    prod.precoIdeal ?? prod.precoMedio ?? prod.precoMinimo,
+  ).toFixed(2);
+  const precoMaximo = parseFloat(
+    prod.precoMaximo ?? prod.precoIdeal ?? prod.precoMedio ?? prod.precoMinimo,
+  ).toFixed(2);
   body.innerHTML = `
     ${prod.sku ? `<div><strong>SKU:</strong> ${prod.sku}</div>` : ''}
     <div><strong>Plataforma:</strong> ${prod.plataforma}</div>
     <div><strong>Custo referência:</strong> ${formatCurrency(prod.custo)}</div>
     ${custosHtml ? `<div class="mt-3"><strong>Custos cadastrados:</strong>${custosHtml}</div>` : ''}
     <div><strong>Preço mínimo:</strong> R$ ${prod.precoMinimo} (Lucro: ${lucroPercent(prod.precoMinimo)}%)</div>
-    <div><strong>Preço ideal:</strong> R$ ${prod.precoIdeal} (Lucro: ${lucroPercent(prod.precoIdeal)}%)</div>
-    <div><strong>Preço médio:</strong> R$ ${prod.precoMedio} (Lucro: ${lucroPercent(prod.precoMedio)}%)</div>
+    <div><strong>Preço ideal:</strong> R$ ${precoIdeal} (Lucro: ${lucroPercent(precoIdeal)}%)</div>
+    <div><strong>Preço máximo:</strong> R$ ${precoMaximo} (Lucro: ${lucroPercent(precoMaximo)}%)</div>
   `;
   // Utilize global modal helpers to ensure proper display
   document.getElementById('detalhesModal').classList.remove('hidden');
@@ -516,6 +523,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     precoMinimo: resultado.precoMinimo,
     precoIdeal: resultado.precoIdeal,
     precoMedio: resultado.precoMedio,
+    precoMaximo: resultado.precoMaximo,
     precoPromo: resultado.precoMinimo,
     custos: resultado.custos,
     precosPorCusto: resultado.precosPorCusto,
@@ -752,7 +760,7 @@ function exportarPDFLista() {
     'Custo',
     'Preço Mín.',
     'Preço Ideal',
-    'Preço Médio',
+    'Preço Máximo',
   ];
   const body = produtos.map((p) => [
     p.produto,
@@ -760,8 +768,8 @@ function exportarPDFLista() {
     p.plataforma,
     parseFloat(p.custo || 0).toFixed(2),
     parseFloat(p.precoMinimo).toFixed(2),
-    parseFloat(p.precoIdeal).toFixed(2),
-    parseFloat(p.precoMedio).toFixed(2),
+    parseFloat(p.precoIdeal ?? p.precoMedio ?? p.precoMinimo).toFixed(2),
+    parseFloat(p.precoMaximo ?? p.precoIdeal ?? p.precoMedio ?? p.precoMinimo).toFixed(2),
   ]);
   doc.autoTable({ head: [headers], body, startY: 20, styles: { fontSize: 8 } });
   doc.save('lista_precos.pdf');
@@ -799,19 +807,19 @@ function recalcularPrecos(prod, novosCustosEntrada) {
   const precoMinimoBase =
     primeiroNumeroValido(
       resumo.precoMinimo,
-      resumo.precoMedio,
       resumo.precoIdeal,
-    ) ?? 0;
-  const precoMedioBase =
-    primeiroNumeroValido(
-      resumo.precoMedio,
-      resumo.precoIdeal,
-      resumo.precoMinimo,
+      resumo.precoMaximo,
     ) ?? 0;
   const precoIdealBase =
     primeiroNumeroValido(
       resumo.precoIdeal,
-      resumo.precoMedio,
+      resumo.precoMaximo,
+      resumo.precoMinimo,
+    ) ?? 0;
+  const precoMaximoBase =
+    primeiroNumeroValido(
+      resumo.precoMaximo,
+      resumo.precoIdeal,
       resumo.precoMinimo,
     ) ?? 0;
 
@@ -834,27 +842,28 @@ function recalcularPrecos(prod, novosCustosEntrada) {
       const precoMinimoTaxa =
         primeiroNumeroValido(
           resumoTaxa.precoMinimo,
-          resumoTaxa.precoMedio,
           resumoTaxa.precoIdeal,
-        ) ?? 0;
-      const precoMedioTaxa =
-        primeiroNumeroValido(
-          resumoTaxa.precoMedio,
-          resumoTaxa.precoIdeal,
-          resumoTaxa.precoMinimo,
+          resumoTaxa.precoMaximo,
         ) ?? 0;
       const precoIdealTaxa =
         primeiroNumeroValido(
           resumoTaxa.precoIdeal,
-          resumoTaxa.precoMedio,
+          resumoTaxa.precoMaximo,
+          resumoTaxa.precoMinimo,
+        ) ?? 0;
+      const precoMaximoTaxa =
+        primeiroNumeroValido(
+          resumoTaxa.precoMaximo,
+          resumoTaxa.precoIdeal,
           resumoTaxa.precoMinimo,
         ) ?? 0;
       calculosTaxas[taxaKey] = {
         referencia: refTaxa,
         precosPorCusto: calcCustos,
         precoMinimo: precoMinimoTaxa,
-        precoMedio: precoMedioTaxa,
         precoIdeal: precoIdealTaxa,
+        precoMedio: precoIdealTaxa,
+        precoMaximo: precoMaximoTaxa,
         precoPromo: precoMinimoTaxa,
         taxas: taxasDetalhadas,
       };
@@ -864,8 +873,9 @@ function recalcularPrecos(prod, novosCustosEntrada) {
   return {
     custo: Number(referenciaDados.custo || 0),
     precoMinimo: precoMinimoBase,
-    precoMedio: precoMedioBase,
     precoIdeal: precoIdealBase,
+    precoMedio: precoIdealBase,
+    precoMaximo: precoMaximoBase,
     precoPromo: precoMinimoBase,
     custos: custosAtualizados,
     precosPorCusto: calculos,
