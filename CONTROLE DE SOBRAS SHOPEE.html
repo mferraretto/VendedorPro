@@ -10010,6 +10010,31 @@ await db
       }
     }
 
+    function obterDescricaoComissaoPercentual(pedido) {
+      if (!pedido) return '';
+
+      const fontes = [pedido.comissaoDescricao, pedido.comissaoTexto];
+      for (const fonte of fontes) {
+        if (!fonte) continue;
+
+        const matchPercentual = fonte.match(/(\d+(?:[.,]\d+)?)%/);
+        if (matchPercentual && matchPercentual[1]) {
+          const numero = Number.parseFloat(matchPercentual[1].replace(',', '.'));
+          if (Number.isFinite(numero)) {
+            const possuiDecimal = Math.abs(numero % 1) > 1e-9;
+            const percentualFormatado = numero.toLocaleString('pt-BR', {
+              minimumFractionDigits: possuiDecimal ? 1 : 0,
+              maximumFractionDigits: 2
+            });
+            return `${percentualFormatado}%`;
+          }
+          return `${matchPercentual[1].replace('.', ',')}%`;
+        }
+      }
+
+      return '';
+    }
+
     function exportarCSV() {
       if (pedidosProcessados.length === 0) {
         mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
@@ -10039,7 +10064,7 @@ await db
           const valorComissao = pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
             ? pedido.comissaoValorDisplay.toFixed(2)
             : '';
-          const descricaoComissao = (pedido.comissaoTexto || '').replace(/"/g, '""');
+          const descricaoComissao = obterDescricaoComissaoPercentual(pedido).replace(/"/g, '""');
           const excedenteLimite = pedido.excedenteAcimaLimite > 0
             ? pedido.excedenteAcimaLimite.toFixed(2)
             : '';
@@ -10089,7 +10114,7 @@ await db
             'Valor Comissão/Desvio (R$)': pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
               ? Number(pedido.comissaoValorDisplay.toFixed(2))
               : '',
-            'Descrição Comissão': pedido.comissaoTexto || '',
+            'Descrição Comissão': obterDescricaoComissaoPercentual(pedido),
             'Excedente >3% Máx (R$)': pedido.excedenteAcimaLimite > 0
               ? Number(pedido.excedenteAcimaLimite.toFixed(2))
               : '',
