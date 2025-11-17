@@ -7451,6 +7451,23 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       };
     }
 
+    function extrairSobraInformada(row) {
+      if (!row || typeof row !== 'object') return null;
+      if (numeroValido(row.sobraInformada)) return Number(row.sobraInformada);
+
+      const candidatos = ['sobra', 'Sobra', 'SOBRA', 'Sobra R$', 'Sobra (R$)'];
+      for (const campo of candidatos) {
+        if (campo in row) {
+          const valorNormalizado = normalizarNumeroMeta(row[campo], null);
+          if (numeroValido(valorNormalizado)) {
+            return valorNormalizado;
+          }
+        }
+      }
+
+      return null;
+    }
+
     async function processarPlanilha() {
       const fileInput = document.getElementById('inputExcel');
       const file = fileInput.files[0];
@@ -7512,7 +7529,132 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
     }
 
-    function processarPedidos(pedidos) {
+    function prepararLinhasConferenciaComissao(linhas) {
+      if (!Array.isArray(linhas)) return [];
+
+      return linhas
+        .map((linha, indice) => {
+          const sku = String(linha['SKU'] ?? linha['sku'] ?? '').trim();
+          if (!sku) return null;
+
+          const sobraInformada = extrairSobraInformada(linha);
+          const sobraNormalizada = numeroValido(sobraInformada)
+            ? sobraInformada
+            : 0;
+
+          const idPedido = String(
+            linha['Nº DA VENDA'] ??
+            linha['N DA VENDA'] ??
+            linha['NUMERO VENDA'] ??
+            linha['NRO DA VENDA'] ??
+            linha['N VENDA'] ??
+            linha['NUMERO DA VENDA'] ??
+            linha['Número da venda'] ??
+            linha['numero da venda'] ??
+            ''
+          ).trim() || `COMISSAO-${indice + 1}`;
+
+          const quantidadeLinha = normalizarQuantidadePedido(
+            linha['Quantidade'] ?? linha['Qtd'] ?? 1
+          );
+
+          const dataVenda = linha['DATA'] ?? linha['Data'] ?? linha['data'] ?? '';
+
+          return {
+            'ID do pedido': idPedido,
+            'Número de referência SKU': sku,
+            'Status do pedido': 'Conferência de comissão',
+            'Nome de usuário (comprador)': linha['Comprador'] ?? linha['comprador'] ?? '',
+            'Quantidade': quantidadeLinha,
+            'Subtotal do produto': sobraNormalizada,
+            'Reembolso Shopee': 0,
+            'Cupom do vendedor': 0,
+            'Taxa de comissão': 0,
+            'Taxa de serviço': 0,
+            'Prazo de coleta': dataVenda,
+            sobraInformada: sobraInformada
+          };
+        })
+        .filter(Boolean);
+    }
+
+    async function processarPlanilhaComissao() {
+      const fileInput = document.getElementById('inputComissaoExcel');
+      const file = fileInput?.files?.[0];
+      const feedback = document.getElementById('feedbackImportacaoComissao');
+      if (feedback) feedback.innerHTML = '';
+
+      if (!file) {
+        if (feedback) {
+          feedback.innerHTML = '<span class="badge badge-warning">⚠️ Selecione um arquivo</span>';
+        }
+        return;
+      }
+
+      try {
+        const metasSincronizadas = await carregarMetas({
+          atualizarDatalist: false,
+          renderizarInterface: false,
+          mostrarLoading: false
+        });
+
+        const semMetasDisponiveis = Object.keys(metas).length === 0;
+        if (metasSincronizadas === false) {
+          if (feedback) {
+            feedback.innerHTML = '<span class="badge badge-danger">⚠️ Não foi possível carregar as metas dos produtos.</span>';
+          }
+          return;
+        }
+
+        toggleLoading(document.getElementById('btnProcessarComissao'), 'Processar Comissão');
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const linhas = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+            const pedidosNormalizados = prepararLinhasConferenciaComissao(linhas);
+            processarPedidos(pedidosNormalizados, { usarSobraInformada: true });
+
+            if (feedback) {
+              if (semMetasDisponiveis) {
+                feedback.innerHTML = '<span class="badge badge-warning">⚠️ Planilha importada, mas nenhum custo cadastrado foi encontrado para cruzamento.</span>';
+              } else {
+                feedback.innerHTML = '<span class="badge badge-success">✔️ Conferência de comissão importada com sucesso</span>';
+              }
+            }
+          } catch (error) {
+            if (feedback) {
+              feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
+            }
+            console.error("Erro ao ler arquivo de comissão:", error);
+          } finally {
+            toggleLoading(document.getElementById('btnProcessarComissao'), 'Processar Comissão');
+          }
+        };
+
+        reader.onerror = function() {
+          if (feedback) {
+            feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
+          }
+          toggleLoading(document.getElementById('btnProcessarComissao'), 'Processar Comissão');
+        };
+
+        reader.readAsArrayBuffer(file);
+      } catch (error) {
+        if (feedback) {
+          feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
+        }
+        console.error("Erro ao processar arquivo de comissão:", error);
+        toggleLoading(document.getElementById('btnProcessarComissao'), 'Processar Comissão');
+      }
+    }
+
+    function processarPedidos(pedidos, opcoes = {}) {
+      const { usarSobraInformada = false } = opcoes;
       const contagem = {};
       pedidos.forEach(p => {
         const id = String(p['ID do pedido'] ?? '').trim();
@@ -7538,18 +7680,24 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const comprador = String(p['Nome de usuário (comprador)'] ?? '').trim();
         const quantidade = normalizarQuantidadePedido(p['Quantidade']);
 
-        const subtotal = parseFloat(p['Subtotal do produto']) || 0;
-        const reembolso = parseFloat(p['Reembolso Shopee']) || 0;
-        const cupom = parseFloat(p['Cupom do vendedor']) || 0;
-        const comissao = parseFloat(p['Taxa de comissão']) || 0;
-        const servico = parseFloat(p['Taxa de serviço']) || 0;
-        const sobra = subtotal + reembolso - cupom - comissao - servico;
+        const sobraInformada = usarSobraInformada ? extrairSobraInformada(p) : null;
+        const subtotalPlanilha = normalizarNumeroMeta(p['Subtotal do produto'], 0) || 0;
+        const reembolso = normalizarNumeroMeta(p['Reembolso Shopee'], 0) || 0;
+        const cupom = normalizarNumeroMeta(p['Cupom do vendedor'], 0) || 0;
+        const comissao = normalizarNumeroMeta(p['Taxa de comissão'], 0) || 0;
+        const servico = normalizarNumeroMeta(p['Taxa de serviço'], 0) || 0;
+        const subtotal = usarSobraInformada && numeroValido(sobraInformada)
+          ? sobraInformada
+          : subtotalPlanilha;
+        const sobra = usarSobraInformada && numeroValido(sobraInformada)
+          ? sobraInformada
+          : subtotal + reembolso - cupom - comissao - servico;
         const metaInfoOriginal = obterMetaSku(sku);
         const metaInfo = ajustarMetaPorQuantidade(metaInfoOriginal, quantidade) || metaInfoOriginal;
         const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : (numeroValido(metaInfoOriginal?.valor) ? metaInfoOriginal.valor * quantidade : 0);
         const meta = metaValor || 0;
         const percentual = meta ? ((sobra - meta) / meta) * 100 : 0;
-        const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
+        const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || p['DATA'] || p['Data'] || '';
         const faixaInfo = classificarSobraPorFaixa(metaInfo, sobra);
         const valorComissaoDesvio = numeroValido(faixaInfo.valorApresentacao)
           ? faixaInfo.valorApresentacao
@@ -17160,6 +17308,7 @@ window.atualizarRastreio = atualizarRastreio;
 window.atualizarChecklist = atualizarChecklist;
 window.aplicarFiltroLogistica = aplicarFiltroLogistica;
   window.processarPlanilha = processarPlanilha;
+window.processarPlanilhaComissao = processarPlanilhaComissao;
 window.toggleExportMenu = toggleExportMenu;
 window.salvarAcompanhamentoDiario = salvarAcompanhamentoDiario;
 window.carregarResumoDiario = carregarResumoDiario;
