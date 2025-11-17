@@ -10089,41 +10089,68 @@ await db
       }
 
       try {
+        const headers = [
+          'ID do Pedido',
+          'Comprador',
+          'SKU',
+          'Quantidade',
+          'Subtotal',
+          'Sobra',
+          'Descrição Comissão',
+          'Valor Comissão/Desvio (R$)',
+          'Excedente >3% Máx (R$)'
+        ];
+
         const linhas = pedidosProcessados.map(pedido => {
-          const status = pedido.meta ?
-            (pedido.percentual <= -10 ? 'Crítico' :
-              pedido.percentual <= -5 ? 'Atenção' :
-              pedido.percentual >= 5 ? 'Bom' : 'Normal') : 'Sem meta';
+          const descricaoComissao = obterDescricaoComissaoPercentual(pedido);
 
           return {
             'ID do Pedido': pedido.id,
-            'SKU': pedido.sku,
             'Comprador': pedido.comprador || '',
+            'SKU': pedido.sku,
             'Quantidade': Number.isFinite(pedido.quantidade)
               ? Number(pedido.quantidade)
               : '',
-            'Subtotal (R$)': Number(pedido.subtotal.toFixed(2)),
-            'Reembolso (R$)': Number(pedido.reembolso.toFixed(2)),
-            'Cupom (R$)': Number(pedido.cupom.toFixed(2)),
-            'Comissão (R$)': Number(pedido.comissao.toFixed(2)),
-            'Serviço (R$)': Number(pedido.servico.toFixed(2)),
-            'Sobra (R$)': Number(pedido.sobra.toFixed(2)),
-            'Meta (R$)': Number(pedido.meta.toFixed(2)),
-            'Classificação do Preço': pedido.faixa || '',
-            'Detalhe da Classificação': pedido.detalheFaixa || '',
+            'Subtotal': Number(pedido.subtotal.toFixed(2)),
+            'Sobra': Number(pedido.sobra.toFixed(2)),
+            'Descrição Comissão': descricaoComissao,
             'Valor Comissão/Desvio (R$)': pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
               ? Number(pedido.comissaoValorDisplay.toFixed(2))
               : '',
-            'Descrição Comissão': obterDescricaoComissaoPercentual(pedido),
             'Excedente >3% Máx (R$)': pedido.excedenteAcimaLimite > 0
               ? Number(pedido.excedenteAcimaLimite.toFixed(2))
-              : '',
-            '% vs Meta': Number(pedido.percentual.toFixed(2)),
-            'Status': status
+              : ''
           };
         });
 
-        const worksheet = XLSX.utils.json_to_sheet(linhas);
+        const worksheet = XLSX.utils.json_to_sheet(linhas, { header: headers });
+
+        const range = XLSX.utils.decode_range(worksheet['!ref']);
+        const cores = {
+          1.5: 'FFFFC7CE', // vermelho claro
+          3: 'FFFFFF99',   // amarelo claro
+          5: 'FFC6EFCE'    // verde claro
+        };
+
+        linhas.forEach((linha, index) => {
+          const percentualTexto = String(linha['Descrição Comissão'] || '').replace(',', '.');
+          const percentual = Number.parseFloat(percentualTexto);
+          const cor = Number.isFinite(percentual) ? cores[percentual] : null;
+
+          if (!cor) return;
+
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const cellRef = XLSX.utils.encode_cell({ r: index + 1, c });
+            const cell = worksheet[cellRef] || (worksheet[cellRef] = { t: 's', v: '' });
+            cell.s = {
+              fill: {
+                patternType: 'solid',
+                fgColor: { rgb: cor }
+              }
+            };
+          }
+        });
+
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Sobras');
 
