@@ -138,9 +138,12 @@
         return;
       }
 
-      const percentualTotal = totalPercentual + (info.comissao || 0);
-      const precoCalculado =
-        info.valor + totalFixo + (info.valor * percentualTotal) / 100;
+      const divisor = 1 - totalPercentual / 100;
+      if (divisor <= 0) {
+        calculos[key] = null;
+        return;
+      }
+      const precoCalculado = (info.valor + totalFixo) / divisor;
 
       calculos[key] = {
         custo: formatTwoDecimals(info.valor),
