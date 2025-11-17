@@ -970,6 +970,11 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
           calculos?.minimo?.preco,
         ),
         ideal: primeiroNumeroValido(
+          calculos?.medio?.preco,
+          calculos?.maximo?.preco,
+          calculos?.minimo?.preco,
+        ),
+        maximo: primeiroNumeroValido(
           calculos?.maximo?.preco,
           calculos?.medio?.preco,
           calculos?.minimo?.preco,
@@ -1024,7 +1029,8 @@ const tabs = ['dashboard','precificacao','produtos','lista-precos','historico','
       const resumo = {
         precoMinimo: calculos.minimo?.preco ?? null,
         precoMedio: calculos.medio?.preco ?? null,
-        precoIdeal: calculos.maximo?.preco ?? null,
+        precoIdeal: calculos.medio?.preco ?? null,
+        precoMaximo: calculos.maximo?.preco ?? null,
       };
 
       return { calculos, referencia, resumo };
