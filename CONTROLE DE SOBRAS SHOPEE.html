@@ -198,6 +198,7 @@
       let usuarioLogado = { uid: null, perfil: '' };
       window.usuarioLogado = usuarioLogado;
 let pedidosProcessados = [];
+let resultadosConferenciaComissao = [];
 let graficoBarras, graficoPizza, graficoPrevisao;
 let previsaoDados = {};
 let initialTab = null;
@@ -7857,6 +7858,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         resumo.innerHTML = '';
         tbody.innerHTML = '';
         cardResultado.style.display = 'none';
+        resultadosConferenciaComissao = [];
 
         const file = input.files?.[0];
         if (!file) {
@@ -7934,6 +7936,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               <td>${situacao}</td>
             `;
             tbody.appendChild(tr);
+            resultadosConferenciaComissao.push({
+              data: dataVenda || '-',
+              numeroVenda: numeroVenda || '-',
+              sku,
+              sobra: Number.isFinite(sobraValor) ? Number(sobraValor) : null,
+              meta: metaValor,
+              faixa: faixaInfo.label,
+              comissaoCalculada: comissaoValor,
+              situacao
+            });
             totalItens += 1;
           });
 
@@ -7943,6 +7955,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
 
           cardResultado.style.display = '';
+          window.resultadosConferenciaComissao = resultadosConferenciaComissao;
           resumo.innerHTML = `
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
               <span class="badge badge-primary">Itens avaliados: ${totalItens}</span>
@@ -7959,6 +7972,80 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           toggleLoading(botao, '<i class="fas fa-upload"></i> Processar Comissão');
         }
       }
+
+
+    function exportarConferenciaComissaoExcel() {
+      if (!resultadosConferenciaComissao || resultadosConferenciaComissao.length === 0) {
+        mostrarErro('Nenhum resultado da conferência para exportar.');
+        return;
+      }
+
+      const linhas = resultadosConferenciaComissao.map((item) => ({
+        'Data': item.data || '-',
+        'Nº da Venda': item.numeroVenda || '-',
+        'SKU': item.sku,
+        'Sobra (R$)': Number.isFinite(item.sobra) ? Number(item.sobra.toFixed(2)) : '',
+        'Meta (R$)': Number.isFinite(item.meta) ? Number(item.meta.toFixed(2)) : '',
+        'Faixa de Comissão': item.faixa || '',
+        'Comissão Calculada (R$)': Number.isFinite(item.comissaoCalculada)
+          ? Number(item.comissaoCalculada.toFixed(2))
+          : (item.comissaoCalculada || ''),
+        'Situação': item.situacao || ''
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(linhas);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Conferência');
+      XLSX.writeFile(workbook, `conferencia_comissao_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+      if (typeof mostrarSucesso === 'function') {
+        mostrarSucesso('Resultado da conferência exportado em Excel.');
+      }
+    }
+
+    function exportarConferenciaComissaoPDF() {
+      if (!resultadosConferenciaComissao || resultadosConferenciaComissao.length === 0) {
+        mostrarErro('Nenhum resultado da conferência para exportar.');
+        return;
+      }
+
+      if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+        mostrarErro('Biblioteca jsPDF não carregada para exportação em PDF.');
+        return;
+      }
+
+      const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      doc.setFontSize(14);
+      doc.text('Resultado da Conferência de Comissão', 14, 15);
+
+      const corpo = resultadosConferenciaComissao.map((item) => [
+        item.data || '-',
+        item.numeroVenda || '-',
+        item.sku,
+        Number.isFinite(item.sobra) ? formatarMoedaBR(item.sobra) : '-',
+        Number.isFinite(item.meta) ? formatarMoedaBR(item.meta) : 'Sem meta',
+        item.faixa || '-',
+        Number.isFinite(item.comissaoCalculada)
+          ? formatarMoedaBR(item.comissaoCalculada)
+          : (item.comissaoCalculada || '-'),
+        item.situacao || '-'
+      ]);
+
+      if (typeof doc.autoTable !== 'function') {
+        mostrarErro('Recurso de tabela do PDF indisponível.');
+        return;
+      }
+
+      doc.autoTable({
+        head: [['Data', 'Nº da Venda', 'SKU', 'Sobra', 'Meta', 'Faixa de Comissão', 'Comissão Calculada', 'Situação']],
+        body: corpo,
+        startY: 22,
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [52, 58, 64] }
+      });
+
+      doc.save(`conferencia_comissao_${new Date().toISOString().slice(0,10)}.pdf`);
+    }
 
 
     function limparFiltros() {
@@ -17307,6 +17394,8 @@ window.atualizarChecklist = atualizarChecklist;
 window.aplicarFiltroLogistica = aplicarFiltroLogistica;
   window.processarPlanilha = processarPlanilha;
 window.processarConferenciaComissao = processarConferenciaComissao;
+window.exportarConferenciaComissaoExcel = exportarConferenciaComissaoExcel;
+window.exportarConferenciaComissaoPDF = exportarConferenciaComissaoPDF;
 window.toggleExportMenu = toggleExportMenu;
 window.salvarAcompanhamentoDiario = salvarAcompanhamentoDiario;
 window.carregarResumoDiario = carregarResumoDiario;

@@ -112,6 +112,14 @@
   <div class="card-header">
     <i class="fas fa-hand-holding-dollar"></i>
     <h3>Resultado da Conferência de Comissão</h3>
+    <div class="actions-row" style="margin-left: auto; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+      <button class="btn btn-success btn-sm" onclick="exportarConferenciaComissaoExcel()">
+        <i class="fas fa-file-excel"></i> Exportar Excel
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="exportarConferenciaComissaoPDF()">
+        <i class="fas fa-file-pdf"></i> Exportar PDF
+      </button>
+    </div>
   </div>
   <div class="table-container">
     <table id="resultadoConferenciaComissao" class="data-table">
