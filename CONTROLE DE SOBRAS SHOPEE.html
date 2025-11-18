@@ -9908,23 +9908,38 @@ await db
       }
 
       const hoje = new Date().toISOString().slice(0, 10);
-      const { value: dataSelecionada } = await Swal.fire({
-        title: 'Salvar comissão do dia',
-        input: 'date',
-        inputLabel: 'Selecione a data dos pedidos',
-        inputValue: hoje,
+      const { value: dadosSalvar } = await Swal.fire({
+        title: 'Salvar comissão',
+        html: `
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; text-align: left;">
+            <label style="display:flex; flex-direction:column; gap:0.25rem;">
+              <span style="font-weight:600;">Data dos pedidos</span>
+              <input id="swalDataComissao" type="date" class="swal2-input" value="${hoje}" />
+            </label>
+            <label style="display:flex; flex-direction:column; gap:0.25rem;">
+              <span style="font-weight:600;">Nome da loja</span>
+              <input id="swalLojaComissao" type="text" class="swal2-input" placeholder="Ex: Loja Central" />
+            </label>
+          </div>
+        `,
+        focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'Salvar',
         cancelButtonText: 'Cancelar',
-        preConfirm: (valor) => {
-          if (!valor) {
-            Swal.showValidationMessage('Informe uma data para salvar o registro.');
+        preConfirm: () => {
+          const dataSelecionada = document.getElementById('swalDataComissao')?.value;
+          const lojaSelecionada = document.getElementById('swalLojaComissao')?.value?.trim();
+          if (!dataSelecionada || !lojaSelecionada) {
+            Swal.showValidationMessage('Informe a data e o nome da loja.');
+            return false;
           }
-          return valor;
+          return { dataSelecionada, lojaSelecionada };
         }
       });
 
-      if (!dataSelecionada) return;
+      if (!dadosSalvar) return;
+
+      const { dataSelecionada, lojaSelecionada } = dadosSalvar;
 
       try {
         Swal.fire({
@@ -9938,15 +9953,47 @@ await db
 
         const arredondar = (valor) => Math.round((Number(valor) || 0) * 100) / 100;
 
-        const totalComissaoDia = arredondar(
-          pedidosProcessados.reduce((sum, p) => {
-            if (p.comissaoValorDisplay === null || p.comissaoValorDisplay === undefined) {
-              return sum;
-            }
-            const valor = Number(p.comissaoValorDisplay);
-            return Number.isFinite(valor) ? sum + valor : sum;
-          }, 0)
+        const pedidosSalvos = pedidosProcessados.map((pedido) => {
+          const comissaoDesvio = pedido.comissaoValorDisplay;
+          const excedente = pedido.excedenteAcimaLimite;
+          return {
+            id: pedido.id,
+            comprador: pedido.comprador || '',
+            sku: pedido.sku,
+            quantidade: Number(pedido.quantidade) || 0,
+            subtotal: arredondar(pedido.subtotal),
+            sobra: arredondar(pedido.sobra),
+            descricaoComissao: obterDescricaoComissaoPercentual(pedido),
+            comissaoDesvio: comissaoDesvio !== null && comissaoDesvio !== undefined && Number.isFinite(comissaoDesvio)
+              ? arredondar(comissaoDesvio)
+              : 0,
+            excedente: excedente !== null && excedente !== undefined && Number.isFinite(excedente)
+              ? Math.max(arredondar(excedente), 0)
+              : 0
+          };
+        });
+
+        const totalSubtotal = arredondar(
+          pedidosSalvos.reduce((sum, p) => sum + (Number(p.subtotal) || 0), 0)
         );
+        const totalSobra = arredondar(
+          pedidosSalvos.reduce((sum, p) => sum + (Number(p.sobra) || 0), 0)
+        );
+        const totalComissaoDia = arredondar(
+          pedidosSalvos.reduce((sum, p) => sum + (Number(p.comissaoDesvio) || 0), 0)
+        );
+        const totalExcedente = arredondar(
+          pedidosSalvos.reduce((sum, p) => sum + (Number(p.excedente) || 0), 0)
+        );
+        const mediaPercentual = pedidosProcessados.length
+          ? arredondar(
+              pedidosProcessados.reduce((sum, pedido) => {
+                const percentual = Number(pedido.percentual);
+                return sum + (Number.isFinite(percentual) ? percentual : 0);
+              }, 0) / pedidosProcessados.length
+            )
+          : 0;
+
         const totalQuantidade = arredondar(
           pedidosProcessados.reduce((sum, p) => sum + (Number(p.quantidade) || 0), 0)
         );
@@ -9968,14 +10015,25 @@ await db
           comissaoTotal: arredondar(item.comissao)
         }));
 
+        const resumoGeral = {
+          totalSubtotal,
+          totalSobra,
+          mediaPercentual,
+          totalComissaoDesvio: totalComissaoDia,
+          totalExcedente
+        };
+
         const payload = {
           data: dataSelecionada,
+          loja: lojaSelecionada,
           geradoEm: new Date().toISOString(),
           totalPedidos: pedidosProcessados.length,
           totalComissaoDia,
           totalQuantidade,
           resumoSkus,
-          pedidos: pedidosProcessados
+          pedidos: pedidosProcessados,
+          pedidosSalvos,
+          resumoGeral
         };
 
         const { encryptString } = await import('./crypto.js');
@@ -9995,10 +10053,12 @@ await db
         await docRef.set({
           uid: usuarioLogado.uid,
           data: dataSelecionada,
+          loja: lojaSelecionada,
           totalPedidos: pedidosProcessados.length,
           totalComissaoDia,
           totalQuantidade,
           resumoSkus,
+          resumoGeral,
           encrypted,
           atualizadoEm
         });
