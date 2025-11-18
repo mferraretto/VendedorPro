@@ -8020,26 +8020,18 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       doc.setFontSize(14);
       doc.text('Resultado da Conferência de Comissão', 14, 15);
 
-      const linhasPdf = resultadosConferenciaComissao.map((item) => {
-        const sobraValor = Number.isFinite(item.sobra) ? item.sobra : null;
-        const metaValor = Number.isFinite(item.meta) ? item.meta : null;
-        const comissaoValor = Number.isFinite(item.comissaoCalculada) ? item.comissaoCalculada : null;
-        const percentualComissao = sobraValor && comissaoValor !== null && sobraValor !== 0
-          ? (comissaoValor / sobraValor) * 100
-          : null;
-
-        return {
-          data: item.data || '-',
-          numeroVenda: item.numeroVenda || '-',
-          sku: item.sku,
-          sobra: sobraValor !== null ? formatarMoedaBR(sobraValor) : '-',
-          meta: metaValor !== null ? formatarMoedaBR(metaValor) : 'Sem meta',
-          faixa: item.faixa || '-',
-          comissao: comissaoValor !== null ? formatarMoedaBR(comissaoValor) : (item.comissaoCalculada || '-'),
-          situacao: item.situacao || '-',
-          percentualComissao
-        };
-      });
+      const corpo = resultadosConferenciaComissao.map((item) => [
+        item.data || '-',
+        item.numeroVenda || '-',
+        item.sku,
+        Number.isFinite(item.sobra) ? formatarMoedaBR(item.sobra) : '-',
+        Number.isFinite(item.meta) ? formatarMoedaBR(item.meta) : 'Sem meta',
+        item.faixa || '-',
+        Number.isFinite(item.comissaoCalculada)
+          ? formatarMoedaBR(item.comissaoCalculada)
+          : (item.comissaoCalculada || '-'),
+        item.situacao || '-'
+      ]);
 
       if (typeof doc.autoTable !== 'function') {
         mostrarErro('Recurso de tabela do PDF indisponível.');
@@ -8047,38 +8039,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       doc.autoTable({
-        columns: [
-          { header: 'Data', dataKey: 'data' },
-          { header: 'Nº da Venda', dataKey: 'numeroVenda' },
-          { header: 'SKU', dataKey: 'sku' },
-          { header: 'Sobra', dataKey: 'sobra' },
-          { header: 'Meta', dataKey: 'meta' },
-          { header: 'Faixa de Comissão', dataKey: 'faixa' },
-          { header: 'Comissão Calculada', dataKey: 'comissao' },
-          { header: 'Situação', dataKey: 'situacao' }
-        ],
-        body: linhasPdf,
+        head: [['Data', 'Nº da Venda', 'SKU', 'Sobra', 'Meta', 'Faixa de Comissão', 'Comissão Calculada', 'Situação']],
+        body: corpo,
         startY: 22,
         styles: { fontSize: 9 },
-        headStyles: { fillColor: [52, 58, 64] },
-        didParseCell: (data) => {
-          if (data.section !== 'body') return;
-
-          const percentual = data.row.raw?.percentualComissao;
-          if (typeof percentual !== 'number') return;
-
-          const tolerancia = 0.05;
-          const cores = [
-            { alvo: 1.5, cor: [255, 224, 224] }, // Vermelho claro
-            { alvo: 3, cor: [255, 249, 196] }, // Amarelo claro
-            { alvo: 5, cor: [221, 240, 221] }  // Verde claro
-          ];
-
-          const match = cores.find((item) => Math.abs(percentual - item.alvo) <= tolerancia);
-          if (match) {
-            data.row.styles.fillColor = match.cor;
-          }
-        }
+        headStyles: { fillColor: [52, 58, 64] }
       });
 
       doc.save(`conferencia_comissao_${new Date().toISOString().slice(0,10)}.pdf`);
