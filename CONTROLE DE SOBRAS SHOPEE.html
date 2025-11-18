@@ -10162,6 +10162,147 @@ await db
         console.error('Erro ao exportar Excel:', error);
       }
     }
+
+    async function exportarSobrasPDF() {
+      if (pedidosProcessados.length === 0) {
+        mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
+        return;
+      }
+
+      if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+        mostrarErro('Biblioteca jsPDF não carregada para exportação em PDF.');
+        return;
+      }
+
+      const hoje = new Date().toISOString().slice(0, 10);
+      const { value: dadosCabecalho } = await Swal.fire({
+        title: 'Informações do relatório',
+        html: `
+          <div class="swal2-field">
+            <label style="display:block; text-align:left; font-weight:600; margin-bottom:4px;">Data</label>
+            <input type="date" id="pdfData" class="swal2-input" value="${hoje}" style="width: 100%;" />
+          </div>
+          <div class="swal2-field">
+            <label style="display:block; text-align:left; font-weight:600; margin-bottom:4px;">Nome da loja</label>
+            <input type="text" id="pdfLoja" class="swal2-input" placeholder="Ex: Minha Loja" style="width: 100%;" />
+          </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Gerar PDF',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+          const data = document.getElementById('pdfData')?.value;
+          const loja = document.getElementById('pdfLoja')?.value.trim();
+          if (!data || !loja) {
+            Swal.showValidationMessage('Informe a data e o nome da loja.');
+            return false;
+          }
+          return { data, loja };
+        }
+      });
+
+      if (!dadosCabecalho) return;
+
+      const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      doc.setFontSize(12);
+      const dataFormatada = dadosCabecalho.data.split('-').reverse().join('/');
+      doc.text(`Data: ${dataFormatada}`, 14, 14);
+      doc.text(`Loja: ${dadosCabecalho.loja}`, 14, 22);
+
+      const totalSubtotal = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.subtotal) || 0), 0);
+      const totalSobra = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.sobra) || 0), 0);
+      const totalComissao = pedidosProcessados.reduce(
+        (acc, pedido) => acc + (Number.isFinite(pedido.comissaoValorDisplay) ? pedido.comissaoValorDisplay : 0),
+        0
+      );
+      const totalExcedente = pedidosProcessados.reduce(
+        (acc, pedido) => acc + (Number.isFinite(pedido.excedenteAcimaLimite) ? pedido.excedenteAcimaLimite : 0),
+        0
+      );
+      const mediaPercentual = pedidosProcessados.length
+        ? pedidosProcessados.reduce((acc, pedido) => acc + (Number.isFinite(pedido.percentual) ? pedido.percentual : 0), 0) /
+          pedidosProcessados.length
+        : 0;
+
+      const cards = [
+        { titulo: 'Total Subtotal', valor: formatarMoedaBR(totalSubtotal) },
+        { titulo: 'Total da Sobra', valor: formatarMoedaBR(totalSobra) },
+        { titulo: 'Média (%)', valor: `${mediaPercentual.toFixed(2)}%` },
+        { titulo: 'Total Comissão/Desvio', valor: formatarMoedaBR(totalComissao) },
+        { titulo: 'Total Excedente', valor: formatarMoedaBR(totalExcedente) }
+      ];
+
+      let posX = 14;
+      let posY = 32;
+      const cardWidth = 60;
+      const cardHeight = 18;
+      const gap = 6;
+
+      doc.setFontSize(10);
+      cards.forEach((card, index) => {
+        doc.setFillColor(245, 245, 245);
+        doc.roundedRect(posX, posY, cardWidth, cardHeight, 2, 2, 'F');
+        doc.setTextColor(60, 60, 60);
+        doc.text(card.titulo, posX + 4, posY + 7);
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.text(card.valor, posX + 4, posY + 14);
+        doc.setFontSize(10);
+
+        const isFimLinha = (index + 1) % 3 === 0;
+        if (isFimLinha) {
+          posX = 14;
+          posY += cardHeight + gap;
+        } else {
+          posX += cardWidth + gap;
+        }
+      });
+
+      const inicioTabela = posY + cardHeight + 4;
+      const corpo = pedidosProcessados.map((pedido) => [
+        pedido.id,
+        pedido.comprador || '-',
+        pedido.sku,
+        Number.isFinite(pedido.quantidade)
+          ? pedido.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(pedido.quantidade) ? 0 : 2 })
+          : '-',
+        formatarMoedaBR(pedido.subtotal),
+        formatarMoedaBR(pedido.sobra),
+        obterDescricaoComissaoPercentual(pedido) || '-',
+        Number.isFinite(pedido.comissaoValorDisplay) ? formatarMoedaBR(pedido.comissaoValorDisplay) : '-',
+        Number.isFinite(pedido.excedenteAcimaLimite) && pedido.excedenteAcimaLimite > 0
+          ? formatarMoedaBR(pedido.excedenteAcimaLimite)
+          : '-'
+      ]);
+
+      if (typeof doc.autoTable !== 'function') {
+        mostrarErro('Recurso de tabela do PDF indisponível.');
+        return;
+      }
+
+      doc.autoTable({
+        head: [
+          [
+            'ID do Pedido',
+            'Comprador',
+            'SKU',
+            'Quantidade',
+            'Subtotal',
+            'Sobra',
+            'Descrição Comissão',
+            'Valor Comissão/Desvio (R$)',
+            'Excedente >3% Máx (R$)'
+          ]
+        ],
+        body: corpo,
+        startY: inicioTabela,
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [52, 58, 64] }
+      });
+
+      doc.save(`relatorio_sobras_${new Date().toISOString().slice(0, 10)}.pdf`);
+    }
     const registrosFaturamentoSelecionados = new Set();
 
     function atualizarBotaoExcluirRegistrosSelecionados() {
@@ -17433,6 +17574,7 @@ window.excluirFaturamento = excluirFaturamento;
 window.analisarSobrasIA = analisarSobrasIA;
 window.exportarCSV = exportarCSV;
 window.exportarExcel = exportarExcel;
+window.exportarSobrasPDF = exportarSobrasPDF;
 window.exportarJSON = exportarJSON;
 window.salvarComissaoSobras = salvarComissaoSobras;
 window.verificarConexao = verificarConexao;
