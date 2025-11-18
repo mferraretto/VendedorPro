@@ -7552,7 +7552,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       const tbody = document.querySelector('#resultado tbody');
       tbody.innerHTML = '';
-      let totalSobra = 0, totalPercentual = 0, totalPedidos = 0, totalComissao = 0;
+      let totalSobra = 0, totalPercentualComissao = 0, totalPedidos = 0, totalComissao = 0;
       let esperadoTotal = 0;
       let quantidadeTotal = 0;
 
@@ -7728,7 +7728,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         tbody.appendChild(tr);
 
         totalSobra += sobra;
-        totalPercentual += percentual;
+        const percentualComissao = obterPercentualComissaoNumero(pedido);
+        totalPercentualComissao += Number.isFinite(percentualComissao) ? percentualComissao : 0;
         totalPedidos++;
         if (valorComissaoDesvio !== null && valorComissaoDesvio !== undefined) {
           totalComissao += valorComissaoDesvio;
@@ -7737,7 +7738,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         quantidadeTotal += quantidade;
       });
 
-      const media = totalPedidos ? (totalPercentual / totalPedidos).toFixed(2) : '0.00';
+      const media = totalPedidos ? (totalPercentualComissao / totalPedidos).toFixed(2) : '0.00';
       const diferencaTotal = totalSobra - esperadoTotal;
       const diferencaPercentual = esperadoTotal ? (diferencaTotal / esperadoTotal) * 100 : 0;
 
@@ -10035,6 +10036,25 @@ await db
       }
 
       return '';
+    }
+
+    function obterPercentualComissaoNumero(pedido) {
+      if (!pedido) return null;
+
+      const fontes = [pedido.comissaoDescricao, pedido.comissaoTexto];
+      for (const fonte of fontes) {
+        if (!fonte) continue;
+
+        const matchPercentual = fonte.match(/(\d+(?:[.,]\d+)?)%/);
+        if (matchPercentual && matchPercentual[1]) {
+          const numero = Number.parseFloat(matchPercentual[1].replace(',', '.'));
+          if (Number.isFinite(numero)) {
+            return numero;
+          }
+        }
+      }
+
+      return null;
     }
 
     function exportarCSV() {
