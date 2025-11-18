@@ -10035,6 +10035,28 @@ await db
       return '';
     }
 
+    function obterNomeLojaAtual() {
+      const camposPossiveis = [
+        document.getElementById('filtroSobrasLoja'),
+        document.getElementById('filtroLoja'),
+        document.getElementById('lojaSelecionada'),
+        document.querySelector('[data-loja-atual]')
+      ];
+
+      for (const campo of camposPossiveis) {
+        const valor = campo?.value || campo?.textContent;
+        if (valor && valor.trim() && valor.trim().toLowerCase() !== 'todos') {
+          return valor.trim();
+        }
+      }
+
+      if (usuarioLogado?.loja) {
+        return usuarioLogado.loja;
+      }
+
+      return 'Loja não informada';
+    }
+
     function exportarCSV() {
       if (pedidosProcessados.length === 0) {
         mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
@@ -10473,6 +10495,127 @@ const ownerUid = ["adm","admin"].includes(usuarioLogado.perfil.toLowerCase())
         mostrarErro(`Erro ao exportar JSON: ${error.message}`);
         console.error("Erro ao exportar JSON:", error);
       }
+    }
+
+    function exportarSobrasPDF() {
+      if (pedidosProcessados.length === 0) {
+        mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
+        return;
+      }
+
+      if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+        mostrarErro('Biblioteca jsPDF não carregada para exportação em PDF.');
+        return;
+      }
+
+      const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+      if (typeof doc.autoTable !== 'function') {
+        mostrarErro('Recurso de tabela do PDF indisponível.');
+        return;
+      }
+
+      const dataTexto = new Date().toLocaleDateString('pt-BR');
+      const nomeLoja = obterNomeLojaAtual();
+
+      const totalSubtotal = pedidosProcessados.reduce((sum, p) => sum + (Number(p.subtotal) || 0), 0);
+      const totalSobra = pedidosProcessados.reduce((sum, p) => sum + (Number(p.sobra) || 0), 0);
+      const totalComissaoDesvio = pedidosProcessados.reduce(
+        (sum, p) => sum + (Number.isFinite(p.comissaoValorDisplay) ? p.comissaoValorDisplay : 0),
+        0
+      );
+      const totalExcedente = pedidosProcessados.reduce(
+        (sum, p) => sum + (Number.isFinite(p.excedenteAcimaLimite) ? p.excedenteAcimaLimite : 0),
+        0
+      );
+      const mediaPercentual = pedidosProcessados.length
+        ? pedidosProcessados.reduce((sum, p) => sum + (Number.isFinite(p.percentual) ? p.percentual : 0), 0) /
+          pedidosProcessados.length
+        : 0;
+
+      doc.setFontSize(12);
+      doc.text(`Data: ${dataTexto}`, 14, 12);
+      doc.text(`Loja: ${nomeLoja}`, 14, 18);
+
+      const cards = [
+        { titulo: 'Subtotal Total', valor: formatarMoedaBR(totalSubtotal) },
+        { titulo: 'Sobra Total', valor: formatarMoedaBR(totalSobra) },
+        { titulo: 'Média da %', valor: `${mediaPercentual.toFixed(2)}%` },
+        { titulo: 'Total Comissão/Desvio (R$)', valor: formatarMoedaBR(totalComissaoDesvio) },
+        { titulo: 'Total Excedente >3% Máx (R$)', valor: formatarMoedaBR(totalExcedente) }
+      ];
+
+      const linhasCards = [];
+      for (let i = 0; i < cards.length; i += 3) {
+        const grupo = cards.slice(i, i + 3).map((card) => `${card.titulo}\n${card.valor}`);
+        while (grupo.length < 3) grupo.push('');
+        linhasCards.push(grupo);
+      }
+
+      doc.autoTable({
+        startY: 24,
+        head: [['', '', '']],
+        body: linhasCards,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 5, halign: 'left', valign: 'middle' },
+        headStyles: { fillColor: [245, 245, 245], textColor: [245, 245, 245], lineWidth: 0 },
+        columnStyles: {
+          0: { cellWidth: 90 },
+          1: { cellWidth: 90 },
+          2: { cellWidth: 90 }
+        }
+      });
+
+      const tabelaPedidosY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : 40;
+
+      const descricaoComissao = (pedido) => {
+        if (pedido?.comissaoDescricao) return pedido.comissaoDescricao;
+        const percentual = obterDescricaoComissaoPercentual(pedido);
+        if (percentual) return percentual;
+        if (pedido?.comissaoTexto) return pedido.comissaoTexto;
+        return '-';
+      };
+
+      const corpo = pedidosProcessados.map((pedido) => [
+        pedido.id || '-',
+        pedido.comprador || '-',
+        pedido.sku || '-',
+        Number.isFinite(pedido.quantidade)
+          ? pedido.quantidade.toLocaleString('pt-BR', {
+              minimumFractionDigits: Number.isInteger(pedido.quantidade) ? 0 : 2,
+              maximumFractionDigits: 2
+            })
+          : '-',
+        formatarMoedaBR(Number(pedido.subtotal) || 0),
+        formatarMoedaBR(Number(pedido.sobra) || 0),
+        descricaoComissao(pedido),
+        Number.isFinite(pedido.comissaoValorDisplay)
+          ? formatarMoedaBR(pedido.comissaoValorDisplay)
+          : (pedido.comissaoTexto || '-'),
+        Number.isFinite(pedido.excedenteAcimaLimite) && pedido.excedenteAcimaLimite > 0
+          ? formatarMoedaBR(pedido.excedenteAcimaLimite)
+          : '-'
+      ]);
+
+      doc.autoTable({
+        head: [[
+          'ID do Pedido',
+          'Comprador',
+          'SKU',
+          'Quantidade',
+          'Subtotal',
+          'Sobra',
+          'Descrição Comissão',
+          'Valor Comissão/Desvio (R$)',
+          'Excedente >3% Máx (R$)'
+        ]],
+        body: corpo,
+        startY: tabelaPedidosY,
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [52, 58, 64], textColor: 255 }
+      });
+
+      doc.save(`relatorio_sobras_${new Date().toISOString().slice(0, 10)}.pdf`);
     }
     window.analisarSobrasComIA = async function analisarSobrasComIA() {
       try {
@@ -17434,6 +17577,7 @@ window.analisarSobrasIA = analisarSobrasIA;
 window.exportarCSV = exportarCSV;
 window.exportarExcel = exportarExcel;
 window.exportarJSON = exportarJSON;
+window.exportarSobrasPDF = exportarSobrasPDF;
 window.salvarComissaoSobras = salvarComissaoSobras;
 window.verificarConexao = verificarConexao;
 window.editarMeta = editarMeta;
