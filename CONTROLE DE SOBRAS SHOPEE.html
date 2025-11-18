@@ -8043,7 +8043,33 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         body: corpo,
         startY: 22,
         styles: { fontSize: 9 },
-        headStyles: { fillColor: [52, 58, 64] }
+        headStyles: { fillColor: [52, 58, 64] },
+        willDrawCell: (data) => {
+          if (data.section !== 'body') return;
+
+          const cores = {
+            1.5: [255, 204, 204],
+            3.0: [255, 244, 179],
+            5.0: [204, 236, 204]
+          };
+
+          const percentual = extrairPercentualComissao(resultadosConferenciaComissao[data.row.index]?.faixa);
+          const cor = cores[percentual];
+
+          if (!cor) return;
+
+          if (data.row && data.row.cells) {
+            Object.values(data.row.cells).forEach((cell) => {
+              cell.styles.fillColor = cor;
+              cell.styles.textColor = [0, 0, 0];
+            });
+          }
+
+          if (data.row && data.row.styles) {
+            data.row.styles.fillColor = cor;
+            data.row.styles.textColor = [0, 0, 0];
+          }
+        }
       });
 
       doc.save(`conferencia_comissao_${new Date().toISOString().slice(0,10)}.pdf`);
@@ -10097,6 +10123,17 @@ await db
       return '';
     }
 
+    function extrairPercentualComissao(valor) {
+      const texto = typeof valor === 'string' ? valor : obterDescricaoComissaoPercentual(valor);
+      if (!texto) return null;
+
+      const match = String(texto).match(/(\d+(?:[.,]\d+)?)/);
+      if (!match || !match[1]) return null;
+
+      const numero = Number.parseFloat(match[1].replace(',', '.'));
+      return Number.isFinite(numero) ? Number(numero.toFixed(1)) : null;
+    }
+
     function exportarCSV() {
       if (pedidosProcessados.length === 0) {
         mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
@@ -10360,7 +10397,34 @@ await db
         body: corpo,
         startY: inicioTabela,
         styles: { fontSize: 9 },
-        headStyles: { fillColor: [52, 58, 64] }
+        headStyles: { fillColor: [52, 58, 64] },
+        willDrawCell: (data) => {
+          if (data.section !== 'body') return;
+
+          const cores = {
+            1.5: [255, 204, 204],
+            3.0: [255, 244, 179],
+            5.0: [204, 236, 204]
+          };
+
+          const pedido = pedidosProcessados[data.row.index];
+          const percentual = extrairPercentualComissao(pedido);
+          const cor = cores[percentual];
+
+          if (!cor) return;
+
+          if (data.row && data.row.cells) {
+            Object.values(data.row.cells).forEach((cell) => {
+              cell.styles.fillColor = cor;
+              cell.styles.textColor = [0, 0, 0];
+            });
+          }
+
+          if (data.row && data.row.styles) {
+            data.row.styles.fillColor = cor;
+            data.row.styles.textColor = [0, 0, 0];
+          }
+        }
       });
 
       doc.save(`relatorio_sobras_${new Date().toISOString().slice(0, 10)}.pdf`);
