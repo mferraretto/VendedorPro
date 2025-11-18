@@ -89,11 +89,11 @@
   <button onclick="applyPromoPriceUpdate('precoMinimo')" class="btn-danger">
     <i class="fas fa-tag mr-2"></i> Aplicar Preço Mínimo
   </button>
-  <button onclick="applyPromoPriceUpdate('precoMedio')" class="btn-secondary">
-    <i class="fas fa-chart-line mr-2"></i> Aplicar Preço Médio
-  </button>
   <button onclick="applyPromoPriceUpdate('precoIdeal')" class="btn-success">
     <i class="fas fa-star mr-2"></i> Aplicar Preço Ideal
+  </button>
+  <button onclick="applyPromoPriceUpdate('precoMaximo')" class="btn-secondary">
+    <i class="fas fa-arrow-up mr-2"></i> Aplicar Preço Máximo
   </button>
 
   <button onclick="exportPromoFile()" class="btn btn-success">
@@ -473,24 +473,26 @@ const searchSku = (sku || parentSku || '').toUpperCase();
       priceSet.precoMinimo,
       priceSet.precoMedio,
       priceSet.precoIdeal,
-    );
-    const precoMedioValor = escolherPreco(
-      precosPorCusto.medio?.preco,
-      priceSet.precoMedio,
-      priceSet.precoIdeal,
-      precoMinimoValor,
+      priceSet.precoMaximo,
     );
     const precoIdealValor = escolherPreco(
-      precosPorCusto.maximo?.preco,
+      precosPorCusto.ideal?.preco,
       priceSet.precoIdeal,
       priceSet.precoMedio,
-      precoMedioValor,
+      precoMinimoValor,
+    );
+    const precoMaximoValor = escolherPreco(
+      precosPorCusto.maximo?.preco,
+      priceSet.precoMaximo,
+      precoIdealValor,
+      priceSet.precoMedio,
+      precoMinimoValor,
     );
 
     const scenarioMap = {
       precoMinimo: precoMinimoValor,
-      precoMedio: precoMedioValor,
       precoIdeal: precoIdealValor,
+      precoMaximo: precoMaximoValor,
     };
     const priceToApply = escolherPreco(
       scenarioMap[type],
