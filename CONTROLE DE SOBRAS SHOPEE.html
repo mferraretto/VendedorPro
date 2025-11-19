@@ -209,6 +209,42 @@ const controleVendasSelecao = new Map();
 const controleVendasBaseCache = new Map();
 let controleVendasEventosRegistrados = false;
 
+const referenciaFaixaConfig = {
+  minima: {
+    cssClass: 'referencia-minima',
+    excelColor: 'FFF8D7DA',
+    pdfColor: [248, 215, 218]
+  },
+  media: {
+    cssClass: 'referencia-media',
+    excelColor: 'FFFFF3CD',
+    pdfColor: [255, 243, 205]
+  },
+  maxima: {
+    cssClass: 'referencia-maxima',
+    excelColor: 'FFD4EDDA',
+    pdfColor: [212, 237, 218]
+  }
+};
+
+function identificarTipoReferenciaFaixa(rotulo = '') {
+  const textoNormalizado = rotulo
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (textoNormalizado.includes('referencia minima')) return 'minima';
+  if (textoNormalizado.includes('referencia media')) return 'media';
+  if (textoNormalizado.includes('referencia maxima')) return 'maxima';
+  return null;
+}
+
+function obterConfiguracaoReferenciaFaixa(rotulo, tipoReferencia) {
+  const chave = tipoReferencia || identificarTipoReferenciaFaixa(rotulo);
+  return chave ? referenciaFaixaConfig[chave] : null;
+}
+
 const gerarChaveSkuNormalizada = (valor) =>
   String(valor ?? '')
     .trim()
@@ -7750,6 +7786,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             }
 
             const tr = document.createElement('tr');
+            const referenciaTipo = identificarTipoReferenciaFaixa(faixaInfo.label);
+            const referenciaConfig = obterConfiguracaoReferenciaFaixa(faixaInfo.label, referenciaTipo);
             tr.innerHTML = `
               <td>${dataVenda || '-'}</td>
               <td>${numeroVenda || '-'}</td>
@@ -7760,6 +7798,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               <td>${comissaoHtml}</td>
               <td>${situacao}</td>
             `;
+            if (referenciaConfig?.cssClass) {
+              tr.classList.add(referenciaConfig.cssClass);
+            }
             tbody.appendChild(tr);
             resultadosConferenciaComissao.push({
               data: dataVenda || '-',
@@ -7769,6 +7810,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               meta: metaValor,
               faixa: faixaInfo.label,
               comissaoCalculada: comissaoValor,
+              referenciaTipo,
               situacao
             });
             totalItens += 1;
@@ -7799,6 +7841,28 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
 
+    function colorirLinhasConferenciaExcel(worksheet) {
+      if (!worksheet || !worksheet['!ref'] || !Array.isArray(resultadosConferenciaComissao)) return;
+      const range = XLSX.utils.decode_range(worksheet['!ref']);
+      for (let row = range.s.r + 1; row <= range.e.r; row++) {
+        const resultado = resultadosConferenciaComissao[row - range.s.r - 1];
+        if (!resultado) continue;
+        const config = obterConfiguracaoReferenciaFaixa(resultado.faixa, resultado.referenciaTipo);
+        if (!config?.excelColor) continue;
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ c: col, r: row });
+          const cell = worksheet[cellAddress];
+          if (!cell) continue;
+          cell.s = cell.s || {};
+          cell.s.fill = {
+            patternType: 'solid',
+            fgColor: { rgb: config.excelColor },
+            bgColor: { rgb: config.excelColor }
+          };
+        }
+      }
+    }
+
     function exportarConferenciaComissaoExcel() {
       if (!resultadosConferenciaComissao || resultadosConferenciaComissao.length === 0) {
         mostrarErro('Nenhum resultado da conferência para exportar.');
@@ -7821,7 +7885,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const worksheet = XLSX.utils.json_to_sheet(linhas);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Conferência');
-      XLSX.writeFile(workbook, `conferencia_comissao_${new Date().toISOString().slice(0,10)}.xlsx`);
+      colorirLinhasConferenciaExcel(worksheet);
+      XLSX.writeFile(workbook, `conferencia_comissao_${new Date().toISOString().slice(0,10)}.xlsx`, { cellStyles: true });
 
       if (typeof mostrarSucesso === 'function') {
         mostrarSucesso('Resultado da conferência exportado em Excel.');
@@ -7870,15 +7935,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         willDrawCell: (data) => {
           if (data.section !== 'body') return;
 
-          const cores = {
-            1.5: [255, 204, 204],
-            3.0: [255, 244, 179],
-            5.0: [204, 236, 204]
-          };
-
-          const percentual = extrairPercentualComissao(resultadosConferenciaComissao[data.row.index]?.faixa);
-          const cor = cores[percentual];
-
+          const resultado = resultadosConferenciaComissao[data.row.index];
+          const config = obterConfiguracaoReferenciaFaixa(resultado?.faixa, resultado?.referenciaTipo);
+          const cor = config?.pdfColor;
           if (!cor) return;
 
           if (data.row && data.row.cells) {
