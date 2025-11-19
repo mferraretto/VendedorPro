@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <!-- Bibliotecas JavaScript -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -198,6 +199,17 @@
       let totalComissaoPagaAcompanhamento = 0;
       let totalComissaoAPagarAcompanhamento = 0;
       let usuarioLogado = { uid: null, perfil: '' };
+
+    const CORES_REFERENCIA = {
+      minimo: { classeTabela: 'referencia-minimo', pdf: [255, 204, 204], excel: 'FFFFE1E1' },
+      medio: { classeTabela: 'referencia-medio', pdf: [255, 244, 179], excel: 'FFFDF3B0' },
+      maximo: { classeTabela: 'referencia-maximo', pdf: [204, 236, 204], excel: 'FFCEF5D6' }
+    };
+
+    function obterCoresReferencia(nivel) {
+      if (!nivel) return null;
+      return CORES_REFERENCIA[nivel] || null;
+    }
       window.usuarioLogado = usuarioLogado;
 let pedidosProcessados = [];
 let resultadosConferenciaComissao = [];
@@ -7138,7 +7150,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         excedenteMaximo: 0,
         excedenteAcimaLimite: 0,
         excedenteTexto: '',
-        classeFaixa: ''
+        classeFaixa: '',
+        referenciaNivel: null
       };
 
       if (!metaInfo) {
@@ -7220,7 +7233,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           excedenteMaximo: 0,
           excedenteAcimaLimite: 0,
           excedenteTexto: '',
-          classeFaixa: ''
+          classeFaixa: '',
+          referenciaNivel: null
         };
       }
 
@@ -7273,7 +7287,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         excedenteTexto: excedenteAcimaLimite > 0
           ? `Excedeu o limite de 3% em ${formatarMoedaBR(excedenteAcimaLimite)}`
           : '',
-        classeFaixa: classePorNivel[referenciaMaisProxima.nivel] || ''
+        classeFaixa: classePorNivel[referenciaMaisProxima.nivel] || '',
+        referenciaNivel: referenciaMaisProxima.nivel || null
       };
     }
 
@@ -7750,6 +7765,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             }
 
             const tr = document.createElement('tr');
+            const referenciaNivel = faixaInfo?.referenciaNivel || null;
+            const corReferencia = obterCoresReferencia(referenciaNivel);
+            if (corReferencia?.classeTabela) {
+              tr.classList.add(corReferencia.classeTabela);
+            }
             tr.innerHTML = `
               <td>${dataVenda || '-'}</td>
               <td>${numeroVenda || '-'}</td>
@@ -7769,7 +7789,8 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               meta: metaValor,
               faixa: faixaInfo.label,
               comissaoCalculada: comissaoValor,
-              situacao
+              situacao,
+              referenciaNivel
             });
             totalItens += 1;
           });
@@ -7799,32 +7820,67 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
 
-    function exportarConferenciaComissaoExcel() {
+    async function exportarConferenciaComissaoExcel() {
       if (!resultadosConferenciaComissao || resultadosConferenciaComissao.length === 0) {
         mostrarErro('Nenhum resultado da conferência para exportar.');
         return;
       }
 
-      const linhas = resultadosConferenciaComissao.map((item) => ({
-        'Data': item.data || '-',
-        'Nº da Venda': item.numeroVenda || '-',
-        'SKU': item.sku,
-        'Sobra (R$)': Number.isFinite(item.sobra) ? Number(item.sobra.toFixed(2)) : '',
-        'Meta (R$)': Number.isFinite(item.meta) ? Number(item.meta.toFixed(2)) : '',
-        'Faixa de Comissão': item.faixa || '',
-        'Comissão Calculada (R$)': Number.isFinite(item.comissaoCalculada)
-          ? Number(item.comissaoCalculada.toFixed(2))
-          : (item.comissaoCalculada || ''),
-        'Situação': item.situacao || ''
-      }));
+      if (!window.ExcelJS) {
+        mostrarErro('Biblioteca ExcelJS não carregada para exportação colorida.');
+        return;
+      }
 
-      const worksheet = XLSX.utils.json_to_sheet(linhas);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Conferência');
-      XLSX.writeFile(workbook, `conferencia_comissao_${new Date().toISOString().slice(0,10)}.xlsx`);
+      const workbook = new window.ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Conferência');
+      worksheet.columns = [
+        { header: 'Data', key: 'data', width: 12 },
+        { header: 'Nº da Venda', key: 'numeroVenda', width: 15 },
+        { header: 'SKU', key: 'sku', width: 18 },
+        { header: 'Sobra (R$)', key: 'sobra', width: 16, style: { numFmt: '"R$" #,##0.00' } },
+        { header: 'Meta (R$)', key: 'meta', width: 16, style: { numFmt: '"R$" #,##0.00' } },
+        { header: 'Faixa de Comissão', key: 'faixa', width: 28 },
+        { header: 'Comissão Calculada (R$)', key: 'comissao', width: 22, style: { numFmt: '"R$" #,##0.00' } },
+        { header: 'Situação', key: 'situacao', width: 24 }
+      ];
 
-      if (typeof mostrarSucesso === 'function') {
-        mostrarSucesso('Resultado da conferência exportado em Excel.');
+      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+      worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+      resultadosConferenciaComissao.forEach((item) => {
+        const row = worksheet.addRow({
+          data: item.data || '-',
+          numeroVenda: item.numeroVenda || '-',
+          sku: item.sku,
+          sobra: Number.isFinite(item.sobra) ? Number(item.sobra) : null,
+          meta: Number.isFinite(item.meta) ? Number(item.meta) : null,
+          faixa: item.faixa || '-',
+          comissao: Number.isFinite(item.comissaoCalculada) ? Number(item.comissaoCalculada) : item.comissaoCalculada || null,
+          situacao: item.situacao || '-',
+        });
+
+        const referencia = obterCoresReferencia(item.referenciaNivel);
+        if (referencia?.excel) {
+          row.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: referencia.excel } };
+            cell.font = { color: { argb: 'FF0F172A' } };
+          });
+        }
+      });
+
+      try {
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveAs(
+          new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+          `conferencia_comissao_${new Date().toISOString().slice(0, 10)}.xlsx`
+        );
+        if (typeof mostrarSucesso === 'function') {
+          mostrarSucesso('Resultado da conferência exportado em Excel.');
+        }
+      } catch (erro) {
+        console.error('Erro ao exportar Excel colorido:', erro);
+        mostrarErro('Não foi possível gerar o Excel com as cores das referências.');
       }
     }
 
@@ -7870,17 +7926,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         willDrawCell: (data) => {
           if (data.section !== 'body') return;
 
-          const cores = {
-            1.5: [255, 204, 204],
-            3.0: [255, 244, 179],
-            5.0: [204, 236, 204]
-          };
+          const referenciaNivel = resultadosConferenciaComissao[data.row.index]?.referenciaNivel;
+          const corReferencia = obterCoresReferencia(referenciaNivel);
+          if (!corReferencia?.pdf) return;
 
-          const percentual = extrairPercentualComissao(resultadosConferenciaComissao[data.row.index]?.faixa);
-          const cor = cores[percentual];
-
-          if (!cor) return;
-
+          const cor = corReferencia.pdf;
           if (data.row && data.row.cells) {
             Object.values(data.row.cells).forEach((cell) => {
               cell.styles.fillColor = cor;
