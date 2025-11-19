@@ -7290,9 +7290,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       const limiteTresPorCento = numeroValido(maximo) ? maximo * 1.03 : null;
       const excedenteAcimaLimite = limiteTresPorCento ? Math.max(0, sobra - limiteTresPorCento) : 0;
       const classePorNivel = {
-        minimo: 'faixa-entre-minimo-medio',
-        medio: 'faixa-entre-medio-maximo',
-        maximo: 'faixa-acima-maximo'
+        minimo: 'referencia-minima',
+        medio: 'referencia-media',
+        maximo: 'referencia-maxima'
       };
 
       return {
