@@ -5523,6 +5523,20 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
         }
 
+        if (!dados.pedido) {
+          const vendaMatch = linha.match(/venda(?:\s*id)?[:\s-]*([\d\s-]+)/i);
+          if (vendaMatch) {
+            const partesNumericas = vendaMatch[1].match(/\d+/g) || [];
+            const candidato = [...partesNumericas]
+              .reverse()
+              .find((parte) => parte.length >= 10) || partesNumericas.find((parte) => parte.length >= 8);
+            if (candidato) {
+              const pedidoValor = sanitizarCodigoVts(candidato);
+              if (pedidoValor) dados.pedido = pedidoValor;
+            }
+          }
+        }
+
         if (!dados.rastreio) {
           const rastreioExtraido = extrairRastreioVts(linha, dados.pedido);
           if (rastreioExtraido) dados.rastreio = rastreioExtraido;
@@ -5702,8 +5716,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (!dados.pedido) {
         const sequencia = linhas
           .map((texto) => normalizarLinhaVts(texto))
-          .map((valor) => valor.replace(/\s+/g, ''))
-          .find((valor) => /^\d{10,}$/.test(valor));
+          .flatMap((valor) => (valor.match(/\d[\d\s-]{8,}\d/g) || [])
+            .map((parte) => parte.replace(/\D/g, '')))
+          .find((valor) => valor.length >= 10);
         if (sequencia) dados.pedido = sequencia;
       }
 
