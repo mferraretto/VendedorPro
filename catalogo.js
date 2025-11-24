@@ -2566,17 +2566,13 @@ function generateListPdf(doc, grupos) {
   const lineHeight = 5;
 
   const colSkuWidth = 25;
-  const colCategoriaWidth = 35;
-  const colCustoWidth = 20;
-  const colVendaWidth = 20;
-  const colProdutoWidth =
-    larguraUtil -
-    (colSkuWidth + colCategoriaWidth + colCustoWidth + colVendaWidth);
+  const colProdutoWidth = 90;
+  const colCustoWidth = 35;
+  const colVendaWidth = 30;
 
   const columns = [
     { label: 'SKU', width: colSkuWidth, align: 'left' },
     { label: 'Produto', width: colProdutoWidth, align: 'left' },
-    { label: 'Categoria', width: colCategoriaWidth, align: 'left' },
     { label: 'Custos', width: colCustoWidth, align: 'right' },
     { label: 'Preços', width: colVendaWidth, align: 'right' },
   ];
@@ -2605,6 +2601,14 @@ function generateListPdf(doc, grupos) {
     initializePage();
   };
 
+  const ensureSpace = (alturaNecessaria) => {
+    if (y + alturaNecessaria > alturaPagina - margem) {
+      startNewPage();
+      return true;
+    }
+    return false;
+  };
+
   const drawTableHeader = () => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
@@ -2622,24 +2626,22 @@ function generateListPdf(doc, grupos) {
     doc.setFontSize(9);
   };
 
-  initializePage();
-
-  for (const grupo of grupos) {
-    const categoriaTitulo = grupo.categoria || 'Sem categoria';
-    if (y + lineHeight * 2 > alturaPagina - margem) {
-      startNewPage();
-    }
+  const drawCategoryHeader = (categoriaTitulo) => {
+    ensureSpace(lineHeight * 3);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.text(categoriaTitulo, margem, y);
     y += lineHeight + 1;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-
-    if (y + lineHeight * 2 > alturaPagina - margem) {
-      startNewPage();
-    }
     drawTableHeader();
+  };
+
+  initializePage();
+
+  for (const grupo of grupos) {
+    const categoriaTitulo = (grupo.categoria || 'Sem categoria').toUpperCase();
+    drawCategoryHeader(categoriaTitulo);
 
     for (const produto of grupo.produtos) {
       const variacoes = Array.isArray(produto.variacoesCor)
@@ -2651,11 +2653,8 @@ function generateListPdf(doc, grupos) {
           .map((item) => item.cor)
           .join(', ')}`;
       }
+
       const nomeLinhas = doc.splitTextToSize(nomeTexto, columns[1].width - 2);
-      const categoriaLinhas = doc.splitTextToSize(
-        produto.categoria || 'Sem categoria',
-        columns[2].width - 2,
-      );
       const custoLinhas = formatRangeLines(getProductCostRange(produto), {
         shortLabels: true,
       });
@@ -2665,22 +2664,16 @@ function generateListPdf(doc, grupos) {
 
       const linhasNecessarias = Math.max(
         nomeLinhas.length,
-        categoriaLinhas.length,
         custoLinhas.length || 1,
         vendaLinhas.length || 1,
         1,
       );
-      const alturaLinha = linhasNecessarias * lineHeight + 2;
+      const alturaLinha = linhasNecessarias * lineHeight + 4;
 
-      if (y + alturaLinha > alturaPagina - margem) {
-        startNewPage();
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.text(categoriaTitulo, margem, y);
-        y += lineHeight + 1;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        drawTableHeader();
+      const iniciouNovaPagina = ensureSpace(alturaLinha + lineHeight);
+      if (iniciouNovaPagina) {
+        // Página nova: reimprime cabeçalho e categoria
+        drawCategoryHeader(categoriaTitulo);
       }
 
       const baseY = y + lineHeight;
@@ -2689,12 +2682,9 @@ function generateListPdf(doc, grupos) {
       nomeLinhas.forEach((linha, indice) => {
         doc.text(linha, columnPositions[1], baseY + lineHeight * indice);
       });
-      categoriaLinhas.forEach((linha, indice) => {
-        doc.text(linha, columnPositions[2], baseY + lineHeight * indice);
-      });
 
       const custoTextoLinhas = custoLinhas.length ? custoLinhas : ['--'];
-      const custoBaseX = columnPositions[3] + columns[3].width - 1;
+      const custoBaseX = columnPositions[2] + columns[2].width - 1;
       custoTextoLinhas.forEach((linha, indice) => {
         doc.text(linha, custoBaseX, baseY + lineHeight * indice, {
           align: 'right',
@@ -2702,14 +2692,19 @@ function generateListPdf(doc, grupos) {
       });
 
       const vendaTextoLinhas = vendaLinhas.length ? vendaLinhas : ['--'];
-      const vendaBaseX = columnPositions[4] + columns[4].width - 1;
+      const vendaBaseX = columnPositions[3] + columns[3].width - 1;
       vendaTextoLinhas.forEach((linha, indice) => {
         doc.text(linha, vendaBaseX, baseY + lineHeight * indice, {
           align: 'right',
         });
       });
 
-      y += alturaLinha;
+      y += alturaLinha - 2;
+
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(margem, y, margem + larguraUtil, y);
+      y += 2;
     }
 
     y += lineHeight;
