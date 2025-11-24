@@ -62,6 +62,12 @@ class ScheduleAlertManager {
     this.intervalId = null;
     this.lastRenderedAlertSignature = '';
 
+    this.originalTitle = '';
+    this.originalTitleCaptured = false;
+    this.originalFaviconHref = '';
+    this.alertFaviconDataUrl = '';
+    this.badgeState = { active: false, count: 0 };
+
     this.collection = null;
     this.collectionGroup = null;
     this.query = null;
@@ -477,6 +483,189 @@ class ScheduleAlertManager {
       this.bannerEl.removeAttribute('data-alert-id');
     }
     this.lastRenderedAlertSignature = '';
+    this.updateVisualIndicators(false, 0);
+  }
+
+  captureOriginalTitle() {
+    if (this.originalTitleCaptured || typeof document === 'undefined') {
+      return;
+    }
+    this.originalTitle = document.title || '';
+    this.originalTitleCaptured = true;
+  }
+
+  ensureFaviconLink() {
+    if (typeof document === 'undefined') return null;
+    let link = document.querySelector('link[rel*="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      link.href = this.originalFaviconHref || 'favicon.ico';
+      document.head.appendChild(link);
+    }
+    if (!this.originalFaviconHref) {
+      this.originalFaviconHref = link.getAttribute('href') || link.href || '';
+    }
+    return link;
+  }
+
+  generateAlertFaviconDataUrl() {
+    if (this.alertFaviconDataUrl) {
+      return this.alertFaviconDataUrl;
+    }
+
+    if (typeof document === 'undefined') {
+      return '';
+    }
+
+    try {
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return '';
+      }
+
+      // Base background using brand color
+      ctx.fillStyle = '#6366f1';
+      ctx.fillRect(0, 0, size, size);
+
+      // Subtle gradient overlay for depth
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0.18)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+
+      // Draw circular badge in the top-right corner
+      const badgeRadius = 20;
+      const badgeCenterX = size - badgeRadius + 2;
+      const badgeCenterY = badgeRadius - 4;
+      ctx.beginPath();
+      ctx.arc(badgeCenterX, badgeCenterY, badgeRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ef4444';
+      ctx.fill();
+
+      // Exclamation mark
+      ctx.fillStyle = '#ffffff';
+      const markWidth = 6;
+      const markHeight = 20;
+      ctx.fillRect(
+        badgeCenterX - markWidth / 2,
+        badgeCenterY - markHeight / 2,
+        markWidth,
+        markHeight,
+      );
+      ctx.beginPath();
+      ctx.arc(
+        badgeCenterX,
+        badgeCenterY + badgeRadius / 2.4,
+        markWidth / 1.4,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+
+      this.alertFaviconDataUrl = canvas.toDataURL('image/png');
+      return this.alertFaviconDataUrl;
+    } catch (error) {
+      console.error('Erro ao gerar favicon de alerta:', error);
+      return '';
+    }
+  }
+
+  updateDocumentTitle(hasAlerts, alertCount) {
+    if (typeof document === 'undefined') return;
+    this.captureOriginalTitle();
+
+    const baseTitle = this.originalTitle || document.title || 'VendedorPro';
+    if (hasAlerts) {
+      const normalizedCount = Math.min(Math.max(alertCount || 1, 1), 99);
+      const countLabel = normalizedCount > 1 ? `(${normalizedCount}) ` : '';
+      const alertTitle = `! ${countLabel}${baseTitle}`;
+      if (document.title !== alertTitle) {
+        document.title = alertTitle;
+      }
+    } else if (this.originalTitleCaptured && document.title !== baseTitle) {
+      document.title = baseTitle;
+    }
+  }
+
+  updateFavicon(hasAlerts) {
+    const link = this.ensureFaviconLink();
+    if (!link) return;
+
+    if (hasAlerts) {
+      const dataUrl = this.generateAlertFaviconDataUrl();
+      if (dataUrl && link.href !== dataUrl) {
+        link.href = dataUrl;
+      }
+    } else if (
+      this.originalFaviconHref &&
+      link.getAttribute('href') !== this.originalFaviconHref
+    ) {
+      link.href = this.originalFaviconHref;
+    }
+  }
+
+  updateAppBadge(hasAlerts, alertCount) {
+    if (typeof navigator === 'undefined') return;
+
+    const normalizedCount = Math.min(Math.max(alertCount || 1, 1), 99);
+
+    if (hasAlerts) {
+      if (typeof navigator.setAppBadge === 'function') {
+        Promise.resolve(navigator.setAppBadge(normalizedCount)).catch(() => {});
+      } else if (typeof navigator.setExperimentalAppBadge === 'function') {
+        try {
+          navigator.setExperimentalAppBadge('!');
+        } catch (error) {
+          console.debug('Experimental badge API indisponível:', error);
+        }
+      } else if (typeof navigator.setClientBadge === 'function') {
+        try {
+          navigator.setClientBadge();
+        } catch (error) {
+          console.debug('Client badge API indisponível:', error);
+        }
+      }
+    } else {
+      if (typeof navigator.clearAppBadge === 'function') {
+        Promise.resolve(navigator.clearAppBadge()).catch(() => {});
+      } else if (typeof navigator.clearExperimentalAppBadge === 'function') {
+        try {
+          navigator.clearExperimentalAppBadge();
+        } catch (error) {
+          console.debug('Experimental badge API indisponível:', error);
+        }
+      } else if (typeof navigator.clearClientBadge === 'function') {
+        try {
+          navigator.clearClientBadge();
+        } catch (error) {
+          console.debug('Client badge API indisponível:', error);
+        }
+      }
+    }
+  }
+
+  updateVisualIndicators(hasAlerts, alertCount) {
+    const isSameState =
+      this.badgeState.active === !!hasAlerts &&
+      (!hasAlerts || this.badgeState.count === alertCount);
+    if (isSameState) {
+      return;
+    }
+
+    this.badgeState = {
+      active: !!hasAlerts,
+      count: hasAlerts ? alertCount : 0,
+    };
+
+    this.updateDocumentTitle(hasAlerts, alertCount);
+    this.updateFavicon(hasAlerts);
+    this.updateAppBadge(hasAlerts, alertCount);
   }
 
   updateBanner() {
@@ -557,6 +746,7 @@ class ScheduleAlertManager {
       'data-alert-id',
       this.lastRenderedAlertSignature,
     );
+    this.updateVisualIndicators(true, alerts.length);
   }
 }
 
