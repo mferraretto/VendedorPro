@@ -2566,17 +2566,14 @@ function generateListPdf(doc, grupos) {
   const lineHeight = 5;
 
   const colSkuWidth = 25;
-  const colCategoriaWidth = 35;
-  const colCustoWidth = 20;
-  const colVendaWidth = 20;
+  const colCustoWidth = 40;
+  const colVendaWidth = 40;
   const colProdutoWidth =
-    larguraUtil -
-    (colSkuWidth + colCategoriaWidth + colCustoWidth + colVendaWidth);
+    larguraUtil - (colSkuWidth + colCustoWidth + colVendaWidth);
 
   const columns = [
     { label: 'SKU', width: colSkuWidth, align: 'left' },
     { label: 'Produto', width: colProdutoWidth, align: 'left' },
-    { label: 'Categoria', width: colCategoriaWidth, align: 'left' },
     { label: 'Custos', width: colCustoWidth, align: 'right' },
     { label: 'Preços', width: colVendaWidth, align: 'right' },
   ];
@@ -2617,28 +2614,39 @@ function generateListPdf(doc, grupos) {
         doc.text(col.label, baseX, headerY);
       }
     });
-    y += lineHeight + 2;
+    y += lineHeight + 3;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
+  };
+
+  const drawCategoryHeader = (categoriaTitulo) => {
+    const titulo = categoriaTitulo || 'Sem categoria';
+    ensureSpace(lineHeight * 2, null, true);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(titulo, margem, y);
+    y += lineHeight + 1;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+  };
+
+  const ensureSpace = (neededHeight, categoriaTitulo, headerDrawn) => {
+    if (y + neededHeight <= alturaPagina - margem) return false;
+    startNewPage();
+    if (categoriaTitulo) {
+      drawCategoryHeader(categoriaTitulo);
+      if (!headerDrawn) {
+        drawTableHeader();
+      }
+    }
+    return true;
   };
 
   initializePage();
 
   for (const grupo of grupos) {
     const categoriaTitulo = grupo.categoria || 'Sem categoria';
-    if (y + lineHeight * 2 > alturaPagina - margem) {
-      startNewPage();
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text(categoriaTitulo, margem, y);
-    y += lineHeight + 1;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-
-    if (y + lineHeight * 2 > alturaPagina - margem) {
-      startNewPage();
-    }
+    drawCategoryHeader(categoriaTitulo);
     drawTableHeader();
 
     for (const produto of grupo.produtos) {
@@ -2651,35 +2659,31 @@ function generateListPdf(doc, grupos) {
           .map((item) => item.cor)
           .join(', ')}`;
       }
+
       const nomeLinhas = doc.splitTextToSize(nomeTexto, columns[1].width - 2);
-      const categoriaLinhas = doc.splitTextToSize(
-        produto.categoria || 'Sem categoria',
-        columns[2].width - 2,
-      );
       const custoLinhas = formatRangeLines(getProductCostRange(produto), {
         shortLabels: true,
+        collapseEquals: false,
       });
       const vendaLinhas = formatRangeLines(getProductPriceRange(produto), {
         shortLabels: true,
+        collapseEquals: false,
       });
 
       const linhasNecessarias = Math.max(
         nomeLinhas.length,
-        categoriaLinhas.length,
         custoLinhas.length || 1,
         vendaLinhas.length || 1,
         1,
       );
-      const alturaLinha = linhasNecessarias * lineHeight + 2;
+      const alturaProduto = linhasNecessarias * lineHeight + 4;
 
-      if (y + alturaLinha > alturaPagina - margem) {
-        startNewPage();
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.text(categoriaTitulo, margem, y);
-        y += lineHeight + 1;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
+      const novaPagina = ensureSpace(
+        alturaProduto + lineHeight,
+        categoriaTitulo,
+        true,
+      );
+      if (novaPagina) {
         drawTableHeader();
       }
 
@@ -2689,12 +2693,9 @@ function generateListPdf(doc, grupos) {
       nomeLinhas.forEach((linha, indice) => {
         doc.text(linha, columnPositions[1], baseY + lineHeight * indice);
       });
-      categoriaLinhas.forEach((linha, indice) => {
-        doc.text(linha, columnPositions[2], baseY + lineHeight * indice);
-      });
 
       const custoTextoLinhas = custoLinhas.length ? custoLinhas : ['--'];
-      const custoBaseX = columnPositions[3] + columns[3].width - 1;
+      const custoBaseX = columnPositions[2] + columns[2].width - 1;
       custoTextoLinhas.forEach((linha, indice) => {
         doc.text(linha, custoBaseX, baseY + lineHeight * indice, {
           align: 'right',
@@ -2702,14 +2703,19 @@ function generateListPdf(doc, grupos) {
       });
 
       const vendaTextoLinhas = vendaLinhas.length ? vendaLinhas : ['--'];
-      const vendaBaseX = columnPositions[4] + columns[4].width - 1;
+      const vendaBaseX = columnPositions[3] + columns[3].width - 1;
       vendaTextoLinhas.forEach((linha, indice) => {
         doc.text(linha, vendaBaseX, baseY + lineHeight * indice, {
           align: 'right',
         });
       });
 
-      y += alturaLinha;
+      y += alturaProduto;
+
+      doc.setDrawColor(210, 210, 210);
+      doc.line(margem, y, larguraPagina - margem, y);
+      doc.setDrawColor(0, 0, 0);
+      y += 2;
     }
 
     y += lineHeight;
