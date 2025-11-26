@@ -7439,6 +7439,15 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : (numeroValido(metaInfoOriginal?.valor) ? metaInfoOriginal.valor * quantidade : 0);
         const meta = metaValor || 0;
         const percentual = meta ? ((sobra - meta) / meta) * 100 : 0;
+        const metaMinimo = numeroValido(metaInfo?.minimo)
+          ? metaInfo.minimo
+          : (numeroValido(metaInfoOriginal?.minimo) ? metaInfoOriginal.minimo * quantidade : null);
+        const metaMedio = numeroValido(metaInfo?.medio)
+          ? metaInfo.medio
+          : (numeroValido(metaInfoOriginal?.medio) ? metaInfoOriginal.medio * quantidade : null);
+        const metaMaximo = numeroValido(metaInfo?.maximo)
+          ? metaInfo.maximo
+          : (numeroValido(metaInfoOriginal?.maximo) ? metaInfoOriginal.maximo * quantidade : null);
         const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
         const faixaInfo = classificarSobraPorFaixa(metaInfo, sobra);
         const valorComissaoDesvio = numeroValido(faixaInfo.valorApresentacao)
@@ -7499,8 +7508,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           excedenteAcimaLimite: faixaInfo.excedenteAcimaLimite,
           excedenteTexto: faixaInfo.excedenteTexto,
           comprador,
-          quantidade
+          quantidade,
+          custoMinimo: metaMinimo,
+          custoMedio: metaMedio,
+          custoMaximo: metaMaximo,
+          sobraEsperadaPercentual: null
         };
+
+        pedidoData.sobraEsperadaPercentual = obterSobraEsperadaPorPercentual(pedidoData);
 
         pedidosProcessados.push(pedidoData);
 
@@ -10016,6 +10031,16 @@ await db
       return Number.isFinite(numero) ? Number(numero.toFixed(1)) : null;
     }
 
+    function obterSobraEsperadaPorPercentual(pedido) {
+      const percentual = extrairPercentualComissao(pedido);
+      if (!Number.isFinite(percentual) || !pedido) return null;
+
+      if (percentual === 5 && numeroValido(pedido.custoMaximo)) return pedido.custoMaximo;
+      if (percentual === 3 && numeroValido(pedido.custoMedio)) return pedido.custoMedio;
+      if (percentual === 1.5 && numeroValido(pedido.custoMinimo)) return pedido.custoMinimo;
+      return null;
+    }
+
     function exportarCSV() {
       if (pedidosProcessados.length === 0) {
         mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
@@ -10077,6 +10102,7 @@ await db
           'Quantidade',
           'Subtotal',
           'Sobra',
+          'Sobra Esperada p/ %',
           'Descrição Comissão',
           'Valor Comissão/Desvio (R$)',
           'Excedente >3% Máx (R$)'
@@ -10084,6 +10110,9 @@ await db
 
         const linhas = pedidosProcessados.map(pedido => {
           const descricaoComissao = obterDescricaoComissaoPercentual(pedido);
+          const sobraEsperadaPercentual = Number.isFinite(pedido.sobraEsperadaPercentual)
+            ? Number(pedido.sobraEsperadaPercentual.toFixed(2))
+            : '';
 
           return {
             'ID do Pedido': pedido.id,
@@ -10094,6 +10123,7 @@ await db
               : '',
             'Subtotal': Number(pedido.subtotal.toFixed(2)),
             'Sobra': Number(pedido.sobra.toFixed(2)),
+            'Sobra Esperada p/ %': sobraEsperadaPercentual,
             'Descrição Comissão': descricaoComissao,
             'Valor Comissão/Desvio (R$)': pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
               ? Number(pedido.comissaoValorDisplay.toFixed(2))
