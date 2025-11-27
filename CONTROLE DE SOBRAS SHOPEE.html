@@ -10226,97 +10226,134 @@ await db
         const diferencaRealMenosExcedente = diferencaRealEsperada - totalExcedenteMaximo;
 
         const resumoSheet = {};
-        resumoSheet['!ref'] = 'A1:E12';
-        resumoSheet['!merges'] = [
-          { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }
-        ];
+        resumoSheet['!ref'] = 'A3:H14';
         resumoSheet['!cols'] = [
-          { wch: 40 },
-          { wch: 18 },
+          { wch: 30 },
+          { wch: 16 },
           { wch: 4 },
-          { wch: 28 },
-          { wch: 12 }
+          { wch: 32 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 16 }
+        ];
+        resumoSheet['!merges'] = [
+          { s: { r: 2, c: 3 }, e: { r: 2, c: 7 } },
+          { s: { r: 3, c: 3 }, e: { r: 3, c: 6 } },
+          { s: { r: 4, c: 3 }, e: { r: 4, c: 6 } },
+          { s: { r: 5, c: 3 }, e: { r: 5, c: 6 } },
+          { s: { r: 6, c: 0 }, e: { r: 9, c: 1 } },
+          { s: { r: 8, c: 3 }, e: { r: 8, c: 7 } },
+          { s: { r: 9, c: 3 }, e: { r: 9, c: 7 } },
+          { s: { r: 11, c: 0 }, e: { r: 11, c: 1 } },
+          { s: { r: 12, c: 0 }, e: { r: 12, c: 1 } },
+          { s: { r: 13, c: 0 }, e: { r: 13, c: 1 } }
         ];
 
-        const aplicarEstiloCelula = (cell, { bold = false, align = 'left', fill, fmt } = {}) => {
-          cell.s = cell.s || {};
-          cell.s.font = { bold };
-          cell.s.alignment = { horizontal: align };
-          if (fill) {
-            cell.s.fill = {
-              patternType: 'solid',
-              fgColor: { rgb: fill }
-            };
+        const bordaFina = { style: 'thin', color: { rgb: '000000' } };
+        const aplicarEstiloCelula = (cell, { bold, align, fill, fmt, color, fontSize, wrap } = {}) => {
+          const existing = cell.s || {};
+          const horizontal = align || existing.alignment?.horizontal || (typeof cell.v === 'number' ? 'right' : 'left');
+          const finalBold = typeof bold === 'boolean' ? bold : existing.font?.bold || false;
+          const finalColor = color ? { rgb: color } : existing.font?.color;
+          const finalFill = fill ? { patternType: 'solid', fgColor: { rgb: fill } } : existing.fill;
+          const finalWrap = typeof wrap === 'boolean' ? wrap : existing.alignment?.wrapText || false;
+          const finalSize = fontSize || existing.font?.sz || 11;
+
+          cell.s = {
+            font: { name: 'Calibri', sz: finalSize, bold: finalBold, color: finalColor },
+            alignment: { horizontal, vertical: 'center', wrapText: finalWrap },
+            border: { top: bordaFina, bottom: bordaFina, left: bordaFina, right: bordaFina }
+          };
+
+          if (finalFill) {
+            cell.s.fill = finalFill;
           }
           if (fmt) {
             cell.z = fmt;
+          } else if (cell.z) {
+            cell.z = cell.z;
           }
         };
 
         const definirCelula = (ref, valor, estilo = {}) => {
           const tipo = typeof valor === 'number' ? 'n' : 's';
           resumoSheet[ref] = { t: tipo, v: valor };
-          if (Object.keys(estilo).length) {
-            aplicarEstiloCelula(resumoSheet[ref], estilo);
+          aplicarEstiloCelula(resumoSheet[ref], estilo);
+        };
+
+        definirCelula('A3', 'Indicadores', { bold: true, align: 'center', fill: 'D9D9D9' });
+        definirCelula('B3', 'Valor', { bold: true, align: 'center', fill: 'D9D9D9' });
+
+        definirCelula('A4', 'Total Subtotal (R$)', { bold: true });
+        definirCelula('B4', Number(totalSubtotal.toFixed(2)), { fmt: 'R$ #,##0.00' });
+
+        definirCelula('A5', 'Total das Sobras (R$)', { bold: true });
+        definirCelula('B5', Number(totalSobra.toFixed(2)), { fmt: 'R$ #,##0.00' });
+
+        definirCelula('D3', 'PREVISÃO DE SOBRA DE TODOS PEDIDOS, COM BASE EM CADA SOBRA', {
+          bold: true,
+          align: 'center',
+          fill: 'D9D9D9'
+        });
+        definirCelula('D4', 'Total das Sobras Mínimas Esperadas (R$)', { bold: true });
+        definirCelula('H4', Number(totalSobraMinimaEsperada.toFixed(2)), { fmt: 'R$ #,##0.00' });
+        definirCelula('D5', 'Total das Sobras Médias Esperadas (R$)', { bold: true });
+        definirCelula('H5', Number(totalSobraMediaEsperada.toFixed(2)), { fmt: 'R$ #,##0.00' });
+        definirCelula('D6', 'Total das Sobras Máximas Esperadas (R$)', { bold: true });
+        definirCelula('H6', Number(totalSobraMaximaEsperada.toFixed(2)), { fmt: 'R$ #,##0.00' });
+
+        const textoDiferenca = [
+          'DIFERENÇA DA SOBRA REAL',
+          'PARA ESPERADA MENOS O',
+          `R$ ${diferencaRealMenosExcedente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          'EXCEDENTE ACIMA DO MÁXIMO'
+        ].join('\n');
+        definirCelula('A7', textoDiferenca, {
+          bold: true,
+          align: 'center',
+          fill: 'D9D9D9',
+          fontSize: 12,
+          wrap: true
+        });
+
+        definirCelula('D9', `Média Geral % Comissão ${mediaPercentual.toFixed(2)}%`, {
+          align: 'center'
+        });
+        definirCelula('D10', `Total Comissão/Desvio (R$) ${formatarMoedaBR(totalComissao)}`, { align: 'center' });
+
+        definirCelula('A12', `Pedidos com 1,5% ${contagens[1.5] || 0}`, {
+          align: 'center',
+          bold: true,
+          fill: 'FF0000',
+          color: 'FFFFFF'
+        });
+        definirCelula('A13', `Pedidos com 3% ${contagens[3] || 0}`, {
+          align: 'center',
+          bold: true,
+          fill: 'FFFF00'
+        });
+        definirCelula('A14', `Pedidos com 5% ${contagens[5] || 0}`, {
+          align: 'center',
+          bold: true,
+          fill: '00B050',
+          color: 'FFFFFF'
+        });
+
+        const garantirBordas = () => {
+          const range = XLSX.utils.decode_range(resumoSheet['!ref']);
+          for (let r = range.s.r; r <= range.e.r; r++) {
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const ref = XLSX.utils.encode_cell({ r, c });
+              if (!resumoSheet[ref]) {
+                resumoSheet[ref] = { t: 's', v: '' };
+              }
+              aplicarEstiloCelula(resumoSheet[ref]);
+            }
           }
         };
 
-        definirCelula('A1', 'RESUMO', { bold: true, align: 'center' });
-
-        definirCelula('A3', 'Indicadores', { bold: true });
-        definirCelula('B3', 'Valor', { bold: true, align: 'center' });
-
-        definirCelula('A4', 'Total Subtotal (R$)', { bold: true });
-        definirCelula('B4', Number(totalSubtotal.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A5', 'Total das Sobras (R$)', { bold: true });
-        definirCelula('B5', Number(totalSobra.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A6', 'Sobra Esperada p/ % (R$)', { bold: true });
-        definirCelula('B6', Number(totalSobraEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A7', 'Total das Sobras Mínimas Esperadas (R$)', { bold: true });
-        definirCelula('B7', Number(totalSobraMinimaEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A8', 'Total das Sobras Médias Esperadas (R$)', { bold: true });
-        definirCelula('B8', Number(totalSobraMediaEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A9', 'Total das Sobras Máximas Esperadas (R$)', { bold: true });
-        definirCelula('B9', Number(totalSobraMaximaEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A10', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA', { bold: true });
-        definirCelula('B10', Number(diferencaRealEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A11', 'Excedente acima do Máximo (R$)', { bold: true });
-        definirCelula('B11', Number(totalExcedenteMaximo.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
-        definirCelula('A12', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA MENOS O EXCEDENTE ACIMA DO MAXIMO', {
-          bold: true
-        });
-        definirCelula('B12', Number(diferencaRealMenosExcedente.toFixed(2)), {
-          align: 'center',
-          fmt: 'R$ #,##0.00',
-          fill: 'FFF4B183'
-        });
-
-        definirCelula('D3', 'Indicadores', { bold: true });
-        definirCelula('E3', 'Valor', { bold: true, align: 'center' });
-
-        definirCelula('D4', 'Pedidos com 1,5%', { bold: true });
-        definirCelula('E4', contagens[1.5], { align: 'center' });
-
-        definirCelula('D5', 'Pedidos com 3%', { bold: true });
-        definirCelula('E5', contagens[3], { align: 'center' });
-
-        definirCelula('D6', 'Pedidos com 5%', { bold: true });
-        definirCelula('E6', contagens[5], { align: 'center' });
-
-        definirCelula('D8', 'Média Geral % Comissão', { bold: true });
-        definirCelula('E8', Number((mediaPercentual / 100).toFixed(4)), { align: 'center', fmt: '0.00%' });
-
-        definirCelula('D9', 'Total Comissão/Desvio (R$)', { bold: true });
-        definirCelula('E9', Number(totalComissao.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
-
+        garantirBordas();
         aplicarCabecalhoSeVazio(resumoSheet);
         XLSX.utils.book_append_sheet(workbook, resumoSheet, 'Resumo');
 
