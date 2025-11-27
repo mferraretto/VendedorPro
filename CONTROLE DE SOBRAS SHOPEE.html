@@ -10108,7 +10108,13 @@ await db
           'Excedente >3% Máx (R$)'
         ];
 
-        const linhas = pedidosProcessados.map(pedido => {
+        const cores = {
+          1.5: 'FFFFC7CE', // vermelho claro
+          3: 'FFFFFF99',   // amarelo claro
+          5: 'FFC6EFCE'    // verde claro
+        };
+
+        const mapearPedidoParaLinha = (pedido) => {
           const descricaoComissao = obterDescricaoComissaoPercentual(pedido);
           const sobraEsperadaPercentual = Number.isFinite(pedido.sobraEsperadaPercentual)
             ? Number(pedido.sobraEsperadaPercentual.toFixed(2))
@@ -10132,38 +10138,102 @@ await db
               ? Number(pedido.excedenteAcimaLimite.toFixed(2))
               : ''
           };
-        });
-
-        const worksheet = XLSX.utils.json_to_sheet(linhas, { header: headers });
-
-        const range = XLSX.utils.decode_range(worksheet['!ref']);
-        const cores = {
-          1.5: 'FFFFC7CE', // vermelho claro
-          3: 'FFFFFF99',   // amarelo claro
-          5: 'FFC6EFCE'    // verde claro
         };
 
-        linhas.forEach((linha, index) => {
-          const percentualTexto = String(linha['Descrição Comissão'] || '').replace(',', '.');
-          const percentual = Number.parseFloat(percentualTexto);
-          const cor = Number.isFinite(percentual) ? cores[percentual] : null;
+        const aplicarCabecalhoSeVazio = (worksheet) => {
+          if (worksheet?.['!ref']) return;
 
-          if (!cor) return;
+          headers.forEach((header, index) => {
+            const cellRef = XLSX.utils.encode_cell({ c: index, r: 0 });
+            worksheet[cellRef] = { t: 's', v: header };
+          });
 
-          for (let c = range.s.c; c <= range.e.c; c++) {
-            const cellRef = XLSX.utils.encode_cell({ r: index + 1, c });
-            const cell = worksheet[cellRef] || (worksheet[cellRef] = { t: 's', v: '' });
-            cell.s = {
-              fill: {
-                patternType: 'solid',
-                fgColor: { rgb: cor }
-              }
-            };
+          worksheet['!ref'] = XLSX.utils.encode_range({
+            s: { c: 0, r: 0 },
+            e: { c: headers.length - 1, r: 0 }
+          });
+        };
+
+        const aplicarCorLinhasWorksheet = (worksheet, cor, quantidadeLinhas) => {
+          if (!worksheet?.['!ref'] || !cor || !quantidadeLinhas) return;
+
+          const range = XLSX.utils.decode_range(worksheet['!ref']);
+          for (let r = 1; r <= quantidadeLinhas; r++) {
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const cellRef = XLSX.utils.encode_cell({ r, c });
+              const cell = worksheet[cellRef] || (worksheet[cellRef] = { t: 's', v: '' });
+              cell.s = {
+                fill: {
+                  patternType: 'solid',
+                  fgColor: { rgb: cor }
+                }
+              };
+            }
+          }
+        };
+
+        const criarWorksheet = (linhas, cor) => {
+          const worksheet = XLSX.utils.json_to_sheet(linhas, { header: headers });
+          aplicarCabecalhoSeVazio(worksheet);
+          aplicarCorLinhasWorksheet(worksheet, cor, linhas.length);
+          return worksheet;
+        };
+
+        const percentuais = [1.5, 3, 5];
+        const workbook = XLSX.utils.book_new();
+
+        const totalSubtotal = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.subtotal) || 0), 0);
+        const totalSobra = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.sobra) || 0), 0);
+        const totalSobraEsperada = pedidosProcessados.reduce(
+          (acc, pedido) => acc + (Number.isFinite(pedido.sobraEsperadaPercentual) ? pedido.sobraEsperadaPercentual : 0),
+          0
+        );
+        const totalComissao = pedidosProcessados.reduce(
+          (acc, pedido) => acc + (Number.isFinite(pedido.comissaoValorDisplay) ? pedido.comissaoValorDisplay : 0),
+          0
+        );
+        const totalExcedenteMaximo = pedidosProcessados.reduce(
+          (acc, pedido) => acc + (Number.isFinite(pedido.excedenteMaximo) && pedido.excedenteMaximo > 0 ? pedido.excedenteMaximo : 0),
+          0
+        );
+
+        const percentuaisPedidos = pedidosProcessados
+          .map((pedido) => extrairPercentualComissao(pedido))
+          .filter((valor) => Number.isFinite(valor));
+        const contagens = { 1.5: 0, 3: 0, 5: 0 };
+        percentuaisPedidos.forEach((valor) => {
+          if (contagens[valor] !== undefined) {
+            contagens[valor] += 1;
           }
         });
+        const mediaPercentual = percentuaisPedidos.length
+          ? percentuaisPedidos.reduce((acc, valor) => acc + valor, 0) / percentuaisPedidos.length
+          : 0;
 
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sobras');
+        const resumoLinhas = [
+          { Indicador: 'Total Subtotal (R$)', Valor: Number(totalSubtotal.toFixed(2)) },
+          { Indicador: 'Total das Sobras (R$)', Valor: Number(totalSobra.toFixed(2)) },
+          { Indicador: 'Sobra Esperada p/ % (R$)', Valor: Number(totalSobraEsperada.toFixed(2)) },
+          { Indicador: 'Pedidos com 1,5%', Valor: contagens[1.5] },
+          { Indicador: 'Pedidos com 3%', Valor: contagens[3] },
+          { Indicador: 'Pedidos com 5%', Valor: contagens[5] },
+          { Indicador: 'Média Geral % Comissão', Valor: Number(mediaPercentual.toFixed(2)) },
+          { Indicador: 'Total Comissão/Desvio (R$)', Valor: Number(totalComissao.toFixed(2)) },
+          { Indicador: 'Excedente acima do Máximo (R$)', Valor: Number(totalExcedenteMaximo.toFixed(2)) }
+        ];
+
+        const resumoSheet = XLSX.utils.json_to_sheet(resumoLinhas, { header: ['Indicador', 'Valor'] });
+        aplicarCabecalhoSeVazio(resumoSheet);
+        XLSX.utils.book_append_sheet(workbook, resumoSheet, 'Resumo');
+
+        percentuais.forEach((percentual) => {
+          const linhas = pedidosProcessados
+            .filter((pedido) => extrairPercentualComissao(pedido) === percentual)
+            .map(mapearPedidoParaLinha);
+          const worksheet = criarWorksheet(linhas, cores[percentual]);
+          const nomeAba = percentual === 1.5 ? '1,5%' : `${percentual}%`;
+          XLSX.utils.book_append_sheet(workbook, worksheet, nomeAba);
+        });
 
         const nomeArquivo = `relatorio_sobras_${new Date().toISOString().slice(0,10)}.xlsx`;
         XLSX.writeFile(workbook, nomeArquivo);
