@@ -208,6 +208,7 @@ const API_URL = 'https://us-central1-matheus-35023.cloudfunctions.net/proxyDeepS
 const controleVendasSelecao = new Map();
 const controleVendasBaseCache = new Map();
 let controleVendasEventosRegistrados = false;
+let skusNaoEncontrados = new Set();
 
 const referenciaFaixaConfig = {
   minima: {
@@ -7161,6 +7162,62 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       return ajustada;
     }
 
+    function exportarSkusNaoEncontrados() {
+      if (!skusNaoEncontrados.size) {
+        alert('Nenhum SKU não encontrado para exportar.');
+        return;
+      }
+
+      const linhas = ['SKU não encontrado'];
+      Array.from(skusNaoEncontrados)
+        .sort()
+        .forEach((sku) => linhas.push(sku));
+
+      const csv = linhas.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'skus_nao_encontrados.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    window.exportarSkusNaoEncontrados = exportarSkusNaoEncontrados;
+
+    function renderizarSkusNaoEncontrados(feedbackElement) {
+      const containerAlvo = feedbackElement || document.getElementById('feedbackImportacao');
+      if (!containerAlvo) return;
+
+      let avisoContainer = document.getElementById('skusNaoEncontradosContainer');
+      if (!avisoContainer) {
+        avisoContainer = document.createElement('div');
+        avisoContainer.id = 'skusNaoEncontradosContainer';
+        avisoContainer.className = 'mt-2';
+        containerAlvo.parentNode?.insertBefore(avisoContainer, containerAlvo.nextSibling);
+      }
+
+      if (!skusNaoEncontrados.size) {
+        avisoContainer.innerHTML = '';
+        return;
+      }
+
+      const listaSkus = Array.from(skusNaoEncontrados).sort();
+      const exemplos = listaSkus.slice(0, 5).join(', ');
+      const sufixo = listaSkus.length > 5 ? `, e outros ${listaSkus.length - 5}` : '';
+
+      avisoContainer.innerHTML = `
+        <div class="badge badge-warning" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem;">
+          <span>⚠️ Não encontramos metas para ${listaSkus.length} SKU(s): ${exemplos}${sufixo}.</span>
+          <button class="btn btn-outline btn-sm" onclick="exportarSkusNaoEncontrados()">
+            <i class="fas fa-file-export"></i> Exportar lista
+          </button>
+        </div>
+      `;
+    }
+
     function classificarSobraPorFaixa(metaInfo, sobra) {
       const resultadoPadrao = {
         label: 'Sem meta',
@@ -7425,6 +7482,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             } else {
               feedback.innerHTML = '<span class="badge badge-success">✔️ Importado com sucesso</span>';
             }
+            renderizarSkusNaoEncontrados(feedback);
           } catch (error) {
             feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
             console.error("Erro ao ler arquivo:", error);
@@ -7491,6 +7549,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           } else {
             feedback.innerHTML = '<span class="badge badge-success">✔️ Importado com sucesso</span>';
           }
+          renderizarSkusNaoEncontrados(feedback);
         } finally {
           toggleLoading(botao, 'Processar Mercado Livre');
         }
@@ -7502,6 +7561,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
     }
 
     function processarPedidos(pedidos) {
+      skusNaoEncontrados = new Set();
       const contagem = {};
       pedidos.forEach(p => {
         const id = String(p['ID do pedido'] ?? '').trim();
@@ -7546,6 +7606,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           ? sobraInformada
           : subtotal + reembolso - cupom - comissao - servico;
         const metaInfoOriginal = obterMetaSku(sku);
+        if (!metaInfoOriginal) {
+          skusNaoEncontrados.add(sku);
+        }
         const metaInfo = ajustarMetaPorQuantidade(metaInfoOriginal, quantidade) || metaInfoOriginal;
         const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : (numeroValido(metaInfoOriginal?.valor) ? metaInfoOriginal.valor * quantidade : 0);
         const meta = metaValor || 0;
@@ -7772,12 +7835,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           ${diferencaHTML}
         </div>
       `;
-        document.getElementById('totalSobra').innerHTML += `
+      document.getElementById('totalSobra').innerHTML += `
         <div style="margin-top: 1.5rem;">
-           
+
         </div>
     `;
-    
+
+      renderizarSkusNaoEncontrados();
+
     // Salvar dados para análise posterior
     window.dadosParaAnalise = {
         pedidos: pedidosProcessados,
