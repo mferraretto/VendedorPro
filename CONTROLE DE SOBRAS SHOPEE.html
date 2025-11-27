@@ -201,6 +201,7 @@
       window.usuarioLogado = usuarioLogado;
 let pedidosProcessados = [];
 let resultadosConferenciaComissao = [];
+let skusNaoEncontradosConferencia = [];
 let graficoBarras, graficoPizza, graficoPrevisao;
 let previsaoDados = {};
 let initialTab = null;
@@ -7846,6 +7847,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         tbody.innerHTML = '';
         cardResultado.style.display = 'none';
         resultadosConferenciaComissao = [];
+        skusNaoEncontradosConferencia = [];
 
         const file = input.files?.[0];
         if (!file) {
@@ -7878,6 +7880,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           let semMeta = 0;
           let totalComissao = 0;
           let faixasIdentificadas = 0;
+          const mapaSkusNaoEncontrados = new Map();
 
           linhas.forEach((row) => {
             const sku = String(extrairCampoPlanilha(row, headerMap, ['sku', 'número de referência sku', 'sku produto']) || '').trim();
@@ -7905,6 +7908,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               faixasIdentificadas += faixaInfo.situacao === 'sem-meta' ? 0 : 1;
             } else {
               semMeta += 1;
+              const chaveSku = sku.toUpperCase();
+              const existente = mapaSkusNaoEncontrados.get(chaveSku) || { sku, ocorrencias: 0, exemplos: [] };
+              existente.ocorrencias += 1;
+              if (existente.exemplos.length < 3) {
+                existente.exemplos.push({
+                  numeroVenda: numeroVenda || '-',
+                  dataVenda: dataVenda || '-',
+                  sobra: Number.isFinite(sobraValor) ? Number(sobraValor) : null
+                });
+              }
+              mapaSkusNaoEncontrados.set(chaveSku, existente);
             }
 
             if (comissaoValor !== null) {
@@ -7947,6 +7961,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             return;
           }
 
+          skusNaoEncontradosConferencia = Array.from(mapaSkusNaoEncontrados.values());
           cardResultado.style.display = '';
           window.resultadosConferenciaComissao = resultadosConferenciaComissao;
           resumo.innerHTML = `
@@ -7954,10 +7969,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               <span class="badge badge-primary">Itens avaliados: ${totalItens}</span>
               <span class="badge badge-success">Faixas com comissão: ${faixasIdentificadas}</span>
               <span class="badge badge-warning">SKUs sem cadastro/meta: ${semMeta}</span>
+              ${skusNaoEncontradosConferencia.length ? `<span class="badge badge-danger">SKUs não encontrados: ${skusNaoEncontradosConferencia.length}</span>` : ''}
               <span class="badge badge-secondary">Comissão total: ${formatarMoedaBR(totalComissao)}</span>
             </div>
           `;
           feedback.innerHTML = '<span class="badge badge-success">✔️ Comissão conferida com sucesso</span>';
+
+          const botaoSkusNaoEncontrados = document.getElementById('btnExportarSkusNaoEncontrados');
+          if (botaoSkusNaoEncontrados) {
+            botaoSkusNaoEncontrados.style.display = skusNaoEncontradosConferencia.length ? '' : 'none';
+          }
         } catch (error) {
           console.error('Erro ao processar conferência de comissão:', error);
           feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
@@ -7966,6 +7987,35 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         }
       }
 
+
+    function exportarSkusNaoEncontrados() {
+      if (!Array.isArray(skusNaoEncontradosConferencia) || skusNaoEncontradosConferencia.length === 0) {
+        if (typeof mostrarErro === 'function') {
+          mostrarErro('Nenhum SKU não encontrado para exportar.');
+        }
+        return;
+      }
+
+      const linhas = skusNaoEncontradosConferencia.map((item) => {
+        const exemplo = (item.exemplos && item.exemplos[0]) || {};
+        return {
+          'SKU': item.sku,
+          'Ocorrências': item.ocorrencias || 0,
+          'Exemplo Nº da Venda': exemplo.numeroVenda || '-',
+          'Exemplo Data': exemplo.dataVenda || '-',
+          'Exemplo Sobra (R$)': Number.isFinite(exemplo.sobra) ? Number(exemplo.sobra.toFixed(2)) : '-'
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(linhas);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'SKUs não encontrados');
+      XLSX.writeFile(workbook, `skus_nao_encontrados_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+      if (typeof mostrarSucesso === 'function') {
+        mostrarSucesso('Lista de SKUs não encontrados exportada em Excel.');
+      }
+    }
 
     function colorirLinhasConferenciaExcel(worksheet) {
       if (!worksheet || !worksheet['!ref'] || !Array.isArray(resultadosConferenciaComissao)) return;
@@ -17974,10 +18024,11 @@ window.atualizarRastreio = atualizarRastreio;
 window.atualizarChecklist = atualizarChecklist;
 window.aplicarFiltroLogistica = aplicarFiltroLogistica;
   window.processarPlanilha = processarPlanilha;
-  window.processarPlanilhaMercadoLivre = processarPlanilhaMercadoLivre;
+window.processarPlanilhaMercadoLivre = processarPlanilhaMercadoLivre;
 window.processarConferenciaComissao = processarConferenciaComissao;
 window.exportarConferenciaComissaoExcel = exportarConferenciaComissaoExcel;
 window.exportarConferenciaComissaoPDF = exportarConferenciaComissaoPDF;
+window.exportarSkusNaoEncontrados = exportarSkusNaoEncontrados;
 window.toggleExportMenu = toggleExportMenu;
 window.salvarAcompanhamentoDiario = salvarAcompanhamentoDiario;
 window.carregarResumoDiario = carregarResumoDiario;
