@@ -10404,7 +10404,7 @@ await db
         });
 
         const nomeArquivo = `relatorio_sobras_${new Date().toISOString().slice(0,10)}.xlsx`;
-        XLSX.writeFile(workbook, nomeArquivo);
+        XLSX.writeFile(workbook, nomeArquivo, { cellStyles: true });
         mostrarSucesso('Arquivo Excel exportado com sucesso!');
       } catch (error) {
         mostrarErro(`Erro ao exportar Excel: ${error.message}`);
