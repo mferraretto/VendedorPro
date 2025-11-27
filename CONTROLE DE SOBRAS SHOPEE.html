@@ -10210,19 +10210,92 @@ await db
           ? percentuaisPedidos.reduce((acc, valor) => acc + valor, 0) / percentuaisPedidos.length
           : 0;
 
-        const resumoLinhas = [
-          { Indicador: 'Total Subtotal (R$)', Valor: Number(totalSubtotal.toFixed(2)) },
-          { Indicador: 'Total das Sobras (R$)', Valor: Number(totalSobra.toFixed(2)) },
-          { Indicador: 'Sobra Esperada p/ % (R$)', Valor: Number(totalSobraEsperada.toFixed(2)) },
-          { Indicador: 'Pedidos com 1,5%', Valor: contagens[1.5] },
-          { Indicador: 'Pedidos com 3%', Valor: contagens[3] },
-          { Indicador: 'Pedidos com 5%', Valor: contagens[5] },
-          { Indicador: 'Média Geral % Comissão', Valor: Number(mediaPercentual.toFixed(2)) },
-          { Indicador: 'Total Comissão/Desvio (R$)', Valor: Number(totalComissao.toFixed(2)) },
-          { Indicador: 'Excedente acima do Máximo (R$)', Valor: Number(totalExcedenteMaximo.toFixed(2)) }
+        const diferencaRealEsperada = totalSobra - totalSobraEsperada;
+        const diferencaRealMenosExcedente = diferencaRealEsperada - totalExcedenteMaximo;
+
+        const resumoSheet = {};
+        resumoSheet['!ref'] = 'A1:E10';
+        resumoSheet['!merges'] = [
+          { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }
+        ];
+        resumoSheet['!cols'] = [
+          { wch: 40 },
+          { wch: 18 },
+          { wch: 4 },
+          { wch: 28 },
+          { wch: 12 }
         ];
 
-        const resumoSheet = XLSX.utils.json_to_sheet(resumoLinhas, { header: ['Indicador', 'Valor'] });
+        const aplicarEstiloCelula = (cell, { bold = false, align = 'left', fill, fmt } = {}) => {
+          cell.s = cell.s || {};
+          cell.s.font = { bold };
+          cell.s.alignment = { horizontal: align };
+          if (fill) {
+            cell.s.fill = {
+              patternType: 'solid',
+              fgColor: { rgb: fill }
+            };
+          }
+          if (fmt) {
+            cell.z = fmt;
+          }
+        };
+
+        const definirCelula = (ref, valor, estilo = {}) => {
+          const tipo = typeof valor === 'number' ? 'n' : 's';
+          resumoSheet[ref] = { t: tipo, v: valor };
+          if (Object.keys(estilo).length) {
+            aplicarEstiloCelula(resumoSheet[ref], estilo);
+          }
+        };
+
+        definirCelula('A1', 'RESUMO', { bold: true, align: 'center' });
+
+        definirCelula('A3', 'Indicadores', { bold: true });
+        definirCelula('B3', 'Valor', { bold: true, align: 'center' });
+
+        definirCelula('A4', 'Total Subtotal (R$)', { bold: true });
+        definirCelula('B4', Number(totalSubtotal.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A5', 'Total das Sobras (R$)', { bold: true });
+        definirCelula('B5', Number(totalSobra.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A6', 'Sobra Esperada p/ % (R$)', { bold: true });
+        definirCelula('B6', Number(totalSobraEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A7', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA', { bold: true });
+        definirCelula('B7', Number(diferencaRealEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A8', 'Excedente acima do Máximo (R$)', { bold: true });
+        definirCelula('B8', Number(totalExcedenteMaximo.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A9', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA MENOS O EXCEDENTE ACIMA DO MAXIMO', {
+          bold: true
+        });
+        definirCelula('B9', Number(diferencaRealMenosExcedente.toFixed(2)), {
+          align: 'center',
+          fmt: 'R$ #,##0.00',
+          fill: 'FFF4B183'
+        });
+
+        definirCelula('D3', 'Indicadores', { bold: true });
+        definirCelula('E3', 'Valor', { bold: true, align: 'center' });
+
+        definirCelula('D4', 'Pedidos com 1,5%', { bold: true });
+        definirCelula('E4', contagens[1.5], { align: 'center' });
+
+        definirCelula('D5', 'Pedidos com 3%', { bold: true });
+        definirCelula('E5', contagens[3], { align: 'center' });
+
+        definirCelula('D6', 'Pedidos com 5%', { bold: true });
+        definirCelula('E6', contagens[5], { align: 'center' });
+
+        definirCelula('D8', 'Média Geral % Comissão', { bold: true });
+        definirCelula('E8', Number((mediaPercentual / 100).toFixed(4)), { align: 'center', fmt: '0.00%' });
+
+        definirCelula('D9', 'Total Comissão/Desvio (R$)', { bold: true });
+        definirCelula('E9', Number(totalComissao.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
         aplicarCabecalhoSeVazio(resumoSheet);
         XLSX.utils.book_append_sheet(workbook, resumoSheet, 'Resumo');
 
