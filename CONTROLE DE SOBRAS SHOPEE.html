@@ -7767,12 +7767,21 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           let semMeta = 0;
           let totalComissao = 0;
           let faixasIdentificadas = 0;
+          let totalSubtotal = 0;
+          let totalSobra = 0;
+          let totalSobraEsperada = 0;
+          let totalExcedente = 0;
+          const percentuaisColetados = [];
 
           linhas.forEach((row) => {
             const sku = String(extrairCampoPlanilha(row, headerMap, ['sku', 'número de referência sku', 'sku produto']) || '').trim();
             if (!sku) return;
 
             const sobraValor = parseNumber(extrairCampoPlanilha(row, headerMap, ['sobra']));
+            const subtotalValor = parseNumber(extrairCampoPlanilha(row, headerMap, ['subtotal', 'valor pedido', 'total', 'valor da compra']));
+            const sobraEsperadaValor = parseNumber(
+              extrairCampoPlanilha(row, headerMap, ['sobra esperada p/%', 'sobra esperada p/ %', 'sobra esperada', 'sobra esperada p'])
+            );
             const numeroVenda = extrairCampoPlanilha(row, headerMap, ['nº da venda', 'numero da venda', 'pedido', 'id', 'id do pedido']) || '';
             const dataVenda = extrairCampoPlanilha(row, headerMap, ['data', 'data da venda']) || '';
 
@@ -7780,6 +7789,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
             const faixaInfo = classificarSobraPorFaixa(metaInfo, sobraValor);
             const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : null;
             const comissaoValor = numeroValido(faixaInfo.valorApresentacao) ? faixaInfo.valorApresentacao : null;
+            const excedenteAcimaLimite = numeroValido(faixaInfo.excedenteAcimaLimite) ? faixaInfo.excedenteAcimaLimite : 0;
+            const percentualComissao = Number.isFinite(comissaoValor) && Number.isFinite(sobraValor) && sobraValor !== 0
+              ? (comissaoValor / sobraValor) * 100
+              : null;
 
             const comissaoHtml = comissaoValor !== null
               ? `<strong>R$ ${Math.abs(comissaoValor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>${faixaInfo.comissaoTexto ? `<br><small>${faixaInfo.comissaoTexto}</small>` : ''}`
@@ -7825,9 +7838,34 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
               meta: metaValor,
               faixa: faixaInfo.label,
               comissaoCalculada: comissaoValor,
+              subtotal: Number.isFinite(subtotalValor) ? Number(subtotalValor) : null,
+              sobraEsperada: Number.isFinite(sobraEsperadaValor) ? Number(sobraEsperadaValor) : (metaValor ?? null),
+              excedenteAcimaLimite,
+              percentualComissao,
               referenciaTipo,
               situacao
             });
+
+            if (Number.isFinite(subtotalValor)) {
+              totalSubtotal += subtotalValor;
+            }
+            if (Number.isFinite(sobraValor)) {
+              totalSobra += sobraValor;
+            }
+            if (Number.isFinite(comissaoValor)) {
+              totalComissao += comissaoValor;
+            }
+            if (Number.isFinite(excedenteAcimaLimite)) {
+              totalExcedente += excedenteAcimaLimite;
+            }
+            if (Number.isFinite(percentualComissao)) {
+              percentuaisColetados.push(percentualComissao);
+            }
+            if (Number.isFinite(sobraEsperadaValor)) {
+              totalSobraEsperada += sobraEsperadaValor;
+            } else if (Number.isFinite(metaValor)) {
+              totalSobraEsperada += metaValor;
+            }
             totalItens += 1;
           });
 
@@ -7838,12 +7876,23 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
           cardResultado.style.display = '';
           window.resultadosConferenciaComissao = resultadosConferenciaComissao;
+          window.resumoConferenciaCalculado = {
+            totalSubtotal,
+            totalSobra,
+            totalSobraEsperada,
+            totalComissao,
+            totalExcedente,
+            mediaPercentuais: percentuaisColetados.length
+              ? percentuaisColetados.reduce((acc, val) => acc + val, 0) / percentuaisColetados.length
+              : 0
+          };
           resumo.innerHTML = `
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
               <span class="badge badge-primary">Itens avaliados: ${totalItens}</span>
               <span class="badge badge-success">Faixas com comissão: ${faixasIdentificadas}</span>
               <span class="badge badge-warning">SKUs sem cadastro/meta: ${semMeta}</span>
               <span class="badge badge-secondary">Comissão total: ${formatarMoedaBR(totalComissao)}</span>
+              <span class="badge badge-info">Subtotal total: ${formatarMoedaBR(totalSubtotal)}</span>
             </div>
           `;
           feedback.innerHTML = '<span class="badge badge-success">✔️ Comissão conferida com sucesso</span>';
@@ -7884,23 +7933,70 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         return;
       }
 
-      const linhas = resultadosConferenciaComissao.map((item) => ({
+      const formatarValorSheet = (valor) => Number.isFinite(valor) ? Number(valor.toFixed(2)) : '';
+      const obterResumo = () => window.resumoConferenciaCalculado || {};
+      const identificarGrupoPercentual = (percentual) => {
+        if (!Number.isFinite(percentual)) return null;
+        const arredondado = Number(percentual.toFixed(2));
+        if (Math.abs(arredondado - 1.5) < 0.05) return '1.5%';
+        if (Math.abs(arredondado - 3) < 0.05) return '3%';
+        if (Math.abs(arredondado - 5) < 0.05) return '5%';
+        return null;
+      };
+
+      const linhasBase = resultadosConferenciaComissao.map((item) => ({
         'Data': item.data || '-',
         'Nº da Venda': item.numeroVenda || '-',
         'SKU': item.sku,
-        'Sobra (R$)': Number.isFinite(item.sobra) ? Number(item.sobra.toFixed(2)) : '',
-        'Meta (R$)': Number.isFinite(item.meta) ? Number(item.meta.toFixed(2)) : '',
+        'Subtotal (R$)': formatarValorSheet(item.subtotal),
+        'Sobra (R$)': formatarValorSheet(item.sobra),
+        'Sobra Esperada (R$)': formatarValorSheet(item.sobraEsperada ?? item.meta),
+        'Meta (R$)': formatarValorSheet(item.meta),
         'Faixa de Comissão': item.faixa || '',
         'Comissão Calculada (R$)': Number.isFinite(item.comissaoCalculada)
           ? Number(item.comissaoCalculada.toFixed(2))
           : (item.comissaoCalculada || ''),
+        '% Comissão': Number.isFinite(item.percentualComissao) ? Number(item.percentualComissao.toFixed(2)) : '',
+        'Excedente > Máximo (R$)': formatarValorSheet(item.excedenteAcimaLimite),
         'Situação': item.situacao || ''
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(linhas);
+      const grupos = { '1.5%': [], '3%': [], '5%': [] };
+      linhasBase.forEach((linha, index) => {
+        const grupo = identificarGrupoPercentual(resultadosConferenciaComissao[index]?.percentualComissao);
+        if (grupo && grupos[grupo]) {
+          grupos[grupo].push(linha);
+        }
+      });
+
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Conferência');
-      colorirLinhasConferenciaExcel(worksheet);
+      const worksheetCompleto = XLSX.utils.json_to_sheet(linhasBase);
+      XLSX.utils.book_append_sheet(workbook, worksheetCompleto, 'Conferência');
+      colorirLinhasConferenciaExcel(worksheetCompleto);
+
+      Object.entries(grupos).forEach(([percentual, dados]) => {
+        const linhas = dados.length ? dados : [{ Aviso: 'Nenhum pedido nesta faixa.' }];
+        const ws = XLSX.utils.json_to_sheet(linhas);
+        XLSX.utils.book_append_sheet(workbook, ws, `Pedidos ${percentual}`);
+      });
+
+      const resumoDados = obterResumo();
+      const linhasResumo = [
+        ['Indicador', 'Valor'],
+        ['Total Subtotal', formatarValorSheet(resumoDados.totalSubtotal)],
+        ['Total de Sobras', formatarValorSheet(resumoDados.totalSobra)],
+        ['Total de Sobra Esperada p/%', formatarValorSheet(resumoDados.totalSobraEsperada)],
+        ['Total de Comissão', formatarValorSheet(resumoDados.totalComissao)],
+        ['Total Excedente (acima do custo máximo)', formatarValorSheet(resumoDados.totalExcedente)],
+        ['Pedidos 1,5%', grupos['1.5%'].length],
+        ['Pedidos 3%', grupos['3%'].length],
+        ['Pedidos 5%', grupos['5%'].length],
+        ['Média Geral das % de Comissão', Number.isFinite(resumoDados.mediaPercentuais) ? Number(resumoDados.mediaPercentuais.toFixed(2)) : '']
+      ];
+
+      const worksheetResumo = XLSX.utils.aoa_to_sheet(linhasResumo);
+      XLSX.utils.book_append_sheet(workbook, worksheetResumo, 'Resumo');
+
       XLSX.writeFile(workbook, `conferencia_comissao_${new Date().toISOString().slice(0,10)}.xlsx`, { cellStyles: true });
 
       if (typeof mostrarSucesso === 'function') {
