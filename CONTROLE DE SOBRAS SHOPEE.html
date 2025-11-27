@@ -10188,6 +10188,18 @@ await db
           (acc, pedido) => acc + (Number.isFinite(pedido.sobraEsperadaPercentual) ? pedido.sobraEsperadaPercentual : 0),
           0
         );
+        const totalSobraMinimaEsperada = pedidosProcessados.reduce(
+          (acc, pedido) => acc + (Number.isFinite(pedido.custoMinimo) ? pedido.custoMinimo : 0),
+          0
+        );
+        const totalSobraMediaEsperada = pedidosProcessados.reduce(
+          (acc, pedido) => acc + (Number.isFinite(pedido.custoMedio) ? pedido.custoMedio : 0),
+          0
+        );
+        const totalSobraMaximaEsperada = pedidosProcessados.reduce(
+          (acc, pedido) => acc + (Number.isFinite(pedido.custoMaximo) ? pedido.custoMaximo : 0),
+          0
+        );
         const totalComissao = pedidosProcessados.reduce(
           (acc, pedido) => acc + (Number.isFinite(pedido.comissaoValorDisplay) ? pedido.comissaoValorDisplay : 0),
           0
@@ -10214,7 +10226,7 @@ await db
         const diferencaRealMenosExcedente = diferencaRealEsperada - totalExcedenteMaximo;
 
         const resumoSheet = {};
-        resumoSheet['!ref'] = 'A1:E10';
+        resumoSheet['!ref'] = 'A1:E12';
         resumoSheet['!merges'] = [
           { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }
         ];
@@ -10263,16 +10275,25 @@ await db
         definirCelula('A6', 'Sobra Esperada p/ % (R$)', { bold: true });
         definirCelula('B6', Number(totalSobraEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
 
-        definirCelula('A7', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA', { bold: true });
-        definirCelula('B7', Number(diferencaRealEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+        definirCelula('A7', 'Total das Sobras Mínimas Esperadas (R$)', { bold: true });
+        definirCelula('B7', Number(totalSobraMinimaEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
 
-        definirCelula('A8', 'Excedente acima do Máximo (R$)', { bold: true });
-        definirCelula('B8', Number(totalExcedenteMaximo.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+        definirCelula('A8', 'Total das Sobras Médias Esperadas (R$)', { bold: true });
+        definirCelula('B8', Number(totalSobraMediaEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
 
-        definirCelula('A9', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA MENOS O EXCEDENTE ACIMA DO MAXIMO', {
+        definirCelula('A9', 'Total das Sobras Máximas Esperadas (R$)', { bold: true });
+        definirCelula('B9', Number(totalSobraMaximaEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A10', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA', { bold: true });
+        definirCelula('B10', Number(diferencaRealEsperada.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A11', 'Excedente acima do Máximo (R$)', { bold: true });
+        definirCelula('B11', Number(totalExcedenteMaximo.toFixed(2)), { align: 'center', fmt: 'R$ #,##0.00' });
+
+        definirCelula('A12', 'DIFERENÇA DA SOBRA REAL PARA ESPERADA MENOS O EXCEDENTE ACIMA DO MAXIMO', {
           bold: true
         });
-        definirCelula('B9', Number(diferencaRealMenosExcedente.toFixed(2)), {
+        definirCelula('B12', Number(diferencaRealMenosExcedente.toFixed(2)), {
           align: 'center',
           fmt: 'R$ #,##0.00',
           fill: 'FFF4B183'
