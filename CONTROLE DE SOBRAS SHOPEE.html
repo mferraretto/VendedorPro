@@ -7341,6 +7341,50 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       });
     }
 
+    function mapearPedidoMercadoLivre(row) {
+      const headerMap = buildHeaderMap(row);
+
+      const idPedido = extrairCampoPlanilha(row, headerMap, ['Pedido', 'Id do pedido', 'ID']);
+      const sku = extrairCampoPlanilha(row, headerMap, ['SKU', 'Sku']);
+
+      if (!idPedido || !sku) return null;
+
+      const quantidade = normalizarNumeroMeta(extrairCampoPlanilha(row, headerMap, ['Quant', 'Quantidade']), 1) || 1;
+      const valor = normalizarNumeroMeta(
+        extrairCampoPlanilha(row, headerMap, ['Valor', 'Valor Total', 'Valor Pedido', 'Valor produto']),
+        0
+      ) || 0;
+      const tarifa = normalizarNumeroMeta(
+        extrairCampoPlanilha(row, headerMap, ['Tarifa', 'Tarifa ML', 'Taxa', 'Comissão']),
+        0
+      ) || 0;
+      const frete = normalizarNumeroMeta(
+        extrairCampoPlanilha(row, headerMap, ['Frete Vendedor', 'Frete', 'Frete Pago']),
+        0
+      ) || 0;
+      const liquido = normalizarNumeroMeta(
+        extrairCampoPlanilha(row, headerMap, ['Liquido', 'Líquido', 'Valor Líquido', 'Liquido informado']),
+        null
+      );
+
+      return {
+        'ID do pedido': String(idPedido).trim(),
+        'Número de referência SKU': String(sku).trim(),
+        'Status do pedido': 'Pago - Mercado Livre',
+        'Nome de usuário (comprador)': extrairCampoPlanilha(row, headerMap, ['Cliente', 'Comprador']) || '',
+        Quantidade: quantidade,
+        'Subtotal do produto': valor,
+        'Reembolso Shopee': 0,
+        'Cupom do vendedor': 0,
+        'Taxa de comissão': tarifa,
+        'Taxa de serviço': frete,
+        'Liquido informado': liquido,
+        'Data do pedido': extrairCampoPlanilha(row, headerMap, ['Data', 'Data do Pedido', 'Data da Venda']) || '',
+        Loja: extrairCampoPlanilha(row, headerMap, ['Loja', 'Canal', 'Marketplace']) || '',
+        Anuncio: extrairCampoPlanilha(row, headerMap, ['Anuncio', 'Anúncio']) || ''
+      };
+    }
+
     async function processarPlanilha() {
       const fileInput = document.getElementById('inputExcel');
       const file = fileInput.files[0];
@@ -7402,6 +7446,61 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
     }
 
+    async function processarPlanilhaMercadoLivre() {
+      const fileInput = document.getElementById('inputExcelMercadoLivre');
+      const file = fileInput?.files?.[0];
+      const feedback = document.getElementById('feedbackImportacaoMercadoLivre');
+      const botao = document.getElementById('btnProcessarMercadoLivre');
+
+      if (!feedback || !botao) return;
+
+      feedback.innerHTML = '';
+
+      if (!file) {
+        feedback.innerHTML = '<span class="badge badge-warning">⚠️ Selecione um arquivo</span>';
+        return;
+      }
+
+      try {
+        const metasSincronizadas = await carregarMetas({
+          atualizarDatalist: false,
+          renderizarInterface: false,
+          mostrarLoading: false
+        });
+
+        const semMetasDisponiveis = Object.keys(metas).length === 0;
+        if (metasSincronizadas === false) {
+          feedback.innerHTML = '<span class="badge badge-danger">⚠️ Não foi possível carregar as metas dos produtos.</span>';
+          return;
+        }
+
+        toggleLoading(botao, 'Processar Mercado Livre');
+
+        try {
+          const dadosPlanilha = await lerPlanilhaBasica(file);
+          const pedidos = dadosPlanilha.map(mapearPedidoMercadoLivre).filter(Boolean);
+
+          if (!pedidos.length) {
+            feedback.innerHTML = '<span class="badge badge-warning">⚠️ Nenhum pedido válido encontrado no arquivo.</span>';
+            return;
+          }
+
+          processarPedidos(pedidos);
+          if (semMetasDisponiveis) {
+            feedback.innerHTML = '<span class="badge badge-warning">⚠️ Planilha importada, mas nenhum custo cadastrado foi encontrado para cruzamento.</span>';
+          } else {
+            feedback.innerHTML = '<span class="badge badge-success">✔️ Importado com sucesso</span>';
+          }
+        } finally {
+          toggleLoading(botao, 'Processar Mercado Livre');
+        }
+      } catch (error) {
+        feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro no arquivo</span>';
+        console.error('Erro ao processar planilha do Mercado Livre:', error);
+        toggleLoading(botao, 'Processar Mercado Livre');
+      }
+    }
+
     function processarPedidos(pedidos) {
       const contagem = {};
       pedidos.forEach(p => {
@@ -7425,6 +7524,16 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const status = String(p['Status do pedido'] ?? '').toLowerCase();
         if (!sku || status.includes('cancelado') || status.includes('não pago')) return;
 
+        const headerMap = buildHeaderMap(p);
+        const sobraInformada = normalizarNumeroMeta(
+          extrairCampoPlanilha(
+            p,
+            headerMap,
+            ['Liquido', 'Líquido', 'Liquido informado', 'Sobra', 'Sobra informada', 'Liquido ML']
+          ),
+          null
+        );
+
         const comprador = String(p['Nome de usuário (comprador)'] ?? '').trim();
         const quantidade = normalizarQuantidadePedido(p['Quantidade']);
 
@@ -7433,7 +7542,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const cupom = parseFloat(p['Cupom do vendedor']) || 0;
         const comissao = parseFloat(p['Taxa de comissão']) || 0;
         const servico = parseFloat(p['Taxa de serviço']) || 0;
-        const sobra = subtotal + reembolso - cupom - comissao - servico;
+        const sobra = numeroValido(sobraInformada)
+          ? sobraInformada
+          : subtotal + reembolso - cupom - comissao - servico;
         const metaInfoOriginal = obterMetaSku(sku);
         const metaInfo = ajustarMetaPorQuantidade(metaInfoOriginal, quantidade) || metaInfoOriginal;
         const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : (numeroValido(metaInfoOriginal?.valor) ? metaInfoOriginal.valor * quantidade : 0);
@@ -17863,6 +17974,7 @@ window.atualizarRastreio = atualizarRastreio;
 window.atualizarChecklist = atualizarChecklist;
 window.aplicarFiltroLogistica = aplicarFiltroLogistica;
   window.processarPlanilha = processarPlanilha;
+  window.processarPlanilhaMercadoLivre = processarPlanilhaMercadoLivre;
 window.processarConferenciaComissao = processarConferenciaComissao;
 window.exportarConferenciaComissaoExcel = exportarConferenciaComissaoExcel;
 window.exportarConferenciaComissaoPDF = exportarConferenciaComissaoPDF;

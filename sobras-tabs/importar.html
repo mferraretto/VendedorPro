@@ -19,6 +19,28 @@
 
 <div class="card import-card">
   <div class="card-header">
+    <i class="fas fa-file-import"></i>
+    <h3>Importar Planilha Mercado Livre</h3>
+    <span
+      class="tooltip tooltip-lg ml-2"
+      data-tooltip="Importe a planilha do Mercado Livre contendo as colunas Data, Pedido, Loja, Anúncio, Cliente, SKU, Quant, Valor, Tarifa, Frete Vendedor e Líquido. O campo Líquido será considerado como sobra para a conferência."
+    >
+      <i class="fas fa-question-circle text-blue-600"></i>
+    </span>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <input type="file" id="inputExcelMercadoLivre" accept=".xlsx, .xls" class="form-control" />
+    </div>
+    <button onclick="processarPlanilhaMercadoLivre()" class="btn btn-warning btn-lg" id="btnProcessarMercadoLivre" style="margin-left:auto;">
+      <span id="btnProcessarMercadoLivreText"><i class="fas fa-upload"></i> Processar Mercado Livre</span>
+    </button>
+  </div>
+  <div id="feedbackImportacaoMercadoLivre" class="mt-2"></div>
+</div>
+
+<div class="card import-card">
+  <div class="card-header">
     <i class="fas fa-file-circle-check"></i>
     <h3>Conferência de Comissão</h3>
     <span
