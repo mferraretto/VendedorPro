@@ -10316,17 +10316,17 @@ await db
           };
         };
 
-        const aplicarCabecalhoSeVazio = (worksheet) => {
+        const aplicarCabecalhoSeVazio = (worksheet, headerList = headers) => {
           if (worksheet?.['!ref']) return;
 
-          headers.forEach((header, index) => {
+          headerList.forEach((header, index) => {
             const cellRef = XLSX.utils.encode_cell({ c: index, r: 0 });
             worksheet[cellRef] = { t: 's', v: header };
           });
 
           worksheet['!ref'] = XLSX.utils.encode_range({
             s: { c: 0, r: 0 },
-            e: { c: headers.length - 1, r: 0 }
+            e: { c: headerList.length - 1, r: 0 }
           });
         };
 
@@ -10348,9 +10348,9 @@ await db
           }
         };
 
-        const criarWorksheet = (linhas, cor) => {
-          const worksheet = XLSX.utils.json_to_sheet(linhas, { header: headers });
-          aplicarCabecalhoSeVazio(worksheet);
+        const criarWorksheet = (linhas, cor, headerList = headers) => {
+          const worksheet = XLSX.utils.json_to_sheet(linhas, { header: headerList });
+          aplicarCabecalhoSeVazio(worksheet, headerList);
           aplicarCorLinhasWorksheet(worksheet, cor, linhas.length);
           return worksheet;
         };
@@ -10578,6 +10578,27 @@ await db
           const nomeAba = percentual === 1.5 ? '1,5%' : `${percentual}%`;
           XLSX.utils.book_append_sheet(workbook, worksheet, nomeAba);
         });
+
+        const headersAbaixoCusto = [...headers, 'Custo Mínimo', 'Diferença vs Custo Mínimo (%)'];
+        const mapearPedidoAbaixoCusto = (pedido) => {
+          const linhaBase = mapearPedidoParaLinha(pedido);
+          const diferencaPercentual = ((pedido.sobra - pedido.custoMinimo) / pedido.custoMinimo) * 100;
+          return {
+            ...linhaBase,
+            'Custo Mínimo': Number(pedido.custoMinimo.toFixed(2)),
+            'Diferença vs Custo Mínimo (%)': Number(diferencaPercentual.toFixed(2))
+          };
+        };
+
+        const pedidosAbaixoCustoMinimo = pedidosProcessados.filter((pedido) => {
+          if (!Number.isFinite(pedido.custoMinimo) || pedido.custoMinimo <= 0) return false;
+          const diferencaPercentual = ((pedido.sobra - pedido.custoMinimo) / pedido.custoMinimo) * 100;
+          return diferencaPercentual <= -3;
+        });
+
+        const linhasAbaixoCusto = pedidosAbaixoCustoMinimo.map(mapearPedidoAbaixoCusto);
+        const worksheetAbaixoCusto = criarWorksheet(linhasAbaixoCusto, 'FFF2CC', headersAbaixoCusto);
+        XLSX.utils.book_append_sheet(workbook, worksheetAbaixoCusto, 'Abaixo Custo -3%');
 
         const nomeArquivo = `relatorio_sobras_${new Date().toISOString().slice(0,10)}.xlsx`;
         XLSX.writeFile(workbook, nomeArquivo, { cellStyles: true });
