@@ -7622,6 +7622,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const metaMaximo = numeroValido(metaInfo?.maximo)
           ? metaInfo.maximo
           : (numeroValido(metaInfoOriginal?.maximo) ? metaInfoOriginal.maximo * quantidade : null);
+        const abaixoCustoMinimo = Number.isFinite(metaMinimo) && sobra < metaMinimo;
         const prazo = p['Prazo de coleta'] || p['Prazo de Coleta'] || '';
         const faixaInfo = classificarSobraPorFaixa(metaInfo, sobra);
         const valorComissaoDesvio = numeroValido(faixaInfo.valorApresentacao)
@@ -7657,6 +7658,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           }
         }
 
+        if (abaixoCustoMinimo && !faixaClasse.split(' ').includes('faixa-abaixo-minimo')) {
+          faixaClasse = [faixaClasse, 'faixa-abaixo-minimo'].filter(Boolean).join(' ');
+        }
+
         const pedidoData = {
           id,
           sku,
@@ -7686,6 +7691,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           custoMinimo: metaMinimo,
           custoMedio: metaMedio,
           custoMaximo: metaMaximo,
+          abaixoCustoMinimo,
           sobraEsperadaPercentual: null
         };
 
@@ -10590,15 +10596,13 @@ await db
           };
         };
 
-        const pedidosAbaixoCustoMinimo = pedidosProcessados.filter((pedido) => {
-          if (!Number.isFinite(pedido.custoMinimo) || pedido.custoMinimo <= 0) return false;
-          const diferencaPercentual = ((pedido.sobra - pedido.custoMinimo) / pedido.custoMinimo) * 100;
-          return diferencaPercentual <= -3;
-        });
+        const pedidosAbaixoCustoMinimo = pedidosProcessados.filter(
+          (pedido) => pedido.abaixoCustoMinimo && Number.isFinite(pedido.custoMinimo) && pedido.custoMinimo > 0
+        );
 
         const linhasAbaixoCusto = pedidosAbaixoCustoMinimo.map(mapearPedidoAbaixoCusto);
-        const worksheetAbaixoCusto = criarWorksheet(linhasAbaixoCusto, 'FFF2CC', headersAbaixoCusto);
-        XLSX.utils.book_append_sheet(workbook, worksheetAbaixoCusto, 'Abaixo Custo -3%');
+        const worksheetAbaixoCusto = criarWorksheet(linhasAbaixoCusto, 'FFFFC7CE', headersAbaixoCusto);
+        XLSX.utils.book_append_sheet(workbook, worksheetAbaixoCusto, 'Abaixo Custo Mínimo');
 
         const nomeArquivo = `relatorio_sobras_${new Date().toISOString().slice(0,10)}.xlsx`;
         XLSX.writeFile(workbook, nomeArquivo, { cellStyles: true });
