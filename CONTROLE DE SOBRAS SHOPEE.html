@@ -10485,8 +10485,14 @@ await db
           5: 'FFC6EFCE'    // verde claro
         };
 
-        const isAbaixoCustoMinimo = (pedido) =>
-          pedido.abaixoCustoMinimo && Number.isFinite(pedido.custoMinimo) && pedido.custoMinimo > 0;
+        const isAbaixoCustoMinimo = (pedido) => {
+          if (!pedido.abaixoCustoMinimo || !Number.isFinite(pedido.custoMinimo) || pedido.custoMinimo <= 0) {
+            return false;
+          }
+
+          const diferencaPercentual = ((pedido.sobra - pedido.custoMinimo) / pedido.custoMinimo) * 100;
+          return diferencaPercentual <= -6;
+        };
 
         const mapearPedidoParaLinha = (pedido) => {
           const descricaoComissao = obterDescricaoComissaoPercentual(pedido);
