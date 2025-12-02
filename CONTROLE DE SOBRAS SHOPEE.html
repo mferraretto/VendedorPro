@@ -209,6 +209,14 @@ const controleVendasSelecao = new Map();
 const controleVendasBaseCache = new Map();
 let controleVendasEventosRegistrados = false;
 let skusNaoEncontrados = new Set();
+let cancelamentosFiltrados = [];
+
+const motivosCancelamentoValidos = [
+  'Cancelado automaticamente pelo sistema da Shopee. Motivo : Entrega mal sucedida',
+  'Cancelado automaticamente pelo sistema da Shopee. Motivo : O vendedor não enviou',
+  'Cancelado pelo comprador. Motivo : Outros'
+];
+const motivosCancelamentoNormalizados = Array.from(new Set(motivosCancelamentoValidos.map(normalizarTextoBasico)));
 
 const referenciaFaixaConfig = {
   minima: {
@@ -455,6 +463,15 @@ function normalizeHeaderKey(key) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+}
+
+function normalizarTextoBasico(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
     .toLowerCase();
 }
 
@@ -7465,6 +7482,151 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         Loja: extrairCampoPlanilha(row, headerMap, ['Loja', 'Canal', 'Marketplace']) || '',
         Anuncio: extrairCampoPlanilha(row, headerMap, ['Anuncio', 'Anúncio']) || ''
       };
+    }
+
+    function agruparCancelamentosPorMotivo(lista) {
+      return lista.reduce((acc, item) => {
+        const chave = item.motivoCancelamento || 'Motivo não informado';
+        acc[chave] = acc[chave] || [];
+        acc[chave].push(item);
+        return acc;
+      }, {});
+    }
+
+    function extrairCancelamentoValido(row) {
+      const headerMap = buildHeaderMap(row);
+
+      const status = normalizarTextoBasico(
+        extrairCampoPlanilha(row, headerMap, ['Status do pedido', 'Status']) ?? row['Status do pedido']
+      );
+      if (status !== 'cancelado') return null;
+
+      const motivoOriginal =
+        extrairCampoPlanilha(row, headerMap, ['Cancelar Motivo', 'Motivo de cancelamento', 'Motivo cancelamento']) ??
+        row['Cancelar Motivo'] ??
+        '';
+      const motivoNormalizado = normalizarTextoBasico(motivoOriginal);
+      if (!motivosCancelamentoNormalizados.includes(motivoNormalizado)) return null;
+
+      const idPedido =
+        extrairCampoPlanilha(row, headerMap, ['ID do pedido', 'Id do pedido', 'Pedido', 'Numero do pedido']) ??
+        row['ID do pedido'];
+      const skuReferencia =
+        extrairCampoPlanilha(row, headerMap, ['Número de referência SKU', 'SKU', 'Sku']) ?? row['Número de referência SKU'];
+      const horaPagamento =
+        extrairCampoPlanilha(row, headerMap, [
+          'Hora do pagamento do pedido',
+          'Hora do pagamento',
+          'Hora pagamento',
+          'Hora do pagamento pedido'
+        ]) ?? row['Hora do pagamento do pedido'];
+
+      const id = String(idPedido || '').trim();
+      const sku = String(skuReferencia || '').trim();
+      if (!id || !sku) return null;
+
+      return {
+        idPedido: id,
+        motivoCancelamento: String(motivoOriginal || '').trim(),
+        horaPagamento: horaPagamento ? String(horaPagamento).trim() : '',
+        skuReferencia: sku
+      };
+    }
+
+    async function processarPlanilhaCancelamentos() {
+      const fileInput = document.getElementById('inputExcelCancelamentos');
+      const feedback = document.getElementById('feedbackCancelamentos');
+      const botao = document.getElementById('btnProcessarCancelamentos');
+      const botaoExportar = document.getElementById('btnExportarCancelamentos');
+
+      if (feedback) feedback.innerHTML = '';
+      if (botaoExportar) botaoExportar.disabled = true;
+
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        if (feedback) feedback.innerHTML = '<span class="badge badge-warning">⚠️ Selecione um arquivo</span>';
+        return;
+      }
+
+      try {
+        if (botao) toggleLoading(botao, 'Processar Cancelamentos');
+        const linhas = await lerPlanilhaBasica(file);
+        cancelamentosFiltrados = linhas.map(extrairCancelamentoValido).filter(Boolean);
+
+        if (!cancelamentosFiltrados.length) {
+          if (feedback)
+            feedback.innerHTML = '<span class="badge badge-warning">⚠️ Nenhum pedido cancelado encontrado nos motivos informados.</span>';
+          return;
+        }
+
+        const agrupado = agruparCancelamentosPorMotivo(cancelamentosFiltrados);
+        const resumo = Object.entries(agrupado)
+          .map(([motivo, lista]) => `${motivo}: ${lista.length}`)
+          .join(' • ');
+
+        if (feedback) {
+          feedback.innerHTML = `<span class="badge badge-success">✔️ ${cancelamentosFiltrados.length} pedidos cancelados encontrados.</span>`;
+          if (resumo) feedback.innerHTML += `<div class="text-sm mt-1">${resumo}</div>`;
+        }
+
+        if (botaoExportar) botaoExportar.disabled = false;
+      } catch (error) {
+        if (feedback) feedback.innerHTML = '<span class="badge badge-danger">⚠️ Erro ao processar o arquivo</span>';
+        console.error('Erro ao processar cancelamentos:', error);
+      } finally {
+        if (botao) toggleLoading(botao, 'Processar Cancelamentos');
+      }
+    }
+
+    function exportarCancelamentosExcel() {
+      const feedback = document.getElementById('feedbackCancelamentos');
+      const botaoExportar = document.getElementById('btnExportarCancelamentos');
+
+      if (!cancelamentosFiltrados.length) {
+        if (feedback) feedback.innerHTML = '<span class="badge badge-warning">⚠️ Nenhum cancelamento para exportar.</span>';
+        return;
+      }
+
+      if (typeof XLSX === 'undefined') {
+        if (feedback) feedback.innerHTML = '<span class="badge badge-danger">⚠️ Biblioteca XLSX não carregada.</span>';
+        return;
+      }
+
+      try {
+        if (botaoExportar) botaoExportar.disabled = true;
+        const workbook = XLSX.utils.book_new();
+        const agrupado = agruparCancelamentosPorMotivo(cancelamentosFiltrados);
+        const colunas = ['ID do pedido', 'Cancelar Motivo', 'Hora do pagamento do pedido', 'Número de referência SKU'];
+
+        const motivosOrdenados = [
+          ...motivosCancelamentoValidos.filter(motivo => agrupado[motivo]),
+          ...Object.keys(agrupado).filter(motivo => !motivosCancelamentoValidos.includes(motivo))
+        ];
+
+        motivosOrdenados.forEach(motivo => {
+          const linhas = agrupado[motivo] || [];
+          if (!linhas.length) return;
+
+          const dados = [colunas, ...linhas.map(item => [
+            item.idPedido,
+            item.motivoCancelamento,
+            item.horaPagamento,
+            item.skuReferencia
+          ])];
+
+          const sheet = XLSX.utils.aoa_to_sheet(dados);
+          const nomeAba = (motivo || 'Motivo').substring(0, 31) || 'Motivo';
+          XLSX.utils.book_append_sheet(workbook, sheet, nomeAba);
+        });
+
+        XLSX.writeFile(workbook, `cancelamentos-${gerarTimestampArquivoVts()}.xlsx`);
+        if (feedback) feedback.innerHTML = '<span class="badge badge-success">✔️ Exportação gerada com sucesso.</span>';
+      } catch (error) {
+        if (feedback) feedback.innerHTML = '<span class="badge badge-danger">⚠️ Não foi possível exportar.</span>';
+        console.error('Erro ao exportar cancelamentos:', error);
+      } finally {
+        if (botaoExportar) botaoExportar.disabled = cancelamentosFiltrados.length === 0;
+      }
     }
 
     async function processarPlanilha() {
@@ -18107,6 +18269,8 @@ window.atualizarRastreio = atualizarRastreio;
 window.atualizarChecklist = atualizarChecklist;
 window.aplicarFiltroLogistica = aplicarFiltroLogistica;
   window.processarPlanilha = processarPlanilha;
+  window.processarPlanilhaCancelamentos = processarPlanilhaCancelamentos;
+  window.exportarCancelamentosExcel = exportarCancelamentosExcel;
   window.processarPlanilhaMercadoLivre = processarPlanilhaMercadoLivre;
 window.processarConferenciaComissao = processarConferenciaComissao;
 window.exportarConferenciaComissaoExcel = exportarConferenciaComissaoExcel;

@@ -19,6 +19,31 @@
 
 <div class="card import-card">
   <div class="card-header">
+    <i class="fas fa-file-excel"></i>
+    <h3>Importar Planilha (Cancelamentos)</h3>
+    <span
+      class="tooltip tooltip-lg ml-2"
+      data-tooltip="Importe a mesma planilha de pedidos da Shopee. O sistema irá filtrar apenas pedidos cancelados com os motivos permitidos e permitirá exportar um Excel organizado por motivo."
+    >
+      <i class="fas fa-question-circle text-blue-600"></i>
+    </span>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <input type="file" id="inputExcelCancelamentos" accept=".xlsx, .xls" class="form-control" />
+    </div>
+    <button onclick="processarPlanilhaCancelamentos()" class="btn btn-danger btn-lg" id="btnProcessarCancelamentos" style="margin-left:auto;">
+      <span id="btnProcessarCancelamentosText"><i class="fas fa-ban"></i> Processar Cancelamentos</span>
+    </button>
+    <button onclick="exportarCancelamentosExcel()" class="btn btn-primary btn-lg" id="btnExportarCancelamentos" disabled>
+      <i class="fas fa-file-export"></i> Exportar Cancelamentos
+    </button>
+  </div>
+  <div id="feedbackCancelamentos" class="mt-2"></div>
+</div>
+
+<div class="card import-card">
+  <div class="card-header">
     <i class="fas fa-file-import"></i>
     <h3>Importar Planilha Mercado Livre</h3>
     <span
