@@ -7266,6 +7266,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         maximo: 'máxima'
       };
 
+      const calcularTolerancia = (valorBase) => {
+        if (!numeroValido(valorBase)) return 0;
+        return Math.abs(valorBase) * 0.05;
+      };
+
       const calcularComissao = (nivel) => {
         if (comissaoFixaPadrao !== null) {
           const descricao = 'Comissão fixa configurada';
@@ -7322,7 +7327,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       if (medio !== null) referencias.push({ nivel: 'medio', valor: medio, titulo: 'média' });
       if (maximo !== null) referencias.push({ nivel: 'maximo', valor: maximo, titulo: 'máxima' });
 
-      const referenciaMaisProxima = referencias.reduce((melhor, atual) => {
+      const referenciaComTolerancia = referencias.find((ref) => {
+        const tolerancia = calcularTolerancia(ref.valor);
+        return sobra >= ref.valor - tolerancia && sobra <= ref.valor + tolerancia;
+      });
+
+      const referenciaMaisProxima = referenciaComTolerancia || referencias.reduce((melhor, atual) => {
         if (!melhor) return atual;
         const diffAtual = Math.abs(sobra - atual.valor);
         const diffMelhor = Math.abs(sobra - melhor.valor);
@@ -7339,13 +7349,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       const comissaoInfo = calcularComissao(referenciaMaisProxima.nivel);
-      const diferencaAbsoluta = Math.abs(sobra - referenciaMaisProxima.valor);
-      const situacao = sobra > referenciaMaisProxima.valor ? 'acima' : (sobra < referenciaMaisProxima.valor ? 'abaixo' : 'dentro');
+      const toleranciaReferencia = calcularTolerancia(referenciaMaisProxima.valor);
+      const intervaloInferior = referenciaMaisProxima.valor - toleranciaReferencia;
+      const intervaloSuperior = referenciaMaisProxima.valor + toleranciaReferencia;
+      const dentroTolerancia = sobra >= intervaloInferior && sobra <= intervaloSuperior;
+      const diferencaAbsoluta = dentroTolerancia
+        ? 0
+        : Math.max(0, Math.abs(sobra - referenciaMaisProxima.valor) - toleranciaReferencia);
+      const situacao = dentroTolerancia
+        ? 'dentro'
+        : (sobra > referenciaMaisProxima.valor ? 'acima' : 'abaixo');
       const excedenteMaximo = referenciaMaisProxima.nivel === 'maximo' && numeroValido(maximo)
-        ? Math.max(0, sobra - maximo)
+        ? Math.max(0, sobra - (maximo + calcularTolerancia(maximo)))
         : 0;
       const limiteTresPorCento = numeroValido(maximo) ? maximo * 1.03 : null;
-      const excedenteAcimaLimite = limiteTresPorCento ? Math.max(0, sobra - limiteTresPorCento) : 0;
+      const limiteTresPorCentoComTolerancia = limiteTresPorCento !== null
+        ? limiteTresPorCento + calcularTolerancia(limiteTresPorCento)
+        : null;
+      const excedenteAcimaLimite = limiteTresPorCentoComTolerancia
+        ? Math.max(0, sobra - limiteTresPorCentoComTolerancia)
+        : 0;
       const classePorNivel = {
         minimo: 'referencia-minima',
         medio: 'referencia-media',
@@ -7354,7 +7377,9 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
       return {
         label: `Referência ${referenciaMaisProxima.titulo} mais próxima`,
-        detalhe: `Usando ${formatarMoedaBR(referenciaMaisProxima.valor)} (diferença de ${formatarMoedaBR(diferencaAbsoluta)})`,
+        detalhe: dentroTolerancia
+          ? `Dentro do intervalo de tolerância (${formatarMoedaBR(intervaloInferior)} a ${formatarMoedaBR(intervaloSuperior)})`
+          : `Usando ${formatarMoedaBR(referenciaMaisProxima.valor)} (fora do intervalo em ${formatarMoedaBR(diferencaAbsoluta)}). Intervalo considerado: ${formatarMoedaBR(intervaloInferior)} a ${formatarMoedaBR(intervaloSuperior)}`,
         situacao,
         diferenca: diferencaAbsoluta,
         comissao: comissaoInfo.valor,
