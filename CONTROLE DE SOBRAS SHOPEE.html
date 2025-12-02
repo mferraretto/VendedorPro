@@ -6353,16 +6353,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         return null;
       }
 
-      const percentualComissao =
-        numeroValido(info.comissao) || info.comissao === 0
-          ? Number(info.comissao)
-          : null;
-
-      if (percentualComissao === null) {
-        return info.valor;
-      }
-
-      return info.valor + (info.valor * percentualComissao) / 100;
+      return info.valor;
     }
 
     async function obterSnapshotProdutosUsuario(uid) {
@@ -6443,18 +6434,15 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           const maximoTaxaInfo = extrairInfoCustoProduto(calculosTaxas.maximo);
           const minimoTotal = selecionarPrimeiroNumeroValido(
             minimoInfo.valor,
-            calcularValorTotalComComissao(minimoInfo),
             minimoTaxaInfo.valor
           );
           const medioTotal = selecionarPrimeiroNumeroValido(
             medioInfo.valor,
-            calcularValorTotalComComissao(medioInfo),
             medioTaxaInfo.valor,
             minimoTotal
           );
           const maximoTotal = selecionarPrimeiroNumeroValido(
             maximoInfo.valor,
-            calcularValorTotalComComissao(maximoInfo),
             maximoTaxaInfo.valor,
             medioTotal,
             minimoTotal
@@ -6527,20 +6515,17 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
 
               const minimoTotal = selecionarPrimeiroNumeroValido(
                 minimoTaxaInfo.valor,
-                calcularValorTotalComComissao(minimoInfo),
                 minimoInfo.valor
               );
 
               const medioTotal = selecionarPrimeiroNumeroValido(
                 medioTaxaInfo.valor,
-                calcularValorTotalComComissao(medioInfo),
                 medioInfo.valor,
                 minimoTotal
               );
 
               const maximoTotal = selecionarPrimeiroNumeroValido(
                 maximoTaxaInfo.valor,
-                calcularValorTotalComComissao(maximoInfo),
                 maximoInfo.valor,
                 medioTotal,
                 minimoTotal,
