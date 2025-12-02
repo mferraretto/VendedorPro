@@ -10323,11 +10323,25 @@ await db
           5: 'FFC6EFCE'    // verde claro
         };
 
+        const formatarFaixaSobraEsperada = (pedido) => {
+          const formatarValor = (valor) =>
+            Number.isFinite(valor)
+              ? valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : null;
+
+          const minimo = formatarValor(pedido.custoMinimo);
+          const maximo = formatarValor(pedido.custoMaximo);
+
+          if (minimo && maximo) return `${minimo} até ${maximo}`;
+          if (minimo) return minimo;
+          if (maximo) return maximo;
+
+          return '';
+        };
+
         const mapearPedidoParaLinha = (pedido) => {
           const descricaoComissao = obterDescricaoComissaoPercentual(pedido);
-          const sobraEsperadaPercentual = Number.isFinite(pedido.sobraEsperadaPercentual)
-            ? Number(pedido.sobraEsperadaPercentual.toFixed(2))
-            : '';
+          const sobraEsperadaPercentual = formatarFaixaSobraEsperada(pedido);
 
           return {
             'ID do Pedido': pedido.id,
