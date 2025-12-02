@@ -7719,10 +7719,12 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           custoMedio: metaMedio,
           custoMaximo: metaMaximo,
           abaixoCustoMinimo,
-          sobraEsperadaPercentual: null
+          sobraEsperadaPercentual: null,
+          sobraEsperadaIntervalo: ''
         };
 
         pedidoData.sobraEsperadaPercentual = obterSobraEsperadaPorPercentual(pedidoData);
+        pedidoData.sobraEsperadaIntervalo = calcularIntervaloSobraEsperada(pedidoData);
 
         pedidosProcessados.push(pedidoData);
 
@@ -10250,6 +10252,19 @@ await db
       return null;
     }
 
+    function calcularIntervaloSobraEsperada(pedido) {
+      const valorBase = obterSobraEsperadaPorPercentual(pedido);
+      if (!numeroValido(valorBase)) return '';
+
+      const minimo = valorBase * 0.95;
+      const maximo = valorBase * 1.05;
+
+      const formatarValor = (valor) =>
+        valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      return `${formatarValor(minimo)} até ${formatarValor(maximo)}`;
+    }
+
     function exportarCSV() {
       if (pedidosProcessados.length === 0) {
         mostrarErro('Nenhum dado disponível para exportar. Processe um arquivo primeiro.');
@@ -10328,6 +10343,7 @@ await db
           const sobraEsperadaPercentual = Number.isFinite(pedido.sobraEsperadaPercentual)
             ? Number(pedido.sobraEsperadaPercentual.toFixed(2))
             : '';
+          const sobraEsperadaPercentualIntervalo = pedido.sobraEsperadaIntervalo || '';
 
           return {
             'ID do Pedido': pedido.id,
@@ -10338,7 +10354,7 @@ await db
               : '',
             'Subtotal': Number(pedido.subtotal.toFixed(2)),
             'Sobra': Number(pedido.sobra.toFixed(2)),
-            'Sobra Esperada p/ %': sobraEsperadaPercentual,
+            'Sobra Esperada p/ %': sobraEsperadaPercentualIntervalo || sobraEsperadaPercentual,
             'Descrição Comissão': descricaoComissao,
             'Valor Comissão/Desvio (R$)': pedido.comissaoValorDisplay !== null && pedido.comissaoValorDisplay !== undefined
               ? Number(pedido.comissaoValorDisplay.toFixed(2))
