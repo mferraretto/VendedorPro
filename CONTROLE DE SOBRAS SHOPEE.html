@@ -7613,12 +7613,14 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const metaValor = numeroValido(metaInfo?.valor) ? metaInfo.valor : (numeroValido(metaInfoOriginal?.valor) ? metaInfoOriginal.valor * quantidade : 0);
         const meta = metaValor || 0;
         const percentual = meta ? ((sobra - meta) / meta) * 100 : 0;
-        const metaMinimo = numeroValido(metaInfo?.minimo)
-          ? metaInfo.minimo
-          : (numeroValido(metaInfoOriginal?.minimo) ? metaInfoOriginal.minimo * quantidade : null);
         const metaMedio = numeroValido(metaInfo?.medio)
           ? metaInfo.medio
           : (numeroValido(metaInfoOriginal?.medio) ? metaInfoOriginal.medio * quantidade : null);
+        const metaMinimo = numeroValido(metaInfo?.minimo)
+          ? metaInfo.minimo
+          : (numeroValido(metaInfoOriginal?.minimo)
+            ? metaInfoOriginal.minimo * quantidade
+            : (numeroValido(metaMedio) ? metaMedio : null));
         const metaMaximo = numeroValido(metaInfo?.maximo)
           ? metaInfo.maximo
           : (numeroValido(metaInfoOriginal?.maximo) ? metaInfoOriginal.maximo * quantidade : null);
