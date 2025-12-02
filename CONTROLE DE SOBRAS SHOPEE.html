@@ -10485,6 +10485,9 @@ await db
           5: 'FFC6EFCE'    // verde claro
         };
 
+        const isAbaixoCustoMinimo = (pedido) =>
+          pedido.abaixoCustoMinimo && Number.isFinite(pedido.custoMinimo) && pedido.custoMinimo > 0;
+
         const mapearPedidoParaLinha = (pedido) => {
           const descricaoComissao = obterDescricaoComissaoPercentual(pedido);
           const sobraEsperadaPercentual = Number.isFinite(pedido.sobraEsperadaPercentual)
@@ -10554,6 +10557,9 @@ await db
         const percentuais = [1.5, 3, 5];
         const workbook = XLSX.utils.book_new();
 
+        const pedidosAbaixoCustoMinimo = pedidosProcessados.filter(isAbaixoCustoMinimo);
+        const pedidosParaPercentuais = pedidosProcessados.filter((pedido) => !isAbaixoCustoMinimo(pedido));
+
         const totalSubtotal = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.subtotal) || 0), 0);
         const totalSobra = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.sobra) || 0), 0);
         const totalSobraEsperada = pedidosProcessados.reduce(
@@ -10581,7 +10587,7 @@ await db
           0
         );
 
-        const percentuaisPedidos = pedidosProcessados
+        const percentuaisPedidos = pedidosParaPercentuais
           .map((pedido) => extrairPercentualComissao(pedido))
           .filter((valor) => Number.isFinite(valor));
         const contagens = { 1.5: 0, 3: 0, 5: 0 };
@@ -10767,7 +10773,7 @@ await db
         XLSX.utils.book_append_sheet(workbook, resumoSheet, 'Resumo');
 
         percentuais.forEach((percentual) => {
-          const linhas = pedidosProcessados
+          const linhas = pedidosParaPercentuais
             .filter((pedido) => extrairPercentualComissao(pedido) === percentual)
             .map(mapearPedidoParaLinha);
           const worksheet = criarWorksheet(linhas, cores[percentual]);
@@ -10785,10 +10791,6 @@ await db
             'Diferença vs Custo Mínimo (%)': Number(diferencaPercentual.toFixed(2))
           };
         };
-
-        const pedidosAbaixoCustoMinimo = pedidosProcessados.filter(
-          (pedido) => pedido.abaixoCustoMinimo && Number.isFinite(pedido.custoMinimo) && pedido.custoMinimo > 0
-        );
 
         const linhasAbaixoCusto = pedidosAbaixoCustoMinimo.map(mapearPedidoAbaixoCusto);
         const worksheetAbaixoCusto = criarWorksheet(linhasAbaixoCusto, 'FFFFC7CE', headersAbaixoCusto);
