@@ -10633,8 +10633,33 @@ await db
         const diferencaRealEsperada = totalSobra - totalSobraEsperada;
         const diferencaRealMenosExcedente = diferencaRealEsperada - totalExcedenteMaximo;
 
+        const calcularTotaisCategoria = (pedidos) => ({
+          subtotal: pedidos.reduce((acc, pedido) => acc + (Number(pedido.subtotal) || 0), 0),
+          comissao: pedidos.reduce(
+            (acc, pedido) => acc + (Number.isFinite(pedido.comissaoValorDisplay) ? pedido.comissaoValorDisplay : 0),
+            0
+          ),
+          quantidade: pedidos.length
+        });
+
+        const pedidosPorPercentual = percentuais.reduce((acc, percentual) => {
+          acc[percentual] = pedidosParaPercentuais.filter(
+            (pedido) => extrairPercentualComissao(pedido) === percentual
+          );
+          return acc;
+        }, {});
+
+        const totaisPercentuais = Object.fromEntries(
+          Object.entries(pedidosPorPercentual).map(([percentual, lista]) => [
+            percentual,
+            calcularTotaisCategoria(lista)
+          ])
+        );
+
+        const totaisAbaixoCusto = calcularTotaisCategoria(pedidosAbaixoCustoMinimo);
+
         const resumoSheet = {};
-        resumoSheet['!ref'] = 'A3:H14';
+        resumoSheet['!ref'] = 'A3:H16';
         resumoSheet['!merges'] = [
           { s: { r: 2, c: 3 }, e: { r: 2, c: 7 } }, // D3:H3
           { s: { r: 3, c: 3 }, e: { r: 3, c: 6 } }, // D4:G4
@@ -10642,6 +10667,7 @@ await db
           { s: { r: 5, c: 3 }, e: { r: 5, c: 6 } }, // D6:G6
           { s: { r: 8, c: 3 }, e: { r: 8, c: 7 } }, // D9:H9
           { s: { r: 9, c: 3 }, e: { r: 9, c: 7 } }, // D10:H10
+          { s: { r: 10, c: 3 }, e: { r: 10, c: 7 } }, // D11:H11
           { s: { r: 6, c: 0 }, e: { r: 9, c: 1 } }, // A7:B10
           { s: { r: 11, c: 0 }, e: { r: 11, c: 1 } }, // A12:B12
           { s: { r: 12, c: 0 }, e: { r: 12, c: 1 } }, // A13:B13
@@ -10758,6 +10784,28 @@ await db
           fmt: 'R$ #,##0.00'
         });
 
+        definirCelula('D11', 'RESUMO POR CATEGORIA (VALORES / QTDE)', {
+          bold: true,
+          align: 'center',
+          fill: 'D9D9D9'
+        });
+        definirCelula('D12', 'Categoria', { bold: true, align: 'center', fill: 'F2F2F2' });
+        definirCelula('E12', 'Subtotal (R$)', { bold: true, align: 'center', fill: 'F2F2F2' });
+        definirCelula('F12', 'Comissão (R$)', { bold: true, align: 'center', fill: 'F2F2F2' });
+        definirCelula('G12', 'Qtde Pedidos', { bold: true, align: 'center', fill: 'F2F2F2' });
+
+        const preencherLinhaCategoria = (linha, descricao, totais) => {
+          definirCelula(`D${linha}`, descricao, { align: 'left' });
+          definirCelula(`E${linha}`, Number(totais.subtotal.toFixed(2)), { align: 'right', fmt: 'R$ #,##0.00' });
+          definirCelula(`F${linha}`, Number(totais.comissao.toFixed(2)), { align: 'right', fmt: 'R$ #,##0.00' });
+          definirCelula(`G${linha}`, totais.quantidade, { align: 'center' });
+        };
+
+        preencherLinhaCategoria('13', 'Sobras 1,5%', totaisPercentuais[1.5]);
+        preencherLinhaCategoria('14', 'Sobras 3%', totaisPercentuais[3]);
+        preencherLinhaCategoria('15', 'Sobras 5%', totaisPercentuais[5]);
+        preencherLinhaCategoria('16', 'Pedidos Abaixo Custo Mínimo', totaisAbaixoCusto);
+
         definirCelula('A12', `Pedidos com 1,5% ${contagens[1.5]}`, {
           align: 'center',
           fill: 'FF0000',
@@ -10798,6 +10846,7 @@ await db
         garantirCelulasComBorda({ s: { r: 6, c: 0 }, e: { r: 9, c: 1 } }); // Bloco 4
         garantirCelulasComBorda({ s: { r: 2, c: 3 }, e: { r: 5, c: 7 } }); // Bloco 2
         garantirCelulasComBorda({ s: { r: 8, c: 3 }, e: { r: 9, c: 7 } }); // Bloco 5
+        garantirCelulasComBorda({ s: { r: 10, c: 3 }, e: { r: 15, c: 7 } }); // Bloco 6
         garantirCelulasComBorda({ s: { r: 11, c: 0 }, e: { r: 13, c: 1 } }); // Bloco 3
 
         XLSX.utils.book_append_sheet(workbook, resumoSheet, 'Resumo');
