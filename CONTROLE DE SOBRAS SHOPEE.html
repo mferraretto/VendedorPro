@@ -10503,6 +10503,10 @@ await db
           5: 'FFC6EFCE'    // verde claro
         };
 
+        const isPedidoDevolucao = (pedido) => {
+          return (pedido.statusDevolucaoReembolso || '').trim() !== '';
+        };
+
         const isAbaixoCustoMinimo = (pedido) => {
           if (!pedido.abaixoCustoMinimo || !Number.isFinite(pedido.custoMinimo) || pedido.custoMinimo <= 0) {
             return false;
@@ -10581,32 +10585,34 @@ await db
         const percentuais = [1.5, 3, 5];
         const workbook = XLSX.utils.book_new();
 
-        const pedidosAbaixoCustoMinimo = pedidosProcessados.filter(isAbaixoCustoMinimo);
-        const pedidosParaPercentuais = pedidosProcessados.filter((pedido) => !isAbaixoCustoMinimo(pedido));
+        const pedidosDevolucao = pedidosProcessados.filter(isPedidoDevolucao);
+        const pedidosSemDevolucao = pedidosProcessados.filter((pedido) => !isPedidoDevolucao(pedido));
+        const pedidosAbaixoCustoMinimo = pedidosSemDevolucao.filter(isAbaixoCustoMinimo);
+        const pedidosParaPercentuais = pedidosSemDevolucao.filter((pedido) => !isAbaixoCustoMinimo(pedido));
 
-        const totalSubtotal = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.subtotal) || 0), 0);
-        const totalSobra = pedidosProcessados.reduce((acc, pedido) => acc + (Number(pedido.sobra) || 0), 0);
-        const totalSobraEsperada = pedidosProcessados.reduce(
+        const totalSubtotal = pedidosSemDevolucao.reduce((acc, pedido) => acc + (Number(pedido.subtotal) || 0), 0);
+        const totalSobra = pedidosSemDevolucao.reduce((acc, pedido) => acc + (Number(pedido.sobra) || 0), 0);
+        const totalSobraEsperada = pedidosSemDevolucao.reduce(
           (acc, pedido) => acc + (Number.isFinite(pedido.sobraEsperadaPercentual) ? pedido.sobraEsperadaPercentual : 0),
           0
         );
-        const totalSobraMinimaEsperada = pedidosProcessados.reduce(
+        const totalSobraMinimaEsperada = pedidosSemDevolucao.reduce(
           (acc, pedido) => acc + (Number.isFinite(pedido.custoMinimo) ? pedido.custoMinimo : 0),
           0
         );
-        const totalSobraMediaEsperada = pedidosProcessados.reduce(
+        const totalSobraMediaEsperada = pedidosSemDevolucao.reduce(
           (acc, pedido) => acc + (Number.isFinite(pedido.custoMedio) ? pedido.custoMedio : 0),
           0
         );
-        const totalSobraMaximaEsperada = pedidosProcessados.reduce(
+        const totalSobraMaximaEsperada = pedidosSemDevolucao.reduce(
           (acc, pedido) => acc + (Number.isFinite(pedido.custoMaximo) ? pedido.custoMaximo : 0),
           0
         );
-        const totalComissao = pedidosProcessados.reduce(
+        const totalComissao = pedidosSemDevolucao.reduce(
           (acc, pedido) => acc + (Number.isFinite(pedido.comissaoValorDisplay) ? pedido.comissaoValorDisplay : 0),
           0
         );
-        const totalExcedenteMaximo = pedidosProcessados.reduce(
+        const totalExcedenteMaximo = pedidosSemDevolucao.reduce(
           (acc, pedido) => acc + (Number.isFinite(pedido.excedenteMaximo) && pedido.excedenteMaximo > 0 ? pedido.excedenteMaximo : 0),
           0
         );
@@ -10820,11 +10826,7 @@ await db
         const worksheetAbaixoCusto = criarWorksheet(linhasAbaixoCusto, 'FFFFC7CE', headersAbaixoCusto);
         XLSX.utils.book_append_sheet(workbook, worksheetAbaixoCusto, 'Abaixo Custo Mínimo');
 
-        const pedidosComDevolucao = pedidosProcessados.filter(
-          (pedido) => (pedido.statusDevolucaoReembolso || '').trim() !== ''
-        );
-
-        if (pedidosComDevolucao.length) {
+        if (pedidosDevolucao.length) {
           const headersDevolucao = [
             'ID do Pedido',
             'Comprador',
@@ -10832,20 +10834,21 @@ await db
             'Quantidade',
             'Subtotal',
             'Sobra',
+            'Sobra Esperada p/ %',
+            'Descrição Comissão',
+            'Valor Comissão/Desvio (R$)',
             'Status da Devolução / Reembolso'
           ];
 
-          const mapearPedidoDevolucao = (pedido) => ({
-            'ID do Pedido': pedido.id,
-            Comprador: pedido.comprador || '',
-            SKU: pedido.sku,
-            Quantidade: Number.isFinite(pedido.quantidade) ? Number(pedido.quantidade) : '',
-            Subtotal: Number(pedido.subtotal.toFixed(2)),
-            Sobra: Number(pedido.sobra.toFixed(2)),
-            'Status da Devolução / Reembolso': pedido.statusDevolucaoReembolso
-          });
+          const mapearPedidoDevolucao = (pedido) => {
+            const linhaBase = mapearPedidoParaLinha(pedido);
+            return {
+              ...linhaBase,
+              'Status da Devolução / Reembolso': pedido.statusDevolucaoReembolso
+            };
+          };
 
-          const linhasDevolucao = pedidosComDevolucao.map(mapearPedidoDevolucao);
+          const linhasDevolucao = pedidosDevolucao.map(mapearPedidoDevolucao);
           const worksheetDevolucao = criarWorksheet(linhasDevolucao, null, headersDevolucao);
           XLSX.utils.book_append_sheet(workbook, worksheetDevolucao, 'Devolucao Reembolso');
         }
