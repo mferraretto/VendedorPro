@@ -7766,6 +7766,26 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           null
         );
 
+        const statusDevolucaoReembolso = String(
+          extrairCampoPlanilha(
+            p,
+            headerMap,
+            [
+              'Status da Devolução / Reembolso',
+              'Status da Devolucao / Reembolso',
+              'Status de Devolução / Reembolso',
+              'Status de Devolucao / Reembolso',
+              'Status devolução',
+              'Status devolucao',
+              'Status da devolução',
+              'Status da devolucao',
+              'Status de devolução',
+              'Status de devolucao',
+              'Status reembolso'
+            ]
+          ) || ''
+        ).trim();
+
         const comprador = String(p['Nome de usuário (comprador)'] ?? '').trim();
         const quantidade = normalizarQuantidadePedido(p['Quantidade']);
 
@@ -7860,6 +7880,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           excedenteMaximo: faixaInfo.excedenteMaximo,
           excedenteAcimaLimite: faixaInfo.excedenteAcimaLimite,
           excedenteTexto: faixaInfo.excedenteTexto,
+          statusDevolucaoReembolso,
           comprador,
           quantidade,
           custoMinimo: metaMinimo,
@@ -10521,6 +10542,35 @@ await db
           };
         };
 
+        const headersDevolucao = [
+          'ID do Pedido',
+          'Comprador',
+          'SKU',
+          'Quantidade',
+          'Subtotal',
+          'Sobra',
+          'Status da Devolução / Reembolso',
+          'Descrição Comissão',
+          'Valor Comissão/Desvio (R$)',
+          'Excedente >3% Máx (R$)'
+        ];
+
+        const mapearPedidoDevolucao = (pedido) => {
+          const linhaBase = mapearPedidoParaLinha(pedido);
+          return {
+            'ID do Pedido': linhaBase['ID do Pedido'],
+            'Comprador': linhaBase['Comprador'],
+            'SKU': linhaBase['SKU'],
+            'Quantidade': linhaBase['Quantidade'],
+            'Subtotal': linhaBase['Subtotal'],
+            'Sobra': linhaBase['Sobra'],
+            'Status da Devolução / Reembolso': pedido.statusDevolucaoReembolso || '',
+            'Descrição Comissão': linhaBase['Descrição Comissão'],
+            'Valor Comissão/Desvio (R$)': linhaBase['Valor Comissão/Desvio (R$)'],
+            'Excedente >3% Máx (R$)': linhaBase['Excedente >3% Máx (R$)']
+          };
+        };
+
         const aplicarCabecalhoSeVazio = (worksheet, headerList = headers) => {
           if (worksheet?.['!ref']) return;
 
@@ -10786,6 +10836,16 @@ await db
           const nomeAba = percentual === 1.5 ? '1,5%' : `${percentual}%`;
           XLSX.utils.book_append_sheet(workbook, worksheet, nomeAba);
         });
+
+        const pedidosComStatusDevolucao = pedidosProcessados.filter((pedido) =>
+          typeof pedido.statusDevolucaoReembolso === 'string' && pedido.statusDevolucaoReembolso.trim()
+        );
+
+        if (pedidosComStatusDevolucao.length) {
+          const linhasDevolucao = pedidosComStatusDevolucao.map(mapearPedidoDevolucao);
+          const worksheetDevolucao = criarWorksheet(linhasDevolucao, 'E2EFDA', headersDevolucao);
+          XLSX.utils.book_append_sheet(workbook, worksheetDevolucao, 'Devoluções/Reembolsos');
+        }
 
         const headersAbaixoCusto = [...headers, 'Custo Mínimo', 'Diferença vs Custo Mínimo (%)'];
         const mapearPedidoAbaixoCusto = (pedido) => {
