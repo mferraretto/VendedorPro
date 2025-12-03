@@ -7325,9 +7325,10 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
       }
 
       const referencias = [];
-      if (minimo !== null) referencias.push({ nivel: 'minimo', valor: minimo, titulo: 'mínima' });
-      if (medio !== null) referencias.push({ nivel: 'medio', valor: medio, titulo: 'média' });
       if (maximo !== null) referencias.push({ nivel: 'maximo', valor: maximo, titulo: 'máxima' });
+      if (medio !== null) referencias.push({ nivel: 'medio', valor: medio, titulo: 'média' });
+      if (minimo !== null) referencias.push({ nivel: 'minimo', valor: minimo, titulo: 'mínima' });
+      referencias.sort((a, b) => (Number(b.valor) || 0) - (Number(a.valor) || 0));
 
       const referenciaComTolerancia = referencias.find((ref) => {
         const tolerancia = calcularTolerancia(ref.valor);
@@ -7340,8 +7341,11 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         const diffMelhor = Math.abs(sobra - melhor.valor);
         if (diffAtual < diffMelhor) return atual;
         if (diffAtual === diffMelhor) {
-          const prioridade = { minimo: 1, medio: 2, maximo: 3 };
-          return (prioridade[atual.nivel] || 99) < (prioridade[melhor.nivel] || 99) ? atual : melhor;
+          if (atual.valor > melhor.valor) return atual;
+          if (atual.valor === melhor.valor) {
+            const prioridade = { maximo: 3, medio: 2, minimo: 1 };
+            return (prioridade[atual.nivel] || 0) > (prioridade[melhor.nivel] || 0) ? atual : melhor;
+          }
         }
         return melhor;
       }, null);
