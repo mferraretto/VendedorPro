@@ -7761,6 +7761,19 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (!sku || status.includes('cancelado') || status.includes('não pago')) return;
 
         const headerMap = buildHeaderMap(p);
+        const statusDevolucaoReembolso = String(
+          extrairCampoPlanilha(
+            p,
+            headerMap,
+            [
+              'Status da Devolução / Reembolso',
+              'Status da Devolucao / Reembolso',
+              'Status de Devolução e Reembolso',
+              'Status de Devolucao e Reembolso',
+              'Status devolucao reembolso'
+            ]
+          ) ?? ''
+        ).trim();
         const sobraInformada = normalizarNumeroMeta(
           extrairCampoPlanilha(
             p,
@@ -7866,6 +7879,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           excedenteTexto: faixaInfo.excedenteTexto,
           comprador,
           quantidade,
+          statusDevolucaoReembolso,
           custoMinimo: metaMinimo,
           custoMedio: metaMedio,
           custoMaximo: metaMaximo,
@@ -10805,6 +10819,36 @@ await db
         const linhasAbaixoCusto = pedidosAbaixoCustoMinimo.map(mapearPedidoAbaixoCusto);
         const worksheetAbaixoCusto = criarWorksheet(linhasAbaixoCusto, 'FFFFC7CE', headersAbaixoCusto);
         XLSX.utils.book_append_sheet(workbook, worksheetAbaixoCusto, 'Abaixo Custo Mínimo');
+
+        const pedidosComDevolucao = pedidosProcessados.filter(
+          (pedido) => (pedido.statusDevolucaoReembolso || '').trim() !== ''
+        );
+
+        if (pedidosComDevolucao.length) {
+          const headersDevolucao = [
+            'ID do Pedido',
+            'Comprador',
+            'SKU',
+            'Quantidade',
+            'Subtotal',
+            'Sobra',
+            'Status da Devolução / Reembolso'
+          ];
+
+          const mapearPedidoDevolucao = (pedido) => ({
+            'ID do Pedido': pedido.id,
+            Comprador: pedido.comprador || '',
+            SKU: pedido.sku,
+            Quantidade: Number.isFinite(pedido.quantidade) ? Number(pedido.quantidade) : '',
+            Subtotal: Number(pedido.subtotal.toFixed(2)),
+            Sobra: Number(pedido.sobra.toFixed(2)),
+            'Status da Devolução / Reembolso': pedido.statusDevolucaoReembolso
+          });
+
+          const linhasDevolucao = pedidosComDevolucao.map(mapearPedidoDevolucao);
+          const worksheetDevolucao = criarWorksheet(linhasDevolucao, null, headersDevolucao);
+          XLSX.utils.book_append_sheet(workbook, worksheetDevolucao, 'Devolucao Reembolso');
+        }
 
         const nomeArquivo = `relatorio_sobras_${new Date().toISOString().slice(0,10)}.xlsx`;
         XLSX.writeFile(workbook, nomeArquivo, { cellStyles: true });
