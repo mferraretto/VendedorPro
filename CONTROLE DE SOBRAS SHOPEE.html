@@ -7757,6 +7757,19 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
         if (!sku || status.includes('cancelado') || status.includes('não pago')) return;
 
         const headerMap = buildHeaderMap(p);
+        const statusDevolucaoReembolso = String(
+          extrairCampoPlanilha(
+            p,
+            headerMap,
+            [
+              'Status da Devolução / Reembolso',
+              'Status da Devolucao / Reembolso',
+              'Status da devolução / reembolso',
+              'Status devolução/reembolso'
+            ]
+          ) || ''
+        ).trim();
+
         const sobraInformada = normalizarNumeroMeta(
           extrairCampoPlanilha(
             p,
@@ -7848,6 +7861,7 @@ function extrairLinhaTiny(row, { dataReferencia } = {}) {
           meta,
           percentual,
           status,
+          statusDevolucaoReembolso,
           prazo,
           faixa: faixaInfo.label,
           detalheFaixa: faixaInfo.detalhe,
@@ -10485,6 +10499,8 @@ await db
           5: 'FFC6EFCE'    // verde claro
         };
 
+        const headersDevolucao = [...headers, 'Status Devolução/Reembolso'];
+
         const isAbaixoCustoMinimo = (pedido) => {
           if (!pedido.abaixoCustoMinimo || !Number.isFinite(pedido.custoMinimo) || pedido.custoMinimo <= 0) {
             return false;
@@ -10520,6 +10536,11 @@ await db
               : ''
           };
         };
+
+        const mapearPedidoComStatusDevolucao = (pedido) => ({
+          ...mapearPedidoParaLinha(pedido),
+          'Status Devolução/Reembolso': pedido.statusDevolucaoReembolso || ''
+        });
 
         const aplicarCabecalhoSeVazio = (worksheet, headerList = headers) => {
           if (worksheet?.['!ref']) return;
@@ -10786,6 +10807,16 @@ await db
           const nomeAba = percentual === 1.5 ? '1,5%' : `${percentual}%`;
           XLSX.utils.book_append_sheet(workbook, worksheet, nomeAba);
         });
+
+        const pedidosComStatusDevolucao = pedidosProcessados.filter(
+          (pedido) => pedido.statusDevolucaoReembolso
+        );
+
+        if (pedidosComStatusDevolucao.length) {
+          const linhasDevolucao = pedidosComStatusDevolucao.map(mapearPedidoComStatusDevolucao);
+          const worksheetDevolucao = criarWorksheet(linhasDevolucao, null, headersDevolucao);
+          XLSX.utils.book_append_sheet(workbook, worksheetDevolucao, 'Devolução/Reembolso');
+        }
 
         const headersAbaixoCusto = [...headers, 'Custo Mínimo', 'Diferença vs Custo Mínimo (%)'];
         const mapearPedidoAbaixoCusto = (pedido) => {
