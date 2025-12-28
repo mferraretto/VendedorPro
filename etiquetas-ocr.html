@@ -159,6 +159,13 @@
     const processingTitle = document.getElementById('processingTitle');
     const processingSubtitle = document.getElementById('processingSubtitle');
     const processingIcon = document.getElementById('processingIcon');
+
+    // === GRID FIXO PARA O CHECKLIST ===
+    const USE_FIXED_GRID = true;     // ativa grid fixo
+    const CELL_W_IN  = 2.0;          // largura da célula em polegadas
+    const CELL_H_IN  = 1.7;          // altura  da célula em polegadas
+    const GRID_ORIGIN_MARGIN_PX = 0; // margem opcional (px) a partir do canto superior esquerdo do checklist
+    const FIXED_COLS = [3, 4];       // usar SEMPRE colunas 3 e 4 (1-indexed)
     const processingClose = document.getElementById('processingClose');
 
     processingModalCard.dataset.status = 'idle';
@@ -344,6 +351,7 @@ firebase.auth().onAuthStateChanged(async u => {
 
     async function extractSkuQuantitiesFromCanvas(canvas, info) {
       const ctxInfo = info || {};
+      const effectiveDpi = Math.max(1, ctxInfo.effectiveDpi || 72);
       console.groupCollapsed('[OCR] Iniciando reconhecimento', ctxInfo);
       console.time('[OCR] tempo');
       const { data } = await Tesseract.recognize(canvas, 'por+eng');
@@ -453,6 +461,30 @@ firebase.auth().onAuthStateChanged(async u => {
       try {
         const words = Array.isArray(data?.words) ? data.words : [];
         const W = canvas.width, H = canvas.height;
+        let bounds = [];
+        if (USE_FIXED_GRID) {
+          const cellW = Math.max(1, Math.round(CELL_W_IN * effectiveDpi));
+          const cellH = Math.max(1, Math.round(CELL_H_IN * effectiveDpi));
+          const gx0 = GRID_ORIGIN_MARGIN_PX;
+          const gy0 = GRID_ORIGIN_MARGIN_PX;
+          const maxCols = Math.floor((W - gx0) / cellW);
+          const maxRows = Math.floor((H - gy0) / cellH);
+          const requiredCol = FIXED_COLS.length ? Math.max(...FIXED_COLS) : 0;
+          if (requiredCol > 0 && maxCols >= requiredCol && maxRows >= 1) {
+            for (const colIdx of FIXED_COLS) {
+              const left = gx0 + (colIdx - 1) * cellW;
+              const right = left + cellW;
+              bounds.push({ key: colIdx === 3 ? 'variacao' : 'quantidade', left, right });
+            }
+          } else {
+            bounds = [
+              { key: 'produto',     left: Math.round(W*0.08), right: Math.round(W*0.55) },
+              { key: 'sku',         left: Math.round(W*0.56), right: Math.round(W*0.66) },
+              { key: 'variacao',    left: Math.round(W*0.66), right: Math.round(W*0.83) },
+              { key: 'quantidade',  left: Math.round(W*0.83), right: Math.round(W*0.97) },
+            ];
+          }
+        }
         function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
         const headerZoneY = H * 0.45; // cabeçalho costuma ficar no topo da área
         const headers = { produto: null, sku: null, variacao: null, quantidade: null };
@@ -465,29 +497,30 @@ firebase.auth().onAuthStateChanged(async u => {
           if (!headers.variacao && (t === 'variacao' || t === 'variacao:')) headers.variacao = w;
           if (!headers.quantidade && (t === 'quantidade' || t === 'quantidade:')) headers.quantidade = w;
         }
-        // Limites em X das colunas
-        const xPos = [];
-        if (headers.produto?.bbox?.x0 != null) xPos.push({ key: 'produto', x: headers.produto.bbox.x0 });
-        if (headers.sku?.bbox?.x0 != null) xPos.push({ key: 'sku', x: headers.sku.bbox.x0 });
-        if (headers.variacao?.bbox?.x0 != null) xPos.push({ key: 'variacao', x: headers.variacao.bbox.x0 });
-        if (headers.quantidade?.bbox?.x0 != null) xPos.push({ key: 'quantidade', x: headers.quantidade.bbox.x0 });
-        xPos.sort((a,b)=>a.x-b.x);
+        if (!USE_FIXED_GRID) {
+          // Limites em X das colunas
+          const xPos = [];
+          if (headers.produto?.bbox?.x0 != null) xPos.push({ key: 'produto', x: headers.produto.bbox.x0 });
+          if (headers.sku?.bbox?.x0 != null) xPos.push({ key: 'sku', x: headers.sku.bbox.x0 });
+          if (headers.variacao?.bbox?.x0 != null) xPos.push({ key: 'variacao', x: headers.variacao.bbox.x0 });
+          if (headers.quantidade?.bbox?.x0 != null) xPos.push({ key: 'quantidade', x: headers.quantidade.bbox.x0 });
+          xPos.sort((a,b)=>a.x-b.x);
 
-        let bounds = [];
-        if (xPos.length >= 3) {
-          for (let i=0;i<xPos.length;i++){
-            const left = xPos[i].x - 40; // margem
-            const right = (xPos[i+1]?.x ?? (W-10)) - 10;
-            bounds.push({ key: xPos[i].key, left: Math.max(0,left), right: Math.min(W,right) });
+          if (xPos.length >= 3) {
+            for (let i=0;i<xPos.length;i++){
+              const left = xPos[i].x - 40; // margem
+              const right = (xPos[i+1]?.x ?? (W-10)) - 10;
+              bounds.push({ key: xPos[i].key, left: Math.max(0,left), right: Math.min(W,right) });
+            }
+          } else {
+            // fallback: frações fixas
+            bounds = [
+              { key: 'produto', left: Math.round(W*0.08), right: Math.round(W*0.55) },
+              { key: 'sku', left: Math.round(W*0.56), right: Math.round(W*0.66) },
+              { key: 'variacao', left: Math.round(W*0.66), right: Math.round(W*0.83) },
+              { key: 'quantidade', left: Math.round(W*0.83), right: Math.round(W*0.97) },
+            ];
           }
-        } else {
-          // fallback: frações fixas
-          bounds = [
-            { key: 'produto', left: Math.round(W*0.08), right: Math.round(W*0.55) },
-            { key: 'sku', left: Math.round(W*0.56), right: Math.round(W*0.66) },
-            { key: 'variacao', left: Math.round(W*0.66), right: Math.round(W*0.83) },
-            { key: 'quantidade', left: Math.round(W*0.83), right: Math.round(W*0.97) },
-          ];
         }
 
         const headerMaxY = Math.max(
@@ -527,9 +560,10 @@ firebase.auth().onAuthStateChanged(async u => {
         const skuLine = (colFirst.sku || '').trim();
         const qtyLine = (colFirst.quantidade || '').trim();
         if (skuLine || qtyLine) {
-          footerOneLine = `SKU: ${skuLine} | Quantidade: ${qtyLine}`
-            .replace(/\s+\|\s+$/, '')
-            .trim();
+          const footerParts = [];
+          if (skuLine) footerParts.push(`SKU: ${skuLine}`);
+          if (qtyLine) footerParts.push(`Quantidade: ${qtyLine}`);
+          footerOneLine = footerParts.join(' | ');
         }
       } catch (e) {
         console.warn('[OCR] Falha ao segmentar colunas:', e);
@@ -786,6 +820,8 @@ firebase.auth().onAuthStateChanged(async u => {
           const scale = 6;
           const viewport = page.getViewport({ scale });
 
+          const RENDER_DPI = 72 * scale;   // pdf.js renderiza em 72 * scale DPI
+
           canvas.width = viewport.width;
           canvas.height = viewport.height;
 
@@ -841,7 +877,8 @@ firebase.auth().onAuthStateChanged(async u => {
             const chkCanvas = document.createElement("canvas");
             const deslocamentoY = 60;
             const novaAlturaChecklist = Math.max(alturaChecklist - deslocamentoY, 100);
-            const scaleChecklist = 7;
+            const scaleChecklist = 1;
+            const EFFECTIVE_DPI = RENDER_DPI * scaleChecklist;
             chkCanvas.width = Math.floor(colWidth * scaleChecklist);
             chkCanvas.height = Math.floor(novaAlturaChecklist * scaleChecklist);
             const chkCtx = chkCanvas.getContext("2d");
@@ -876,7 +913,7 @@ firebase.auth().onAuthStateChanged(async u => {
             });
             console.groupEnd();
 
-            const extracted = await extractSkuQuantitiesFromCanvas(chkCanvas, { pagina: i + 1, par });
+            const extracted = await extractSkuQuantitiesFromCanvas(chkCanvas, { pagina: i + 1, par, effectiveDpi: EFFECTIVE_DPI });
             const numeroEtiquetaAtual = proximoNumeroEtiqueta;
             proximoNumeroEtiqueta++;
 
