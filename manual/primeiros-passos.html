@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manual VendedorPro • Primeiros Passos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../css/styles.css?v=20240826" />
+</head>
+<body class="bg-slate-50 text-slate-700">
+  <div class="app-container">
+    <div id="sidebar-container"></div>
+    <div id="navbar-container"></div>
+    <div class="main-content">
+      <header class="border-b border-orange-200 bg-gradient-to-r from-orange-50 via-white to-orange-100">
+        <div class="max-w-5xl mx-auto px-6 py-12">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-orange-500">Manual do Sistema</p>
+              <h1 class="mt-3 text-3xl md:text-4xl font-bold text-slate-900">Primeiros passos no VendedorPro</h1>
+              <p class="mt-3 max-w-2xl text-sm md:text-base text-slate-600">
+                O primeiro acesso ao VendedorPro começa pelo cadastro das informações básicas dos seus produtos. Este guia mostra
+                como preencher a planilha de precificação, importar para o sistema e, se preferir, registrar preços de forma
+                individual diretamente no módulo de precificação.
+              </p>
+            </div>
+            <div class="flex flex-col gap-3 text-sm">
+              <a href="./index.html" class="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-white px-4 py-2 font-semibold text-orange-600 shadow-sm transition hover:border-orange-300 hover:bg-orange-50">
+                <i class="fa-solid fa-arrow-left"></i>
+                Voltar para a Central de Guias
+              </a>
+              <a href="https://www.provendedor.com.br/produtos-precos.html" class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 font-semibold text-white shadow hover:bg-orange-600">
+                <i class="fa-solid fa-tag"></i>
+                Abrir Precificação no sistema
+              </a>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="max-w-5xl mx-auto px-6 py-10 space-y-12">
+        <section class="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div class="rounded-2xl border border-orange-100 bg-white/80 p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Resumo rápido</h2>
+            <p class="mt-3 text-sm leading-relaxed text-slate-600">
+              Antes de usar qualquer módulo analítico, cadastre seus produtos com SKU, custos e taxas. Utilize a aba
+              <strong>Precificação</strong> para importar uma planilha completa ou calcular preços marketplace por marketplace.
+              Somente após salvar esses dados o restante do ecossistema (dashboards, relatórios e alertas) conseguirá usar seus
+              custos reais.
+            </p>
+          </div>
+          <aside class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-orange-500">Perguntas respondidas aqui</h3>
+            <ul class="mt-3 space-y-2 text-sm text-slate-600">
+              <li><i class="fa-solid fa-circle-check text-orange-400"></i> Qual é o primeiro passo ao acessar o VendedorPro?</li>
+              <li><i class="fa-solid fa-circle-check text-orange-400"></i> Como preencher a planilha de precificação?</li>
+              <li><i class="fa-solid fa-circle-check text-orange-400"></i> Como importar produtos em massa?</li>
+              <li><i class="fa-solid fa-circle-check text-orange-400"></i> Dá para cadastrar preços manualmente?</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section aria-labelledby="acesso-precificacao">
+          <div class="flex items-center gap-3 text-orange-500">
+            <i class="fa-solid fa-rocket-launch text-xl"></i>
+            <h2 id="acesso-precificacao" class="text-xl md:text-2xl font-semibold text-slate-900">1. Acesse a aba Precificação</h2>
+          </div>
+          <p class="mt-3 max-w-3xl text-sm md:text-base text-slate-600">
+            No menu lateral do sistema, abra o módulo <strong>Precificação</strong>. É nele que você registra os dados base dos
+            produtos. Ao entrar pela primeira vez, o sistema exibirá cards com cada marketplace integrado. Você pode utilizar a
+            planilha modelo para importar tudo de uma vez ou preencher card a card.
+          </p>
+          <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800 shadow-sm">
+            <h3 class="text-base font-semibold">Requisitos obrigatórios para seguir</h3>
+            <ul class="mt-3 space-y-2 text-sm">
+              <li class="flex items-start gap-2"><i class="fa-solid fa-circle-info mt-1"></i><span>Tenha sua lista de produtos com códigos (SKU) atualizada.</span></li>
+              <li class="flex items-start gap-2"><i class="fa-solid fa-circle-info mt-1"></i><span>Separe os custos unitários e taxas de cada marketplace.</span></li>
+              <li class="flex items-start gap-2"><i class="fa-solid fa-circle-info mt-1"></i><span>Baixe o modelo oficial de planilha caso opte pela importação em massa.</span></li>
+            </ul>
+          </div>
+        </section>
+
+        <section aria-labelledby="importacao-massa" class="space-y-6">
+          <div class="flex items-center gap-3 text-orange-500">
+            <i class="fa-solid fa-file-spreadsheet text-xl"></i>
+            <h2 id="importacao-massa" class="text-xl md:text-2xl font-semibold text-slate-900">2. Importação e precificação em massa</h2>
+          </div>
+          <p class="max-w-3xl text-sm md:text-base text-slate-600">
+            Para agilizar o cadastro inicial, utilize a seção <strong>Importar Produtos</strong> dentro da aba Precificação. O
+            botão <em>Baixar modelo</em> entrega a planilha com cabeçalhos corretos. Preencha todas as colunas abaixo antes de
+            fazer o upload em <strong>Planilha de Produtos (.xlsx)</strong>.
+          </p>
+          <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">Colunas obrigatórias do arquivo</h3>
+            <div class="mt-4 overflow-x-auto">
+              <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+                <thead class="bg-slate-100 text-slate-700">
+                  <tr>
+                    <th class="px-4 py-2 font-semibold">Produto</th>
+                    <th class="px-4 py-2 font-semibold">SKU</th>
+                    <th class="px-4 py-2 font-semibold">Plataforma</th>
+                    <th class="px-4 py-2 font-semibold">Custo (R$)</th>
+                    <th class="px-4 py-2 font-semibold">Taxas da Plataforma (%)</th>
+                    <th class="px-4 py-2 font-semibold">Custo Fixo Plataforma (R$)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr class="bg-white/60">
+                    <td class="px-4 py-2 text-slate-600">Nome comercial do item</td>
+                    <td class="px-4 py-2 text-slate-600">Código único que identifica o produto</td>
+                    <td class="px-4 py-2 text-slate-600">Marketplace onde será vendido</td>
+                    <td class="px-4 py-2 text-slate-600">Custo total para adquirir ou produzir</td>
+                    <td class="px-4 py-2 text-slate-600">Percentual de comissão ou tarifa</td>
+                    <td class="px-4 py-2 text-slate-600">Valor fixo cobrado por pedido</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">Passo a passo para importar</h3>
+            <ol class="mt-3 space-y-3 text-sm leading-relaxed text-slate-600">
+              <li><strong>Preencha a planilha</strong> com todas as linhas de produtos e marketplaces necessários.</li>
+              <li><strong>Salve em formato XLSX</strong> e verifique se não há filtros ou linhas em branco no meio dos dados.</li>
+              <li>No módulo Precificação, clique em <strong>Escolher arquivo</strong> e selecione sua planilha.</li>
+              <li>Pressione <strong>Importar</strong> e aguarde o processamento. O sistema exibirá uma mensagem confirmando que todas as linhas foram salvas.</li>
+            </ol>
+            <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+              <p class="text-sm">
+                Assim que a importação terminar, os produtos aparecem automaticamente nos cards de cada marketplace. Você pode abrir qualquer item para revisar margens e ajustar preços sugeridos.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        <section aria-labelledby="precificacao-individual" class="space-y-6">
+          <div class="flex items-center gap-3 text-orange-500">
+            <i class="fa-solid fa-hand-pointer text-xl"></i>
+            <h2 id="precificacao-individual" class="text-xl md:text-2xl font-semibold text-slate-900">3. Precificação individual por marketplace</h2>
+          </div>
+          <p class="max-w-3xl text-sm md:text-base text-slate-600">
+            Caso prefira trabalhar produto por produto, localize o card do marketplace desejado dentro da aba Precificação. Cada
+            card permite informar taxas, custos fixos e margem desejada antes de salvar. É uma alternativa ideal para testes ou
+            ajustes rápidos sem mexer em toda a planilha.
+          </p>
+          <div class="grid gap-6 md:grid-cols-2">
+            <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Como utilizar o card</h3>
+              <ul class="mt-3 space-y-2 text-sm text-slate-600">
+                <li class="flex items-start gap-2"><i class="fa-solid fa-bullseye mt-1 text-orange-400"></i><span>Informe a taxa percentual cobrada pelo marketplace.</span></li>
+                <li class="flex items-start gap-2"><i class="fa-solid fa-bullseye mt-1 text-orange-400"></i><span>Adicione custos fixos (ex.: tarifa por pedido, frete subsidiado).</span></li>
+                <li class="flex items-start gap-2"><i class="fa-solid fa-bullseye mt-1 text-orange-400"></i><span>Use o botão <strong>Calcular</strong> para gerar o preço sugerido automaticamente.</span></li>
+              </ul>
+            </article>
+            <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-800 shadow-sm">
+              <h3 class="text-lg font-semibold">Finalize sempre clicando em salvar</h3>
+              <p class="mt-3 text-sm leading-relaxed">
+                Depois de revisar o preço mínimo, clique em <strong>Calcular e Salvar</strong>. O sistema registra as informações
+                para o produto e passa a utilizá-las nos módulos de lucro, promoções e relatórios de desempenho.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section aria-labelledby="checklist-final" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex items-center gap-3 text-orange-500">
+            <i class="fa-solid fa-clipboard-check text-xl"></i>
+            <h2 id="checklist-final" class="text-xl md:text-2xl font-semibold text-slate-900">Checklist de finalização</h2>
+          </div>
+          <ul class="mt-4 space-y-2 text-sm text-slate-600">
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check mt-1 text-emerald-500"></i><span>Planilha importada com todos os produtos e marketplaces necessários.</span></li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check mt-1 text-emerald-500"></i><span>Confirmação do sistema informando que todas as linhas foram salvas.</span></li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check mt-1 text-emerald-500"></i><span>Taxas e custos revisados nos cards de precificação.</span></li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check mt-1 text-emerald-500"></i><span>Preços calculados e salvos para os marketplaces prioritários.</span></li>
+          </ul>
+          <p class="mt-4 text-sm text-slate-500">
+            Com esse passo concluído, o VendedorPro passa a utilizar seus custos reais em relatórios, projeções e alertas
+            automáticos. Continue consultando o manual para aprofundar cada módulo específico.
+          </p>
+        </section>
+      </main>
+
+      <footer class="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
+        Mentoria Matheus Ferraretto &copy; 2025 - Manual do VendedorPro
+      </footer>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js" crossorigin="anonymous" defer></script>
+  <script src="../shared.js"></script>
+</body>
+</html>
