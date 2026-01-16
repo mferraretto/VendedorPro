@@ -13,13 +13,43 @@ service cloud.firestore {
         ];
     }
 
-    match /usuarios/{uid}/comissoes/{anoMes} {
-      allow read, write: if request.auth != null && (request.auth.uid == uid || isGestorOrADM(request.auth.uid));
-      match /saques/{saqueId} {
-        allow read, write: if request.auth != null && (request.auth.uid == uid || isGestorOrADM(request.auth.uid));
-      }
-      match /ajustes/{ajusteId} {
-        allow read, write: if request.auth != null && (request.auth.uid == uid || isGestorOrADM(request.auth.uid));
+    function isResponsavelFinanceiro(uid) {
+      return request.auth.token.email != null &&
+        get(/databases/$(database)/documents/usuarios/$(uid)).data.responsavelFinanceiroEmail == request.auth.token.email;
+    }
+
+    match /usuarios/{uid} {
+      allow read: if request.auth != null && (
+        request.auth.uid == uid ||
+        isGestorOrADM(request.auth.uid) ||
+        (request.auth.token.email != null && request.auth.token.email == resource.data.responsavelFinanceiroEmail)
+      );
+      allow write: if request.auth != null && (request.auth.uid == uid || isGestorOrADM(request.auth.uid));
+
+      match /comissoes/{anoMes} {
+        allow read: if request.auth != null && (
+          request.auth.uid == uid ||
+          isGestorOrADM(request.auth.uid) ||
+          isResponsavelFinanceiro(uid)
+        );
+        allow write: if request.auth != null && (request.auth.uid == uid || isGestorOrADM(request.auth.uid));
+
+        match /saques/{saqueId} {
+          allow read: if request.auth != null && (
+            request.auth.uid == uid ||
+            isGestorOrADM(request.auth.uid) ||
+            isResponsavelFinanceiro(uid)
+          );
+          allow write: if request.auth != null && (request.auth.uid == uid || isGestorOrADM(request.auth.uid));
+        }
+        match /ajustes/{ajusteId} {
+          allow read: if request.auth != null && (
+            request.auth.uid == uid ||
+            isGestorOrADM(request.auth.uid) ||
+            isResponsavelFinanceiro(uid)
+          );
+          allow write: if request.auth != null && (request.auth.uid == uid || isGestorOrADM(request.auth.uid));
+        }
       }
     }
 
